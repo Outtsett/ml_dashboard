@@ -22,8 +22,9 @@ A bar stands out for any of five reasons (thresholds in the ``rules`` table):
 
 Tables (``derived_study_candle_shape_standouts_<table>``):
   standouts         one row per standing-out bar: prices (labelled absolute), lengths in ticks, every
-                    ratio, the reasons, and its time — UTC and New York, trading day, day of the week,
-                    month, hour, minute of the session
+                    ratio, the reasons, and its time — UTC and New York, the CME trading day with its
+                    day of the week, month and year (a Sunday-evening bar belongs to Monday's trading
+                    day, a month's first evening to that month), New York hour, minute of the session
   shape_catalog     one row per shape cell over the whole span: count, share, first and last seen,
                     counts by trading day of the week and by month
   rules             the thresholds and windows above
@@ -49,7 +50,7 @@ from candle_vision.bars import TICK, load  # noqa: E402
 from ta_strategy.store import land  # noqa: E402
 
 DATASET = "study_candle_shape_standouts"
-RECIPE = "mnq_1m_2021_2025h1_v1"
+RECIPE = "mnq_1m_2021_2025h1_v2"  # v2: month and year from the trading day, as the weekday is
 SHAPE_WINDOW_BARS = 20_000
 RANGE_WINDOW_BARS = 60
 RULES = {
@@ -113,9 +114,9 @@ def compute(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
         "trading_day": trading_day.dt.date,
         "trading_day_of_week": trading_day.dt.dayofweek.map(dict(enumerate(WEEKDAYS))),
         "new_york_day_of_week": new_york.dt.dayofweek.map(dict(enumerate(WEEKDAYS))),
-        "month": new_york.dt.month.map(dict(enumerate(MONTHS, start=1))),
-        "month_number": new_york.dt.month.astype(int),
-        "year": new_york.dt.year.astype(int),
+        "month": trading_day.dt.month.map(dict(enumerate(MONTHS, start=1))),
+        "month_number": trading_day.dt.month.astype(int),
+        "year": trading_day.dt.year.astype(int),
         "new_york_hour": new_york.dt.hour.astype(int),
         "minute_of_session": frame["minute_of_session"].astype(int),
         "bars_since_session_break": frame["bars_since_session_break"].astype(int),
@@ -163,7 +164,7 @@ def compute(frame: pd.DataFrame) -> dict[str, pd.DataFrame]:
     catalog["direction"] = parts[0].fillna("no range")
     for k, name in ((1, "body"), (2, "upper_wick"), (3, "lower_wick")):
         catalog[f"{name}_tenth_of_range"] = pd.to_numeric(parts[k], errors="coerce")
-    by_weekday = pd.crosstab(bars["shape_cell"], bars["trading_day_of_week"]).reindex(columns=WEEKDAYS[:5] + ["sunday"], fill_value=0)
+    by_weekday = pd.crosstab(bars["shape_cell"], bars["trading_day_of_week"]).reindex(columns=WEEKDAYS[:5], fill_value=0)
     by_weekday.columns = [f"{d}_count" for d in by_weekday.columns]
     by_month = pd.crosstab(bars["shape_cell"], bars["month"]).reindex(columns=MONTHS, fill_value=0)
     by_month.columns = [f"{m}_count" for m in by_month.columns]

@@ -114,3 +114,10 @@ def test_standout_frame_flags_follow_the_rules():
     long_range = standouts[standouts["long_range"]]
     assert (long_range["range_to_trailing_mean_range_ratio"] >= 4.0).all()
     assert set(tables["rules"]["reason"]) == set(build.RULES)
+
+
+def test_a_doji_at_the_window_edge_gets_a_full_pixel():
+    """A sub-pixel body at the window's high is widened inside the image, not clipped by it."""
+    window = np.array([[[0.0, 1.0, 0.0, 0.5]] * (WINDOW_BARS - 1) + [[1.0, 1.0, 0.9, 1.0]]], dtype=np.float32)
+    image = rasterize(torch.from_numpy(window))[0]
+    assert abs(float(image[1, :, -CANDLE_WIDTH + 1].sum()) - 1.0) < 1e-5

@@ -39,9 +39,13 @@ def rasterize(unit_ohlc: torch.Tensor, height: int = HEIGHT) -> torch.Tensor:
     rows = torch.arange(height, device=unit_ohlc.device, dtype=unit_ohlc.dtype)
 
     def cover(bottom: torch.Tensor, top: torch.Tensor) -> torch.Tensor:
-        middle = ((bottom + top) / 2).unsqueeze(-1)
-        half = ((top - bottom) / 2).clamp_min(0.5).unsqueeze(-1)
-        return (torch.minimum(middle + half, rows + 1) - torch.maximum(middle - half, rows)).clamp_(0, 1)
+        half = ((top - bottom) / 2).clamp_min(0.5)
+        # a span widened to one pixel is kept inside the image, so a doji at the window's high or low
+        # gets a full pixel of ink like one drawn anywhere else
+        low = ((bottom + top) / 2 - half).clamp(min=0.0)
+        low = torch.minimum(low, height - 2 * half).unsqueeze(-1)
+        high = low + 2 * half.unsqueeze(-1)
+        return (torch.minimum(high, rows + 1) - torch.maximum(low, rows)).clamp_(0, 1)
 
     wick = cover(l, h)
     body = cover(torch.minimum(o, c), torch.maximum(o, c))

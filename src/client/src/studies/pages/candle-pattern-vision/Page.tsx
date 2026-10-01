@@ -5,10 +5,10 @@
 
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  AXIS, ColumnGrid, ControlBar, FormulaCard, GRID, Heatmap, OKABE, Section, SegmentControl, SelectControl, SliderControl, Stat,
+  AXIS, ColumnGrid, ControlBar, FormulaCard, GRID, OKABE, Section, SegmentControl, SelectControl, SliderControl, Stat,
   StudyNotes, StudyState, TOOLTIP, Finding, fmt, fmtInt, fmtTime, useStudyControls, useStudyQuery,
 } from "@/studies/kit";
-import type { ClassMetric, Exemplar, VisionBody } from "@shared/studies/candle-pattern-vision";
+import type { ClassMetric, ConfusionCell, Exemplar, VisionBody } from "@shared/studies/candle-pattern-vision";
 
 const KIND_ORDER: Exemplar["kind"][] = ["real hit", "real miss", "real false alarm", "synthetic hit"];
 const KIND_NOTE: Record<Exemplar["kind"], string> = {
@@ -20,6 +20,47 @@ const KIND_NOTE: Record<Exemplar["kind"], string> = {
 
 function num(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Rows = the pattern TA-Lib fired, columns = every pattern the model called; cividis by share, a
+ *  printed value where it is large enough to read, the full names in each cell's tooltip. */
+function ConfusionMatrix({ cells, rows, columns, selected, onSelect }: {
+  cells: ConfusionCell[]; rows: string[]; columns: string[]; selected: string; onSelect: (pattern: string) => void;
+}) {
+  const size = 14, left = 130, top = 120;
+  const lookup = new Map(cells.map((cell) => [`${cell.true_pattern}|${cell.called_pattern}`, cell]));
+  const colour = (share: number) => {
+    const t = Math.sqrt(Math.min(1, share / 100));
+    const stops = [[0, 32, 77], [124, 123, 120], [255, 234, 70]];
+    const [a, b, u] = t < 0.5 ? [stops[0], stops[1], t * 2] : [stops[1], stops[2], (t - 0.5) * 2];
+    return `rgb(${(a as number[]).map((v, k) => Math.round(v + (((b as number[])[k] as number) - v) * (u as number))).join(",")})`;
+  };
+  return (
+    <div className="overflow-x-auto">
+      <svg width={left + columns.length * size + 10} height={top + rows.length * size + 10} role="img" aria-label="pattern confusion matrix">
+        {columns.map((name, c) => (
+          <text key={name} transform={`translate(${left + c * size + size / 2 + 3},${top - 4}) rotate(-60)`} fontSize={9}
+            fill={name === selected ? OKABE.orange : "#a3a3a3"}>{name}</text>
+        ))}
+        {rows.map((rowName, r) => (
+          <g key={rowName}>
+            <text x={left - 4} y={top + r * size + size - 3} fontSize={9} textAnchor="end" className="cursor-pointer"
+              fill={rowName === selected ? OKABE.orange : "#a3a3a3"} onClick={() => onSelect(rowName)}>{rowName}</text>
+            {columns.map((columnName, c) => {
+              const cell = lookup.get(`${rowName}|${columnName}`);
+              const share = cell?.model_share_percent ?? 0;
+              return (
+                <rect key={columnName} x={left + c * size} y={top + r * size} width={size - 1} height={size - 1}
+                  fill={share > 0 ? colour(share) : "#141414"} stroke={rowName === columnName ? "#e5e5e5" : "none"} strokeWidth={0.6}>
+                  <title>{`TA-Lib fired ${rowName} on ${fmtInt(cell?.bars_with_true_pattern ?? lookup.get(`${rowName}|${rowName}`)?.bars_with_true_pattern)} real test bars; the model called ${columnName} on ${fmt(share, 2)}% of them (TA-Lib itself fired ${columnName} on ${fmt(cell?.talib_share_percent ?? 0, 2)}%)`}</title>
+                </rect>
+              );
+            })}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
 }
 
 export default function Page() {
@@ -47,9 +88,8 @@ export default function Page() {
     .filter((cell) => cell.true_pattern === pattern)
     .sort((a, b) => b.model_share_percent - a.model_share_percent)
     .slice(0, 14);
-  const patterns = [...new Set((body?.confusion ?? []).map((cell) => cell.true_pattern))].sort();
-  const lookup = new Map((body?.confusion ?? []).map((cell) => [`${cell.true_pattern}|${cell.called_pattern}`, cell.model_share_percent]));
-  const confusionMatrix = patterns.map((a) => patterns.map((b) => lookup.get(`${a}|${b}`) ?? 0));
+  const truePatterns = [...new Set((body?.confusion ?? []).map((cell) => cell.true_pattern))].sort();
+  const calledPatterns = [...new Set((body?.confusion ?? []).flatMap((cell) => [cell.true_pattern, cell.called_pattern]))].sort();
   const sampleRows = classNames.map((name) => {
     const count = (split: string, source: string) => (body?.samples ?? []).find((s) => s.class_name === name && s.split === split && s.source === source)?.windows ?? 0;
     return { class_name: name, train_real: count("train", "real"), train_synthetic: count("train", "synthetic"), test_real: count("test", "real"), test_synthetic: count("test", "synthetic") };
@@ -201,9 +241,10 @@ export default function Page() {
         </Section>
 
         <Section title="E. Pattern against pattern" question="Real test bars: row = the pattern TA-Lib fired, column = the pattern the model called, colour = percent of the row's bars. The diagonal is recall; hover a cell for its value.">
-          <div className="overflow-x-auto">
-            <Heatmap data={confusionMatrix} rowLabels={patterns} colLabels={patterns} colorRange={["#00204d", "#7c7b78", "#ffea46"]} width={1100} height={1000} />
-          </div>
+          <ConfusionMatrix cells={body?.confusion ?? []} rows={truePatterns} columns={calledPatterns} selected={pattern} onSelect={(p) => {
+            const match = classNames.find((name) => name.startsWith(`${p}:`));
+            if (match) set("className", match);
+          }} />
         </Section>
 
         <Section title="F. Charts per pattern" question="Real windows and the synthetic top-up per class; the train floor is the runner's train_minimum.">

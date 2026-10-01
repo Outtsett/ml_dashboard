@@ -67,8 +67,18 @@ function ratePerThousand(cells: CalendarCell[], catalog: ShapeCatalogRow[], keys
 }
 
 function ShapeMap({ catalog, direction }: { catalog: ShapeCatalogRow[]; direction: string }) {
-  const cells = catalog.filter((row) => row.direction === direction);
-  const lookup = new Map(cells.map((row) => [`${row.body_tenth_of_range}|${row.upper_wick_tenth_of_range}`, row]));
+  // one square per (body, upper wick) pair: the catalog's lower-wick variants of the pair are summed
+  const lookup = new Map<string, { shape_cell: string; bar_count: number; standout_count: number; share_percent: number; variants: string[] }>();
+  for (const row of catalog.filter((r) => r.direction === direction)) {
+    const key = `${row.body_tenth_of_range}|${row.upper_wick_tenth_of_range}`;
+    const square = lookup.get(key) ?? { shape_cell: `${direction} b${row.body_tenth_of_range} u${row.upper_wick_tenth_of_range}`, bar_count: 0, standout_count: 0, share_percent: 0, variants: [] };
+    square.bar_count += row.bar_count;
+    square.standout_count += row.standout_count;
+    square.share_percent += row.share_percent;
+    square.variants.push(`lower ${row.lower_wick_tenth_of_range}/10: ${fmtInt(row.bar_count)}`);
+    lookup.set(key, square);
+  }
+  const cells = [...lookup.values()];
   const size = 30;
   const maxLog = Math.max(1, ...cells.map((row) => Math.log10(row.bar_count + 1)));
   return (
@@ -82,7 +92,7 @@ function ShapeMap({ catalog, direction }: { catalog: ShapeCatalogRow[]; directio
           return (
             <g key={`${body}-${upper}`}>
               <rect x={x} y={yy} width={size - 1} height={size - 1} fill={fill} stroke={row ? "none" : "#262626"}>
-                <title>{row ? `${row.shape_cell}: ${fmtInt(row.bar_count)} bars (${fmt(row.share_percent, 3)}%), lower wick ${row.lower_wick_tenth_of_range}/10, ${fmtInt(row.standout_count)} standouts` : "never seen"}</title>
+                <title>{row ? `${row.shape_cell}: ${fmtInt(row.bar_count)} bars (${fmt(row.share_percent, 3)}%), ${fmtInt(row.standout_count)} standouts — ${row.variants.join("; ")}` : "never seen"}</title>
               </rect>
               {row && row.bar_count < 50 && <text x={x + size / 2} y={yy + size / 2 + 3} fontSize={9} textAnchor="middle" fill="#fff">{row.bar_count}</text>}
             </g>
@@ -227,7 +237,7 @@ export default function Page() {
           </div>
         </Section>
 
-        <Section title="D. Every shape the candles took" question="Body (across) against upper wick (up); the lower wick is what is left. Colour = how many bars took the cell (log scale); the number printed is the count when under 50.">
+        <Section title="D. Every shape the candles took" question="Body (across) against upper wick (up); the lower wick is what is left (each square sums its lower-wick variants — hover for them). Colour = how many bars took the square (log scale); the number printed is the count when under 50.">
           <ControlBar>
             <SegmentControl label="Direction" value={controls.direction} onChange={(v) => set("direction", v)}
               options={[{ value: "rising", label: "▲ Rising" }, { value: "falling", label: "▼ Falling" }, { value: "flat", label: "◆ Flat" }]} />
