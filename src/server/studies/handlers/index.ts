@@ -3,9 +3,11 @@ import type { StudyHandler } from "../types";
 import candlePatternScorecard from "./candle-pattern-scorecard";
 import candlePatternVision from "./candle-pattern-vision";
 import candleShapeStandouts from "./candle-shape-standouts";
+import candlestickPatternImages from "./candlestick-pattern-images";
 
 export const STUDY_HANDLERS: StudyHandler[] = [
   candlePatternScorecard as StudyHandler,
   candlePatternVision as StudyHandler,
   candleShapeStandouts as StudyHandler,
+  candlestickPatternImages as StudyHandler,
 ];
