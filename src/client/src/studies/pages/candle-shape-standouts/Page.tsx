@@ -66,6 +66,13 @@ function ratePerThousand(cells: CalendarCell[], catalog: ShapeCatalogRow[], keys
   });
 }
 
+/** Cividis (dark blue -> grey -> yellow) at t in [0, 1]: readable with deuteranopia, no green. */
+function cividis(t: number): string {
+  const stops = [[0, 32, 77], [124, 123, 120], [255, 234, 70]] as const;
+  const [a, b, u] = t < 0.5 ? [stops[0], stops[1], t * 2] : [stops[1], stops[2], (t - 0.5) * 2];
+  return `rgb(${a.map((v, k) => Math.round(v + ((b[k] as number) - v) * u)).join(",")})`;
+}
+
 function ShapeMap({ catalog, direction }: { catalog: ShapeCatalogRow[]; direction: string }) {
   // one square per (body, upper wick) pair: the catalog's lower-wick variants of the pair are summed
   const lookup = new Map<string, { shape_cell: string; bar_count: number; standout_count: number; share_percent: number; variants: string[] }>();
@@ -88,7 +95,7 @@ function ShapeMap({ catalog, direction }: { catalog: ShapeCatalogRow[]; directio
           const row = lookup.get(`${body}|${upper}`);
           const t = row ? Math.log10(row.bar_count + 1) / maxLog : 0;
           const x = 50 + body * size, yy = 10 + (9 - upper) * size;
-          const fill = row ? `hsl(${220 - 170 * t}, ${40 + 50 * t}%, ${18 + 50 * t}%)` : "transparent";
+          const fill = row ? cividis(t) : "transparent";
           return (
             <g key={`${body}-${upper}`}>
               <rect x={x} y={yy} width={size - 1} height={size - 1} fill={fill} stroke={row ? "none" : "#262626"}>
