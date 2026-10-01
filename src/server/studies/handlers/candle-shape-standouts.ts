@@ -35,15 +35,18 @@ const handler: StudyHandler<typeof query, StandoutsBody> = {
   async run(q, context) {
     if ((await missingViews(context, Object.values(STANDOUT_VIEWS))).length > 0) return EMPTY;
     const view = ident(STANDOUT_VIEWS.standouts);
-    const conditions = [q.reason === "any" ? "reason_count > 0" : `${ident(q.reason)}`];
+    // each build lands a new recipe (write-once) and the views union them all: read the newest only
+    const recipes = await context.lake.query<{ recipe: string }>(`SELECT max(recipe) AS recipe FROM ${ident(STANDOUT_VIEWS.rules)}`);
+    const recipe = text(recipes[0]?.recipe ?? "");
+    const conditions = [`recipe = ${recipe}`, q.reason === "any" ? "reason_count > 0" : `${ident(q.reason)}`];
     const calendarWhere = conditions.join(" AND ");
     if (q.weekday !== "all") conditions.push(`trading_day_of_week = ${text(q.weekday)}`);
     if (q.month !== "all") conditions.push(`month = ${text(q.month)}`);
     const where = conditions.join(" AND ");
     const ascending = q.sort === "trailing_shape_share_percent";
     const [rules, catalog, weekdayByMonth, weekdayByHour, rows, sample, count] = await Promise.all([
-      context.lake.query<RuleRow>(`SELECT * EXCLUDE (recipe) FROM ${ident(STANDOUT_VIEWS.rules)}`),
-      context.lake.query<ShapeCatalogRow>(`SELECT * EXCLUDE (recipe) FROM ${ident(STANDOUT_VIEWS.catalog)} ORDER BY bar_count`),
+      context.lake.query<RuleRow>(`SELECT * EXCLUDE (recipe) FROM ${ident(STANDOUT_VIEWS.rules)} WHERE recipe = ${recipe}`),
+      context.lake.query<ShapeCatalogRow>(`SELECT * EXCLUDE (recipe) FROM ${ident(STANDOUT_VIEWS.catalog)} WHERE recipe = ${recipe} ORDER BY bar_count`),
       context.lake.query<CalendarCell>(
         `SELECT trading_day_of_week AS row_key, month AS column_key, count(*)::INTEGER AS standout_count FROM ${view} WHERE ${calendarWhere} GROUP BY 1, 2`),
       context.lake.query<CalendarCell>(
