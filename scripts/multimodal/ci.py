@@ -1,7 +1,7 @@
 """Continuous-integration gate for the multimodal project: every step ends green here.
 
 Runs, in order, and stops at the first failure:
-    1. ruff over the project's Python (src/ml/multimodal, scripts/multimodal)
+    1. ruff over the project's Python (packages/ml-engine/src/multimodal, scripts/multimodal)
     2. pytest over tests/test_multimodal_*.py (unit, causality and leakage tests,
        the holdout guard)
     3. the holdout state: looks taken must not exceed the budget
@@ -33,7 +33,7 @@ def step(name: str, command: list[str]) -> bool:
 def main() -> int:
     tests = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tests").glob("test_multimodal_*.py"))
     checks = [
-        ("lint", [PYTHON, "-m", "ruff", "check", "src/ml/multimodal", "scripts/multimodal"]),
+        ("lint", [PYTHON, "-m", "ruff", "check", "packages/ml-engine/src/multimodal", "scripts/multimodal"]),
         ("tests", [PYTHON, "-m", "pytest", "-q", *tests]),
     ]
     for name, command in checks:

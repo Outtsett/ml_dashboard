@@ -13,13 +13,12 @@ rule. Config: `src/config/live.json`. Plan of record:
 |---|---|---|---|
 | OANDA v20 pricing stream (practice account) | 18 forex pairs, bid/ask ticks → 1-minute mid bars; M1 candle backfill of the last `barHistoryDays` (14) on start | real time (~4 msg/s per pair) | `raw/vendor=oanda/dataset=pricing-stream`, `candles-m1-mid`; bars → `derived/live_bars` |
 | Yahoo chart API (`<root>=F`, `DX-Y.NYB`) | ES NQ YM RTY MES MNQ MYM M2K GC SI HG ZT ZF ZN ZB DXY, 1-minute bars | **delayed ~9 min** (measured 545 s) | `raw/vendor=yahoo/dataset=chart-1m`; bars → `derived/live_bars` |
-| Quantower DomFlow tape (`E:\qtcapture`) | AMP/CQG futures trades → 1-minute bars | real time, **only while AMP Quantower runs DomFlow with its Tape root set** | the tape itself is promoted by `datalake/scripts/build_from_tape.py`; bars → `derived/live_bars` |
 | RSS: InvestingLive, FXStreet, Investing.com, Yahoo Finance, Federal Reserve, ECB, BLS | headlines | 1–5 min polls, conditional GET | `raw/vendor=rss`; rows → `curated/news_articles` |
 | Alpha Vantage NEWS_SENTIMENT (free key, `ALPHA_VANTAGE_API_KEY`) | 8-way rotation (4 topics, 4 FOREX tickers) | one call every ~58 min: **25 calls/day**, ledger in `spool/alphavantage.json`; a refusal pauses it to the next UTC day | `raw/vendor=alphavantage`; rows → `curated/news_articles` (Alpha Vantage's own sentiment kept in raw only) |
 | GDELT DOC 2.0 | 68 rules from `lake.news` (macro, index, constituent, currency, commodity, rates): a sweep every 15 min over the last 60 min, then a history backfill walking back to `backfillFrom` (2024-01-01) in 7-day windows | crawl time in 15-min buckets (known at bucket + 15 min) | `raw/vendor=gdelt`; sweep rows → today's spool; backfill → `curated/news_articles` + `curated/news_coverage` every 30 days of history |
 
 **CME/CBOT live is delayed.** The OANDA account holds only currency instruments
-(68, no CFDs), so real-time futures exist only while Quantower records; Yahoo
+(68, no CFDs), so real-time futures exist only via historical backfill; Yahoo
 fills in ~9 minutes behind. A real-time CME feed would be a paid subscription
 (Databento), declined 2026-09-28.
 
@@ -62,7 +61,7 @@ GDELT's raw bucket stamp, which would read as known 15 minutes early.
   rows into the curated contracts in one write each; a day whose write failed is
   retried at every later flush.
 - **bars** — one row per (symbol, minute); a better-ranked source
-  (`Hub.RANK`: quantower 3 > oanda 2 > yahoo 1) replaces a worse one, never the
+  (`Hub.RANK`: oanda 2 > yahoo 1) replaces a worse one, never the
   reverse, in memory and in the lake. A bar **date** lands once, 30 minutes after
   it ends (`barLandGraceMinutes`), and never before the hub has run 15 minutes and every
   startup backfill (OANDA 14 days, Yahoo 7 days) has reported done (ceiling 1 h), into `derived/live_bars/recipe=live_<vendor>_<yyyymmdd>`

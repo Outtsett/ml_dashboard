@@ -1,5 +1,5 @@
 /**
- * `src/shared/analytics/compute.ts` — the four analytics layers.
+ * `packages/shared/src/analytics/compute.ts` — the four analytics layers.
  *
  * The properties that make the numbers trustworthy: trailing statistics are
  * causal (a bar's state does not change when later bars are added), session
@@ -19,8 +19,8 @@ import {
   prescribe,
   sessionDay,
   wilson,
-} from "../../src/shared/analytics/compute";
-import type { AnalyticsBar, AnalyticsCost, AnalyticsNewsItem, ModelRunSummary } from "../../src/shared/analytics/types";
+} from "../../packages/shared/src/analytics/compute";
+import type { AnalyticsBar, AnalyticsCost, AnalyticsNewsItem, ModelRunSummary } from "../../packages/shared/src/analytics/types";
 
 const MINUTE = 60_000;
 const START = Date.UTC(2025, 10, 3, 7, 0); // a Monday

@@ -1,0 +1,90 @@
+"""FastMCP server definition for ml_dashboard databases.
+
+Exposes read-only tools for SQLite (app metadata)
+via streamable HTTP transport with optional bearer token auth.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from .db import sqlite_conn
+from .tools import sqlite_tools
+
+logger = logging.getLogger("mcp_server")
+
+
+@asynccontextmanager
+async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
+    """Initialize database connections on startup, close on shutdown."""
+    logger.info("Starting MCP server lifespan — initializing database connections")
+    conn = sqlite_conn.get_conn()
+    # Pre-cache SQLite table list
+    sqlite_conn.get_tables()
+    logger.info("Database connections ready")
+    try:
+        yield {"sqlite_conn": conn}
+    finally:
+        sqlite_conn.close_conn()
+        logger.info("Database connections closed")
+
+
+def create_server() -> FastMCP:
+    """Create and configure the FastMCP server with all tools."""
+    auth = None
+    base_url = os.environ.get("MCP_BASE_URL", "").strip()
+
+    if base_url:
+        # Full OAuth provider for Claude.ai web (requires public base URL)
+        from .db.oauth_store import AutoApproveOAuthProvider
+
+        auth = AutoApproveOAuthProvider(base_url=base_url)
+        logger.info("OAuth auth enabled (base_url=%s)", base_url)
+    else:
+        logger.info("No MCP_BASE_URL set — running without auth (stdio/local mode)")
+
+    mcp = FastMCP(
+        name="ml_dashboard",
+        instructions=(
+            "ML Dashboard database server providing read-only access to two databases:\n\n"
+            "1. **SQLite** (app metadata): ML model registry, training sessions with epoch-level metrics, "
+            "feature sets, feature importance rankings, backtest runs and trades, "
+            "ensemble configs, instruments, news articles, HPO sessions/trials, "
+            "and user preferences. ~30 tables. Use sqlite_* tools.\n\n"
+            "Start with sqlite_tables() to discover available data. "
+            
+        ),
+        version="1.0.0",
+        auth=auth,
+        lifespan=lifespan,
+    )
+
+    # Register tool modules
+    sqlite_tools.register(mcp)
+
+    # Health check endpoint
+    @mcp.custom_route("/health", methods=["GET"])
+    async def health_check(request: Request) -> JSONResponse:
+        sqlite_ok = sqlite_conn.health_check()
+        status = "ok" if sqlite_ok else "degraded"
+        return JSONResponse(
+            {
+                "status": status,
+                "server": "ml_dashboard_mcp",
+                "databases": {
+                    "sqlite": "connected" if sqlite_ok else "disconnected",
+                },
+            },
+            status_code=200 if status == "ok" else 503,
+        )
+
+    return mcp
+
+
+

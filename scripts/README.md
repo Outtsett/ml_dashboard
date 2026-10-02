@@ -55,13 +55,13 @@ tables; running one connects to a dead endpoint. They are queued for deletion.
 | `ingest-oanda.ts` | TypeScript | OANDA API forex streaming over ILP |
 | `ingest-trades.ts` | TypeScript | Trade-level ingestion over ILP |
 | `ingest-mbp10.ts` | TypeScript | MBP-10 order book ingestion over ILP |
-| `upload-trades-questdb.py` | Python | Bulk trade upload over HTTP `/imp` |
-| `dump-questdb-parquet.py` | Python | Export to parquet (superseded — the lake IS parquet) |
-| `cleanup_questdb.py` | Python | Drop non-OHLCV tables |
-| `migrate-questdb-schema.py` | Python | Schema migration |
-| `backup-questdb.py` | Python | Backup (superseded — see the retirement note in `docs/runbooks/`) |
-| `start-questdb.js` | JavaScript | Start the database process |
-| `start-questdb.sh` | Bash | Start the database process (Unix) |
+| `upload-trades-lake.py` | Python | Bulk trade upload over HTTP `/imp` |
+| `dump-lake-parquet.py` | Python | Export to parquet (superseded — the lake IS parquet) |
+| `cleanup_lake.py` | Python | Drop non-OHLCV tables |
+| `migrate-lake-schema.py` | Python | Schema migration |
+| `backup-lake.py` | Python | Backup (superseded — see the retirement note in `docs/runbooks/`) |
+| `start-lake.js` | JavaScript | Start the database process |
+| `start-lake.sh` | Bash | Start the database process (Unix) |
 
 ### Seeding & Setup
 | Script | Language | Description |
@@ -97,3 +97,4 @@ python scripts/feature-research.py --symbol MNQ --timeframe 1m --source parquet
 python scripts/visualize-regimes.py --model latest
 python scripts/training_monitor.py --port 8050
 ```
+

@@ -43,13 +43,13 @@ SYMBOL = "MNQ"
 ROOT_COL = "MNQ"
 ASSET_CLASS = "futures"
 
-# QuestDB SAMPLE BY uses lowercase tf strings; 1w isn't directly supported in older
+# lake SAMPLE BY uses lowercase tf strings; 1w isn't directly supported in older
 # versions, so we use 7d (matches data.py behavior).
 TF_TO_INTERVAL = {tf: ("7d" if tf == "1w" else tf) for tf in TIMEFRAMES}
 
 
 def _http_csv(sql: str, host: str, http_port: int) -> pd.DataFrame:
-    """Stream a QuestDB SQL result via HTTP /exp into a pandas DataFrame.
+    """Stream a lake SQL result via HTTP /exp into a pandas DataFrame.
     Faster than PG wire for multi-million-row results.
     """
     url = f"http://{host}:{http_port}/exp?query={urllib.parse.quote(sql)}"
@@ -122,9 +122,9 @@ def main() -> int:
         default=str(PARQUET_DIR / SYMBOL),
         help="Output directory (default: %(default)s)",
     )
-    p.add_argument("--host", default=os.environ.get("QUESTDB_HOST", "127.0.0.1"))
+    p.add_argument("--host", default=os.environ.get("lake_HOST", "127.0.0.1"))
     p.add_argument(
-        "--http-port", type=int, default=int(os.environ.get("QUESTDB_HTTP_PORT", "9000"))
+        "--http-port", type=int, default=int(os.environ.get("lake_HTTP_PORT", "9000"))
     )
     p.add_argument(
         "--dry-run",
@@ -142,7 +142,7 @@ def main() -> int:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Source:    QuestDB http://{args.host}:{args.http_port}  table=ohlcv  symbol={SYMBOL}")
+    print(f"Source:    lake http://{args.host}:{args.http_port}  table=ohlcv  symbol={SYMBOL}")
     print(f"Output:    {out_dir}")
     print(f"Timeframes: {', '.join(tfs)}")
     print()
@@ -184,3 +184,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

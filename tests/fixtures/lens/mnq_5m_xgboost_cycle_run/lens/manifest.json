@@ -34,13 +34,13 @@
   "barSeconds": 300,
   "horizonBars": 6,
   "horizonSource": "config.json plan.labelHorizonBars",
-  "labelDefinition": "the run's actual direction over the next 6 bars (src/ml/cycle/labels.py actual_direction): 1 when close[t+6] - close[t] is above 0 ticks, 0 when below minus that; a bar inside the threshold, whose horizon crosses a session gap or the fold end, or where the model made no call is unlabelled",
+  "labelDefinition": "the run's actual direction over the next 6 bars (packages/ml-engine/src/cycle/labels.py actual_direction): 1 when close[t+6] - close[t] is above 0 ticks, 0 when below minus that; a bar inside the threshold, whose horizon crosses a session gap or the fold end, or where the model made no call is unlabelled",
   "defaultThreshold": 0.55,
   "cost": {
     "roundTripPoints": 1.4,
     "pointValueUsd": 2.0,
     "tickSize": 0.25,
-    "source": "config.json plan.costModel, the run's own copy of src/config/cost_model.json:MNQ (2.80 US dollars per round trip per contract)"
+    "source": "config.json plan.costModel, the run's own copy of packages/config/cost_model.json:MNQ (2.80 US dollars per round trip per contract)"
   },
   "barCount": 493,
   "firstTimestampSeconds": 1764514800,

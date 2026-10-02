@@ -1,6 +1,6 @@
 /**
  * Test-only loaders. The production parquet -> LensSeries loader belongs to the
- * server (src/server/lens); this file exists so the shared-compute tests can
+ * server (apps/api/lens); this file exists so the shared-compute tests can
  * read the same artifacts without depending on it.
  *
  * Every loader takes a model DIRECTORY, so the parity tests run against the
@@ -28,10 +28,10 @@ export const REPOSITORY_ROOT = path.resolve(HERE, "..", "..", "..");
 /** Committed fixtures (tests/fixtures/lens/<name>/). */
 export const FIXTURE_ROOT = path.join(REPOSITORY_ROOT, "tests", "fixtures", "lens");
 
-/** A daily XGBoost direction classifier (src/ml/xgb_classifier), lens built on the lake's bar grid. */
+/** A daily XGBoost direction classifier (packages/ml-engine/src/xgb_classifier), lens built on the lake's bar grid. */
 export const DAILY_CLASSIFIER_FIXTURE = path.join(FIXTURE_ROOT, "mnq_1d_xgboost_direction_classifier");
 
-/** A Model Cycle run (src/ml/cycle), lens built from the run's own record. */
+/** A Model Cycle run (packages/ml-engine/src/cycle), lens built from the run's own record. */
 export const CYCLE_RUN_FIXTURE = path.join(FIXTURE_ROOT, "mnq_5m_xgboost_cycle_run");
 
 /** A real model directory under data/models (gitignored). */
@@ -147,7 +147,7 @@ export async function readOutOfSamplePredictions(directory: string): Promise<Out
   };
 }
 
-/** The numbers src/ml/xgb_classifier writes into diagnostics.json for its own evaluator run. */
+/** The numbers packages/ml-engine/src/xgb_classifier writes into diagnostics.json for its own evaluator run. */
 export interface ClassifierDiagnostics {
   symbol: string;
   timeframe: string;

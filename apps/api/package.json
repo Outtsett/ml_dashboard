@@ -1,0 +1,6 @@
+{
+    "private":  true,
+    "name":  "@ml-dashboard/api",
+    "version":  "1.0.0",
+    "main":  "src/index.ts"
+}

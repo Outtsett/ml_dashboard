@@ -1,5 +1,5 @@
 /**
- * Parity of src/shared/regression against statsmodels / scipy.
+ * Parity of packages/shared/src/regression against statsmodels / scipy.
  *
  * The fixture is produced by scripts/regression_parity_fixture.py from five
  * fixed-seed datasets chosen to exercise what the regression tab will see:

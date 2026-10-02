@@ -7,9 +7,9 @@ import path from 'path';
  *
  * The dashboard is one process serving both the API and the client. In
  * production that process reads the built client out of `dist/public`
- * (`src/server/infrastructure/core/static.ts`); in development it mounts Vite
+ * (`apps/api/infrastructure/core/static.ts`); in development it mounts Vite
  * as middleware and compiles on demand
- * (`src/server/infrastructure/core/vite.ts`). E2E targets the PRODUCTION path,
+ * (`apps/api/infrastructure/core/vite.ts`). E2E targets the PRODUCTION path,
  * because that is the artifact a release ships and because Vite's
  * compile-on-first-request adds seconds of variance to the first navigation of
  * every spec.
@@ -18,7 +18,7 @@ import path from 'path';
  * there all day and a test run must not take it down or inherit its state.
  * `E2E_PORT` (default 5099) is passed through `webServer.env`, which wins over
  * the `PORT=5000` line in `.env`: `main.ts` reads `process.env.PORT` through
- * `loadAppConfig()` (`src/server/infrastructure/core/config/app.config.ts:139`)
+ * `loadAppConfig()` (`apps/api/infrastructure/core/config/app.config.ts:139`)
  * and `dotenv` does not overwrite a variable that is already set.
  */
 

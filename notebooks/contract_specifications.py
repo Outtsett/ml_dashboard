@@ -26,7 +26,7 @@ def _(mo):
         r"""
 # Stock-index futures: tick, exchange, contract and months
 
-The numbers on this page come from `src/config/contract_specifications.json`, built by
+The numbers on this page come from `packages/config/contract_specifications.json`, built by
 `scripts/build_contract_specifications.py` from AMP Futures' contract-specifications page
 (the three stock-index sections: E-nano, Micro E-mini, Stock Index). CME / CBOT rows also carry
 what CME Group's own contract-specs pages state. The full write-up is
@@ -568,9 +568,9 @@ def _(contract_specifications, mo, pl, specification_db):
 | reader | what it takes from the specification |
 |---|---|
 | `scripts/seed-instruments.ts` → SQLite `instruments` | tick size, tick value, multiplier (point value), exchange, months, decimal places, for the 8 lake roots — served at `/api/instruments` |
-| `src/client/src/market/components/chartConfig.ts` | tick size, tick value and decimals for the chart's price scale and its "Tick: … = $…" label |
-| `src/config/cost_model.json` (MNQ) | tick size, tick value, point value beside the broker fees; `tests/test_contract_specifications.py` holds it equal to this file |
-| `src/ml/cycle/simulate.py`, `src/ml/blocks/trading_env.py`, `src/ml/lens/adapters.py` | read the cost model, so USD P&L = points × multiplier rests on these rows |
+| `apps/web/src/market/components/chartConfig.ts` | tick size, tick value and decimals for the chart's price scale and its "Tick: … = $…" label |
+| `packages/config/cost_model.json` (MNQ) | tick size, tick value, point value beside the broker fees; `tests/test_contract_specifications.py` holds it equal to this file |
+| `packages/ml-engine/src/cycle/simulate.py`, `packages/ml-engine/src/blocks/trading_env.py`, `packages/ml-engine/src/lens/adapters.py` | read the cost model, so USD P&L = points × multiplier rests on these rows |
 """
             ),
             mo.ui.table(_verified, selection=None),

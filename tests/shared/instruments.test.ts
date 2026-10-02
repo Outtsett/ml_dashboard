@@ -1,21 +1,21 @@
 /**
- * `src/config/contract_specifications.json` is the one place stock-index futures specs live.
+ * `packages/config/contract_specifications.json` is the one place stock-index futures specs live.
  * These tests hold the file to itself (every tick value is tick size × multiplier, every month
  * code is real) and hold its two derived readers — the chart's tick table and the instruments
  * seed — plus `cost_model.json` to it, so none of the four can drift again.
  */
 import { describe, expect, it } from 'vitest';
 
-import costModel from '../../src/config/cost_model.json';
-import { futuresTickInfo as chartFuturesTickInfo } from '../../src/client/src/market/components/chartConfig';
+import costModel from '../../packages/config/cost_model.json';
+import { futuresTickInfo as chartFuturesTickInfo } from '../../apps/web/src/market/components/chartConfig';
 import {
   CONTRACT_SPECIFICATIONS,
   MONTH_CODES,
   contractSpecification,
   futuresInstrumentRows,
   futuresTickInfo,
-} from '../../src/shared/instruments';
-import { insertInstrumentSchema } from '../../src/shared/schema';
+} from '../../packages/shared/src/instruments';
+import { insertInstrumentSchema } from '../../packages/shared/src/schema';
 
 const LAKE_ROOTS = ['ES', 'M2K', 'MES', 'MNQ', 'MYM', 'NQ', 'RTY', 'YM'];
 

@@ -7,12 +7,16 @@
   "type": "module",
   "license": "MIT",
   "main": "electron/main.cjs",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "cross-env NODE_ENV=development tsx --watch --env-file=.env src/server/main.ts",
-    "dev:no-watch": "cross-env NODE_ENV=development node --env-file=.env --import tsx src/server/main.ts",
+    "dev": "cross-env NODE_ENV=development tsx --watch --env-file=.env apps/api/main.ts",
+    "dev:no-watch": "cross-env NODE_ENV=development node --env-file=.env --import tsx apps/api/main.ts",
     "//dev:lean": "Same server as `dev` in 2 node processes instead of 5. `dev` goes npm -> cross-env -> tsx -> node --watch -> app; only the last does work. cross-env is redundant because .env already sets NODE_ENV, and tsx's --watch is forwarded into the child as a NODE flag, so Node's own watcher nests inside tsx's chokidar watcher and both race on save.",
-    "dev:lean": "node --watch --env-file=.env --import tsx src/server/main.ts",
-    "dev:solo": "node --env-file=.env --import tsx src/server/main.ts",
+    "dev:lean": "node --watch --env-file=.env --import tsx apps/api/main.ts",
+    "dev:solo": "node --env-file=.env --import tsx apps/api/main.ts",
     "//dev:stop": "Kills the TOP of the dashboard process tree. Killing the port-5000 holder instead leaves the watch supervisor orphaned, which is how three dead chains accumulated.",
     "dev:stop": "node scripts/stop_dashboard.mjs",
     "dev:client": "vite dev --port 5000",
@@ -24,7 +28,7 @@
     "check": "tsc --noEmit",
     "check:watch": "tsc --noEmit --watch",
     "check:e2e": "tsc --noEmit -p tsconfig.e2e.json",
-    "db:push": "npx drizzle-kit push",
+    "db:push": "drizzle-kit push --config packages/database/drizzle.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "//e2e": "End-to-end. `test:e2e` builds first because the server serves dist/public in production mode and refuses to start without it.",
@@ -38,14 +42,14 @@
     "test:e2e:report": "playwright show-report",
     "e2e:install": "playwright install --with-deps chromium",
     "smoke": "node scripts/smoke.mjs",
-    "test:ci": "vitest run --exclude \"tests/client/**\" --reporter=dot",
-    "test:coverage": "vitest run --coverage --exclude \"tests/client/**\" --exclude \"**/performance.test.ts\" --reporter=dot",
+    "test:ci": "vitest run --exclude \"apps/web/tests/**\" --reporter=dot",
+    "test:coverage": "vitest run --coverage --exclude \"apps/web/tests/**\" --exclude \"**/performance.test.ts\" --reporter=dot",
     "ci": "node scripts/ci-local.mjs",
-    "lint:py:check": "python -m ruff check src/ml/ scripts/",
+    "lint:py:check": "python -m ruff check packages/ml-engine/src/ scripts/",
     "lint": "npm run lint:py && npm run lint:ts",
-    "lint:py": "python -m ruff check --fix src/ml/ scripts/",
-    "lint:ts": "eslint --fix --cache --cache-location node_modules/.cache/eslint/ src/",
-    "check:architecture": "tsx src/scripts/architecture_validator.ts",
+    "lint:py": "python -m ruff check --fix packages/ml-engine/src/ scripts/",
+    "lint:ts": "eslint --fix --cache --cache-location node_modules/.cache/eslint/ apps/ packages/ scripts/",
+    "check:architecture": "tsx scripts/codegen/architecture_validator.ts",
     "analyze": "cross-env ANALYZE=true vite build",
     "verify": "node scripts/verify.mjs --changed",
     "lint:ci": "node scripts/lint-budget.mjs",
@@ -59,10 +63,13 @@
     "test:e2e:a11y:record": "cross-env A11Y_UPDATE_BASELINE=1 playwright test e2e/specs/a11y"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
+    "apps/**/*.{ts,tsx}": [
       "eslint --fix --max-warnings 0"
     ],
-    "src/ml/**/*.py": [
+    "packages/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0"
+    ],
+    "packages/ml-engine/**/*.py": [
       "python -m ruff check --fix"
     ],
     "scripts/**/*.py": [
@@ -85,7 +92,6 @@
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/terminus": "^11.1.1",
     "@nestjs/typeorm": "^11.0.0",
-    "@questdb/nodejs-client": "^4.2.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",

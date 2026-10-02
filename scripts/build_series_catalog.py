@@ -13,7 +13,7 @@ so it can never be mistaken for a signal that existed at that bar.
     uv run python scripts/build_series_catalog.py
     uv run python scripts/build_series_catalog.py --symbol ES --sample-rows 20000
 
-Writes src/config/series_catalog.json, read by the server at startup.
+Writes packages/config/series_catalog.json, read by the server at startup.
 """
 
 from __future__ import annotations
@@ -699,7 +699,7 @@ def main() -> int:
     )
     catalog = {
         "generatedAtIso": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "source": f"lake.serving over s3://derived/recipe=questdb_full_2026-09-09 plus live Iceberg bars; "
+        "source": f"lake.serving over s3://derived/recipe=lake_full_2026-09-09 plus live Iceberg bars; "
         f"statistics measured on {arguments.symbol} over the most recent {arguments.sample_rows} rows",
         "objectCount": len(catalog_objects),
         "columnCount": column_count,
@@ -718,3 +718,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

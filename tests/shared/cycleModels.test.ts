@@ -1,5 +1,5 @@
 /**
- * The Model Cycle registry contract, TypeScript side (`src/shared/cycle/models.ts`).
+ * The Model Cycle registry contract, TypeScript side (`packages/shared/src/cycle/models.ts`).
  * Held to the same fixtures as `tests/test_cycle_catalog_contract.py`: accept the
  * real registry, reject every case in `tests/fixtures/cycle_models_invalid/`.
  */
@@ -17,7 +17,7 @@ import {
 } from "@shared/cycle/models";
 
 const ROOT = path.resolve(__dirname, "..", "..");
-const REGISTRY = path.join(ROOT, "src", "config", "cycle_models");
+const REGISTRY = path.join(ROOT, "packages", "config", "cycle_models");
 const INVALID = path.join(ROOT, "tests", "fixtures", "cycle_models_invalid");
 
 type Files = Record<string, Record<string, unknown>>;

@@ -1,0 +1,1318 @@
+{
+  "models": {
+    "generative_adversarial_network": {
+      "catalogSpecId": "generative-models-adversarial-generative-adversarial-network-gan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Generative adversarial network (GAN)",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "One generator-discriminator pair per class (down / up, or price bin) learns what that class's feature rows look like; a classifier trained on the generated rows says which class a new bar most resembles.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: one unconditional GAN per class generates a bar's causal feature row; class-conditional density of the current feature row plus bayes' rule; not a model of future paths. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "generative_adversarial_network"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the generator and of the discriminator."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0002,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator and the discriminator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 4e-05,
+            "high": 0.001,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "conditional_gan": {
+      "catalogSpecId": "generative-models-adversarial-conditional-gan-cgan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Conditional GAN (cGAN)",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "One generator and one discriminator both told the class (down / up, or price bin), so a single network learns every class's feature rows; a classifier trained on its generated rows scores new bars.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: conditioned on the outcome class (one-hot), generating a causal feature row; class-conditional density of the current feature row plus bayes' rule; not a model of future paths. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "conditional_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the generator and of the discriminator."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0002,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator and the discriminator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 4e-05,
+            "high": 0.001,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "label_smoothing": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.5,
+          "max": 1.0,
+          "label": "Label smoothing",
+          "group": "Model",
+          "description": "The target the discriminator aims at for real rows (1 = none): one-sided smoothing keeps it from becoming over-confident.",
+          "step": 0.05
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "wasserstein_gan": {
+      "catalogSpecId": "generative-models-adversarial-wasserstein-gan-wgan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Wasserstein GAN (WGAN-GP)",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "A class-conditional generator trained against a critic that estimates the Wasserstein (earth mover's) distance to the real rows, kept 1-Lipschitz by a gradient penalty; its generated rows train the classifier.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: WGAN-GP (gradient penalty, not clipping), conditioned on the outcome class, generating a feature row; the critic is not a density. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "wasserstein_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-60 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the generator and of the discriminator."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator and the discriminator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 2e-05,
+            "high": 0.0005,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 100,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "critic_step_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Critic steps",
+          "group": "Model",
+          "description": "Critic updates per generator update (n_critic)."
+        },
+        "gradient_penalty_weight": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient penalty weight",
+          "group": "Model",
+          "description": "Weight of the penalty on the critic's gradient norm (lambda of WGAN-GP; R1 penalty weight in StyleGAN)."
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "big_generative_adversarial": {
+      "catalogSpecId": "generative-models-adversarial-biggan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "BigGAN",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "BigGAN's machinery at the scale of one bar's features: class-conditional batch norm, skip-z, spectral norm, a projection discriminator with hinge loss and a moving-average generator; its generated rows train the classifier.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: a feature row, not an image; conditional batch norm, skip-z, spectral norm, projection hinge loss, orthogonal penalty, EMA and truncation are kept. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "big_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "15-90 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Residual blocks of the generator (each gets its own latent chunk) and hidden layers of the discriminator."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Size of the shared class embedding that sets every conditional batch norm."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 2e-05,
+            "high": 0.0005,
+            "log": true
+          }
+        },
+        "discriminator_learning_rate": {
+          "type": "float",
+          "default": 0.0004,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Discriminator learning rate",
+          "group": "Model",
+          "description": "Adam step size of the discriminator (two time-scale update: faster than the generator).",
+          "logScale": true
+        },
+        "moving_average_decay": {
+          "type": "float",
+          "default": 0.999,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Moving-average decay",
+          "group": "Model",
+          "description": "Decay of the exponential moving average of the generator weights; the averaged generator is the one sampled."
+        },
+        "orthogonal_penalty_weight": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Orthogonal penalty weight",
+          "group": "Model",
+          "description": "Weight of BigGAN's orthogonal regularisation of the generator weights."
+        },
+        "truncation_threshold": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 4.0,
+          "label": "Truncation threshold",
+          "group": "Model",
+          "description": "Latent entries beyond +-threshold are redrawn when sampling (0 = off). Truncation sharpens samples but narrows each class, biasing the posterior.",
+          "step": 0.1
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "style_gan": {
+      "catalogSpecId": "generative-models-adversarial-stylegan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "StyleGAN",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "A mapping network turns noise and the class into a style w that modulates every layer of a synthesis network started from a learned constant, with noise injection and style mixing; its generated rows train the classifier.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: a feature row, no resolutions; mapping network, demodulated layers, noise, style mixing, truncation, minibatch deviation and R1 are kept. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "style_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-120 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Modulated layers of the synthesis network and hidden layers of the discriminator."
+        },
+        "mapping_layer_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 8,
+          "label": "Mapping layers",
+          "group": "Model",
+          "description": "Layers of the mapping network from noise and class to the style w."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Size of the class embedding fed to the mapping network."
+        },
+        "style_mixing_probability": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Style mixing probability",
+          "group": "Model",
+          "description": "Share of training batches whose layers take styles from two noise vectors crossing at a random layer.",
+          "step": 0.05
+        },
+        "gradient_penalty_weight": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient penalty weight",
+          "group": "Model",
+          "description": "Weight of the penalty on the critic's gradient norm (lambda of WGAN-GP; R1 penalty weight in StyleGAN)."
+        },
+        "truncation_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Truncation weight",
+          "group": "Model",
+          "description": "psi of the truncation trick: w is pulled toward the class's mean style (1 = no truncation, the generator's full class law).",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size (the mapping network uses a hundredth of it).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0002,
+            "high": 0.005,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "self_supervised_gan": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-latent-generative-self-supervised-gans",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-supervised GAN",
+      "category": "Machine learning",
+      "subcategory": "Self-supervised learning",
+      "kind": "Generative adversarial network",
+      "summary": "A class-conditional hinge GAN whose discriminator also solves a contrastive task (recognising two noisy views of the same row), which keeps its features informative; its generated rows train the classifier.",
+      "implementationNote": "Bridge: posterior via a classifier trained only on generated rows, plus the train class share (Bayes under the generator). Differs from the spec: the discriminator's task is InfoNCE on two augmented views, not rotation; the route is the generated rows (fixed), not a discriminator probe. Expect: near the base rate; the logged real-vs-fake accuracy says how realistic the rows are.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "self_supervised_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-45 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the noise vector z the generator turns into a feature row."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the generator, the discriminator and the posterior classifier.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the generator and of the discriminator."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0002,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator and the discriminator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 4e-05,
+            "high": 0.001,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Generator epochs",
+          "group": "Model",
+          "description": "Passes of the adversarial game over the training rows before the synthetic rows are drawn."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "contrastive_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Contrastive weight",
+          "group": "Model",
+          "description": "Weight of the discriminator's self-supervised (InfoNCE) loss, and of the same loss on generated rows in the generator's objective."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 2.0,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the InfoNCE loss.",
+          "logScale": true
+        },
+        "augmentation_noise": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Augmentation noise",
+          "group": "Model",
+          "description": "Standard deviation of the Gaussian jitter added to each view (feature z-score units); 10% of the columns are also masked.",
+          "step": 0.01
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 20000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Synthetic rows drawn from the generator for EACH class once it is trained; the posterior classifier is trained on these rows only (train on synthetic, test on real)."
+        },
+        "classifier_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Classifier epochs",
+          "group": "Model",
+          "description": "Passes of the posterior classifier over the synthetic rows, at most; it stops early when the real validation rows stop improving."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Posterior-classifier epochs without a better validation loss before it stops and the best one is restored."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "adversarial_autoencoder": {
+      "catalogSpecId": "generative-models-adversarial-adversarial-autoencoder",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Adversarial autoencoder (AAE)",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Adversarial autoencoder",
+      "summary": "A semi-supervised adversarial autoencoder: the encoder splits a bar's features into a style code and a class, discriminators push both toward their priors, and the class head q(class | features) is the prediction.",
+      "implementationNote": "Bridge: P(up) is the model's own class head q(up | features) (Makhzani et al.'s semi-supervised AAE); train-span bars without a known outcome are the unlabelled pool. Differs from the spec: reconstructs a causal feature row, not an image, and does not model future paths. Expect: the supervised head carries most of the signal; compare with adversarial_weight 0.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "adversarial_autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the continuous style code z."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers of the encoder, the decoder and the discriminators.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the encoder and the decoder.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0002,
+            "high": 0.005,
+            "log": true
+          }
+        },
+        "discriminator_learning_rate": {
+          "type": "float",
+          "default": 0.0002,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Discriminator learning rate",
+          "group": "Model",
+          "description": "Adam step size of the two prior discriminators.",
+          "logScale": true
+        },
+        "reconstruction_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Reconstruction weight",
+          "group": "Model",
+          "description": "Weight of the squared reconstruction error."
+        },
+        "adversarial_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Adversarial weight",
+          "group": "Model",
+          "description": "Weight of the encoder's loss for fooling the style and class discriminators (0 = a plain supervised autoencoder)."
+        },
+        "supervised_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Supervised weight",
+          "group": "Model",
+          "description": "Weight of the class head's cross-entropy on labelled training rows."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 2000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span, at most; early stopping may end the fit sooner."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Epochs without a better validation loss before the fit stops and the best weights are restored."
+        },
+        "samples_per_class": {
+          "type": "int",
+          "default": 2000,
+          "min": 100,
+          "max": 200000,
+          "label": "Samples per class",
+          "group": "Model",
+          "description": "Rows decoded per class to measure the real-vs-fake accuracy (a health number; the prediction does not use them)."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price bins",
+          "group": "Model",
+          "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      }
+    },
+    "cycle_consistent_gan": {
+      "catalogSpecId": "generative-models-adversarial-cyclegan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "CycleGAN",
+      "category": "Generative models",
+      "subcategory": "Adversarial",
+      "kind": "Generative adversarial network",
+      "summary": "Two translators learn to turn down-bars into up-bars and back without paired examples; a bar that the up-translator barely moves and the discriminators call up-like is scored up.",
+      "implementationNote": "Bridge: a translation-displacement score and the discriminator gap, calibrated on validation (a 3-parameter logistic). Differs from the spec: the two domains are the train span's down and up bars (unpaired by construction), translated as feature rows; the price model regresses the target on the displacements. Expect: a heuristic separation score near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "implicit_generator_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "cycle_consistent_gan"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the translators' residual blocks and the discriminators' hidden layers.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of each discriminator."
+        },
+        "residual_block_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Residual blocks",
+          "group": "Model",
+          "description": "Residual blocks in each translator."
+        },
+        "cycle_consistency_weight": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Cycle-consistency weight",
+          "group": "Model",
+          "description": "Weight of |F(G(a)) - a| + |G(F(b)) - b|."
+        },
+        "identity_weight": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Identity weight",
+          "group": "Model",
+          "description": "Weight of |G(b) - b| + |F(a) - a|: a row already in the target domain should be left alone."
+        },
+        "replay_buffer_size": {
+          "type": "int",
+          "default": 50,
+          "min": 0,
+          "max": 10000,
+          "label": "Replay buffer size",
+          "group": "Model",
+          "description": "Generated rows kept for the discriminators (0 = no history)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0002,
+          "min": 1e-05,
+          "max": 0.01,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator and the discriminator.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 4e-05,
+            "high": 0.001,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the larger domain, at most; early stopping may end the fit sooner."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are shuffled rows of the training span."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Epochs without a better validation loss before the fit stops and the best translators are restored."
+        }
+      }
+    }
+  }
+}

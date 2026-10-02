@@ -2,7 +2,7 @@
 
 Input is a JSON list of templates, one per pattern and direction: the bars
 before the pattern (which set TA-Lib's trailing averages and show the prior
-trend) and the pattern's own bars. Output is src/shared/candlePatternTemplates.json,
+trend) and the pattern's own bars. Output is packages/shared/src/candlePatternTemplates.json,
 which the client imports.
 
 Nothing is written unless EVERY template, run through the real TA-Lib the chart

@@ -1,7 +1,7 @@
 /**
  * Parity of the lens against a Model Cycle run's own scoreboard.
  *
- * The lens reads a run from its own record (src/ml/lens/runs.py): the bars the
+ * The lens reads a run from its own record (packages/ml-engine/src/lens/runs.py): the bars the
  * run walked, its P(up), and the direction each bar resolved to. So the
  * DIRECTION scoreboard is the same arithmetic over the same scored bars and
  * must match the run's scoreboard.json exactly: accuracy (the lens hit rate),

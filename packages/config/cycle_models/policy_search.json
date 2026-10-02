@@ -1,0 +1,1494 @@
+{
+  "models": {
+    "non_convex_optimization": {
+      "catalogSpecId": "optimization-based-models-convex-non-convex-methods-non-convex-optimization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Non-convex optimization (basin hopping)",
+      "category": "Optimization-based models",
+      "subcategory": "Convex and non-convex methods",
+      "kind": "Optimiser",
+      "summary": "Restarts a local descent from many random points and hops between basins of the trading-utility surface, keeping the basin whose rule holds up on validation.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: scipy basin hopping over L-BFGS-B descents, one restart per epoch. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "basin_hopping"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 2000,
+          "label": "Restarts",
+          "group": "Model",
+          "description": "How many random restarts (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "hop_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Hops per restart",
+          "group": "Model",
+          "description": "Perturb-then-descend steps of basin hopping in each restart.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 50
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 100.0,
+          "label": "Acceptance temperature",
+          "group": "Model",
+          "description": "Metropolis temperature: a worse basin is accepted with probability exp(-increase / T).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "perturbation_scale": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.001,
+          "max": 5.0,
+          "label": "Hop size",
+          "group": "Model",
+          "description": "Size of the random jump between basins (weight units).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "local_iteration_limit": {
+          "type": "int",
+          "default": 100,
+          "min": 5,
+          "max": 5000,
+          "label": "Local descent iterations",
+          "group": "Model",
+          "description": "At most this many L-BFGS-B iterations per local descent."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "differential_evolution": {
+      "catalogSpecId": "optimization-based-models-evolutionary-strategies-differential-evolution-de",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Differential evolution (DE)",
+      "category": "Optimization-based models",
+      "subcategory": "Evolutionary strategies",
+      "kind": "Optimiser",
+      "summary": "Evolves a population of trading rules by adding scaled differences of members to each other and keeping a child only when it trades better.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: scipy's DE/rand/1/bin, one generation per epoch. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "differential_evolution"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 80,
+          "min": 1,
+          "max": 2000,
+          "label": "Generations",
+          "group": "Model",
+          "description": "How many generations the search runs (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 40,
+          "min": 2,
+          "max": 20000,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Candidates scored per generation.",
+          "search": {
+            "kind": "int",
+            "low": 15,
+            "high": 80
+          }
+        },
+        "mutation_scale": {
+          "type": "float",
+          "default": 0.7,
+          "min": 0.1,
+          "max": 2.0,
+          "label": "Mutation scale (F)",
+          "group": "Model",
+          "description": "How far a difference vector moves the mutant.",
+          "search": {
+            "kind": "float",
+            "low": 0.4,
+            "high": 1.0
+          }
+        },
+        "crossover_probability": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Crossover probability",
+          "group": "Model",
+          "description": "Chance each coordinate is taken from the mutant.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 0.95
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "evolution_strategy": {
+      "catalogSpecId": "optimization-based-models-evolutionary-strategies-evolution-strategies-es",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Evolution strategies (CMA-ES)",
+      "category": "Optimization-based models",
+      "subcategory": "Evolutionary strategies",
+      "kind": "Optimiser",
+      "summary": "Samples trading rules from a Gaussian, moves its mean toward the best ones and learns the shape of the search from them (covariance matrix adaptation).",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: CMA-ES (cma package), one ask/tell per epoch. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "cma_es"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 80,
+          "min": 1,
+          "max": 2000,
+          "label": "Generations",
+          "group": "Model",
+          "description": "How many generations the search runs (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 20,
+          "min": 2,
+          "max": 20000,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Candidates scored per generation.",
+          "search": {
+            "kind": "int",
+            "low": 8,
+            "high": 60
+          }
+        },
+        "initial_step_size": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 5.0,
+          "label": "Initial step size (sigma)",
+          "group": "Model",
+          "description": "Spread of the first generation around zero weights.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 1.5,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "genetic_algorithm": {
+      "catalogSpecId": "optimization-based-models-evolutionary-strategies-genetic-algorithm-ga",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Genetic algorithm (GA)",
+      "category": "Optimization-based models",
+      "subcategory": "Evolutionary strategies",
+      "kind": "Optimiser",
+      "summary": "Breeds trading rules whose genes say which features to use and how much; the fitter rules reproduce, cross and mutate each generation.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: chromosome = feature-inclusion bits plus weights (DEAP). Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "genetic"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 80,
+          "min": 1,
+          "max": 2000,
+          "label": "Generations",
+          "group": "Model",
+          "description": "How many generations the search runs (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 60,
+          "min": 2,
+          "max": 20000,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Candidates scored per generation.",
+          "search": {
+            "kind": "int",
+            "low": 20,
+            "high": 150
+          }
+        },
+        "crossover_probability": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Crossover probability",
+          "group": "Model",
+          "description": "Chance a pair of parents is crossed.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 0.95
+          }
+        },
+        "mutation_probability": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Mutation probability per gene",
+          "group": "Model",
+          "description": "Chance each gene is flipped or perturbed.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3
+          }
+        },
+        "tournament_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 50,
+          "label": "Tournament size",
+          "group": "Model",
+          "description": "Candidates compared to pick each parent; larger is greedier.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "elite_count": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 50,
+          "label": "Elite carried over",
+          "group": "Model",
+          "description": "The best rules copied unchanged into the next generation."
+        },
+        "feature_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Penalty per included feature",
+          "group": "Model",
+          "description": "Subtracted from the utility for each feature the rule uses."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "gradient_descent": {
+      "catalogSpecId": "optimization-based-models-gradient-based-optimization-gradient-descent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gradient descent",
+      "category": "Optimization-based models",
+      "subcategory": "Gradient-based optimization",
+      "kind": "Optimiser",
+      "summary": "Walks the weights of a logistic model downhill on the whole training span at every step, with momentum, and stops where validation is best.",
+      "implementationNote": "Bridge: full-batch gradient descent with heavy-ball momentum on the log loss (plus ridge) of a linear model; P(up) is its own sigmoid(w.x+b), and validation log loss picks the stopping epoch. Differs from the spec: none beyond the fixed model (a logistic regression) that makes the optimiser visible. Expect: close to the logistic regression entry; that is the point of comparison.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "gradient_descent"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Epochs of iterations_per_epoch full-batch steps each."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.1,
+          "min": 1e-05,
+          "max": 10.0,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each gradient step.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "momentum": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Momentum",
+          "group": "Model",
+          "description": "Share of the previous step carried into the next (heavy ball).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95
+          }
+        },
+        "learning_rate_decay": {
+          "type": "float",
+          "default": 0.999,
+          "min": 0.9,
+          "max": 1.0,
+          "label": "Learning-rate decay per step",
+          "group": "Model",
+          "description": "The learning rate is multiplied by this after every step."
+        },
+        "iterations_per_epoch": {
+          "type": "int",
+          "default": 25,
+          "min": 1,
+          "max": 1000,
+          "label": "Steps per epoch",
+          "group": "Model",
+          "description": "Full-batch gradient steps between two validation checks."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        }
+      }
+    },
+    "ant_colony_optimization": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-ant-colony-optimization-aco",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Ant colony optimization (ACO)",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Optimiser",
+      "summary": "Ants sample new trading rules around an archive of the best ones found so far; the archive is the pheromone, and poor rules fade out of it.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: continuous ACO_R, since graph routing has no per-bar meaning. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ant_colony"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 80,
+          "min": 1,
+          "max": 2000,
+          "label": "Iterations",
+          "group": "Model",
+          "description": "Colony iterations (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 30,
+          "min": 2,
+          "max": 20000,
+          "label": "Ants per iteration",
+          "group": "Model",
+          "description": "New rules sampled per iteration.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 80
+          }
+        },
+        "archive_size": {
+          "type": "int",
+          "default": 20,
+          "min": 2,
+          "max": 500,
+          "label": "Archive size (pheromone)",
+          "group": "Model",
+          "description": "How many of the best rules the colony remembers.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 50
+          }
+        },
+        "locality": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Locality (q)",
+          "group": "Model",
+          "description": "Small values make the ants follow the very best rules.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "deviation_ratio": {
+          "type": "float",
+          "default": 0.85,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Spread ratio (xi)",
+          "group": "Model",
+          "description": "How widely ants sample around an archived rule; acts as evaporation.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1.2
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "bayesian_optimization": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-bayesian-optimization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian optimization",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Optimiser",
+      "summary": "Fits a Gaussian-process map of how well each rule trades and asks it where the next most promising rule is, so few expensive evaluations are spent.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: searched over the first d principal components (scikit-optimize GP). Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "bayesian"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "a few minutes per fold (every evaluation refits the Gaussian process; paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 12,
+          "min": 1,
+          "max": 2000,
+          "label": "Rounds",
+          "group": "Model",
+          "description": "Rounds of evaluations (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 64,
+          "label": "Principal components searched",
+          "group": "Model",
+          "description": "The rule weighs this many principal components of the features.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 10
+          }
+        },
+        "evaluations_per_epoch": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Evaluations per round",
+          "group": "Model",
+          "description": "Rules proposed by the surrogate and scored per round."
+        },
+        "initial_random_evaluations": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Initial design points",
+          "group": "Model",
+          "description": "Sobol points scored before the surrogate starts proposing."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler."
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "particle_swarm_optimization": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-particle-swarm-optimization-pso",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Particle swarm optimization (PSO)",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Optimiser",
+      "summary": "A swarm of trading rules flies through weight space, each pulled toward its own best rule and the swarm's best.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: global-best PSO (pyswarms), one iteration per epoch. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "particle_swarm"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 100,
+          "min": 1,
+          "max": 2000,
+          "label": "Iterations",
+          "group": "Model",
+          "description": "Swarm iterations (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 30,
+          "min": 2,
+          "max": 20000,
+          "label": "Particles",
+          "group": "Model",
+          "description": "Rules in the swarm.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 80
+          }
+        },
+        "inertia_weight": {
+          "type": "float",
+          "default": 0.7,
+          "min": 0.0,
+          "max": 1.5,
+          "label": "Inertia (w)",
+          "group": "Model",
+          "description": "Share of a particle's velocity it keeps.",
+          "search": {
+            "kind": "float",
+            "low": 0.4,
+            "high": 0.9
+          }
+        },
+        "cognitive_coefficient": {
+          "type": "float",
+          "default": 1.5,
+          "min": 0.0,
+          "max": 4.0,
+          "label": "Pull to own best (c1)",
+          "group": "Model",
+          "description": "Attraction toward the particle's own best rule.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 2.5
+          }
+        },
+        "social_coefficient": {
+          "type": "float",
+          "default": 1.5,
+          "min": 0.0,
+          "max": 4.0,
+          "label": "Pull to swarm best (c2)",
+          "group": "Model",
+          "description": "Attraction toward the swarm's best rule.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 2.5
+          }
+        },
+        "velocity_clamp": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 5.0,
+          "label": "Velocity limit (share of the bound)",
+          "group": "Model",
+          "description": "Largest step per iteration, as a share of the weight bound."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "simulated_annealing": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-simulated-annealing",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Simulated annealing",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Optimiser",
+      "summary": "Nudges one trading rule at random, always keeps an improvement and sometimes a setback, accepting fewer setbacks as the temperature cools.",
+      "implementationNote": "Bridge: the optimiser is the model's trainer; it searches a tanh-linear position rule against train-span net utility on the price tape (next-open fills, round-trip cost); validation picks the generation kept; P(up) is a logistic curve of w.x+b fitted on validation. Differs from the spec: Metropolis chain, geometric cooling, reheats; one level per epoch. Expect: an in-sample-optimised linear rule, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "annealing"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Temperature levels",
+          "group": "Model",
+          "description": "Cooling steps (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 100.0,
+          "label": "Starting temperature",
+          "group": "Model",
+          "description": "A worse rule is accepted with probability exp(-increase / T).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "cooling_rate": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.5,
+          "max": 0.9999,
+          "label": "Cooling rate",
+          "group": "Model",
+          "description": "The temperature is multiplied by this after every level.",
+          "search": {
+            "kind": "float",
+            "low": 0.8,
+            "high": 0.98
+          }
+        },
+        "moves_per_temperature": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 5000,
+          "label": "Moves per level",
+          "group": "Model",
+          "description": "Proposed moves at each temperature."
+        },
+        "perturbation_scale": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.001,
+          "max": 5.0,
+          "label": "Move size",
+          "group": "Model",
+          "description": "Standard deviation of a move on each changed weight.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "reheat_after": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Reheat after stalled levels",
+          "group": "Model",
+          "description": "Levels without a new best before the temperature is reset."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Ridge penalty on the weights",
+          "group": "Model",
+          "description": "Subtracted from the training utility per unit of squared weight; larger keeps the rule simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_bound": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Weight bound",
+          "group": "Model",
+          "description": "Every weight and the bias are searched inside [-bound, bound] (features are z-scores).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 5.0
+          }
+        }
+      }
+    },
+    "evolutionary_decision_rules": {
+      "catalogSpecId": "simulation-decision-models-evolutionary-decision-models",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Evolutionary decision models",
+      "category": "Simulation and decision models",
+      "subcategory": "Evolutionary decision models",
+      "kind": "Rule evolution",
+      "summary": "Evolves readable if-then trading rules (feature above or below a threshold, joined by and / or / not); the best few rules vote on each bar.",
+      "implementationNote": "Bridge: genetic programming (deap.gp, typed rule trees, vectorised over bars) evolves long-if-the-rule-fires rules against train-span net utility on the price tape; the best rules vote, the validation-best generation is kept, and P(up) is a logistic curve of the vote fitted on validation. Differs from the spec: thresholds on causal z-scored features only. Expect: readable rules, edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "genetic_rules"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 2000,
+          "label": "Generations",
+          "group": "Model",
+          "description": "How many generations the search runs (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 100,
+          "min": 2,
+          "max": 20000,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Rule trees per generation.",
+          "search": {
+            "kind": "int",
+            "low": 50,
+            "high": 300
+          }
+        },
+        "tournament_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 50,
+          "label": "Tournament size",
+          "group": "Model",
+          "description": "Rules compared to pick each parent; larger is greedier.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "crossover_probability": {
+          "type": "float",
+          "default": 0.7,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Crossover probability",
+          "group": "Model",
+          "description": "Chance a pair of parents swaps subtrees.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 0.95
+          }
+        },
+        "mutation_probability": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Mutation probability",
+          "group": "Model",
+          "description": "Chance a child gets a new subtree or a redrawn threshold.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3
+          }
+        },
+        "maximum_tree_depth": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 10,
+          "label": "Maximum rule depth",
+          "group": "Model",
+          "description": "Deepest nesting of conditions a rule may have.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "ensemble_size": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 50,
+          "label": "Rules in the vote",
+          "group": "Model",
+          "description": "How many of the best distinct rules vote on each bar.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 9
+          }
+        },
+        "parsimony_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Penalty per node",
+          "group": "Model",
+          "description": "Subtracted from a rule's fitness for each node (bloat control).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        }
+      }
+    },
+    "symbolic_regression": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-symbolic-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Symbolic regression",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Formula evolution",
+      "summary": "Evolves a closed-form formula of the features (add, multiply, divide, log, ...) that predicts the coming move, and reads the direction from the formula's sign.",
+      "implementationNote": "Bridge: gplearn genetic programming fits a formula to the train span's scaled h-bar move; the generation with the best validation error is kept and P(up) is a logistic curve of the formula's value fitted on validation (the formula is also the price forecast). Differs from the spec: moves clipped at 5 scale units. Expect: short formulas, weak edge; watch the printed formula.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "policy_search",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "symbolic_regression"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "seconds to a few minutes per fold (paced replay adds its own time)",
+      "gpu": false,
+      "parameters": {
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 2000,
+          "label": "Generations",
+          "group": "Model",
+          "description": "How many generations the search runs (one engine epoch each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 500,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "The search stops after this many epochs without a better validation score."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 300,
+          "min": 2,
+          "max": 20000,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Formulas per generation.",
+          "search": {
+            "kind": "int",
+            "low": 100,
+            "high": 1000
+          }
+        },
+        "tournament_size": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Tournament size",
+          "group": "Model",
+          "description": "Formulas compared to pick each parent; larger is greedier.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 20
+          }
+        },
+        "crossover_probability": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Crossover probability",
+          "group": "Model",
+          "description": "Share of children made by subtree crossover (the rest by mutation).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.85
+          }
+        },
+        "parsimony_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Penalty per node",
+          "group": "Model",
+          "description": "Added to a formula's error for each node (bloat control).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "initial_tree_depth": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 10,
+          "label": "Initial formula depth",
+          "group": "Model",
+          "description": "Deepest formula in the first generation."
+        }
+      }
+    }
+  }
+}

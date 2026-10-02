@@ -1,0 +1,1627 @@
+{
+  "models": {
+    "residual_network": {
+      "catalogSpecId": "neural-network-architectures-convolutional-networks-residual-neural-network-resnet",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Residual network (ResNet)",
+      "category": "Neural network architectures",
+      "subcategory": "Convolutional networks",
+      "kind": "Sequence network",
+      "summary": "Stacks of convolution blocks that each add a correction to what they were given, so a deep network over the recent bars stays easy to train.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. Convolutions are causal and each stride-2 step keeps the newest bar; a global average pool over the window feeds the head. Expect: a deeper cousin of the temporal convolution network; the depth pays only with long windows and plenty of bars.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "resnet",
+          "choices": [
+            "resnet"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (a 1-D residual network); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "base_channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Base channel count",
+          "group": "Model",
+          "description": "Channels of the stem and the first stage; every later stage doubles them.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "stage_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 5,
+          "label": "Stage count",
+          "group": "Model",
+          "description": "How many stages of residual blocks; each stage after the first halves the bars.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "residual_block_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Residual blocks per stage",
+          "group": "Model",
+          "description": "How many residual blocks each stage stacks.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size (bars)",
+          "group": "Model",
+          "description": "How many neighbouring bars one convolution mixes: the bar and the kernel_size - 1 before it.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "densely_connected_network": {
+      "catalogSpecId": "neural-network-architectures-convolutional-networks-densenet-densely-connected-cnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Densely connected network (DenseNet)",
+      "category": "Neural network architectures",
+      "subcategory": "Convolutional networks",
+      "kind": "Sequence network",
+      "summary": "Every convolution layer reads the maps of all the layers before it in its block, so early bar shapes are reused instead of relearned.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. DenseNet-BC with causal convolutions (1x1 bottlenecks, compressing transitions that average bar pairs ending at the newest bar). Expect: close to the residual network on bars; the dense reuse helps most when the training span is short.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "densenet",
+          "choices": [
+            "densenet"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (a 1-D DenseNet-BC); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "base_channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Base channel count",
+          "group": "Model",
+          "description": "Channels of the stem convolution.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "dense_block_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 5,
+          "label": "Dense block count",
+          "group": "Model",
+          "description": "How many dense blocks; a compressing transition sits between two blocks.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 3
+          }
+        },
+        "layers_per_block": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 12,
+          "label": "Layers per block",
+          "group": "Model",
+          "description": "How many densely connected layers each block holds.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "growth_rate": {
+          "type": "int",
+          "default": 12,
+          "min": 4,
+          "max": 64,
+          "label": "Growth rate",
+          "group": "Model",
+          "description": "How many new channels every dense layer adds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              12,
+              16,
+              24
+            ]
+          }
+        },
+        "compression_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Compression factor",
+          "group": "Model",
+          "description": "The share of channels a transition keeps (1 keeps them all).",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1.0
+          }
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size (bars)",
+          "group": "Model",
+          "description": "How many neighbouring bars one convolution mixes: the bar and the kernel_size - 1 before it.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "u_network": {
+      "catalogSpecId": "neural-network-architectures-convolutional-networks-u-net",
+      "alsoCatalogSpecIds": [],
+      "displayName": "U-Net",
+      "category": "Neural network architectures",
+      "subcategory": "Convolutional networks",
+      "kind": "Sequence network",
+      "summary": "An encoder squeezes the recent bars into a wide summary and a decoder brings it back to one position per bar, with skip links carrying the fine timing across.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. Only the last position of the decoded map is used (the map is not supervised); upsampling is shifted so no bar reads a later one, and the oldest bars that do not fill whole 2^level groups are cropped. Expect: similar to the convolution networks.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "unet",
+          "choices": [
+            "unet"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (a 1-D U-Net); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 16,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "base_channel_count": {
+          "type": "int",
+          "default": 16,
+          "min": 4,
+          "max": 128,
+          "label": "Base channel count",
+          "group": "Model",
+          "description": "Channels of the first encoder level; every deeper level doubles them.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "level_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Level count",
+          "group": "Model",
+          "description": "How many encoder (and decoder) levels; each halves the bars. The window needs at least 2^(levels + 1) bars.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size (bars)",
+          "group": "Model",
+          "description": "How many neighbouring bars one convolution mixes: the bar and the kernel_size - 1 before it.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "vision_transformer": {
+      "catalogSpecId": "neural-network-architectures-attention-based-architectures-vision-transformer-vit",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Vision transformer (ViT)",
+      "category": "Neural network architectures",
+      "subcategory": "Attention-based architectures",
+      "kind": "Sequence network",
+      "summary": "The recent bars are cut into short patches, each patch becomes a token, and self-attention across the patches decides which stretches of the window matter.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. Patches are runs of bars ending at the newest bar; a class token reads them by bidirectional attention (the whole window precedes the bar); no pretraining. Expect: needs many bars; rarely beats the causal transformer encoder.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "vision_transformer",
+          "choices": [
+            "vision_transformer"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (a vision transformer over bar patches); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "patch_bars": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 32,
+          "label": "Patch length (bars)",
+          "group": "Model",
+          "description": "How many consecutive bars one patch token holds; older bars that do not fill a patch are dropped.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; must be divisible by the head count.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64
+            ]
+          }
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "How many attention heads each encoder layer has."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Encoder layers",
+          "group": "Model",
+          "description": "How many transformer encoder layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "capsule_network": {
+      "catalogSpecId": "neural-network-architectures-specialized-modular-networks-capsule-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Capsule network",
+      "category": "Neural network architectures",
+      "subcategory": "Specialized and modular networks",
+      "kind": "Sequence network",
+      "summary": "Groups of units (capsules) describe the bar patterns they find, and they vote, by routing on agreement, for an up capsule or a down capsule; the longer capsule wins.",
+      "implementationNote": "Bridge: P(up) is a learned linear map of the two class capsules' lengths (up, down) through a sigmoid; training adds the margin loss on those lengths. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. A causal convolution stem feeds the primary capsules; no reconstruction decoder. Expect: slow and noisy; the length gap mostly tracks the same momentum a plain network sees.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "capsule",
+          "choices": [
+            "capsule"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (a capsule network with dynamic routing); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 64,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Stem channel count",
+          "group": "Model",
+          "description": "Channels of every causal convolution in the stem.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size (bars)",
+          "group": "Model",
+          "description": "How many neighbouring bars one convolution mixes: the bar and the kernel_size - 1 before it.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5
+            ]
+          }
+        },
+        "convolution_layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 4,
+          "label": "Stem convolution layers",
+          "group": "Model",
+          "description": "How many causal convolution layers run before the primary capsules.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2
+          }
+        },
+        "primary_capsule_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 32,
+          "label": "Primary capsule types",
+          "group": "Model",
+          "description": "How many primary capsules sit at every bar.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              8
+            ]
+          }
+        },
+        "primary_capsule_size": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 32,
+          "label": "Primary capsule size",
+          "group": "Model",
+          "description": "How many numbers describe one primary capsule."
+        },
+        "class_capsule_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 64,
+          "label": "Class capsule size",
+          "group": "Model",
+          "description": "How many numbers describe the up and the down capsules."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 6,
+          "label": "Routing iterations",
+          "group": "Model",
+          "description": "Rounds of routing by agreement between the primary and the class capsules.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "upper_margin": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.5,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Upper margin",
+          "group": "Model",
+          "description": "The length the correct class capsule is pushed above."
+        },
+        "lower_margin": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Lower margin",
+          "group": "Model",
+          "description": "The length the wrong class capsule is pushed below."
+        },
+        "absent_class_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Absent class weight",
+          "group": "Model",
+          "description": "How much the wrong capsule's excess length counts in the margin loss.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 0.75
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "slot_attention_network": {
+      "catalogSpecId": "neural-network-architectures-attention-based-architectures-slot-attention-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Slot attention network",
+      "category": "Neural network architectures",
+      "subcategory": "Attention-based architectures",
+      "kind": "Sequence network",
+      "summary": "A few slots compete for the recent bars, each slot claiming one stretch of the window, and the claimed stretches are summarised into the prediction.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: One-dimensional over the window of bars (the spec's own 1-D variant); there are no pixels. Slots are learned segments of the window; they start from learned vectors (not sampled), so a bar scores the same every time, and a reconstruction of the window's features is an auxiliary loss. Expect: close to an attention-pooled sequence network.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "slot_attention",
+          "choices": [
+            "slot_attention"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (slot attention over the bars); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every bar token and every slot.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64
+            ]
+          }
+        },
+        "slot_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 12,
+          "label": "Slot count",
+          "group": "Model",
+          "description": "How many slots compete for the bars of the window.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 6,
+          "label": "Attention iterations",
+          "group": "Model",
+          "description": "Rounds of slot attention that refine the slots.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "reconstruction_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Reconstruction weight",
+          "group": "Model",
+          "description": "Weight of the slots' reconstruction of the window's features in the loss (0 turns it off).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "spiking_neural_network": {
+      "catalogSpecId": "neural-network-architectures-specialized-modular-networks-spiking-neural-network-snn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Spiking neural network (SNN)",
+      "category": "Neural network architectures",
+      "subcategory": "Specialized and modular networks",
+      "kind": "Sequence network",
+      "summary": "Neurons charge up bar by bar, leak, and fire a spike when they cross a threshold; the spikes of the last layer are summed with a leak into the prediction.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: the window's bars are the simulation steps; direct-current input (no stochastic spike coding, so a bar is reproducible), arctangent surrogate gradient, a firing-rate penalty; run on a GPU, so there is no neuromorphic efficiency. Expect: below the recurrent networks; spikes discard magnitude.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "spiking",
+          "choices": [
+            "spiking"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (leaky integrate-and-fire layers); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Neurons per layer",
+          "group": "Model",
+          "description": "How many leaky integrate-and-fire neurons each layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Spiking layers",
+          "group": "Model",
+          "description": "How many spiking layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "membrane_decay": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.5,
+          "max": 0.99,
+          "step": 0.01,
+          "label": "Membrane decay",
+          "group": "Model",
+          "description": "The share of a neuron's charge kept from one bar to the next.",
+          "search": {
+            "kind": "float",
+            "low": 0.7,
+            "high": 0.97
+          }
+        },
+        "spike_threshold": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.1,
+          "max": 5.0,
+          "label": "Spike threshold",
+          "group": "Model",
+          "description": "The charge at which a neuron fires; firing subtracts it."
+        },
+        "surrogate_slope": {
+          "type": "float",
+          "default": 5.0,
+          "min": 1.0,
+          "max": 50.0,
+          "logScale": true,
+          "label": "Surrogate gradient slope",
+          "group": "Model",
+          "description": "How sharply the smooth stand-in for the spike step bends; steeper passes gradient only near the threshold.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 20.0,
+            "log": true
+          }
+        },
+        "firing_rate_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Firing-rate penalty weight",
+          "group": "Model",
+          "description": "Weight of the penalty that keeps the mean firing rate near the target (0 turns it off)."
+        },
+        "target_firing_rate": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 0.5,
+          "step": 0.01,
+          "label": "Target firing rate",
+          "group": "Model",
+          "description": "The share of neurons meant to fire at each bar."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    },
+    "neural_ordinary_differential_equation": {
+      "catalogSpecId": "neural-network-architectures-generative-latent-models-neural-ordinary-differential-equation-neural-ode",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Neural ordinary differential equation (Neural ODE)",
+      "category": "Neural network architectures",
+      "subcategory": "Generative and latent models",
+      "kind": "Sequence network",
+      "summary": "A hidden state flows continuously between bars, following a learned rule of motion, and each new bar nudges it; a long break between bars means a long flow.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's logit, fitted by the Cycle's one training loop. Differs from the spec: an ODE-RNN over the window (the state evolves between bars by a fixed-step solver, a gated recurrent cell absorbs each bar); the time step is log2 of the gap in typical bars. Continuous time matters only across session gaps; bars inside a session are evenly spaced. Expect: close to the gated recurrent unit, slower.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "window_backbone",
+      "speed": "slow",
+      "estimatedTrainingTime": "15-120 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "backbone": {
+          "type": "categorical",
+          "default": "neural_ode",
+          "choices": [
+            "neural_ode"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "The network this entry builds (an ODE-RNN); fixed for this model."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 64,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction (the newest is the bar being predicted)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many numbers the flowing hidden state holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "dynamics_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Dynamics hidden size",
+          "group": "Model",
+          "description": "Width of the small network that gives the hidden state's rule of motion.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "integration_method": {
+          "type": "categorical",
+          "default": "rk4",
+          "choices": [
+            "euler",
+            "midpoint",
+            "rk4"
+          ],
+          "label": "Integration method",
+          "group": "Model",
+          "description": "The fixed-step solver between two bars (an adaptive solver would score a bar differently alone and in a batch)."
+        },
+        "solver_steps": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Solver steps per bar",
+          "group": "Model",
+          "description": "How many solver steps integrate the flow between two bars."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    }
+  }
+}

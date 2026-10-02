@@ -12,13 +12,13 @@ def _():
         r"""
         # TA-indicator strategy vs 600 MNQ ticks a day
 
-        Every round of the study (`src/ml/ta_strategy`, rounds in `src/config/ta_strategy_rounds.json`, reference
+        Every round of the study (`packages/ml-engine/src/ta_strategy`, rounds in `packages/config/ta_strategy_rounds.json`, reference
         `docs/ta-strategy-600-ticks.md`) lands its tables in the lake as `derived_ta_strategy_600_ticks_<table>`:
         `rounds`, `configurations`, `folds`, `daily`, `trades`, `predictions`, `feature_importance`, `rolls`,
         `oracle_by_session`, and `reviews` (what the review after each round found, and what to change next).
 
         **One tick is 0.25 index points = 0.50 USD on one MNQ contract. 600 ticks = 150 points = 300 USD a day.**
-        A round trip costs 1.39 USD per side x 2 = 2.78 USD = 5.56 ticks (`src/config/cost_model.json`).
+        A round trip costs 1.39 USD per side x 2 = 2.78 USD = 5.56 ticks (`packages/config/cost_model.json`).
         """
     )
     return (mo,)
@@ -514,7 +514,7 @@ def _(frame, mo, pl, view_exists):
     mo.vstack([mo.md(r"""
 ## 10 · Multi-timeframe support/resistance and conditional strategies
 
-**Levels** (`src/ml/ta_strategy/levels.py`). Every level is an event with the moment it became knowable:
+**Levels** (`packages/ml-engine/src/ta_strategy/levels.py`). Every level is an event with the moment it became knowable:
 - prior-session, prior-RTH and prior-week high/low/close;
 - the overnight high/low, and the 15- and 30-minute opening ranges;
 - round 100s and 50s in traded prices;
@@ -529,7 +529,7 @@ At each 15m bar the active levels within 6 ATR merge into **zones**. The nearest
 
 $$\text{edge} = (\text{held} - \text{held}_{A}) - (\text{held}^{\text{shuffled}} - \text{held}^{\text{shuffled}}_{A})$$
 
-**Conditional strategies** (`src/config/ta_conditional_templates.json`) are ANDed TA-Lib conditions with several exits. Optuna tunes their parameters on the years **before** each test year. The objective is the excess over random entries matched on session window, hour and side, using the same exits.
+**Conditional strategies** (`packages/config/ta_conditional_templates.json`) are ANDed TA-Lib conditions with several exits. Optuna tunes their parameters on the years **before** each test year. The objective is the excess over random entries matched on session window, hour and side, using the same exits.
 """), conditional_picker, mo.ui.table(conditional_rounds, selection=None)])
     return CONDITIONAL, conditional_picker
 
@@ -705,7 +705,7 @@ def _(CONDITIONAL, frame, mo, view_exists):
         "## 11 · Frequency: ETH and RTH, long and short, many trades a day\n\n"
         "600 ticks is the **day's total**: every trade, long or short, overnight (ETH, 13:00 to 06:30 Pacific) or regular hours "
         "(RTH, 06:30 to 13:00). Round 4 takes the three frozen strategies and changes only the session window, the entry cap, "
-        "the bar and a pre-declared ladder of looser entry thresholds (`src/config/ta_conditional_rounds.json`, round 4)."),
+        "the bar and a pre-declared ladder of looser entry thresholds (`packages/config/ta_conditional_rounds.json`, round 4)."),
         mo.hstack([frequency_symbol, frequency_session, frequency_cap]), mo.hstack([frequency_timeframe, frequency_strictness])])
     return (frequency_cap, frequency_hours, frequency_portfolio, frequency_session, frequency_strictness, frequency_symbol,
             frequency_timeframe, frequency_variants, frequency_years, frequency_trades_per_day)
@@ -866,7 +866,7 @@ def _(CONDITIONAL, frame, mo, view_exists):
     mo.vstack([mo.md(
         "## 12 · Time of day, ETH vs RTH, time events\n\n"
         "How volatility and ranging change through the CME session (15:00 to 14:00 Pacific), overnight (ETH) against regular "
-        "hours (RTH, 06:30-13:00), by weekday, around time events and on calendar days (`src/ml/ta_strategy/timing.py`, "
+        "hours (RTH, 06:30-13:00), by weekday, around time events and on calendar days (`packages/ml-engine/src/ta_strategy/timing.py`, "
         "tables `derived_ta_conditional_strategies_600_ticks_season_*`). The strategies read the same shape CAUSALLY: each "
         "session's profile comes only from sessions before it (`seasonality.py`)."),
         mo.hstack([season_symbol, season_year, season_weekday]), season_metric])
@@ -1100,7 +1100,7 @@ def _(CONDITIONAL, frame, mo, view_exists):
         "## 13 · Multi-timeframe cascade, volume at levels, volatility indicators\n\n"
         "Swing levels (Williams fractals) on 1m, 5m, 15m and 30m bars, known only k bars after the swing. A 1-minute close through the "
         "1m resistance, then the 5m, then the 15m, then the 30m (each at or above the last, within a window) is an UP cascade of that many "
-        "stages; support breaks in that order are a DOWN cascade (`src/ml/ta_strategy/cascade.py`, tables "
+        "stages; support breaks in that order are a DOWN cascade (`packages/ml-engine/src/ta_strategy/cascade.py`, tables "
         "`derived_ta_conditional_strategies_600_ticks_cascade_*`). Every state is causal."),
         mo.hstack([cascade_symbol, cascade_part, cascade_horizon])])
     return (cascade_horizon, cascade_levels, cascade_moves, cascade_occupancy, cascade_oracle, cascade_part, cascade_symbol,
@@ -1296,7 +1296,7 @@ def _(CONDITIONAL, frame, mo, view_exists):
         "the previous bar's close. **Bounce** = price moved 1 ATR away from the zone before a close through its far edge. **Next zone "
         "reached** = the opposing zone's near edge was reached before the touched zone broke. Each is compared with the same test on a "
         "pseudo level at the same distance, same time of day, in a random other session (the matched null): the **lift** is what "
-        "knowing WHERE the zone is buys. `src/ml/ta_strategy/zones.py`, tables `…_zone_touches`, `…_zone_summary`, `…_zone_leak_check`."),
+        "knowing WHERE the zone is buys. `packages/ml-engine/src/ta_strategy/zones.py`, tables `…_zone_touches`, `…_zone_summary`, `…_zone_leak_check`."),
         mo.hstack([zone_symbol, zone_condition, zone_metric])])
     return zone_condition, zone_leak, zone_metric, zone_summary, zone_symbol
 
@@ -1502,7 +1502,7 @@ def _(mo):
         "still valid and within r x ATR of the close are sorted by price and **single-linked into zones**: a gap larger than "
         "max(w x ATR, 4 ticks) starts a new zone. A zone's **strength** is the number of distinct level families in it. The zone "
         "whose centre is nearest below the close is **support**, the nearest above is **resistance**; they apply to the NEXT bar. "
-        "`levels.zones_for_bars` (`src/ml/ta_strategy/levels.py`) does exactly this; the cells below rebuild it for one session "
+        "`levels.zones_for_bars` (`packages/ml-engine/src/ta_strategy/levels.py`) does exactly this; the cells below rebuild it for one session "
         "from the lake's minutes and let you move every dial."),
         mo.hstack([zone_how_symbol, zone_how_day, zone_how_timeframe]), mo.hstack([zone_how_width, zone_how_reach]), zone_how_families])
     return zone_how_day, zone_how_families, zone_how_reach, zone_how_symbol, zone_how_timeframe, zone_how_width

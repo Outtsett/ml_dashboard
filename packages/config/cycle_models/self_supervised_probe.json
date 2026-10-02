@@ -1,0 +1,3308 @@
+{
+  "models": {
+    "denoising_autoencoder": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-augmentation-based-methods-denoising-autoencoder",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Denoising Autoencoder",
+      "category": "Self-supervised learning",
+      "subcategory": "Augmentation-based methods",
+      "kind": "Autoencoder + probe",
+      "summary": "Corrupts each bar's features and learns to rebuild the clean row; the bottleneck is the representation.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: a feature row, not an image; corruption zeroes cells and adds Gaussian noise, and zeroed cells weigh more in the error. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "denoising_autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "mask_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "label": "Mask fraction",
+          "group": "Model",
+          "description": "Share of a row's cells set to zero before encoding.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "noise_standard_deviation": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0,
+          "max": 3,
+          "label": "Noise standard deviation",
+          "group": "Model",
+          "description": "Gaussian noise added to every standardised cell before encoding."
+        },
+        "corruption_emphasis": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 10,
+          "label": "Corruption emphasis",
+          "group": "Model",
+          "description": "Extra weight of a zeroed cell in the reconstruction error (0 = all cells equal)."
+        }
+      }
+    },
+    "self_distillation": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-augmentation-based-methods-self-distillation-without-labels",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-Distillation Without Labels",
+      "category": "Self-supervised learning",
+      "subcategory": "Augmentation-based methods",
+      "kind": "Teacher-student + probe",
+      "summary": "A student network matches a slowly moving copy of itself (the teacher) across several augmented views of the same bar.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: views are jitter, scaling and feature dropout of a row; the student matches the EMA teacher's output and hidden layer; a variance hinge prevents collapse. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "self_distillation"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "view_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 8,
+          "label": "View count",
+          "group": "Model",
+          "description": "Augmented views of each bar; the student matches the teacher on every other view."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.99,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student.",
+          "search": {
+            "kind": "float",
+            "low": 0.95,
+            "high": 0.999,
+            "log": false
+          }
+        },
+        "variance_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 25,
+          "label": "Variance weight",
+          "group": "Model",
+          "description": "Weight of the hinge that keeps every embedding dimension's spread above 1 (collapse guard)."
+        }
+      }
+    },
+    "barlow_twins": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-barlow-twins",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Barlow Twins",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Siamese + probe",
+      "summary": "Makes two views' embeddings agree dimension by dimension while decorrelating the dimensions (redundancy reduction).",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: views are jitter, scaling and feature dropout of a feature row, not image crops; the correlation matrix is estimated per batch, so it wants large batches. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "barlow_twins"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "off_diagonal_weight": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0,
+          "max": 1,
+          "label": "Off-diagonal weight",
+          "group": "Model",
+          "description": "Weight of the redundancy term (squared off-diagonal cross-correlations).",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 0.05,
+            "log": true
+          }
+        }
+      }
+    },
+    "bootstrap_your_own_latent": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-byol-bootstrap-your-own-latent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "BYOL (Bootstrap Your Own Latent)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Siamese + probe",
+      "summary": "An online network predicts a slowly moving target network's projection of another view; no negatives.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: views are jitter, scaling and feature dropout of a feature row; the target momentum rises to 1 on a cosine schedule as in the paper. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "bootstrap_your_own_latent"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "predictor_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Predictor size",
+          "group": "Model",
+          "description": "Hidden width of the predictor that maps one view's projection onto the other's."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.996,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student.",
+          "search": {
+            "kind": "float",
+            "low": 0.99,
+            "high": 0.999,
+            "log": false
+          }
+        }
+      }
+    },
+    "simclr_momentum_contrast": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-contrastive-learning-simclr-moco",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Contrastive Learning (SimCLR, MoCo)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Contrastive + probe",
+      "summary": "Pulls two views of a bar together and pushes other bars away; with a queue it becomes MoCo.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: queue_size 0 is SimCLR (in-batch negatives); above 0 it is MoCo (momentum key encoder, queue of past keys). Adjacent bars are near-duplicates, so some negatives are false. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "simclr_momentum_contrast"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "queue_size": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 65536,
+          "label": "Queue size",
+          "group": "Model",
+          "description": "Past keys kept as extra negatives (0 = SimCLR, above 0 = MoCo)."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.99,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student."
+        }
+      }
+    },
+    "cross_view_prediction": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-cross-view-prediction",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Cross-View Prediction",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Two-view predictor + probe",
+      "summary": "Splits the features into two views and trains each view's embedding to predict the other's.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: the two views are feature groups by modality (price geometry vs volume, volatility, news), not two sensors; rebuilding the other view's columns prevents collapse. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "cross_view_prediction"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "predictor_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Predictor size",
+          "group": "Model",
+          "description": "Hidden width of the predictor that maps one view's projection onto the other's."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature before encoding."
+        },
+        "reconstruction_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 10,
+          "label": "Reconstruction weight",
+          "group": "Model",
+          "description": "Weight of rebuilding the other view's raw columns.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "momentum_contrast_v3": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-momentum-contrast-moco-v3",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Momentum Contrast (MoCo v3)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Transformer contrastive + probe",
+      "summary": "A transformer over patches of the recent bars learns to match a momentum encoder's view of the same window.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: the transformer reads patches of bars from the causal window, not image patches; crops are resampled inside the window. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "momentum_contrast_v3"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "patch_bars": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Patch bars",
+          "group": "Model",
+          "description": "Bars per patch; each patch of the window is one token."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; a multiple of the head count."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Head count",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every bar of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view's window is multiplied by."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.99,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student."
+        },
+        "crop_minimum_fraction": {
+          "type": "float",
+          "default": 0.6,
+          "min": 0.1,
+          "max": 1,
+          "label": "Crop minimum fraction",
+          "group": "Model",
+          "description": "Smallest share of the window a crop keeps before it is stretched back to full length."
+        }
+      }
+    },
+    "patch_self_distillation": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-patch-level-contrastive-learning-e-g-dino",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Patch-level Contrastive Learning (e.g., DINO)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Transformer self-distillation + probe",
+      "summary": "A student transformer matches a momentum teacher's sharpened prototype scores on whole windows, local crops and masked patches.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: global views are the whole window, local crops runs of its patches; the patch-level term scores masked patches against the teacher's tokens. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "patch_self_distillation"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "patch_bars": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Patch bars",
+          "group": "Model",
+          "description": "Bars per patch; each patch of the window is one token."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; a multiple of the head count."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Head count",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every bar of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view's window is multiplied by."
+        },
+        "prototype_count": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Prototype count",
+          "group": "Model",
+          "description": "Outputs of the prototype head the teacher's targets are spread over."
+        },
+        "teacher_temperature": {
+          "type": "float",
+          "default": 0.04,
+          "min": 0.01,
+          "max": 1,
+          "label": "Teacher temperature",
+          "group": "Model",
+          "description": "Sharpening of the teacher's centred scores."
+        },
+        "student_temperature": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 1,
+          "label": "Student temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the student's scores."
+        },
+        "center_momentum": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0,
+          "max": 0.9999,
+          "label": "Center momentum",
+          "group": "Model",
+          "description": "How slowly the centre subtracted from the teacher's scores moves."
+        },
+        "local_crop_count": {
+          "type": "int",
+          "default": 4,
+          "min": 0,
+          "max": 16,
+          "label": "Local crop count",
+          "group": "Model",
+          "description": "Short crops of the window only the student sees."
+        },
+        "mask_ratio": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 0.9,
+          "label": "Mask ratio",
+          "group": "Model",
+          "description": "Share of the patches hidden from the student for the patch-level term.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "patch_loss_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0,
+          "max": 5,
+          "label": "Patch loss weight",
+          "group": "Model",
+          "description": "Weight of the patch-level term against the whole-window term."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.996,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student."
+        }
+      }
+    },
+    "self_augmented_contrastive": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-self-augmented-contrastive-encoder",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-Augmented Contrastive Encoder",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Recurrent contrastive + probe",
+      "summary": "A recurrent encoder learns to recognise two augmented copies of a window while the augmentation strengths are learned to make that hard.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: the learned augmentation is three strengths (jitter, scaling, a random trend) pushed up the contrastive loss by gradient ascent under a log barrier. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "self_augmented_contrastive"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 48,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "augmentation_learning_rate": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0,
+          "max": 1,
+          "label": "Augmentation learning rate",
+          "group": "Model",
+          "description": "Step size of the gradient ascent on the augmentation strengths."
+        },
+        "strength_barrier_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Strength barrier weight",
+          "group": "Model",
+          "description": "Weight of the log barrier that keeps each strength off its bounds."
+        }
+      }
+    },
+    "simple_siamese": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-simsiam",
+      "alsoCatalogSpecIds": [],
+      "displayName": "SimSiam (Simple Siamese Representation Learning)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Siamese + probe",
+      "summary": "Two views through one network; a predictor and a stop-gradient alone keep it from collapsing.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: views are jitter, scaling and feature dropout of a feature row, not image crops; trained with SGD, momentum 0.9 and cosine decay as in the paper. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "simple_siamese"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "predictor_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Predictor size",
+          "group": "Model",
+          "description": "Hidden width of the predictor that maps one view's projection onto the other's."
+        }
+      }
+    },
+    "swapped_assignments": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-contrastive-learning-swav-swapped-assignments",
+      "alsoCatalogSpecIds": [],
+      "displayName": "SwAV (Swapped Assignments)",
+      "category": "Self-supervised learning",
+      "subcategory": "Contrastive learning",
+      "kind": "Prototype clustering + probe",
+      "summary": "Assigns each view to learned prototypes with an equal-share (Sinkhorn) constraint and predicts one view's assignment from the other.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: two row views instead of multi-crop images and no feature queue; equipartition forces rare market states to share prototypes. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "swapped_assignments"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every standardised feature of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view is multiplied by."
+        },
+        "feature_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "label": "Feature dropout",
+          "group": "Model",
+          "description": "Share of a view's features set to zero, a different set per bar."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper."
+        },
+        "prototype_count": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 4096,
+          "label": "Prototype count",
+          "group": "Model",
+          "description": "Learned cluster centres the bars are assigned to.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "sinkhorn_smoothing": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1,
+          "label": "Sinkhorn smoothing",
+          "group": "Model",
+          "description": "Entropy smoothing of the equal-share assignment; smaller is closer to hard."
+        },
+        "sinkhorn_iterations": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "label": "Sinkhorn iterations",
+          "group": "Model",
+          "description": "Row and column normalisation passes of the assignment."
+        }
+      }
+    },
+    "masked_autoencoder": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-masked-modeling-masked-autoencoder-mae",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Masked Autoencoder (MAE)",
+      "category": "Self-supervised learning",
+      "subcategory": "Masked modeling",
+      "kind": "Masked transformer + probe",
+      "summary": "Hides most patches of the recent-bar window; the encoder sees only the rest and a light decoder rebuilds what was hidden.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: patches are runs of bars in the causal window, not image patches; the mean of the encoder's tokens on the whole window is the embedding. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "masked_autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "patch_bars": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Patch bars",
+          "group": "Model",
+          "description": "Bars per patch; each patch of the window is one token."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; a multiple of the head count."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Head count",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the encoder."
+        },
+        "mask_ratio": {
+          "type": "float",
+          "default": 0.75,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Mask ratio",
+          "group": "Model",
+          "description": "Share of the patches hidden from the encoder.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 0.75,
+            "log": false
+          }
+        },
+        "decoder_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 512,
+          "label": "Decoder dimension",
+          "group": "Model",
+          "description": "Token width of the light decoder."
+        },
+        "decoder_layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 8,
+          "label": "Decoder layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the decoder."
+        }
+      }
+    },
+    "masked_graph_modeling": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-masked-modeling-masked-graph-modeling",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Masked Graph Modeling",
+      "category": "Self-supervised learning",
+      "subcategory": "Masked modeling",
+      "kind": "Masked graph network + probe",
+      "summary": "Treats the recent bars as a graph, hides some bars' features and some links, and learns to restore both.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: nodes are the window's bars and edges the time chain plus nearest bars by cosine similarity; there is no multi-asset graph. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "masked_graph_modeling"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 32,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Most similar bars of the window each bar is linked to."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Width of each graph convolution."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Graph convolutions of the encoder."
+        },
+        "node_mask_ratio": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 0.9,
+          "label": "Node mask ratio",
+          "group": "Model",
+          "description": "Share of the bars whose features are replaced by the mask token.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "edge_mask_ratio": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "label": "Edge mask ratio",
+          "group": "Model",
+          "description": "Share of the links dropped for the encoder and restored by the decoder."
+        },
+        "edge_loss_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0,
+          "max": 10,
+          "label": "Edge loss weight",
+          "group": "Model",
+          "description": "Weight of the dropped-link term against the node term."
+        }
+      }
+    },
+    "masked_feature_modeling": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-masked-modeling-masked-language-modeling-bert-style",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Masked Language Modeling (BERT-style)",
+      "category": "Self-supervised learning",
+      "subcategory": "Masked modeling",
+      "kind": "Masked token transformer + probe",
+      "summary": "Turns each feature into a token (its quantile bin), hides some tokens and learns to fill them in from the others.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: tokens are the row's features, each valued by its training-quantile bin, not words; the 80/10/10 masking rule is kept. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "masked_feature_modeling"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Bin count",
+          "group": "Model",
+          "description": "Quantile bins per feature (its vocabulary), fitted on the training span.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "mask_probability": {
+          "type": "float",
+          "default": 0.15,
+          "min": 0.01,
+          "max": 0.9,
+          "label": "Mask probability",
+          "group": "Model",
+          "description": "Chance each feature token is selected for prediction."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; a multiple of the head count."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Head count",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the encoder."
+        }
+      }
+    },
+    "contrastive_predictive_coding": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-predictive-representation-learning-context-prediction-cpc",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Contrastive Predictive Coding (CPC)",
+      "category": "Self-supervised learning",
+      "subcategory": "Predictive representation learning",
+      "kind": "Future-contrast recurrent + probe",
+      "summary": "A recurrent context summarises the recent bars and must pick out the next bars' encodings from other bars'.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: future targets come only from bars inside the training span; negatives are the other bars of the batch. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "contrastive_predictive_coding"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "prediction_steps": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Prediction steps",
+          "group": "Model",
+          "description": "Future bars the context is trained to recognise."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "Width of each bar's encoding."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Width of the recurrent context, which the probe reads."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "predictive_coding": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-predictive-representation-learning-predictive-coding-models",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Predictive Coding Models",
+      "category": "Self-supervised learning",
+      "subcategory": "Predictive representation learning",
+      "kind": "Predictive coding + probe",
+      "summary": "A two-level network predicts each bar's latent state from the bars before it; its surprise is part of the representation.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: amortised two-level predictive coding; a few inference steps settle the current latent at embedding time, and the surprise is part of the embedding. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "predictive_coding"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Width of each bar's latent state."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Width of the recurrent level and the encoder's hidden layers."
+        },
+        "prediction_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 10,
+          "label": "Prediction weight",
+          "group": "Model",
+          "description": "Weight of the next-latent prediction error."
+        },
+        "reconstruction_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0,
+          "max": 10,
+          "label": "Reconstruction weight",
+          "group": "Model",
+          "description": "Weight of rebuilding each bar from its latent.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "inference_steps": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 20,
+          "label": "Inference steps",
+          "group": "Model",
+          "description": "Gradient steps that settle the current latent between the bar and the prediction."
+        }
+      }
+    },
+    "transformation_prediction": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-predictive-representation-learning-rotation-prediction-rotnet",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Rotation Prediction (RotNet)",
+      "category": "Self-supervised learning",
+      "subcategory": "Predictive representation learning",
+      "kind": "Transformation classifier + probe",
+      "summary": "Learns which of four transformations was applied to a window of bars, so the encoder must know the arrow of time and the sign of moves.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: the four rotations become the window as is, negated, time-reversed, and both; there are no images to rotate. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "transformation_prediction"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 48,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        }
+      }
+    },
+    "self_predictive_representations": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-predictive-representation-learning-self-predictive-representations-spr",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-Predictive Representations (SPR)",
+      "category": "Self-supervised learning",
+      "subcategory": "Predictive representation learning",
+      "kind": "Latent forecasting + probe",
+      "summary": "Rolls the latent state forward a few bars and matches a momentum encoder's view of the windows that followed.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: there are no actions (the market ignores the model); the future windows come only from inside the training span. Expect: near plain logistic regression; the log compares the rolled-forward cosine with copying the latent.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "self_predictive_representations"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "prediction_steps": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Prediction steps",
+          "group": "Model",
+          "description": "Bars the latent is rolled forward."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each bar; the probe reads these."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the encoder."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.996,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to the online window."
+        }
+      }
+    },
+    "transformer_self_supervision": {
+      "catalogSpecId": "machine-learning-self-supervised-learning-predictive-representation-learning-transformer-based-self-supervision",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Transformer-based Self-Supervision",
+      "category": "Self-supervised learning",
+      "subcategory": "Predictive representation learning",
+      "kind": "Multi-task transformer + probe",
+      "summary": "A transformer over patches of recent bars is trained on three self-supervised tasks at once: rebuild hidden patches, match two views, follow a momentum teacher.",
+      "implementationNote": "Bridge: the pretext trains on every finite bar of the training span, labels unread; a linear probe on the frozen embedding gives P(up), a Huber head the price, both early-stopped on validation. Differs from the spec: patch tokens are runs of bars in the causal window; the three losses are logged separately so an ablation shows which one carries the probe. Expect: near a plain logistic regression on the same features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "self_supervised_probe",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "transformer_self_supervision"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "pretext_epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Pretext epochs",
+          "group": "Model",
+          "description": "Passes over the training span's unlabelled bars with the self-supervised objective; no label is read."
+        },
+        "head_epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Probe epochs",
+          "group": "Model",
+          "description": "Epochs of the linear probe on the frozen embedding (25 full-batch steps each), stopped early on the validation rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Probe epochs without a better validation loss before the probe stops."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The pretext optimiser's step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the encoder's weights toward zero each pretext step."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Bars per pretext step, drawn at random from the span (contrastive methods use the rest of the batch as negatives)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in the causal window the encoder reads, ending at the bar predicted."
+        },
+        "patch_bars": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Patch bars",
+          "group": "Model",
+          "description": "Bars per patch; each patch of the window is one token."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of every token; a multiple of the head count."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Head count",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Self-attention layers of the encoder."
+        },
+        "jitter_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 2,
+          "label": "Jitter strength",
+          "group": "Model",
+          "description": "Standard deviation of the noise added to every bar of a view."
+        },
+        "scaling_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 1,
+          "label": "Scaling strength",
+          "group": "Model",
+          "description": "Standard deviation of the random factor each feature of a view's window is multiplied by."
+        },
+        "projector_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Projector size",
+          "group": "Model",
+          "description": "Width of the projection head the pretext loss reads (dropped for the probe)."
+        },
+        "mask_ratio": {
+          "type": "float",
+          "default": 0.4,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Mask ratio",
+          "group": "Model",
+          "description": "Share of each view's patches replaced by the mask token.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.6,
+            "log": false
+          }
+        },
+        "reconstruction_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 10,
+          "label": "Reconstruction weight",
+          "group": "Model",
+          "description": "Weight of rebuilding the masked patches."
+        },
+        "contrastive_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0,
+          "max": 10,
+          "label": "Contrastive weight",
+          "group": "Model",
+          "description": "Weight of the CLS contrast between the two views."
+        },
+        "distillation_weight": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0,
+          "max": 10,
+          "label": "Distillation weight",
+          "group": "Model",
+          "description": "Weight of matching the momentum teacher's CLS."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 5,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softmax temperature of the contrastive (or prototype) scores; lower is sharper."
+        },
+        "teacher_momentum": {
+          "type": "float",
+          "default": 0.996,
+          "min": 0.9,
+          "max": 0.99999,
+          "label": "Teacher momentum",
+          "group": "Model",
+          "description": "How slowly the momentum (EMA) teacher follows the student: new teacher = momentum x teacher + (1 - momentum) x student."
+        }
+      }
+    }
+  }
+}

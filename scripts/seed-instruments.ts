@@ -2,12 +2,12 @@
  * Seed the instruments table with known symbols and their metadata.
  * Run: npx tsx scripts/seed-instruments.ts
  *
- * Futures rows come from `src/config/contract_specifications.json` through
- * `src/shared/instruments.ts` (the roots the lake carries); forex rows are listed here.
+ * Futures rows come from `packages/config/contract_specifications.json` through
+ * `packages/shared/src/instruments.ts` (the roots the lake carries); forex rows are listed here.
  */
-import { db, closeDatabases } from '../src/server/infrastructure/database/db';
-import { instruments, type InsertInstrument } from '../src/shared/schema';
-import { futuresInstrumentRows } from '../src/shared/instruments';
+import { db, closeDatabases } from '../apps/api/infrastructure/database/db';
+import { instruments, type InsertInstrument } from '../packages/shared/src/schema';
+import { futuresInstrumentRows } from '../packages/shared/src/instruments';
 
 const FOREX_INSTRUMENTS: InsertInstrument[] = [
   // Major Forex Pairs

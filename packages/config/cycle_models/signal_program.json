@@ -1,0 +1,1103 @@
+{
+  "models": {
+    "linear_programming": {
+      "catalogSpecId": "optimization-based-models-classical-optimization-linear-programming-lp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Linear programming (LP)",
+      "category": "Optimization-based models",
+      "subcategory": "Classical optimization",
+      "kind": "Linear program",
+      "summary": "Spreads a fixed budget of weight over the signals that best predicted the next move in training, strongest first, each up to a cap; the dual simplex method finds the best corner of that budget exactly.",
+      "implementationNote": "Bridge: HiGHS dual simplex maximises summed IC under a weight budget and per-signal caps; P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Exact given in-sample inputs; shadow prices are logged. Expect: a sparse vertex (top signals at their caps), skill near a one-feature logistic model.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "lp"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "exposure_budget": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Total weight budget",
+          "group": "Model",
+          "description": "The absolute signal weights may add up to at most this. Only the mix of weights matters for P(up), because the score is recalibrated on the validation bars."
+        },
+        "per_signal_cap": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Most weight on one signal",
+          "group": "Model",
+          "description": "No single signal may carry more absolute weight than this.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5
+          }
+        },
+        "information_coefficient_hurdle": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Information coefficient hurdle",
+          "group": "Model",
+          "description": "A signal's training information coefficient must beat this before it earns weight (the cost of one unit of weight in the program's objective).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05
+          }
+        }
+      }
+    },
+    "integer_linear_programming": {
+      "catalogSpecId": "optimization-based-models-classical-optimization-integer-linear-programming-ilp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Integer linear programming (ILP)",
+      "category": "Optimization-based models",
+      "subcategory": "Classical optimization",
+      "kind": "Integer program",
+      "summary": "Hands out whole lots to the signals, a limited number per feature family, so the score is a simple integer scorecard; branch and bound proves the lot assignment optimal.",
+      "implementationNote": "Bridge: HiGHS branch and bound gives whole lots to signals under a lot budget and a per-category lot limit; P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Exact given in-sample inputs; gap and nodes are logged. Expect: a coarse, diversified scorecard, skill near the LP.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ilp"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_lots_per_signal": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "label": "Most lots per signal",
+          "group": "Model",
+          "description": "The most whole lots one signal may carry, long or short.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 5
+          }
+        },
+        "total_lot_budget": {
+          "type": "int",
+          "default": 12,
+          "min": 1,
+          "max": 1000,
+          "label": "Total lot budget",
+          "group": "Model",
+          "description": "All lots together may not exceed this.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 40
+          }
+        },
+        "category_lot_limit": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 1000,
+          "label": "Lots per feature category",
+          "group": "Model",
+          "description": "The most lots the signals of one feature category (returns, volume, volatility, ...) may share."
+        },
+        "information_coefficient_hurdle": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Information coefficient hurdle",
+          "group": "Model",
+          "description": "A signal's training information coefficient must beat this before it earns weight (the cost of one unit of weight in the program's objective)."
+        },
+        "relative_gap_tolerance": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Relative optimality gap",
+          "group": "Model",
+          "description": "The solver stops once its best answer is proven within this fraction of the optimum."
+        },
+        "node_limit": {
+          "type": "int",
+          "default": 100000,
+          "min": 1,
+          "max": 10000000,
+          "label": "Search node limit",
+          "group": "Model",
+          "description": "The most search-tree nodes the solver may open; when reached, the best answer so far is kept and its proven gap is logged."
+        }
+      }
+    },
+    "mixed_integer_programming": {
+      "catalogSpecId": "optimization-based-models-classical-optimization-mixed-integer-programming-mip",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Mixed-integer programming (MIP)",
+      "category": "Optimization-based models",
+      "subcategory": "Classical optimization",
+      "kind": "Mixed-integer program",
+      "summary": "Chooses at most a handful of signals that do not repeat each other, and how much weight each gets, in one exact solve: yes/no switches for the choice, continuous weights for the size.",
+      "implementationNote": "Bridge: HiGHS branch and cut picks at most K signals (binary switches) and their weights, no two correlated above a limit; P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. In-sample selection is optimistic. Expect: a sparse, decorrelated set, skill near the LP.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "mip"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_selected_signals": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Most signals selected",
+          "group": "Model",
+          "description": "The largest number of signals the program may give weight to.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 15
+          }
+        },
+        "minimum_signal_weight": {
+          "type": "float",
+          "default": 0.02,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Smallest weight of a chosen signal",
+          "group": "Model",
+          "description": "A chosen signal carries at least this much weight (capped at the per-signal cap)."
+        },
+        "selection_cost": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Cost of choosing a signal",
+          "group": "Model",
+          "description": "Subtracted from the objective for every signal chosen; favours fewer signals."
+        },
+        "redundancy_correlation_limit": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Redundancy correlation limit",
+          "group": "Model",
+          "description": "Two signals whose training correlation is above this may not both be chosen (1 = no limit).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1.0
+          }
+        },
+        "exposure_budget": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Total weight budget",
+          "group": "Model",
+          "description": "The absolute signal weights may add up to at most this. Only the mix of weights matters for P(up), because the score is recalibrated on the validation bars."
+        },
+        "per_signal_cap": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Most weight on one signal",
+          "group": "Model",
+          "description": "No single signal may carry more absolute weight than this."
+        },
+        "relative_gap_tolerance": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Relative optimality gap",
+          "group": "Model",
+          "description": "The solver stops once its best answer is proven within this fraction of the optimum."
+        },
+        "node_limit": {
+          "type": "int",
+          "default": 100000,
+          "min": 1,
+          "max": 10000000,
+          "label": "Search node limit",
+          "group": "Model",
+          "description": "The most search-tree nodes the solver may open; when reached, the best answer so far is kept and its proven gap is logged."
+        }
+      }
+    },
+    "quadratic_programming": {
+      "catalogSpecId": "optimization-based-models-classical-optimization-quadratic-programming-qp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Quadratic programming (QP)",
+      "category": "Optimization-based models",
+      "subcategory": "Classical optimization",
+      "kind": "Quadratic program",
+      "summary": "Builds a mean-variance portfolio of signals: rewards each signal's training edge and charges for the risk of signals that win and lose together, like a Markowitz portfolio of strategies.",
+      "implementationNote": "Bridge: OSQP solves Markowitz over signals: IC as return, Ledoit-Wolf covariance of their profit streams as risk; P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Exact given in-sample inputs. Expect: smooth, diversified weights, close to ridge regression.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "qp"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "risk_aversion": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.001,
+          "max": 1000.0,
+          "label": "Risk aversion",
+          "group": "Model",
+          "description": "How much the program pays for the variance of the combined signal book; higher spreads weight across signals that do not move together.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 20.0,
+            "log": true
+          }
+        },
+        "exposure_budget": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Total weight budget",
+          "group": "Model",
+          "description": "The absolute signal weights may add up to at most this. Only the mix of weights matters for P(up), because the score is recalibrated on the validation bars."
+        },
+        "per_signal_cap": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Most weight on one signal",
+          "group": "Model",
+          "description": "No single signal may carry more absolute weight than this."
+        },
+        "solver_tolerance": {
+          "type": "float",
+          "default": 1e-08,
+          "min": 1e-12,
+          "max": 0.01,
+          "label": "Solver tolerance",
+          "group": "Model",
+          "description": "OSQP's absolute and relative residual tolerance before polishing.",
+          "logScale": true
+        }
+      }
+    },
+    "interior_point_method": {
+      "catalogSpecId": "optimization-based-models-classical-optimization-interior-point-methods",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Interior-point methods",
+      "category": "Optimization-based models",
+      "subcategory": "Classical optimization",
+      "kind": "Barrier method",
+      "summary": "Fits a sparse logistic regression (L1 penalty) with a primal-dual interior-point solver, the method's classic use in machine learning, and proves how close it got with a duality-gap certificate.",
+      "implementationNote": "Bridge: CLARABEL's primal-dual barrier method fits L1 logistic regression (Huber for the price); P(up) is the model's own sigmoid. Differs from the spec: the spec is a solver; predictions match any exact L1 logistic solver. Only the algorithm and its duality-gap certificate differ. Expect: logistic-regression skill with fewer non-zero weights.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "interior_point"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "l1_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-07,
+          "max": 1.0,
+          "label": "L1 penalty",
+          "group": "Model",
+          "description": "How hard the absolute weights are penalised; larger zeroes more signals.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.05,
+            "log": true
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 200,
+          "min": 5,
+          "max": 1000,
+          "label": "Most Newton iterations",
+          "group": "Model",
+          "description": "The barrier method stops after this many Newton steps."
+        },
+        "duality_gap_tolerance": {
+          "type": "float",
+          "default": 1e-07,
+          "min": 1e-12,
+          "max": 0.01,
+          "label": "Duality gap tolerance",
+          "group": "Model",
+          "description": "The solver is done when the gap between the primal and dual objectives is below this.",
+          "logScale": true
+        },
+        "step_fraction_to_boundary": {
+          "type": "float",
+          "default": 0.99,
+          "min": 0.5,
+          "max": 0.99999,
+          "label": "Step fraction to the boundary",
+          "group": "Model",
+          "description": "Each Newton step goes at most this fraction of the way to the edge of the feasible cone."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 0,
+          "max": 1000000,
+          "label": "Most recent training bars used",
+          "group": "Model",
+          "description": "The fit uses at most this many of the latest training bars (0 = all); the conic program grows with every bar."
+        }
+      }
+    },
+    "convex_optimization": {
+      "catalogSpecId": "optimization-based-models-convex-non-convex-methods-convex-optimization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Convex optimization",
+      "category": "Optimization-based models",
+      "subcategory": "Convex and non-convex methods",
+      "kind": "Convex program",
+      "summary": "Finds the book of signals with the smallest average loss on its worst bars (conditional value at risk) among those that still earn a required training edge; the program is checked convex and solved exactly.",
+      "implementationNote": "Bridge: CLARABEL solves a DCP-checked program: least conditional value at risk of training losses for a required IC edge, plus elastic net. P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Tail bars are thinned evenly to a cap. Expect: weights tilted away from fat-tailed signals, skill near the QP.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "convex_cvar"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "tail_confidence_level": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.5,
+          "max": 0.999,
+          "label": "Tail confidence level",
+          "group": "Model",
+          "description": "Conditional value at risk averages the losses beyond this quantile of the training bars.",
+          "search": {
+            "kind": "float",
+            "low": 0.9,
+            "high": 0.99
+          }
+        },
+        "required_edge_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 1.0,
+          "label": "Required edge (share of the most)",
+          "group": "Model",
+          "description": "The book must earn at least this share of the largest training edge the budget can buy (all of it on the strongest signal); higher trades tail safety for edge.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.9
+          }
+        },
+        "elastic_net_strength": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Elastic net strength",
+          "group": "Model",
+          "description": "The overall size of the weight penalty."
+        },
+        "elastic_net_mixing": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Elastic net mixing",
+          "group": "Model",
+          "description": "1 = all absolute-value (L1) penalty, 0 = all squared (L2) penalty."
+        },
+        "exposure_budget": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Total weight budget",
+          "group": "Model",
+          "description": "The absolute signal weights may add up to at most this. Only the mix of weights matters for P(up), because the score is recalibrated on the validation bars."
+        },
+        "maximum_scenario_rows": {
+          "type": "int",
+          "default": 4000,
+          "min": 100,
+          "max": 100000,
+          "label": "Most tail scenario bars",
+          "group": "Model",
+          "description": "The tail is measured on at most this many training bars, spread evenly over the span; each adds one variable to the program."
+        }
+      }
+    },
+    "augmented_lagrangian": {
+      "catalogSpecId": "optimization-based-models-decomposition-relaxation-augmented-lagrangian-method",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Augmented Lagrangian method",
+      "category": "Optimization-based models",
+      "subcategory": "Decomposition and relaxation",
+      "kind": "Multiplier method",
+      "summary": "Finds the signal weights with the most training edge at exactly a target level of risk, by repeatedly solving a penalised problem and adjusting a price on the risk target until it is met.",
+      "implementationNote": "Bridge: The method of multipliers maximises IC subject to book variance = target (L-BFGS-B inner solves, one pass per update); P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. The target only rescales weights unless caps bind. Expect: covariance-adjusted weights, skill near the QP.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "augmented_lagrangian"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "target_variance": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 1000.0,
+          "label": "Target book variance",
+          "group": "Model",
+          "description": "The variance of the combined signal book the solution must hit exactly.",
+          "logScale": true
+        },
+        "per_signal_cap": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Most weight on one signal",
+          "group": "Model",
+          "description": "No single signal may carry more absolute weight than this.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0
+          }
+        },
+        "initial_penalty_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 1000.0,
+          "label": "Initial penalty weight",
+          "group": "Model",
+          "description": "The starting weight of the squared constraint violation.",
+          "logScale": true
+        },
+        "penalty_growth_factor": {
+          "type": "float",
+          "default": 4.0,
+          "min": 1.01,
+          "max": 100.0,
+          "label": "Penalty growth factor",
+          "group": "Model",
+          "description": "The penalty is multiplied by this when the violation did not shrink enough in one outer iteration."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Most outer iterations",
+          "group": "Model",
+          "description": "Each outer iteration is one solver pass: an inner solve plus a multiplier update."
+        },
+        "constraint_violation_tolerance": {
+          "type": "float",
+          "default": 1e-08,
+          "min": 1e-14,
+          "max": 0.1,
+          "label": "Constraint violation tolerance",
+          "group": "Model",
+          "description": "The solver is done when the coupled constraint is off by no more than this.",
+          "logScale": true
+        }
+      }
+    },
+    "dual_decomposition": {
+      "catalogSpecId": "optimization-based-models-decomposition-relaxation-dual-decomposition",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dual decomposition",
+      "category": "Optimization-based models",
+      "subcategory": "Decomposition and relaxation",
+      "kind": "Decomposition",
+      "summary": "Splits the signals into feature families (returns, volume, volatility, news, ...), lets each family size its own weights, and coordinates them through one price on the shared risk budget.",
+      "implementationNote": "Bridge: Each features.json category solves its own mean-variance subproblem; a subgradient price on the shared budget coordinates them. P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Cross-category covariance is dropped. Expect: weights near the QP's, with a logged dual bound.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dual_decomposition"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "risk_aversion": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.001,
+          "max": 1000.0,
+          "label": "Risk aversion",
+          "group": "Model",
+          "description": "How much the program pays for the variance of the combined signal book; higher spreads weight across signals that do not move together.",
+          "logScale": true
+        },
+        "exposure_budget": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Total weight budget",
+          "group": "Model",
+          "description": "The absolute signal weights may add up to at most this. Only the mix of weights matters for P(up), because the score is recalibrated on the validation bars.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 4.0
+          }
+        },
+        "per_signal_cap": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Most weight on one signal",
+          "group": "Model",
+          "description": "No single signal may carry more absolute weight than this."
+        },
+        "subgradient_step_size": {
+          "type": "float",
+          "default": 0.5,
+          "min": 1e-06,
+          "max": 100.0,
+          "label": "Subgradient step size",
+          "group": "Model",
+          "description": "How far the price on the relaxed constraint moves per iteration, before the decay.",
+          "logScale": true
+        },
+        "step_size_decay_rate": {
+          "type": "float",
+          "default": 0.995,
+          "min": 0.5,
+          "max": 1.0,
+          "label": "Step size decay per iteration",
+          "group": "Model",
+          "description": "The subgradient step is multiplied by this every iteration so the price settles."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 400,
+          "min": 1,
+          "max": 5000,
+          "label": "Coordination iterations",
+          "group": "Model",
+          "description": "Price updates between the category subproblems; grouped into about 20 solver passes."
+        },
+        "constraint_violation_tolerance": {
+          "type": "float",
+          "default": 1e-06,
+          "min": 1e-14,
+          "max": 0.1,
+          "label": "Constraint violation tolerance",
+          "group": "Model",
+          "description": "The solver is done when the coupled constraint is off by no more than this.",
+          "logScale": true
+        }
+      }
+    },
+    "lagrangian_relaxation": {
+      "catalogSpecId": "optimization-based-models-decomposition-relaxation-lagrangian-relaxation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Lagrangian relaxation",
+      "category": "Optimization-based models",
+      "subcategory": "Decomposition and relaxation",
+      "kind": "Relaxation",
+      "summary": "Picks the signals with the most edge under two limits, a count and a risk budget, by pricing the risk limit, solving the easy problem that is left, and repairing the answer into one that fits both.",
+      "implementationNote": "Bridge: Subgradient on the risk budget's multiplier bounds a count- and risk-limited selection; a repair makes it feasible. Weights sign(IC); P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Selection is in-sample. Expect: an equal-weight set of strong signals, skill near greedy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "lagrangian_relaxation"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_selected_signals": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Most signals selected",
+          "group": "Model",
+          "description": "The largest number of signals the program may give weight to.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 15
+          }
+        },
+        "risk_budget": {
+          "type": "float",
+          "default": 6.0,
+          "min": 0.01,
+          "max": 1000.0,
+          "label": "Risk budget",
+          "group": "Model",
+          "description": "Total risk the chosen signals may carry, counted in units of the average signal's profit-stream deviation (6 = six average signals)."
+        },
+        "information_coefficient_hurdle": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Information coefficient hurdle",
+          "group": "Model",
+          "description": "A signal's training information coefficient must beat this before it earns weight (the cost of one unit of weight in the program's objective)."
+        },
+        "subgradient_step_size": {
+          "type": "float",
+          "default": 0.05,
+          "min": 1e-06,
+          "max": 100.0,
+          "label": "Subgradient step size",
+          "group": "Model",
+          "description": "How far the price on the relaxed constraint moves per iteration, before the decay.",
+          "logScale": true
+        },
+        "step_size_decay_rate": {
+          "type": "float",
+          "default": 0.98,
+          "min": 0.5,
+          "max": 1.0,
+          "label": "Step size decay per iteration",
+          "group": "Model",
+          "description": "The subgradient step is multiplied by this every iteration so the price settles."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 300,
+          "min": 1,
+          "max": 5000,
+          "label": "Subgradient iterations",
+          "group": "Model",
+          "description": "Multiplier updates; grouped into about 20 solver passes."
+        },
+        "bound_improvement_tolerance": {
+          "type": "float",
+          "default": 1e-09,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Bound tolerance",
+          "group": "Model",
+          "description": "Stops once the repaired selection is within this of the bound (proven optimal)."
+        }
+      }
+    },
+    "branch_and_bound": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-branch-and-bound",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Branch and bound",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Exact search",
+      "summary": "Finds the exact best handful of signals for a least-squares fit of the next move by searching every combination in a tree and skipping every branch that provably cannot win.",
+      "implementationNote": "Bridge: Leaps-and-bounds search for the best K-signal least-squares subset; weights are its OLS coefficients. P(up) is a curve fitted on validation. Differs from the spec: exact search, not a metaheuristic; the node limit may stop it with a logged gap. The best in-sample subset is the most overfit. Expect: skill near stepwise regression.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "branch_and_bound"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_selected_signals": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 200,
+          "label": "Signals in the subset",
+          "group": "Model",
+          "description": "The largest number of signals the program may give weight to.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12
+          }
+        },
+        "node_limit": {
+          "type": "int",
+          "default": 20000,
+          "min": 1,
+          "max": 10000000,
+          "label": "Search node limit",
+          "group": "Model",
+          "description": "The most search-tree nodes the solver may open; when reached, the best answer so far is kept and its proven gap is logged."
+        },
+        "relative_gap_tolerance": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Relative optimality gap",
+          "group": "Model",
+          "description": "Prunes a branch unless it could beat the best subset by more than this fraction (0 = exact)."
+        }
+      }
+    },
+    "greedy_selection": {
+      "catalogSpecId": "optimization-based-models-metaheuristic-algorithms-greedy-algorithms",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Greedy algorithms",
+      "category": "Optimization-based models",
+      "subcategory": "Metaheuristic algorithms",
+      "kind": "Greedy",
+      "summary": "Adds signals one at a time, always the one with the most new edge per unit of risk, and never takes a choice back, until the risk budget or the signal limit is reached.",
+      "implementationNote": "Bridge: Ratio greedy adds the signal with the most new IC per unit of risk, never undoing a choice; weights IC/variance. P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. No optimality guarantee; the order is logged. Expect: forward-stepwise skill; its value is transparency.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "greedy"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_selected_signals": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Most signals selected",
+          "group": "Model",
+          "description": "The largest number of signals the program may give weight to.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 20
+          }
+        },
+        "risk_budget": {
+          "type": "float",
+          "default": 6.0,
+          "min": 0.01,
+          "max": 1000.0,
+          "label": "Risk budget",
+          "group": "Model",
+          "description": "Total risk the chosen signals may carry, counted in units of the average signal's profit-stream deviation (6 = six average signals).",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 20.0
+          }
+        },
+        "minimum_marginal_gain": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Smallest marginal gain",
+          "group": "Model",
+          "description": "Stops when no remaining signal adds at least this much gain."
+        }
+      }
+    },
+    "submodular_selection": {
+      "catalogSpecId": "optimization-based-models-submodular-discrete-optimization-submodular-optimization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Submodular optimization",
+      "category": "Optimization-based models",
+      "subcategory": "Submodular and discrete optimization",
+      "kind": "Submodular",
+      "summary": "Picks a small set of signals that together represent all the others (coverage) while favouring the ones with training edge, with a proven guarantee of reaching at least 63% of the best possible set.",
+      "implementationNote": "Bridge: Lazy greedy maximises coverage of signal correlations plus weighted relevance (the 1 - 1/e bound is logged); weights sign(IC)/k. P(up) is a curve fitted on validation. Differs from the spec: It weights this model's causal signals by train-span information coefficients (IC): one instrument alone makes it bang-bang on a sign. Skill comes only from the relevance term. Expect: a diverse, equal-weight set, below the QP.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "signal_program",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "submodular"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "Under 1 min per fold (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "maximum_selected_signals": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Most signals selected",
+          "group": "Model",
+          "description": "The largest number of signals the program may give weight to.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 20
+          }
+        },
+        "relevance_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Relevance weight",
+          "group": "Model",
+          "description": "How much a signal's own training edge counts against how well it covers the other signals.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 8.0
+          }
+        }
+      }
+    }
+  }
+}

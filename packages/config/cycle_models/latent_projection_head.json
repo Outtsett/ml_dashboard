@@ -1,0 +1,1875 @@
+{
+  "models": {
+    "principal_component_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-dimensionality-reduction-principal-component-analysis-pca",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Principal component analysis + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Dimensionality reduction",
+      "kind": "Projection + head",
+      "summary": "Principal components of the training span's feature rows, fitted without labels; a small supervised head reads the component scores.",
+      "implementationNote": "Bridge: PCA (full SVD) of the train-span feature rows, labels unread; a logistic head (or gradient boosting) on the component scores gives P(up), ridge gives the price. Differs from the spec: PCA predicts nothing, so a supervised head is added, the only part that reads labels (principal-component regression). Expect: components keep variance, not direction, so a small predictive axis can be dropped; edge near a plain logistic regression at best.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pca"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 64,
+          "label": "Component count",
+          "group": "Model",
+          "description": "How many principal components are kept (capped at the feature count).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12,
+            "log": false
+          }
+        },
+        "whiten_components": {
+          "type": "bool",
+          "default": false,
+          "label": "Whiten components",
+          "group": "Model",
+          "description": "Divide each component score by its deviation so every component has unit variance."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "independent_component_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-dimensionality-reduction-independent-component-analysis-ica",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Independent component analysis + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Dimensionality reduction",
+      "kind": "Projection + head",
+      "summary": "FastICA unmixes the training span's feature rows into statistically independent sources, fitted without labels; a supervised head reads the sources.",
+      "implementationNote": "Bridge: FastICA (negentropy contrast) on train-span feature rows, labels unread; the sources, a fixed linear map of a bar, feed a logistic head (or boosting); ridge for the price. Differs from the spec: a supervised head is added; non-convergence is logged. Expect: the sources span the same subspace as PCA with the same count, so the linear head gives nearly PCA's answer; only the boosting head uses their independence.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "fast_ica"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 64,
+          "label": "Component count",
+          "group": "Model",
+          "description": "How many independent sources are unmixed.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12,
+            "log": false
+          }
+        },
+        "contrast_function": {
+          "type": "categorical",
+          "default": "logcosh",
+          "choices": [
+            "logcosh",
+            "exp",
+            "cube"
+          ],
+          "label": "Contrast function",
+          "group": "Model",
+          "description": "The negentropy approximation FastICA maximises.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logcosh",
+              "exp",
+              "cube"
+            ]
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 400,
+          "min": 50,
+          "max": 5000,
+          "label": "Iteration count",
+          "group": "Model",
+          "description": "Fixed-point iterations allowed to converge."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "non_negative_factorization_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-dimensionality-reduction-non-negative-matrix-factorization-nmf",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Non-negative matrix factorization + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Dimensionality reduction",
+      "kind": "Projection + head",
+      "summary": "NMF learns additive parts of the shifted training feature rows without labels; each bar's non-negative activation of those parts feeds a supervised head.",
+      "implementationNote": "Bridge: NMF (coordinate descent) factorises the train-span rows into frozen parts; a bar's code is its exact non-negative least-squares activation, read by a logistic head (or gradient boosting); ridge for the price. Differs from the spec: z-scores are shifted to be non-negative with train-fixed constants; a supervised head is added, the only part that reads labels. Expect: parts of shifted z-scores are not natural parts; edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "nmf"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 64,
+          "label": "Component count",
+          "group": "Model",
+          "description": "How many non-negative parts are learned.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12,
+            "log": false
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 400,
+          "min": 50,
+          "max": 5000,
+          "label": "Iteration count",
+          "group": "Model",
+          "description": "Coordinate-descent iterations allowed."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "manifold_embedding_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-manifold-learning-manifold-learning-isomap-lle",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Manifold learning (Isomap, LLE) + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Manifold learning",
+      "kind": "Embedding + head",
+      "summary": "Isomap or locally linear embedding unfolds the training span's feature rows into a few coordinates without labels; a supervised head reads the coordinates.",
+      "implementationNote": "Bridge: Isomap (geodesic kernel MDS) or LLE on an evenly spaced train-span subsample, labels unread; the head learns from the fitted coordinates and a new bar is placed by the estimator's out-of-sample map. Differs from the spec: fitted on a subsample (quadratic memory); a supervised head is added, the only part that reads labels. Expect: a few coordinates of a noisy feature cloud; edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "isomap_lle"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "manifold_method": {
+          "type": "categorical",
+          "default": "isomap",
+          "choices": [
+            "isomap",
+            "locally_linear"
+          ],
+          "label": "Manifold method",
+          "group": "Model",
+          "description": "Isomap (geodesic distances) or locally linear embedding (local reconstruction weights).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "isomap",
+              "locally_linear"
+            ]
+          }
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 12,
+          "min": 3,
+          "max": 100,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Nearest neighbours that define the local graph.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40,
+            "log": false
+          }
+        },
+        "component_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 32,
+          "label": "Component count",
+          "group": "Model",
+          "description": "Embedding coordinates kept.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8,
+            "log": false
+          }
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 1500,
+          "min": 200,
+          "max": 5000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Evenly spaced training bars the manifold is fitted on (memory grows with its square)."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "umap_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-manifold-learning-umap-uniform-manifold-approximation-and-projection",
+      "alsoCatalogSpecIds": [],
+      "displayName": "UMAP + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Manifold learning",
+      "kind": "Embedding + head",
+      "summary": "UMAP lays the training span's feature rows out in a few coordinates that keep their neighbourhoods, without labels; each new bar is placed into that layout and a supervised head reads its coordinates.",
+      "implementationNote": "Bridge: umap-learn on an evenly spaced train-span subsample, labels unread; the head learns from the layout's coordinates and UMAP.transform places each later bar alone against the frozen layout. Differs from the spec: fitted on a subsample; a supervised head is added, the only part that reads labels. Expect: neighbourhoods are kept, distances are not; edge near the base rate, and about 10 ms per bar.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "umap"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "neighbor_count": {
+          "type": "int",
+          "default": 15,
+          "min": 2,
+          "max": 200,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Neighbours in UMAP's fuzzy graph (local versus global structure).",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 50,
+            "log": false
+          }
+        },
+        "minimum_distance": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.99,
+          "label": "Minimum distance",
+          "group": "Model",
+          "description": "How tightly UMAP may pack neighbouring bars.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "component_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 32,
+          "label": "Component count",
+          "group": "Model",
+          "description": "Layout coordinates.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8,
+            "log": false
+          }
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 20000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Evenly spaced training bars the layout is fitted on."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "t_sne_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-manifold-learning-t-sne-t-distributed-stochastic-neighbor-embedding",
+      "alsoCatalogSpecIds": [],
+      "displayName": "t-SNE + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Manifold learning",
+      "kind": "Embedding + head",
+      "summary": "t-SNE maps the training span's feature rows to two or three coordinates that keep close bars close, without labels; each new bar is placed into the frozen map and a supervised head reads its position.",
+      "implementationNote": "Bridge: openTSNE on an evenly spaced train-span subsample, labels unread; the head learns from the map's coordinates. Differs from the spec: t-SNE has no native out-of-sample map; openTSNE places new bars into the frozen embedding, one bar at a time; a supervised head is added, the only part that reads labels. Expect: 2-3 coordinates that keep neighbours only; edge near the base rate, tens of ms per bar.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "open_tsne"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "perplexity": {
+          "type": "float",
+          "default": 30.0,
+          "min": 2.0,
+          "max": 200.0,
+          "label": "Perplexity",
+          "group": "Model",
+          "description": "Effective neighbours each bar's affinities cover.",
+          "search": {
+            "kind": "float",
+            "low": 10.0,
+            "high": 60.0,
+            "log": false
+          }
+        },
+        "component_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 3,
+          "label": "Component count",
+          "group": "Model",
+          "description": "Map coordinates (2 uses FFT gradients, 3 Barnes-Hut)."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 2000,
+          "min": 200,
+          "max": 10000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Evenly spaced training bars the map is fitted on."
+        },
+        "placement_iterations": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Placement iterations",
+          "group": "Model",
+          "description": "Optimisation steps that place one new bar into the frozen map."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels."
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true
+        }
+      }
+    },
+    "autoencoder_unsupervised_head": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-autoencoder-unsupervised",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Autoencoder (unsupervised) + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Matrix factorization and decomposition",
+      "kind": "Autoencoder + head",
+      "summary": "A denoising autoencoder compresses the training span's feature rows into a small code without labels; the frozen code feeds a supervised head.",
+      "implementationNote": "Bridge: MLP denoising autoencoder trained on train-span feature rows only (reconstruction MSE, early stopping on validation reconstruction, labels unread); the frozen code feeds a logistic head (or gradient boosting), ridge for the price. Differs from the spec: two-stage by design; a supervised head is added, the only part that reads labels. Expect: reconstruction is direction-blind; edge near a plain classifier at best.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many numbers the bottleneck code holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and the decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers in the encoder (the decoder mirrors it)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size of the encoder training.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay of the encoder.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per optimisation step (shuffled)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span's feature rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation reconstruction before training stops (the best epoch is restored)."
+        },
+        "input_noise": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 2.0,
+          "label": "Input noise",
+          "group": "Model",
+          "description": "Deviation of the Gaussian noise added to the input in training (0 = plain autoencoder).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3,
+            "log": false
+          }
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "deep_clustering_network": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-deep-clustering-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Deep clustering network + head",
+      "category": "Unsupervised learning",
+      "subcategory": "Matrix factorization and decomposition",
+      "kind": "Autoencoder + clusters",
+      "summary": "An autoencoder learns a code and cluster centres together, without labels; a supervised head reads the code and each bar's soft cluster assignment.",
+      "implementationNote": "Bridge: autoencoder pretrained, centres from k-means on its codes, then joint training on reconstruction + KL(P||Q) with Student-t soft assignments Q and a sharpened target P (train rows, labels unread); the head reads [code, Q]. Differs from the spec: a supervised head is added, the only part that reads labels; cluster sizes are logged and a collapse warned. Expect: clusters of feature rows, not of outcomes; edge near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "deep_clustering"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many numbers the bottleneck code holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and the decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers in the encoder (the decoder mirrors it)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size of the encoder training.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay of the encoder.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per optimisation step (shuffled)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span's feature rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation reconstruction before training stops (the best epoch is restored)."
+        },
+        "cluster_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Cluster centres in the latent space.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 10,
+            "log": false
+          }
+        },
+        "clustering_loss_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Clustering loss weight",
+          "group": "Model",
+          "description": "Weight of KL(P || Q) against the reconstruction loss.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "pretrain_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Pretrain epochs",
+          "group": "Model",
+          "description": "Reconstruction-only epochs before the centres are placed (part of Epochs)."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "Epochs between recomputations of the sharpened target P."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "autoencoder_head": {
+      "catalogSpecId": "neural-network-architectures-generative-latent-models-autoencoder-ae",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Autoencoder (AE) + head",
+      "category": "Neural network architectures",
+      "subcategory": "Generative and latent models",
+      "kind": "Autoencoder + head",
+      "summary": "A sparse autoencoder compresses each bar's feature row into a bottleneck code without labels; the frozen code feeds a supervised head.",
+      "implementationNote": "Bridge: MLP autoencoder with an L1 sparsity penalty on the code, trained on train-span feature rows only (early stopping on validation reconstruction, labels unread); a logistic head (or gradient boosting) reads the frozen code, ridge for the price. Differs from the spec: dense layers over one bar; a supervised head is added, the only part that reads labels. Expect: the head, not the reconstruction, decides accuracy; edge near a plain classifier.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many numbers the bottleneck code holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and the decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers in the encoder (the decoder mirrors it)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size of the encoder training.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay of the encoder.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per optimisation step (shuffled)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span's feature rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation reconstruction before training stops (the best epoch is restored)."
+        },
+        "sparsity_weight": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Sparsity weight",
+          "group": "Model",
+          "description": "Weight of the mean absolute code added to the reconstruction loss.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "variational_autoencoder_head": {
+      "catalogSpecId": "neural-network-architectures-generative-latent-models-variational-autoencoder-vae",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Variational autoencoder (VAE) + head",
+      "category": "Neural network architectures",
+      "subcategory": "Generative and latent models",
+      "kind": "Variational autoencoder + head",
+      "summary": "A variational autoencoder learns a posterior over a small latent code without labels; a supervised head reads the posterior, averaged over draws so uncertain bars stay near the base rate.",
+      "implementationNote": "Bridge: VAE (negative ELBO, beta warmed up) on train-span feature rows, labels unread; the head is fitted on posterior means and P(up) averages it over posterior draws seeded per bar. Differs from the spec: a supervised head is added, the only part that reads labels; nothing is generated. Expect: the averaging pulls uncertain bars toward 0.5; edge near a plain classifier.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "variational"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many numbers the bottleneck code holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and the decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers in the encoder (the decoder mirrors it)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size of the encoder training.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay of the encoder.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per optimisation step (shuffled)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span's feature rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation reconstruction before training stops (the best epoch is restored)."
+        },
+        "divergence_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "label": "Divergence weight (beta)",
+          "group": "Model",
+          "description": "Weight of KL(q(z|x) || N(0, I)) in the loss after warmup.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 4.0,
+            "log": true
+          }
+        },
+        "warmup_epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 0,
+          "max": 500,
+          "label": "Warmup epochs",
+          "group": "Model",
+          "description": "Epochs over which the divergence weight rises from 0."
+        },
+        "posterior_sample_count": {
+          "type": "int",
+          "default": 16,
+          "min": 0,
+          "max": 256,
+          "label": "Posterior sample count",
+          "group": "Model",
+          "description": "Posterior draws the head is averaged over per bar (0 = posterior mean only)."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "autoencoder_gan_fusion": {
+      "catalogSpecId": "hybrid-composite-architectures-generative-discriminative-hybrids-autoencoder-gan-fusion",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Autoencoder-GAN fusion + head",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Generative-discriminative",
+      "kind": "Adversarial autoencoder + head",
+      "summary": "An autoencoder trained against two discriminators (one on the latent prior, one on generated rows) learns a code without labels; a supervised head reads the encoder's code.",
+      "implementationNote": "Bridge: encoder, decoder-generator, latent and data discriminators trained alternately on train-span feature rows (reconstruction + adversarial terms, labels unread); a logistic head (or gradient boosting) reads the frozen code. Differs from the spec: dense layers, generated rows unused for prediction; a supervised head is added, the only part that reads labels. Expect: adversarial losses are unrelated to direction; edge near a plain classifier.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "adversarial_autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many numbers the bottleneck code holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and the decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers in the encoder (the decoder mirrors it)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size of the encoder training.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay of the encoder.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per optimisation step (shuffled)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span's feature rows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation reconstruction before training stops (the best epoch is restored)."
+        },
+        "adversarial_weight": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Adversarial weight",
+          "group": "Model",
+          "description": "Weight of the two generator losses against the reconstruction loss.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "discriminator_steps": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Discriminator steps",
+          "group": "Model",
+          "description": "Discriminator updates before each encoder-decoder update."
+        },
+        "head_model": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "gradient_boosting"
+          ],
+          "label": "Head",
+          "group": "Model",
+          "description": "What reads the latent code: linear (logistic regression for P(up), ridge for the price) or gradient boosting (200 small histogram trees). The only part of the model that sees labels.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "gradient_boosting"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Head regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the linear head (C of the logistic regression, 1/alpha of the ridge); larger trusts the code more.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "siamese_network": {
+      "catalogSpecId": "neural-network-architectures-specialized-modular-networks-siamese-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Siamese network",
+      "category": "Neural network architectures",
+      "subcategory": "Specialized and modular networks",
+      "kind": "Metric learning",
+      "summary": "One weight-tied encoder embeds windows of bars so that windows with the same outcome sit close; a bar's forecast is the outcome share of its nearest training-span analogues.",
+      "implementationNote": "Bridge: pairs are positive when the two windows share the up/down outcome (batch-hard triplet loss); the prediction is the distance-weighted outcome share of the nearest train-span analogues (price: their mean move). Differs from the spec: the index holds training windows only and never grows during the walk. Expect: analogues of a noisy window; edge near a nearest-neighbour classifier.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "latent_projection_head",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "siamese_neighbors"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 256,
+          "label": "Sequence length",
+          "group": "Model",
+          "description": "Bars in each window the encoder reads (fixed, never searched)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "Numbers in each window's normalised embedding.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the window encoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the window encoder."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random in training.",
+          "step": 0.05
+        },
+        "triplet_margin": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.01,
+          "max": 2.0,
+          "label": "Triplet margin",
+          "group": "Model",
+          "description": "How much closer a same-outcome window must be than the nearest other-outcome window.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 1.0,
+            "log": false
+          }
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 25,
+          "min": 1,
+          "max": 500,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Training analogues the forecast averages.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 60,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW weight decay.",
+          "logScale": true
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Windows per batch (the triplets are mined inside it)."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 1000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training windows."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation log loss of the analogue readout before stopping."
+        }
+      }
+    }
+  }
+}

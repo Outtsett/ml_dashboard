@@ -1,0 +1,2611 @@
+{
+  "version": 1,
+  "description": "Every TA-Lib function as one feature. The name is the expression; the parameterization is in `parameters` and is declared once. No parameter suffix appears in any name.",
+  "talib_version": "0.7.1",
+  "counts": {
+    "functions": 161,
+    "features": 180,
+    "indicator_features": 91,
+    "pattern_features": 61,
+    "operator_features": 28
+  },
+  "features": [
+    {
+      "name": "ht_dcperiod",
+      "talib_function": "HT_DCPERIOD",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_dcphase",
+      "talib_function": "HT_DCPHASE",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_phasor_inphase",
+      "talib_function": "HT_PHASOR",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "inphase",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_phasor_quadrature",
+      "talib_function": "HT_PHASOR",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "quadrature",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_sine_leadsine",
+      "talib_function": "HT_SINE",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "leadsine",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_sine_sine",
+      "talib_function": "HT_SINE",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "sine",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_trendmode",
+      "talib_function": "HT_TRENDMODE",
+      "talib_group": "Cycle Indicators",
+      "talib_output": "integer",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "add",
+      "talib_function": "ADD",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "div",
+      "talib_function": "DIV",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "max",
+      "talib_function": "MAX",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "maxindex",
+      "talib_function": "MAXINDEX",
+      "talib_group": "Math Operators",
+      "talib_output": "integer",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "min",
+      "talib_function": "MIN",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "minindex",
+      "talib_function": "MININDEX",
+      "talib_group": "Math Operators",
+      "talib_output": "integer",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "minmax_max",
+      "talib_function": "MINMAX",
+      "talib_group": "Math Operators",
+      "talib_output": "max",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "minmax_min",
+      "talib_function": "MINMAX",
+      "talib_group": "Math Operators",
+      "talib_output": "min",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "minmaxindex_maxidx",
+      "talib_function": "MINMAXINDEX",
+      "talib_group": "Math Operators",
+      "talib_output": "maxidx",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "minmaxindex_minidx",
+      "talib_function": "MINMAXINDEX",
+      "talib_group": "Math Operators",
+      "talib_output": "minidx",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "mult",
+      "talib_function": "MULT",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "sub",
+      "talib_function": "SUB",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "high",
+        "low"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "sum",
+      "talib_function": "SUM",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "acos",
+      "talib_function": "ACOS",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "asin",
+      "talib_function": "ASIN",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "atan",
+      "talib_function": "ATAN",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "ceil",
+      "talib_function": "CEIL",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "cos",
+      "talib_function": "COS",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "cosh",
+      "talib_function": "COSH",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "exp",
+      "talib_function": "EXP",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "floor",
+      "talib_function": "FLOOR",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "ln",
+      "talib_function": "LN",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "log10",
+      "talib_function": "LOG10",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "sin",
+      "talib_function": "SIN",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "sinh",
+      "talib_function": "SINH",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "sqrt",
+      "talib_function": "SQRT",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "tan",
+      "talib_function": "TAN",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "tanh",
+      "talib_function": "TANH",
+      "talib_group": "Math Transform",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "adx",
+      "talib_function": "ADX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "adxr",
+      "talib_function": "ADXR",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "apo",
+      "talib_function": "APO",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "aroon_down",
+      "talib_function": "AROON",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "aroondown",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "aroon_up",
+      "talib_function": "AROON",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "aroonup",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "aroonosc",
+      "talib_function": "AROONOSC",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "bop",
+      "talib_function": "BOP",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cci",
+      "talib_function": "CCI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cmo",
+      "talib_function": "CMO",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "dx",
+      "talib_function": "DX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "imi",
+      "talib_function": "IMI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macd",
+      "talib_function": "MACD",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macd",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macd_histogram",
+      "talib_function": "MACD",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdhist",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macd_signal",
+      "talib_function": "MACD",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdsignal",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdext_histogram",
+      "talib_function": "MACDEXT",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdhist",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "fastmatype": 0,
+        "slowperiod": 26,
+        "slowmatype": 0,
+        "signalperiod": 9,
+        "signalmatype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdext_macd",
+      "talib_function": "MACDEXT",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macd",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "fastmatype": 0,
+        "slowperiod": 26,
+        "slowmatype": 0,
+        "signalperiod": 9,
+        "signalmatype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdext_signal",
+      "talib_function": "MACDEXT",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdsignal",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "fastmatype": 0,
+        "slowperiod": 26,
+        "slowmatype": 0,
+        "signalperiod": 9,
+        "signalmatype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdfix_histogram",
+      "talib_function": "MACDFIX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdhist",
+      "kind": "indicator",
+      "parameters": {
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdfix_macd",
+      "talib_function": "MACDFIX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macd",
+      "kind": "indicator",
+      "parameters": {
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "macdfix_signal",
+      "talib_function": "MACDFIX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "macdsignal",
+      "kind": "indicator",
+      "parameters": {
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "mfi",
+      "talib_function": "MFI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "minus_di",
+      "talib_function": "MINUS_DI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "minus_dm",
+      "talib_function": "MINUS_DM",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "mom",
+      "talib_function": "MOM",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "plus_di",
+      "talib_function": "PLUS_DI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "plus_dm",
+      "talib_function": "PLUS_DM",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ppo",
+      "talib_function": "PPO",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "roc",
+      "talib_function": "ROC",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rocp",
+      "talib_function": "ROCP",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rocr",
+      "talib_function": "ROCR",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rocr100",
+      "talib_function": "ROCR100",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rsi",
+      "talib_function": "RSI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "stoch_slowd",
+      "talib_function": "STOCH",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "slowd",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 5,
+        "slowk_period": 3,
+        "slowk_matype": 0,
+        "slowd_period": 3,
+        "slowd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "stoch_slowk",
+      "talib_function": "STOCH",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "slowk",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 5,
+        "slowk_period": 3,
+        "slowk_matype": 0,
+        "slowd_period": 3,
+        "slowd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "stochf_fastd",
+      "talib_function": "STOCHF",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "fastd",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 5,
+        "fastd_period": 3,
+        "fastd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "stochf_fastk",
+      "talib_function": "STOCHF",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "fastk",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 5,
+        "fastd_period": 3,
+        "fastd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "stochrsi_fastd",
+      "talib_function": "STOCHRSI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "fastd",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14,
+        "fastk_period": 5,
+        "fastd_period": 3,
+        "fastd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "stochrsi_fastk",
+      "talib_function": "STOCHRSI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "fastk",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14,
+        "fastk_period": 5,
+        "fastd_period": 3,
+        "fastd_matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "trix",
+      "talib_function": "TRIX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ultosc",
+      "talib_function": "ULTOSC",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod1": 7,
+        "timeperiod2": 14,
+        "timeperiod3": 28
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "willr",
+      "talib_function": "WILLR",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": true
+    },
+    {
+      "name": "accbands_lower",
+      "talib_function": "ACCBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "lowerband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "accbands_middle",
+      "talib_function": "ACCBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "middleband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "accbands_upper",
+      "talib_function": "ACCBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "upperband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "bbands_lower",
+      "talib_function": "BBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "lowerband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "nbdevup": 2.0,
+        "nbdevdn": 2.0,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "bbands_middle",
+      "talib_function": "BBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "middleband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "nbdevup": 2.0,
+        "nbdevdn": 2.0,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "bbands_upper",
+      "talib_function": "BBANDS",
+      "talib_group": "Overlap Studies",
+      "talib_output": "upperband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "nbdevup": 2.0,
+        "nbdevdn": 2.0,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "dema",
+      "talib_function": "DEMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ema",
+      "talib_function": "EMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ht_trendline",
+      "talib_function": "HT_TRENDLINE",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kama",
+      "talib_function": "KAMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ma",
+      "talib_function": "MA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "mama",
+      "talib_function": "MAMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "mama",
+      "kind": "indicator",
+      "parameters": {
+        "fastlimit": 0.5,
+        "slowlimit": 0.05
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "mama_fama",
+      "talib_function": "MAMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "fama",
+      "kind": "indicator",
+      "parameters": {
+        "fastlimit": 0.5,
+        "slowlimit": 0.05
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "mavp",
+      "talib_function": "MAVP",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "minperiod": 2,
+        "maxperiod": 30,
+        "matype": 0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "midpoint",
+      "talib_function": "MIDPOINT",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "midprice",
+      "talib_function": "MIDPRICE",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "sar",
+      "talib_function": "SAR",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "acceleration": 0.02,
+        "maximum": 0.2
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "sarext",
+      "talib_function": "SAREXT",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "startvalue": 0.0,
+        "offsetonreverse": 0.0,
+        "accelerationinitlong": 0.02,
+        "accelerationlong": 0.02,
+        "accelerationmaxlong": 0.2,
+        "accelerationinitshort": 0.02,
+        "accelerationshort": 0.02,
+        "accelerationmaxshort": 0.2
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "sma",
+      "talib_function": "SMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "t3",
+      "talib_function": "T3",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "vfactor": 0.7
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "tema",
+      "talib_function": "TEMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "trima",
+      "talib_function": "TRIMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "wma",
+      "talib_function": "WMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl2crows",
+      "talib_function": "CDL2CROWS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3blackcrows",
+      "talib_function": "CDL3BLACKCROWS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3inside",
+      "talib_function": "CDL3INSIDE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3linestrike",
+      "talib_function": "CDL3LINESTRIKE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3outside",
+      "talib_function": "CDL3OUTSIDE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3starsinsouth",
+      "talib_function": "CDL3STARSINSOUTH",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdl3whitesoldiers",
+      "talib_function": "CDL3WHITESOLDIERS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlabandonedbaby",
+      "talib_function": "CDLABANDONEDBABY",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.3
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdladvanceblock",
+      "talib_function": "CDLADVANCEBLOCK",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlbelthold",
+      "talib_function": "CDLBELTHOLD",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlbreakaway",
+      "talib_function": "CDLBREAKAWAY",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlclosingmarubozu",
+      "talib_function": "CDLCLOSINGMARUBOZU",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlconcealbabyswall",
+      "talib_function": "CDLCONCEALBABYSWALL",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlcounterattack",
+      "talib_function": "CDLCOUNTERATTACK",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdldarkcloudcover",
+      "talib_function": "CDLDARKCLOUDCOVER",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.5
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdldoji",
+      "talib_function": "CDLDOJI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdldojistar",
+      "talib_function": "CDLDOJISTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdldragonflydoji",
+      "talib_function": "CDLDRAGONFLYDOJI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlengulfing",
+      "talib_function": "CDLENGULFING",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdleveningdojistar",
+      "talib_function": "CDLEVENINGDOJISTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.3
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdleveningstar",
+      "talib_function": "CDLEVENINGSTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.3
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlgapsidesidewhite",
+      "talib_function": "CDLGAPSIDESIDEWHITE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlgravestonedoji",
+      "talib_function": "CDLGRAVESTONEDOJI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhammer",
+      "talib_function": "CDLHAMMER",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhangingman",
+      "talib_function": "CDLHANGINGMAN",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlharami",
+      "talib_function": "CDLHARAMI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlharamicross",
+      "talib_function": "CDLHARAMICROSS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhighwave",
+      "talib_function": "CDLHIGHWAVE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhikkake",
+      "talib_function": "CDLHIKKAKE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhikkakemod",
+      "talib_function": "CDLHIKKAKEMOD",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlhomingpigeon",
+      "talib_function": "CDLHOMINGPIGEON",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlidentical3crows",
+      "talib_function": "CDLIDENTICAL3CROWS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlinneck",
+      "talib_function": "CDLINNECK",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlinvertedhammer",
+      "talib_function": "CDLINVERTEDHAMMER",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlkicking",
+      "talib_function": "CDLKICKING",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlkickingbylength",
+      "talib_function": "CDLKICKINGBYLENGTH",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlladderbottom",
+      "talib_function": "CDLLADDERBOTTOM",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdllongleggeddoji",
+      "talib_function": "CDLLONGLEGGEDDOJI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdllongline",
+      "talib_function": "CDLLONGLINE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlmarubozu",
+      "talib_function": "CDLMARUBOZU",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlmatchinglow",
+      "talib_function": "CDLMATCHINGLOW",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlmathold",
+      "talib_function": "CDLMATHOLD",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.5
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlmorningdojistar",
+      "talib_function": "CDLMORNINGDOJISTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.3
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlmorningstar",
+      "talib_function": "CDLMORNINGSTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {
+        "penetration": 0.3
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlonneck",
+      "talib_function": "CDLONNECK",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlpiercing",
+      "talib_function": "CDLPIERCING",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlrickshawman",
+      "talib_function": "CDLRICKSHAWMAN",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlrisefall3methods",
+      "talib_function": "CDLRISEFALL3METHODS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlseparatinglines",
+      "talib_function": "CDLSEPARATINGLINES",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlshootingstar",
+      "talib_function": "CDLSHOOTINGSTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlshortline",
+      "talib_function": "CDLSHORTLINE",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlspinningtop",
+      "talib_function": "CDLSPINNINGTOP",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlstalledpattern",
+      "talib_function": "CDLSTALLEDPATTERN",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlsticksandwich",
+      "talib_function": "CDLSTICKSANDWICH",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdltakuri",
+      "talib_function": "CDLTAKURI",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdltasukigap",
+      "talib_function": "CDLTASUKIGAP",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlthrusting",
+      "talib_function": "CDLTHRUSTING",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdltristar",
+      "talib_function": "CDLTRISTAR",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlunique3river",
+      "talib_function": "CDLUNIQUE3RIVER",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlupsidegap2crows",
+      "talib_function": "CDLUPSIDEGAP2CROWS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "cdlxsidegap3methods",
+      "talib_function": "CDLXSIDEGAP3METHODS",
+      "talib_group": "Pattern Recognition",
+      "talib_output": "integer",
+      "kind": "pattern",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "avgdev",
+      "talib_function": "AVGDEV",
+      "talib_group": "Price Transform",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "avgprice",
+      "talib_function": "AVGPRICE",
+      "talib_group": "Price Transform",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "medprice",
+      "talib_function": "MEDPRICE",
+      "talib_group": "Price Transform",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "typprice",
+      "talib_function": "TYPPRICE",
+      "talib_group": "Price Transform",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "wclprice",
+      "talib_function": "WCLPRICE",
+      "talib_group": "Price Transform",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "beta",
+      "talib_function": "BETA",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "correl",
+      "talib_function": "CORREL",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "linearreg",
+      "talib_function": "LINEARREG",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "linearreg_angle",
+      "talib_function": "LINEARREG_ANGLE",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "linearreg_intercept",
+      "talib_function": "LINEARREG_INTERCEPT",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "linearreg_slope",
+      "talib_function": "LINEARREG_SLOPE",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "stddev",
+      "talib_function": "STDDEV",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "nbdev": 1.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "tsf",
+      "talib_function": "TSF",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "var",
+      "talib_function": "VAR",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5,
+        "nbdev": 1.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "atr",
+      "talib_function": "ATR",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "natr",
+      "talib_function": "NATR",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "trange",
+      "talib_function": "TRANGE",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ad",
+      "talib_function": "AD",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "adosc",
+      "talib_function": "ADOSC",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 3,
+        "slowperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "obv",
+      "talib_function": "OBV",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    }
+  ]
+}

@@ -2,14 +2,14 @@
  * Parity against the model's own evaluator.
  *
  * The fixture is a real model — a daily MNQ XGBoost direction classifier
- * trained by src/ml/xgb_classifier — committed under
+ * trained by packages/ml-engine/src/xgb_classifier — committed under
  * tests/fixtures/lens/mnq_1d_xgboost_direction_classifier/ with its original
  * record (oos_predictions.parquet, checkpoint.json, diagnostics.json) and the
  * lens the Python builder wrote for it (lens/manifest.json, lens/bars.parquet).
  * Every expected number is READ from that model's diagnostics.json, never typed.
  *
  * That trainer scores trades H BARS ahead on the raw bar grid, and the builder
- * lays the record on the lake's bars (src/ml/lens/adapters.py
+ * lays the record on the lake's bars (packages/ml-engine/src/lens/adapters.py
  * _probability_parquet_on_lake_grid): the bars whose label was dropped carry no
  * prediction and never trade. Three checks:
  *

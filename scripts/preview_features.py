@@ -35,8 +35,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 import numpy as np  # noqa: E402
-from src.ml.shared.data import load_ohlcv_arrays  # noqa: E402
-from src.ml.shared.features import compute_features  # noqa: E402
+from core.shared.data import load_ohlcv_arrays  # noqa: E402
+from core.shared.features import compute_features  # noqa: E402
 
 
 def _load_pipeline_categories(pipeline_id: str) -> list[str] | None:

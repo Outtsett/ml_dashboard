@@ -2,7 +2,7 @@
 """
 PythonRunner-to-trading_model wrapper for the range-bucket Transformer HPO.
 
-The Node.js training orchestrator (src/server/training/runners/pythonRunner.ts)
+The Node.js training orchestrator (apps/api/training/runners/pythonRunner.ts)
 spawns child processes with a fixed CLI contract:
 
   --symbol --timeframe --model-id [--max-bars] [--date-start] [--date-end] --json

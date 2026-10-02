@@ -1,6 +1,6 @@
-"""A stand-in for `src/ml/cycle/explain_main.py --serve`, for the server pool tests.
+"""A stand-in for `packages/ml-engine/src/cycle/explain_main.py --serve`, for the server pool tests.
 
-Speaks the explainer's JSON-lines protocol (`src/shared/cycle/explain.ts`): one
+Speaks the explainer's JSON-lines protocol (`packages/shared/src/cycle/explain.ts`): one
 ready line `{"ready": true, "pid": ...}` on stdout, then one reply line per
 request line read from stdin. Logging goes to stderr. Replies carry canned
 results that are valid against the explain.ts schemas (a two-tree model), so

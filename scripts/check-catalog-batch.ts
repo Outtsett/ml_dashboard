@@ -9,7 +9,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { parseModelSpec } from '../src/server/infrastructure/lib/modelImport/parser';
+import { parseModelSpec } from '../apps/api/infrastructure/lib/modelImport/parser';
 
 const ROOT = path.resolve(
   process.env.ALGO_MODELS_ROOT ?? 'E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models',

@@ -1,0 +1,1321 @@
+{
+  "models": {
+    "rule_based_system": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-rule-based-system",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Rule-based system",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Decision list",
+      "summary": "An ordered list of IF-THEN rules over grounded market predicates; the first rule that fires decides, with its training up-rate.",
+      "implementationNote": "Bridge: first-match decision list; P(up) is the fired rule's smoothed training up-rate (default rule: the base rate), calibrated on validation. Differs from the spec: authored TA rules from cycle_rules.json plus rules mined on the training span, since no expert rule base exists for this market. Expect: coarse, step-like probabilities; coverage depends on how often the rules fire.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "first_match"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "expert_system": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-expert-system",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Expert system",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Forward-chaining inference engine",
+      "summary": "Forward chaining over a working memory of graded facts with MYCIN certainty factors: pattern rules assert setups, hypothesis rules turn them into belief in an up move.",
+      "implementationNote": "Bridge: MYCIN forward chaining (recognise-act cycles, refraction, certainty combination); the final certainty of 'up' is mapped to P(up) by a validation curve. Differs from the spec: rule certainty factors are calibrated on the training span (MB/MD from training up-rates) instead of elicited from an expert. Expect: probabilities near the base rate unless strong patterns fire together.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "forward_chain"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "certainty_threshold": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Certainty threshold",
+          "group": "Model",
+          "description": "A rule fires only when its premise certainty is at least this (MYCIN uses 0.2).",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5
+          }
+        },
+        "maximum_inference_cycles": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 50,
+          "label": "Inference cycles",
+          "group": "Model",
+          "description": "Recognise-act cycles before inference stops (two are needed to reach a hypothesis)."
+        }
+      }
+    },
+    "probabilistic_logic_network": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-logic-network-pln",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Probabilistic logic network",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic programming and logic",
+      "kind": "Uncertain inference",
+      "summary": "Truth values with strength and evidence count; implication links from predicates to an up move are chained by PLN deduction and merged by revision.",
+      "implementationNote": "Bridge: PLN deduction and revision over training-span truth values; P(up) = confidence x strength + (1 - confidence) x base rate, then a validation curve. Differs from the spec: atoms are the bar's grounded predicates and concepts are mined rules, not an AtomSpace; deduction assumes independent links. Expect: estimates close to the base rate when evidence is thin.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pln"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "evidence_scale": {
+          "type": "float",
+          "default": 50.0,
+          "min": 1.0,
+          "max": 1000.0,
+          "label": "Evidence scale",
+          "group": "Model",
+          "description": "k in confidence = n / (n + k): how many observations make a link trustworthy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 5.0,
+            "high": 200.0,
+            "log": true
+          }
+        },
+        "maximum_chain_depth": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 3,
+          "label": "Chain depth",
+          "group": "Model",
+          "description": "1: direct links only; 2: one deduction through a concept; 3: through two concepts.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        }
+      }
+    },
+    "probabilistic_soft_logic": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-soft-logic-psl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Probabilistic soft logic",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic programming and logic",
+      "kind": "Hinge-loss Markov random field",
+      "summary": "Weighted soft-logic rules over [0, 1] predicate truths define a hinge-loss energy; the truth of 'up' is its exact minimiser, with weights learned by the structured perceptron.",
+      "implementationNote": "Bridge: exact MAP of a one-variable hinge-loss MRF (Lukasiewicz rules, up/down mutual exclusion); P(up) is a validation curve of the MAP truth. Differs from the spec: one free atom per bar, so no ADMM is needed; rules come from the shared predicate library. Expect: behaves like a learned soft rule vote.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "psl"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-3 min per fold",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "hinge_exponent": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 2,
+          "label": "Hinge exponent",
+          "group": "Model",
+          "description": "1: linear hinge (MAP at a breakpoint); 2: squared hinge (smooth MAP).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Structured-perceptron passes over the training span."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each weight update.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.2,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks every rule weight toward zero each epoch."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without validation improvement before stopping."
+        }
+      }
+    },
+    "fuzzy_logic_model": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-fuzzy-logic-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Fuzzy logic model",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Mamdani fuzzy system",
+      "summary": "Linguistic terms (low / medium / high) on the most informative features, Wang-Mendel rules learned from training bars, Mamdani min-max inference and centroid defuzzification.",
+      "implementationNote": "Bridge: vectorised Mamdani inference (checked against scikit-fuzzy's control system); the centroid bullishness in [-1, 1] becomes P(up) through a validation curve. Differs from the spec: rules are generated from training bars (Wang-Mendel), not written by hand. Expect: smooth but low-resolution scores.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "mamdani"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "input_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 8,
+          "label": "Inputs",
+          "group": "Model",
+          "description": "Feature columns used as fuzzy inputs (most training mutual information).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "membership_function_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 7,
+          "label": "Terms per input",
+          "group": "Model",
+          "description": "Linguistic terms per input.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 5
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Wang-Mendel rules kept, by training degree mass.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 60
+          }
+        },
+        "defuzzification_grid_points": {
+          "type": "int",
+          "default": 101,
+          "min": 21,
+          "max": 1001,
+          "label": "Defuzzification grid",
+          "group": "Model",
+          "description": "Points of the output universe the centroid is computed on."
+        }
+      }
+    },
+    "first_order_logic": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-first-order-logic-fol-inference",
+      "alsoCatalogSpecIds": [],
+      "displayName": "First-order logic inference",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Theorem prover",
+      "summary": "A quantified Horn knowledge base over lookback windows (trend, alignment, confirmation) proved per bar by resolution refutation with unification.",
+      "implementationNote": "Bridge: the strongest conclusion proved per direction (confirmed, aligned, leaning, none) indexes a table of training up-rates, calibrated on validation. Differs from the spec: the spec proves entailment; P(up) is the train-span up-rate of its output, calibrated on validation, and quantification runs over lookback windows, not instruments. Expect: few distinct cells, so coarse probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "resolution"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold (proofs are memoised)",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "evidence_predicate_count": {
+          "type": "int",
+          "default": 4,
+          "min": 0,
+          "max": 20,
+          "label": "Evidence predicates",
+          "group": "Model",
+          "description": "Most reliable directional predicates allowed to assert supports(D, E).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8
+          }
+        },
+        "maximum_resolution_steps": {
+          "type": "int",
+          "default": 2000,
+          "min": 50,
+          "max": 100000,
+          "label": "Resolution steps",
+          "group": "Model",
+          "description": "Resolution steps per goal before the proof is abandoned."
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "logic_programming": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-logic-programming-e-g-prolog",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Logic programming (Prolog)",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Horn-clause program",
+      "summary": "A Prolog-style program of trend, support and rule clauses answered by SLD resolution (miniKanren); the model counts distinct derivations of a long and a short signal.",
+      "implementationNote": "Bridge: P(up) is a validation curve of (derivations of signal(up) - derivations of signal(down)). Differs from the spec: Prolog proves, it does not estimate, so the derivation count is the bridge; miniKanren stands in for SWI-Prolog. Expect: a vote-like score near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "sld"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold (answers are tabled)",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "evidence_predicate_count": {
+          "type": "int",
+          "default": 4,
+          "min": 0,
+          "max": 20,
+          "label": "Evidence predicates",
+          "group": "Model",
+          "description": "Most reliable directional predicates asserted as support/2 facts.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8
+          }
+        },
+        "answer_limit": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 1000,
+          "label": "Answer limit",
+          "group": "Model",
+          "description": "Most answers enumerated per query."
+        }
+      }
+    },
+    "constraint_satisfaction": {
+      "catalogSpecId": "probabilistic-symbolic-models-symbolic-reasoning-systems-constraint-satisfaction-problem-csp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Constraint satisfaction problem",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Symbolic reasoning systems",
+      "kind": "Soft constraint solver",
+      "summary": "The bar's side (long or short) under hard constraints from high-confidence rules (solved by python-constraint) and weighted soft constraints from reliable predicates.",
+      "implementationNote": "Bridge: score = soft-CSP cost of short minus cost of long (violated weights plus an infeasibility penalty), calibrated on validation. Differs from the spec: the spec checks feasibility; P(up) is the train-span up-rate of its output, calibrated on validation, with one decision variable per bar and no portfolio sizing. Expect: probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "soft_csp"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "induced_feature_count": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 24,
+          "label": "Induced feature predicates",
+          "group": "Model",
+          "description": "Feature columns turned into two predicates each (above the training 2/3 quantile, below the 1/3 quantile), chosen by how differently their tails moved on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "atom_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 2,
+          "label": "Conditions per mined rule",
+          "group": "Model",
+          "description": "Largest number of predicates in one mined rule (1: single conditions, 2: pairs).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "minimum_fire_count": {
+          "type": "int",
+          "default": 30,
+          "min": 5,
+          "max": 500,
+          "label": "Minimum firings",
+          "group": "Model",
+          "description": "A mined rule must have fired on at least this many training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 100
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Rules kept after ranking by how far their training up-rate sits from the base rate.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40
+          }
+        },
+        "smoothing_pseudo_count": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.0,
+          "max": 50.0,
+          "label": "Smoothing pseudo-count",
+          "group": "Model",
+          "description": "Pseudo-bars at the base rate added to every training rate (Laplace-style smoothing).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "hard_constraint_confidence": {
+          "type": "float",
+          "default": 0.65,
+          "min": 0.5,
+          "max": 0.99,
+          "label": "Hard-constraint confidence",
+          "group": "Model",
+          "description": "A rule becomes a hard constraint when its training up-rate is at least this far from even odds.",
+          "search": {
+            "kind": "float",
+            "low": 0.55,
+            "high": 0.8
+          }
+        },
+        "infeasible_side_penalty": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Infeasibility penalty",
+          "group": "Model",
+          "description": "Cost added to a side the hard constraints exclude."
+        }
+      }
+    },
+    "fuzzy_decision_model": {
+      "catalogSpecId": "simulation-decision-models-fuzzy-soft-logic-models-fuzzy-decision-models",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Fuzzy decision model",
+      "category": "Simulation and decision models",
+      "subcategory": "Fuzzy and soft logic models",
+      "kind": "Takagi-Sugeno fuzzy system",
+      "summary": "A first-order Takagi-Sugeno system: Gaussian terms on the most informative features, Wang-Mendel rules with linear consequents, tuned by ANFIS hybrid learning.",
+      "implementationNote": "Bridge: the TSK output (+1 up / -1 down target) becomes P(up) through a validation curve; the price model is the same system fitted to the scaled move. Differs from the spec: rules are learned from training bars, inputs capped so rules stay populated. Expect: a smooth, locally linear score.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "takagi_sugeno"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "input_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 8,
+          "label": "Inputs",
+          "group": "Model",
+          "description": "Feature columns used as fuzzy inputs (most training mutual information).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "membership_function_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 7,
+          "label": "Terms per input",
+          "group": "Model",
+          "description": "Gaussian terms per input.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Rules kept",
+          "group": "Model",
+          "description": "Wang-Mendel antecedents kept, by training coverage.",
+          "search": {
+            "kind": "int",
+            "low": 8,
+            "high": 40
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Hybrid-learning passes (least squares, then a gradient step)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.02,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Gradient step on the membership centres and widths.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.002,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Ridge penalty",
+          "group": "Model",
+          "description": "Ridge penalty of the consequent least-squares solve, per training bar.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without validation improvement before stopping."
+        }
+      }
+    },
+    "multi_criteria_decision_analysis": {
+      "catalogSpecId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-multi-criteria-decision-analysis-mcda",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multi-criteria decision analysis",
+      "category": "Simulation and decision models",
+      "subcategory": "Robust and multi-criteria decision frameworks",
+      "kind": "TOPSIS ranking",
+      "summary": "TOPSIS: the current bar ranked against its trailing window on the most informative signals, weighted by the analytic hierarchy process or entropy.",
+      "implementationNote": "Bridge: the bar's TOPSIS closeness to the ideal (0..1) minus 0.5, calibrated on validation; the price model scales it by a training slope. Differs from the spec: the spec ranks alternatives; here each bar is ranked against training-span ideals (or its trailing window) and P(up) is the calibrated up-rate of that rank. Expect: a weighted composite signal.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "topsis"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "criterion_count": {
+          "type": "int",
+          "default": 6,
+          "min": 2,
+          "max": 15,
+          "label": "Criteria",
+          "group": "Model",
+          "description": "Feature columns with the largest training information coefficient.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 10
+          }
+        },
+        "ideal_reference": {
+          "type": "categorical",
+          "default": "training_span",
+          "choices": [
+            "training_span",
+            "trailing_window"
+          ],
+          "label": "Ideal reference",
+          "group": "Model",
+          "description": "Rank the bar against the training span's 5th-95th percentile ideals, or against its own trailing window (fixed: it sets the history requirement)."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 2000,
+          "label": "Trailing alternatives",
+          "group": "Model",
+          "description": "Bars in the trailing decision matrix when the ideal reference is the trailing window, the current one included (fixed: it sets the history requirement)."
+        },
+        "weighting_method": {
+          "type": "categorical",
+          "default": "analytic_hierarchy",
+          "choices": [
+            "analytic_hierarchy",
+            "entropy"
+          ],
+          "label": "Weighting",
+          "group": "Model",
+          "description": "Criterion weights from AHP pairwise ratios of information coefficients, or the entropy method.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "analytic_hierarchy",
+              "entropy"
+            ]
+          }
+        }
+      }
+    },
+    "robust_decision_making": {
+      "catalogSpecId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-robust-decision-making-rdm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Robust decision making",
+      "category": "Simulation and decision models",
+      "subcategory": "Robust and multi-criteria decision frameworks",
+      "kind": "Robust strategy selection",
+      "summary": "A pool of candidate strategies stress-tested across training-span scenarios (blocks, volatility terciles, trend regimes, doubled costs); the robust ones are blended.",
+      "implementationNote": "Bridge: the robustness-weighted blend of the surviving strategies' scores, calibrated on validation. Differs from the spec: scenarios are re-cuts of the training history with cost stress, so deep uncertainty is only as deep as that history. Expect: a conservative ensemble near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "symbolic_reasoner",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "robust_selection"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "candidate_strategy_count": {
+          "type": "int",
+          "default": 10,
+          "min": 5,
+          "max": 30,
+          "label": "Candidate strategies",
+          "group": "Model",
+          "description": "Strategies in the pool (single features, a logistic regression and three rule strategies).",
+          "search": {
+            "kind": "int",
+            "low": 6,
+            "high": 14
+          }
+        },
+        "scenario_block_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 50,
+          "label": "Scenario blocks",
+          "group": "Model",
+          "description": "Contiguous blocks the training span is cut into.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12
+          }
+        },
+        "acceptable_utility_threshold": {
+          "type": "float",
+          "default": 0.0,
+          "min": -1.0,
+          "max": 1.0,
+          "label": "Acceptable utility",
+          "group": "Model",
+          "description": "Mean net utility (scaled move units per bar) a scenario outcome must reach to satisfice.",
+          "search": {
+            "kind": "float",
+            "low": -0.05,
+            "high": 0.05
+          }
+        },
+        "robustness_metric": {
+          "type": "categorical",
+          "default": "satisficing",
+          "choices": [
+            "satisficing",
+            "minimax_regret"
+          ],
+          "label": "Robustness metric",
+          "group": "Model",
+          "description": "Share of scenarios satisficed, or the worst regret against each scenario's best strategy.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "satisficing",
+              "minimax_regret"
+            ]
+          }
+        },
+        "robust_strategy_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 30,
+          "label": "Robust strategies kept",
+          "group": "Model",
+          "description": "Most robust strategies blended.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "scenario_discovery_depth": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 6,
+          "label": "Scenario discovery depth",
+          "group": "Model",
+          "description": "Depth of the tree that describes where the robust set fails."
+        }
+      }
+    }
+  }
+}

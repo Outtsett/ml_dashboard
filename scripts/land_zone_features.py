@@ -1,4 +1,4 @@
-"""Land the dashboard-definition support / resistance zone features (src/ml/shared/zones.py) for a
+"""Land the dashboard-definition support / resistance zone features (packages/ml-engine/packages/shared/src/zones.py) for a
 symbol and timeframe, on EXACTLY the bars the Market chart serves (``/api/charts/ohlcv``, ratio-
 adjusted so the newest contract is unscaled), as a derived dataset the dashboard reads back
 (``derived_zone_features_<timeframe>``), then draw the chart's window on the Market chart through the chart link.

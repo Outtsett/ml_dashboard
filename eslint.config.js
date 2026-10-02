@@ -6,7 +6,7 @@ export default [
   { ignores: ["node_modules", "dist", "build", "**/*.cjs"] },
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { project: "./tsconfig.json" },

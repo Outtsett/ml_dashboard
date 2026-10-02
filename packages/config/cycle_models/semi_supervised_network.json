@@ -1,0 +1,1799 @@
+{
+  "models": {
+    "pseudo_labeling": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-pseudo-labeling",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Pseudo-labeling",
+      "category": "Semi-supervised learning",
+      "subcategory": "Self-training and bootstrapping",
+      "kind": "Semi-supervised network",
+      "summary": "A network learns from the labelled bars and from its own hard predictions on unlabelled bars, weighted in slowly (Lee 2013).",
+      "implementationNote": "Bridge: P(up) is the sigmoid of one network trained on labelled bars plus its own hard predictions on unlabelled bars, weighted in linearly. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. No price model (a regressor pseudo-labelling itself gets no gradient). Expect: near the plain network; on weak labels it confirms its own mistakes.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pseudo_label"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Full weight of the pseudo-label loss (alpha_f).",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        },
+        "ramp_start_epoch": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 200,
+          "label": "Ramp start epoch",
+          "group": "Model",
+          "description": "Epoch before which pseudo-labels are ignored (T1)."
+        },
+        "ramp_epochs": {
+          "type": "int",
+          "default": 15,
+          "min": 0,
+          "max": 200,
+          "label": "Ramp-up epochs",
+          "group": "Model",
+          "description": "Epochs from the ramp start to the full weight (T2 - T1)."
+        }
+      }
+    },
+    "consistency_regularization": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-consistency-based-methods-consistency-regularization-e-g-model-mean-teacher",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Consistency regularization (Pi-model, Mean Teacher)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Consistency-based methods",
+      "kind": "Semi-supervised network",
+      "summary": "Predictions must agree under input noise and dropout, against a second pass (Pi-model) or an averaged teacher network (Mean Teacher).",
+      "implementationNote": "Bridge: P(up) from the Mean Teacher's averaged network (or the Pi-model's own); the consistency is the squared gap between two noisy predictions on every span bar. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. Augmentation is Gaussian noise plus dropout, not time warping. Expect: a smoother, slightly better calibrated plain network.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "consistency"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "consistency_teacher": {
+          "type": "categorical",
+          "default": "mean_teacher",
+          "choices": [
+            "mean_teacher",
+            "pi_model"
+          ],
+          "label": "Consistency target",
+          "group": "Model",
+          "description": "mean_teacher: an averaged copy of the weights gives the target and predicts; pi_model: a second noisy pass of the same network."
+        },
+        "noise_standard_deviation": {
+          "type": "float",
+          "default": 0.15,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Noise standard deviation",
+          "group": "Model",
+          "description": "Gaussian noise added to the standardised row in each noisy pass."
+        },
+        "teacher_decay": {
+          "type": "float",
+          "default": 0.99,
+          "min": 0.5,
+          "max": 0.9999,
+          "label": "Teacher decay",
+          "group": "Model",
+          "description": "Exponential moving average decay of the teacher's weights."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Full weight of the consistency loss.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 20.0,
+            "log": true
+          }
+        },
+        "ramp_epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 0,
+          "max": 200,
+          "label": "Ramp-up epochs",
+          "group": "Model",
+          "description": "Epochs of the exp(-5 (1 - t)^2) ramp-up of the consistency weight."
+        }
+      }
+    },
+    "fixmatch": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-consistency-based-methods-fixmatch",
+      "alsoCatalogSpecIds": [],
+      "displayName": "FixMatch",
+      "category": "Semi-supervised learning",
+      "subcategory": "Consistency-based methods",
+      "kind": "Semi-supervised network",
+      "summary": "A confident prediction on a lightly perturbed unlabelled bar becomes the target for a heavily perturbed copy of it (Sohn et al. 2020).",
+      "implementationNote": "Bridge: P(up) from one network; a confident weak-view prediction is the hard target of a strong view (noise, masked features, scaled row). Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. Tabular noise replaces RandAugment; the price model keeps low-spread Monte-Carlo dropout guesses. Expect: few bars pass the threshold.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "fixmatch"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "confidence_threshold": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.5,
+          "max": 0.99,
+          "label": "Confidence threshold",
+          "group": "Model",
+          "description": "Minimum max(p, 1 - p) of the weak view for a pseudo-label.",
+          "search": {
+            "kind": "float",
+            "low": 0.6,
+            "high": 0.95
+          }
+        },
+        "weak_noise_standard_deviation": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 3.0,
+          "label": "Weak view noise",
+          "group": "Model",
+          "description": "Gaussian noise of the weak view."
+        },
+        "strong_noise_standard_deviation": {
+          "type": "float",
+          "default": 0.4,
+          "min": 0.0,
+          "max": 3.0,
+          "label": "Strong view noise",
+          "group": "Model",
+          "description": "Gaussian noise of the strong view."
+        },
+        "feature_mask_fraction": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Feature mask fraction",
+          "group": "Model",
+          "description": "Share of features zeroed in the strong view."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Weight of the unlabelled loss (lambda_u).",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 3.0,
+            "log": true
+          }
+        },
+        "price_confidence_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Price confidence quantile",
+          "group": "Model",
+          "description": "The price model keeps a guess when its Monte-Carlo dropout spread is at or below this quantile of the batch's spreads.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "mixmatch": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-consistency-based-methods-mixmatch",
+      "alsoCatalogSpecIds": [],
+      "displayName": "MixMatch",
+      "category": "Semi-supervised learning",
+      "subcategory": "Consistency-based methods",
+      "kind": "Semi-supervised network",
+      "summary": "Guessed and sharpened labels for unlabelled bars, then MixUp across labelled and unlabelled bars (Berthelot et al. 2019).",
+      "implementationNote": "Bridge: P(up) from one network; unlabelled guesses average noisy copies and are sharpened, then labelled and unlabelled rows are mixed with MixUp. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. MixUp of feature rows is a regulariser with no market meaning. Expect: a regularised plain network.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "mixmatch"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "augmentation_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Augmentation count",
+          "group": "Model",
+          "description": "Noisy copies averaged per unlabelled row for the guess (K)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Sharpening temperature",
+          "group": "Model",
+          "description": "Temperature T of the guess sharpening; lower is harder.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1.0
+          }
+        },
+        "mixup_concentration": {
+          "type": "float",
+          "default": 0.75,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "MixUp concentration",
+          "group": "Model",
+          "description": "alpha of the Beta(alpha, alpha) mixing weight; 0 turns MixUp off."
+        },
+        "noise_standard_deviation": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Noise standard deviation",
+          "group": "Model",
+          "description": "Gaussian noise of each augmented copy."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 200.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Full weight of the unlabelled squared loss.",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 50.0,
+            "log": true
+          }
+        },
+        "ramp_epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 0,
+          "max": 200,
+          "label": "Ramp-up epochs",
+          "group": "Model",
+          "description": "Epochs over which the unlabelled weight rises to its full value (0: at once)."
+        }
+      }
+    },
+    "virtual_adversarial_training": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-consistency-based-methods-virtual-adversarial-training-vat",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Virtual adversarial training (VAT)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Consistency-based methods",
+      "kind": "Semi-supervised network",
+      "summary": "The prediction must not change under the small perturbation of the bar's features that would change it most (Miyato et al. 2018).",
+      "implementationNote": "Bridge: P(up) from one network; for every span bar a power iteration finds the direction that moves P(up) most, and the divergence at that radius is penalised. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. The radius is in standardised feature units and can reach values a feature never takes. Expect: a smoother plain network.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "virtual_adversarial"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "perturbation_radius": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Perturbation radius",
+          "group": "Model",
+          "description": "L2 radius epsilon of the adversarial perturbation (z units).",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 3.0,
+            "log": true
+          }
+        },
+        "probe_radius": {
+          "type": "float",
+          "default": 0.1,
+          "min": 1e-06,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Probe radius",
+          "group": "Model",
+          "description": "Radius xi of the random probe the power iteration starts from."
+        },
+        "power_iteration_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 5,
+          "label": "Power iterations",
+          "group": "Model",
+          "description": "Power iterations per step."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Weight of the adversarial divergence.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "entropy_minimization": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-regularization-theoretical-entropy-minimization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Entropy minimization",
+      "category": "Semi-supervised learning",
+      "subcategory": "Regularization and theoretical",
+      "kind": "Semi-supervised network",
+      "summary": "A network is pushed to be confident on unlabelled bars, moving its boundary into sparse regions of feature space (Grandvalet and Bengio 2005).",
+      "implementationNote": "Bridge: P(up) from one network trained with binary cross-entropy on labelled bars plus the mean entropy of P(up) on unlabelled bars. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. No price model (the entropy of a real value is undefined). Expect: sharper, not better, probabilities; on weak signal it pushes P(up) to 0 or 1.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "entropy_minimization"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Weight of the entropy term (lambda).",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "ramp_epochs": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 200,
+          "label": "Ramp-up epochs",
+          "group": "Model",
+          "description": "Epochs over which the unlabelled weight rises to its full value (0: at once)."
+        }
+      }
+    },
+    "ladder_network": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-generative-hybrid-models-ladder-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Ladder network",
+      "category": "Semi-supervised learning",
+      "subcategory": "Generative and hybrid models",
+      "kind": "Semi-supervised network",
+      "summary": "A clean and a noisy encoder with a denoising decoder: every layer of the noisy path is reconstructed from the layer above (Rasmus et al. 2015).",
+      "implementationNote": "Bridge: P(up) from the clean encoder with running batch statistics; training adds the per-layer denoising cost of the noisy path on every span bar. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. A small multilayer ladder over the feature row, no convolutions. Expect: close to a batch-normalised plain network.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ladder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "noise_standard_deviation": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Noise standard deviation",
+          "group": "Model",
+          "description": "Gaussian noise added at every layer of the noisy encoder."
+        },
+        "input_denoising_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Input denoising weight",
+          "group": "Model",
+          "description": "lambda_0: weight of the input layer's reconstruction cost."
+        },
+        "hidden_denoising_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Hidden denoising weight",
+          "group": "Model",
+          "description": "lambda_l: weight of each hidden and top layer's reconstruction cost."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Multiplier of the whole denoising cost.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 10.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "semi_supervised_vae": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-generative-hybrid-models-hybrid-generative-discriminative-ssl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hybrid generative-discriminative semi-supervised learning (M2)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Generative and hybrid models",
+      "kind": "Semi-supervised variational autoencoder",
+      "summary": "A variational autoencoder that generates the bar's features from a latent code and the up / down label, with the label inferred for unlabelled bars (Kingma et al. 2014, M2).",
+      "implementationNote": "Bridge: P(up) is the M2 classifier q(up | row); training adds the labelled bound and the label-marginalised unlabelled bound of a variational autoencoder. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. The price model is M1 plus a regression head on the latent mean. Expect: reconstruction dominates; the classifier weight matters.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "generative_discriminative"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the latent code z."
+        },
+        "classification_loss_weight": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "logScale": true,
+          "label": "Classification loss weight",
+          "group": "Model",
+          "description": "alpha: weight of the labelled cross-entropy of q(y|x).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 50.0,
+            "log": true
+          }
+        },
+        "divergence_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Divergence weight",
+          "group": "Model",
+          "description": "Weight of KL(q(z|x,y) || N(0, I))."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Weight of the unlabelled bound U(x).",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "semi_supervised_gan": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-generative-hybrid-models-semi-supervised-gan-sgan",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Semi-supervised generative adversarial network (SGAN)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Generative and hybrid models",
+      "kind": "Semi-supervised adversarial network",
+      "summary": "A discriminator that tells up, down and generated bars apart, with a generator trained to match real bars' features (Salimans et al. 2016).",
+      "implementationNote": "Bridge: P(up) is the softmax over the discriminator's two class logits (the fake class implicit); unlabelled bars and generator samples train its real / fake term. Differs from the spec: Labels are masked in embargoed blocks so there is an unlabelled pool. That deliberately handicaps the model against full supervision. Generated rows are feature rows; no price model. Expect: unstable; it stops on validation log loss, not the adversarial loss.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "semi_supervised_network",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "k_plus_one_gan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-25 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout after each hidden layer."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "AdamW step size (cosine decay to a tenth).",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "AdamW's decoupled weight decay."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the labelled rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Labelled rows per gradient step."
+        },
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labelled fraction",
+          "group": "Model",
+          "description": "Share of the training span's label blocks whose labels are kept; the rest form the unlabelled pool."
+        },
+        "label_block_bars": {
+          "type": "int",
+          "default": 144,
+          "min": 10,
+          "max": 5000,
+          "label": "Label block bars",
+          "group": "Model",
+          "description": "Bars per block when masking labels; a kept row within the label horizon of a hidden block is hidden too."
+        },
+        "unlabeled_ratio": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 16,
+          "label": "Unlabelled ratio",
+          "group": "Model",
+          "description": "Unlabelled rows drawn per labelled row in each step."
+        },
+        "generator_noise_size": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 512,
+          "label": "Generator noise size",
+          "group": "Model",
+          "description": "Size of the generator's noise input."
+        },
+        "generator_hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Generator hidden size",
+          "group": "Model",
+          "description": "Units per generator layer."
+        },
+        "generator_learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Generator learning rate",
+          "group": "Model",
+          "description": "Adam step size of the generator."
+        },
+        "discriminator_steps": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Discriminator steps",
+          "group": "Model",
+          "description": "Discriminator updates per generator update."
+        },
+        "noise_standard_deviation": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Noise standard deviation",
+          "group": "Model",
+          "description": "Gaussian noise on the discriminator's input during training."
+        },
+        "unlabeled_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Unlabelled weight",
+          "group": "Model",
+          "description": "Weight of the real / fake loss.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

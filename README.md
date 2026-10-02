@@ -26,7 +26,16 @@ Full-stack ML ops and real-time execution platform for high-frequency quantitati
 ## 1. Core Architecture (The Triple-Engine Lambda)
 
 | Layer | Technology | Operational Role |
-| :--- | :--- | :--- |
+| :
+### 2.4 Analytics & Studies Mandate (DIKW Framework)
+All analysis must rigorously follow the **DIKW** path: **Data ? Information ? Knowledge ? Wisdom**.
+- **Descriptive Analytics (Information)**: What is the data telling us?
+- **Diagnostic Analytics (Knowledge)**: Why is this happening? (Root Cause Analysis).
+- **Predictive Analytics (Knowledge)**: What will happen next? (Classification/Regression).
+- **Prescriptive Analytics (Wisdom)**: What action should we take?
+
+Every analytical report must be fully processed and permanently housed in the **Studies** tab (src/client/src/studies/pages/). All future analytics and analysis must be saved into a dedicated Study.
+--- | :--- | :--- |
 | **System of record** | **Iceberg lake** (`E:\lake`) | Every byte of market data. 863M+ OHLCV rows, namespace `market`, catalog AIStor at `:9100/_iceberg`. |
 | **Serving + batch** | **DuckDB** | Reads the lake in-process — timeframe aggregation, data wrangling, Polars-native .parquet loading. No server, no port. |
 | **Serving** | **PostgreSQL** | Relational metadata, **Model Registry v2.0.0** state, and complex strategy persistence. |
@@ -115,7 +124,8 @@ We adhere to the **Registry v2.0.0** naming philosophy. Purge all legacy retail 
 ## 4. Operational Workflows
 
 ### 4.1 Ingestion
-1. **File Upload Pipeline**: CSV / Parquet / ZST / DBN uploads are standardized, landed write-once in `E:\lakeawendor=<name>\` with a `.sha256` sidecar, then promoted into the Iceberg tables.
+1. **File Upload Pipeline**: CSV / Parquet / ZST / DBN uploads are standardized, landed write-once in `E:\lake
+awendor=<name>\` with a `.sha256` sidecar, then promoted into the Iceberg tables.
 2. **Lake Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`). The historical tick/DOM data was produced by an external live feed that was removed on 2026-07-27 — the data stays queryable, but nothing streams new bars in.
 
 ### 4.2 Training Pipeline (Institutional Workflow)

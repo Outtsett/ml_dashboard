@@ -32,6 +32,8 @@ docs/
 
 | Document | Topic |
 |---|---|
+| `DATA_ARCHITECTURE.md` | **Absolute Source of Truth for Data Architecture.** Details how the dashboard retrieves historical (DuckDB/Iceberg) and live (OANDA/Yahoo) candlestick data. |
+| `live-data.md` | Detailed breakdown of the Live Data Hub (Port 17192), OANDA/Yahoo integrations, and real-time frontend streaming. |
 | `research/intraday_model_arsenal.md` | **9-layer intraday MNQ architecture** — 12 CORE + 22 SUPPORTING models, MTF training protocol, T/R/D/V/R decomposition, integration roadmap (week-1 + quarter-1) |
 | `research/catalog_per_model_notes.md` | Per-spec evidence base — 300 verdicts (CORE/SUPPORTING/RESEARCH/BASELINE/REJECT) across 7 bucket tables |
 | `UNIVERSAL-TRAINING-ARCHITECTURE.md` | Universal training architecture overview |

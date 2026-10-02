@@ -1,4 +1,4 @@
-"""src/config/live.json, and the credentials the hub needs, read by name."""
+"""packages/config/live.json, and the credentials the hub needs, read by name."""
 
 from __future__ import annotations
 

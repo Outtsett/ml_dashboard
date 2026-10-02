@@ -1,0 +1,2104 @@
+{
+  "models": {
+    "world_models": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-world-models-ha-and-schmidhuber",
+      "alsoCatalogSpecIds": [],
+      "displayName": "World Models (Ha and Schmidhuber)",
+      "category": "Reinforcement learning",
+      "subcategory": "Hybrid and imagination based agents",
+      "kind": "World model agent",
+      "summary": "V compresses each feature row to a latent, M (an LSTM with a mixture-density head) learns how latents follow each other, and a tiny linear controller C on [z; h] is searched by CMA-ES for net reward.",
+      "implementationNote": "Bridge: P(up) is C's softmax share of long over long + short; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: V encodes feature rows, not pixels; C is scored on the real training tape, not in M's dream; M takes no action input. Expect: imagination adds no information beyond the learned feature dynamics; the controller is linear, so it trades a few directions of the latent.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "world_models"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "component_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 16,
+          "label": "Mixture components",
+          "group": "Model",
+          "description": "Gaussian components of M's mixture-density head."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 16,
+          "min": 4,
+          "max": 128,
+          "label": "Population size",
+          "group": "Model",
+          "description": "Candidate controllers per CMA-ES generation."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "CMA-ES generations",
+          "group": "Model",
+          "description": "Generations of the controller search (each reported as one epoch after V and M)."
+        }
+      }
+    },
+    "recurrent_state_space_model": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-latent-dynamics-model-rssm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Latent Dynamics Model (RSSM)",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent dynamics and representation models",
+      "kind": "World model agent",
+      "summary": "A recurrent state-space model (a deterministic GRU path plus a stochastic latent with prior and posterior) learns the window's dynamics, reward and session breaks; an actor-critic reads its state.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short on the RSSM state; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: no action input to the transition; the actor-critic uses every action's known tape reward (all-action gradient); no overshooting. Expect: the state rebuilt from the window each bar; edge only from learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "recurrent_state_space_model"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "free_bits": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Free bits",
+          "group": "Model",
+          "description": "Kullback-Leibler divergence below this many nats per step is not penalised (keeps the latent in use)."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        }
+      }
+    },
+    "variational_world_model": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-variational-world-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Variational World Model",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent dynamics and representation models",
+      "kind": "World model agent",
+      "summary": "A variational recurrent network (prior from the past context, posterior from the new bar, recurrence reading the bar) trained on the evidence lower bound with KL warmup; an actor-critic reads its context.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short on the VRNN context; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: no action input; the generative sampled-futures probability is not used (P(up) is the controller's). Expect: a smooth latent summary of the window; edge only from learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "variational_world_model"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        },
+        "kullback_leibler_warmup_epochs": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 100,
+          "label": "Kullback-Leibler warmup epochs",
+          "group": "Model",
+          "description": "Epochs over which the Kullback-Leibler weight ramps from zero to its value."
+        }
+      }
+    },
+    "deep_markov_decision_process": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-deepmdp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "DeepMDP",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent dynamics and representation models",
+      "kind": "World model agent",
+      "summary": "An encoder trained only to make its latent predict the next latent and the reward (no reconstruction), kept smooth by a Lipschitz penalty; an actor-critic reads the latent.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short on the DeepMDP latent; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: the Wasserstein transition term is a Gaussian likelihood of the stop-gradient next latent; the transition takes no action. Expect: a latent shaped by reward prediction; edge only from learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "deep_markov_decision_process"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "gradient_penalty_weight": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Gradient penalty weight",
+          "group": "Model",
+          "description": "Weight of the Lipschitz penalty on the latent reward and transition models."
+        }
+      }
+    },
+    "temporal_predictive_coding_agent": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-temporal-predictive-coding-agent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Temporal Predictive Coding Agent",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent dynamics and representation models",
+      "kind": "World model agent",
+      "summary": "Contrastive predictive coding: a GRU context over encoded bars learns to pick each future bar's code out of the other training windows (InfoNCE); an actor-critic reads the context.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short on the CPC context; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: predictors are not action-conditioned; future bars and negatives come from inside the training windows. Expect: a self-supervised summary of the window; edge only from learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "temporal_predictive_coding_agent"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "prediction_step_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 32,
+          "label": "Steps predicted ahead",
+          "group": "Model",
+          "description": "Bars ahead the contrastive predictors guess inside the window (at most the window minus one)."
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 10.0,
+          "label": "Contrastive temperature",
+          "group": "Model",
+          "description": "Temperature of the InfoNCE softmax."
+        }
+      }
+    },
+    "state_space_abstraction": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-state-space-abstraction-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "State-Space Abstraction Model",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent dynamics and representation models",
+      "kind": "World model agent",
+      "summary": "An encoder trained so latent distance matches the bisimulation distance (reward gap plus transition distance); k-means turns latents into abstract states and value iteration on the abstract MDP gives each action's value.",
+      "implementationNote": "Bridge: P(up) is sigmoid(Q(long) - Q(short)) of the bar's abstract state, the temperature fitted on validation; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: transitions are action-independent, so Q(long) - Q(short) is the abstract state's mean reward gap. Expect: a piecewise-constant probability, one value per abstract state.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "state_space_abstraction"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "cluster_count": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 256,
+          "label": "Abstract states",
+          "group": "Model",
+          "description": "k-means clusters of the latent that form the abstract MDP."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Discount of the next imagined decision's value."
+        }
+      }
+    },
+    "hierarchical_latent_variable_model": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-hierarchical-latent-variable-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hierarchical Latent Variable Model",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent skill embedding and transfer",
+      "kind": "World model agent",
+      "summary": "A two-level variational autoencoder: a slow latent from the whole window and a fast latent from its last bars conditioned on it; an actor-critic reads both.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short on [slow; fast] latent means; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: the latents describe market context, not skills to transfer between tasks. Expect: a slow and a fast market summary; edge only from learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hierarchical_latent_variable_model"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "top_latent_dimension": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Top latent dimension",
+          "group": "Model",
+          "description": "Size of the slow latent that summarises the whole window."
+        },
+        "bottom_sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 128,
+          "label": "Bottom window bars",
+          "group": "Model",
+          "description": "The last bars of the window the fast latent reads (at most the window)."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        },
+        "kullback_leibler_warmup_epochs": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 100,
+          "label": "Kullback-Leibler warmup epochs",
+          "group": "Model",
+          "description": "Epochs over which the Kullback-Leibler weight ramps from zero to its value."
+        }
+      }
+    },
+    "dreamer": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-dreamer-v1-v3",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dreamer (V1-V3)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model based rl",
+      "kind": "World model agent",
+      "summary": "An RSSM world model and, trained together with it, an actor and critic that learn only from imagined rollouts of the latent prior started at real states (lambda-returns).",
+      "implementationNote": "Bridge: P(up) is the actor's share of long over long + short at the window's posterior state; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: Gaussian latents (no discrete V2 latents); the transition takes no action; rewards score every action at each imagined state. Expect: imagination adds no information beyond the learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dreamer"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "15-60 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "free_bits": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Free bits",
+          "group": "Model",
+          "description": "Kullback-Leibler divergence below this many nats per step is not penalised (keeps the latent in use)."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Imagination horizon",
+          "group": "Model",
+          "description": "Imagined steps per rollout of the latent prior."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Discount of the next imagined decision's value."
+        },
+        "trace_decay": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Return trace decay",
+          "group": "Model",
+          "description": "Mixing of the lambda-return between one-step bootstrap (0) and the full imagined return (1)."
+        },
+        "actor_gradient": {
+          "type": "categorical",
+          "default": "reinforce",
+          "choices": [
+            "reinforce",
+            "dynamics"
+          ],
+          "label": "Actor gradient",
+          "group": "Model",
+          "description": "reinforce: a sampled action with the critic as baseline (Dreamer V2 and V3); dynamics: the gradient of the differentiable imagined reward (V1)."
+        },
+        "return_normalization": {
+          "type": "bool",
+          "default": true,
+          "label": "Return normalisation",
+          "group": "Model",
+          "description": "Divide advantages by the 5th-95th percentile range of returns, at least 1 (Dreamer V3)."
+        }
+      }
+    },
+    "latent_imagination_policy": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-latent-imagination-policy-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Latent Imagination Policy Network",
+      "category": "Reinforcement learning",
+      "subcategory": "Model based rl",
+      "kind": "World model agent",
+      "summary": "A pretrained, then frozen, RSSM supplies imagined latent rollouts; an actor and critic are trained only inside them, the actor through the rollout's differentiable reward with an entropy bonus.",
+      "implementationNote": "Bridge: P(up) is the actor's share of long over long + short at the window's posterior state; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: the latent source is the RSSM; the transition takes no action. Expect: imagination adds no information beyond the learned feature dynamics; one forward pass per bar at prediction.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "latent_imagination_policy"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "15-60 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "free_bits": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Free bits",
+          "group": "Model",
+          "description": "Kullback-Leibler divergence below this many nats per step is not penalised (keeps the latent in use)."
+        },
+        "kullback_leibler_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Kullback-Leibler weight",
+          "group": "Model",
+          "description": "Weight of the Kullback-Leibler term of the evidence lower bound."
+        },
+        "imagination_epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Imagination epochs",
+          "group": "Model",
+          "description": "Epochs of actor-critic training in imagination after the world model is frozen."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Imagination horizon",
+          "group": "Model",
+          "description": "Imagined steps per rollout of the latent prior."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Discount of the next imagined decision's value."
+        },
+        "trace_decay": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Return trace decay",
+          "group": "Model",
+          "description": "Mixing of the lambda-return between one-step bootstrap (0) and the full imagined return (1)."
+        }
+      }
+    },
+    "simulated_policy_learning": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-simple-simulated-policy-learning",
+      "alsoCatalogSpecIds": [],
+      "displayName": "SimPLe (Simulated Policy Learning)",
+      "category": "Reinforcement learning",
+      "subcategory": "Planning based agents",
+      "kind": "World model agent",
+      "summary": "Cycles of: fit a stochastic next-bar and reward model (scheduled sampling on its own predictions), then train a PPO policy only inside simulated episodes started from real training windows.",
+      "implementationNote": "Bridge: P(up) is the PPO policy's share of long over long + short on the real window; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: re-collecting real data is a replay of the same tape (the market cannot be queried again). Expect: imagination adds no information beyond the learned feature dynamics; the policy is only as good as the simulator.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "simulated_policy_learning"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-90 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars that refit the environment model in each cycle."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "simulation_cycle_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "label": "Cycles",
+          "group": "Model",
+          "description": "Alternations of model fitting and policy training (each reported as one epoch)."
+        },
+        "simulated_step_count": {
+          "type": "int",
+          "default": 8192,
+          "min": 256,
+          "max": 500000,
+          "label": "Simulated steps per cycle",
+          "group": "Model",
+          "description": "PPO environment steps inside the learned simulator per cycle."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Simulated episode bars",
+          "group": "Model",
+          "description": "Imagined bars per simulated episode."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Discount of the next imagined decision's value."
+        }
+      }
+    },
+    "hybrid_model_free_model_based_agent": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-hybrid-model-free-model-based-agent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hybrid Model-Free & Model-Based Agent",
+      "category": "Reinforcement learning",
+      "subcategory": "Hybrid and imagination based agents",
+      "kind": "World model agent",
+      "summary": "A model-free actor-critic trained on real rewards mixed with short rollouts of a learned environment model (Dyna), trusting the model less when it errs on held-out bars; a one-step model lookahead adjusts the policy at prediction.",
+      "implementationNote": "Bridge: P(up) is the share of long over long + short of the policy's logits plus the model's lookahead values; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: one model, not an ensemble; the lookahead is one step. Expect: imagination adds no information beyond the learned feature dynamics; the model's weight shrinks when it overfits.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hybrid_model_free_model_based_agent"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "label": "Model rollout bars",
+          "group": "Model",
+          "description": "Bars of each model rollout added to the actor-critic's training data."
+        },
+        "model_data_ratio": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Model data ratio",
+          "group": "Model",
+          "description": "Weight of imagined transitions against real ones in the actor-critic's loss."
+        },
+        "model_error_threshold": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 10.0,
+          "label": "Model error threshold",
+          "group": "Model",
+          "description": "Normalised reward error on the held-out training tail above which imagined data and lookahead are scaled down."
+        },
+        "lookahead_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Lookahead weight",
+          "group": "Model",
+          "description": "Weight of the model's one-step action values added to the policy's logits at prediction."
+        }
+      }
+    },
+    "imagination_augmented_agent": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-imagination-augmented-agents-i2a",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Imagination-Augmented Agents (I2A)",
+      "category": "Reinforcement learning",
+      "subcategory": "Hybrid and imagination based agents",
+      "kind": "World model agent",
+      "summary": "An environment model imagines one short trajectory per first action (then a distilled rollout policy acts); an LSTM encodes each backwards, and the actor-critic reads the encodings beside a model-free path.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: imagined model noise is drawn per bar from (seed, bar), so a bar's probability does not depend on its batch. Expect: imagination adds no information beyond the learned feature dynamics.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "imagination_augmented_agent"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "15-60 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 50,
+          "label": "Rollout bars",
+          "group": "Model",
+          "description": "Imagined bars in each of the three rollouts (one per first action)."
+        }
+      }
+    },
+    "action_conditioned_dynamics_transformer": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-action-conditioned-dynamics-transformer",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Action-Conditioned Dynamics Transformer",
+      "category": "Reinforcement learning",
+      "subcategory": "Transformers and sequence models",
+      "kind": "World model agent",
+      "summary": "A causally masked transformer over the window's bars and one candidate-action token, trained by teacher forcing to predict each next bar and the action's reward; long and short are scored through the model.",
+      "implementationNote": "Bridge: P(up) is sigmoid of the predicted reward of long minus short, the temperature fitted on validation; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: past action and reward tokens are left out (the agent's position is not state); only the candidate action is a token. Expect: the action matters only through its known reward.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "action_conditioned_dynamics_transformer"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "Width of the transformer's tokens (a multiple of the head count)."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "Attention heads per layer."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layers",
+          "group": "Model",
+          "description": "Transformer encoder layers."
+        }
+      }
+    },
+    "neural_ode_dynamics_learner": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-neural-ode-based-dynamics-learner",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Neural ODE-based Dynamics Learner",
+      "category": "Reinforcement learning",
+      "subcategory": "Transformers and sequence models",
+      "kind": "World model agent",
+      "summary": "An ODE-RNN: between bars the latent follows a learned differential equation integrated over the real elapsed time (torchdiffeq), and each bar updates it through a GRU cell; an actor-critic reads the latent.",
+      "implementationNote": "Bridge: P(up) is the actor-critic's share of long over long + short; the price model integrates to the label horizon and decodes the return; the market does not react to the agent, so it maximises cost-aware reward on the training span's price tape (next-open fills, round-trip cost) with its own position left out of its state. Differs from the spec: no action input to the derivative. Expect: continuous time matters only across session gaps; bars inside a session are evenly spaced.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "world_model_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "neural_ode_dynamics_learner"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 128,
+          "label": "Window bars",
+          "group": "Model",
+          "description": "Bars of history the agent reads at every bar; its state is rebuilt from this window on every call (fixed, never searched)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in the hidden layers and recurrent states."
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "Size of the learned latent state."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training bars (the world model's epochs)."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training windows per optimisation step."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Validated epochs without improvement before stopping early."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 500,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "Only the most recent bars of the training span are used (keeps a slow model inside a fold's time)."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Entropy coefficient",
+          "group": "Model",
+          "description": "Weight of the policy entropy bonus: higher keeps the policy's long share nearer one half."
+        },
+        "differential_equation_solver": {
+          "type": "categorical",
+          "default": "rk4",
+          "choices": [
+            "rk4",
+            "midpoint",
+            "euler"
+          ],
+          "label": "Solver",
+          "group": "Model",
+          "description": "Fixed-step torchdiffeq solver (four steps per interval); adaptive solvers would make a bar's answer depend on its batch."
+        }
+      }
+    }
+  }
+}

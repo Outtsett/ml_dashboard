@@ -1,0 +1,153 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "purpose": "W5 composite meta-entries injected into the model catalog so MoE / Stacking / Voting / Multimodal show up as pickable in ModelCatalogPicker.",
+    "consumed_by": "apps/api/lib/catalogBridge.ts (mergeCompositeExtras) + scripts/generate_model.py (--composite mode resolves these template IDs)",
+    "created": "2026-05-10"
+  },
+  "extras": [
+    {
+      "id": "moe-composite",
+      "name": "Mixture of Experts (Composite)",
+      "shortName": "MoE",
+      "category": "hybrid-composite",
+      "subcategory": "ensemble",
+      "templateId": "composite_moe",
+      "compositeKind": "moe",
+      "overview": "Routes inputs to N expert sub-models via a learned gating network. Each expert is a separately-trained model from the catalog. Top-K (sparse) or full-softmax (dense) routing supported. Pioneered by Shazeer et al. 2017 'Outrageously Large Neural Networks' and adopted in Switch Transformer (Fedus 2022).",
+      "principles": [
+        "Top-K or soft routing -- each token attends to k of n_experts experts",
+        "Per-expert specialization driven by routing supervision",
+        "Sparse computation -- only k of n_experts forward-pass per sample"
+      ],
+      "applications": [
+        "Heterogeneous market regimes (one expert per regime)",
+        "Multi-task learning across symbols/timeframes",
+        "Capacity scaling without proportional FLOPs"
+      ],
+      "keyFeatures": [
+        "Configurable expert count (2-8 default range)",
+        "Three gating strategies (top_k, soft, hash)",
+        "Per-expert hyperparameter independence",
+        "Gate-weighted composite predictions"
+      ],
+      "variants": ["top_k", "soft", "hash"],
+      "hyperparameters": [
+        {"name": "n_experts", "type": "number", "default": 2, "min": 2, "max": 8, "step": 1, "description": "Number of expert sub-models"},
+        {"name": "gating_type", "type": "select", "default": "top_k", "options": ["top_k", "soft", "hash"], "description": "Routing strategy: top_k (sparse), soft (dense softmax), hash (deterministic)"},
+        {"name": "gating_k", "type": "number", "default": 1, "min": 1, "max": 4, "step": 1, "description": "Number of experts active per sample (top_k only)"},
+        {"name": "gating_temperature", "type": "number", "default": 1.0, "min": 0.1, "max": 10.0, "step": 0.1, "description": "Softmax temperature for routing logits"},
+        {"name": "gate_epochs", "type": "number", "default": 30, "min": 5, "max": 200, "step": 5, "description": "Epochs to train the routing head"},
+        {"name": "gate_lr", "type": "number", "default": 0.001, "min": 0.0001, "max": 0.01, "step": 0.0001, "description": "Learning rate for routing head"}
+      ],
+      "module_path": null,
+      "class_name": null,
+      "classOrigin": "manual"
+    },
+    {
+      "id": "stacking-composite",
+      "name": "Stacking Ensemble (Composite)",
+      "shortName": "Stack",
+      "category": "hybrid-composite",
+      "subcategory": "ensemble",
+      "templateId": "composite_stacking",
+      "compositeKind": "stacking",
+      "overview": "Wolpert (1992) stacked generalization: N base sub-models predict on the same fold; their predictions become meta-features for a meta-learner (LogisticRegression by default) that produces the final composite prediction. Better diversity than voting because the meta-learner can downweight correlated base learners.",
+      "principles": [
+        "Base learners trained on same fold -- diversity from architectural difference",
+        "Meta-learner combines base predictions -- learnable, not arithmetic",
+        "Walk-forward fold acts as the holdout for meta-fit (sklearn StackingClassifier cv=prefit pattern)"
+      ],
+      "applications": [
+        "Combining heterogeneous models (e.g. tree + MLP + sklearn)",
+        "Calibration smoothing -- meta-learner re-balances over-confident bases",
+        "Reducing variance of single-model predictions"
+      ],
+      "keyFeatures": [
+        "Three combiners (logistic_meta, voting, weighted_average)",
+        "Per-base hyperparameter independence",
+        "Tikhonov-regularized least-squares for weighted_average",
+        "Per-base member predictions exposed in diagnostics"
+      ],
+      "variants": ["logistic_meta", "voting", "weighted_average"],
+      "hyperparameters": [
+        {"name": "n_members", "type": "number", "default": 3, "min": 2, "max": 10, "step": 1, "description": "Number of base sub-models"},
+        {"name": "combiner", "type": "select", "default": "logistic_meta", "options": ["logistic_meta", "voting", "weighted_average"], "description": "Meta-learner type"}
+      ],
+      "module_path": null,
+      "class_name": null,
+      "classOrigin": "manual"
+    },
+    {
+      "id": "voting-composite",
+      "name": "Voting Ensemble (Composite)",
+      "shortName": "Vote",
+      "category": "hybrid-composite",
+      "subcategory": "ensemble",
+      "templateId": "composite_voting",
+      "compositeKind": "voting",
+      "overview": "N sub-models predict independently. Combine via hard vote (majority class), soft vote (probability average), or weighted vote (user weights). Cheaper than stacking because no meta-learner; baseline ensemble for cases where bases are already well-calibrated.",
+      "principles": [
+        "Each member learns independently -- no shared parameters",
+        "Combiner is arithmetic, not learned",
+        "Diversity bound: Var(ensemble) <= mean(Var(members)) when members uncorrelated"
+      ],
+      "applications": [
+        "Quick ensemble of strong individual models",
+        "Calibration-stable bases where meta-learner adds noise",
+        "Tie-breaker among architecturally different bases (tree + linear + MLP)"
+      ],
+      "keyFeatures": [
+        "Three combiners (hard, soft, weighted)",
+        "Per-member pairwise correlation diagnostic",
+        "Per-member mean prediction surfaced for diversity analysis"
+      ],
+      "variants": ["hard", "soft", "weighted"],
+      "hyperparameters": [
+        {"name": "n_members", "type": "number", "default": 3, "min": 2, "max": 10, "step": 1, "description": "Number of base sub-models"},
+        {"name": "combiner", "type": "select", "default": "soft", "options": ["hard", "soft", "weighted"], "description": "Voting strategy"}
+      ],
+      "module_path": null,
+      "class_name": null,
+      "classOrigin": "manual"
+    },
+    {
+      "id": "multimodal-composite",
+      "name": "Multimodal Encoder Fusion (Composite)",
+      "shortName": "MM",
+      "category": "hybrid-composite",
+      "subcategory": "multimodal",
+      "templateId": "composite_multimodal",
+      "compositeKind": "multimodal",
+      "overview": "Multi-stream encoder with per-modality encoder picker (mlp / cnn / transformer) and learnable fusion (concat / cross-attention / gated). Each modality is a column slice of the feature matrix routed through its own encoder. Unlike MoE/stacking/voting where members are SEPARATELY trained models, multimodal encoders are inline blocks composed in one nn.Module.",
+      "principles": [
+        "Per-modality encoders specialise on their input distribution",
+        "Fusion strategy controls how modalities exchange information",
+        "Joint end-to-end training of encoders + fusion + head via NLLLoss"
+      ],
+      "applications": [
+        "Price + volume + microstructure fusion",
+        "Multi-timeframe fusion (1m + 5m + 15m features as separate modalities)",
+        "Cross-asset fusion (asset A price + asset B price)"
+      ],
+      "keyFeatures": [
+        "Per-modality encoder picker (mlp/cnn/transformer)",
+        "Three fusion strategies (concat/cross_attention/gated)",
+        "Configurable d_fused output dimension",
+        "End-to-end joint training"
+      ],
+      "variants": ["concat", "cross_attention", "gated"],
+      "hyperparameters": [
+        {"name": "fusion_strategy", "type": "select", "default": "concat", "options": ["concat", "cross_attention", "gated"], "description": "How to fuse modality outputs"},
+        {"name": "d_fused", "type": "number", "default": 128, "min": 32, "max": 512, "step": 32, "description": "Fused representation dim"},
+        {"name": "n_classes", "type": "number", "default": 2, "min": 2, "max": 21, "step": 1, "description": "Output class count"},
+        {"name": "epochs", "type": "number", "default": 10, "min": 1, "max": 100, "step": 1, "description": "Training epochs"},
+        {"name": "batch_size", "type": "number", "default": 256, "min": 32, "max": 4096, "step": 32, "description": "Mini-batch size"},
+        {"name": "learning_rate", "type": "number", "default": 0.001, "min": 0.00001, "max": 0.01, "step": 0.0001, "description": "AdamW learning rate"}
+      ],
+      "module_path": null,
+      "class_name": null,
+      "classOrigin": "manual"
+    }
+  ]
+}

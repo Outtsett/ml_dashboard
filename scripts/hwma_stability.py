@@ -40,7 +40,7 @@ RESULTS_DATABASE = Path(
     os.environ.get("HWMA_STABILITY_DATABASE", r"E:\lake-workspace\hwma_stability.duckdb")
 )
 #: the snapshot the dashboard's own DuckDB serves
-SNAPSHOT = os.environ.get("LAKE_SERVING_SNAPSHOT", "derived/recipe=questdb_full_2026-09-09")
+SNAPSHOT = os.environ.get("LAKE_SERVING_SNAPSHOT", "derived/recipe=lake_full_2026-09-09")
 SYMBOL = "MNQH6"
 BAR_COUNT = 2_000
 GRID = np.round(np.arange(0.05, 1.0, 0.05), 2)
@@ -181,7 +181,7 @@ def main() -> int:
                 "default_spectral_radius": spectral_radius(*DEFAULTS),
                 "range_multiple": RANGE_MULTIPLE,
                 "source": "ml_dashboard/scripts/hwma_stability.py",
-                "measures": "src/client/src/market/lib/calculators/overlay/averages.ts::calcHWMA",
+                "measures": "apps/web/src/market/lib/calculators/overlay/averages.ts::calcHWMA",
                 "build_seconds": time.time() - started,
             }
         ]
@@ -207,3 +207,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

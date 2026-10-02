@@ -9,12 +9,12 @@ import { describe, it, expect } from 'vitest';
 import {
   labelSetObjectPath,
   LABEL_MANIFEST_PATH,
-} from '../../src/server/infrastructure/lib/labels/labelSetStore';
+} from '../../apps/api/infrastructure/lib/labels/labelSetStore';
 import {
   isTalibGenerator,
   talibPatternForGenerator,
   TALIB_NET_DIRECTION_GENERATOR,
-} from '../../src/server/infrastructure/lib/labels/talibLabelRows';
+} from '../../apps/api/infrastructure/lib/labels/talibLabelRows';
 
 describe('label set object paths', () => {
   it('lands under derived/<dataset>/recipe=<recipe>/table=labels/, the lake.layout convention', () => {

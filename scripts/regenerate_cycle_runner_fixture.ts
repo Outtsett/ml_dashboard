@@ -14,9 +14,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { AlgorithmRegistry, TaskRegistry } from "@shared/trainingTypes";
-import { getCycleRegistry } from "../src/server/training/cycleModels";
-import { composeCycleRunners, cycleRunnerKey } from "../src/server/training/cycleRunners";
-import { composeEntry, reloadConfigs } from "../src/server/training/registry";
+import { getCycleRegistry } from "../apps/api/training/cycleModels";
+import { composeCycleRunners, cycleRunnerKey } from "../apps/api/training/cycleRunners";
+import { composeEntry, reloadConfigs } from "../apps/api/training/registry";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = path.join(ROOT, "src", "config");

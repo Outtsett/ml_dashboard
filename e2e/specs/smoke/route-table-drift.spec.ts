@@ -7,7 +7,7 @@ import { ROUTE_PATHS } from '../../support/routes';
  * The drift guard.
  *
  * `e2e/support/routes.ts` is a hand-written copy of the router in
- * `src/client/src/App.tsx`. That duplication is deliberate — importing the real
+ * `apps/web/src/App.tsx`. That duplication is deliberate — importing the real
  * table would make the route sweep agree with any change automatically, so a
  * deleted route would silently delete its own test rather than fail one.
  *
@@ -20,7 +20,7 @@ import { ROUTE_PATHS } from '../../support/routes';
  * the entry here. That is the intended friction.
  */
 
-const APP_TSX = path.resolve(import.meta.dirname, '../../../src/client/src/App.tsx');
+const APP_TSX = path.resolve(import.meta.dirname, '../../../apps/web/src/App.tsx');
 
 /**
  * Pull every `path="..."` out of the `<Switch>` block. Both `<AppRoute path=>`
@@ -68,7 +68,7 @@ test.describe('route table drift', () => {
     // route renders the NotFound page on click, which is a dead link the user
     // finds before any test does.
     const sidebar = fs.readFileSync(
-      path.resolve(import.meta.dirname, '../../../src/client/src/shared/quant-layout/LeftSidebar.tsx'),
+      path.resolve(import.meta.dirname, '../../../apps/web/packages/shared/src/quant-layout/LeftSidebar.tsx'),
       'utf-8',
     );
     const hrefs = [...sidebar.matchAll(/href:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]!);

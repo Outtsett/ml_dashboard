@@ -1,5 +1,5 @@
 """python -m live --port 17192 — started and adopted by the dashboard's sidecar
-supervisor (src/config/sidecars.json); runs standalone the same way."""
+supervisor (packages/config/sidecars.json); runs standalone the same way."""
 
 from __future__ import annotations
 

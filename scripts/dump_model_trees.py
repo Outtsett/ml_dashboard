@@ -1,6 +1,6 @@
 """Dump tree structure + forest summaries from trained tree-ensemble artifacts.
 
-Consumed by src/server/ml/anatomy.router.ts (the /api/anatomy/* endpoints).
+Consumed by apps/api/ml/anatomy.router.ts (the /api/anatomy/* endpoints).
 Emits a SINGLE JSON line on stdout per invocation. Errors emit
 {"error": "..."} on stdout and exit 2. ASCII-only output (Windows cp1252).
 

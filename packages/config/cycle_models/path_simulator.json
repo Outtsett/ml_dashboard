@@ -1,0 +1,892 @@
+{
+  "models": {
+    "agent_based_model": {
+      "catalogSpecId": "simulation-decision-models-agent-based-multi-agent-systems-agent-based-modeling",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Agent-Based Modeling",
+      "category": "Simulation and decision models",
+      "subcategory": "Agent-based and multi-agent systems",
+      "kind": "Simulator",
+      "summary": "Trend followers, mean reverters, informed and noise traders and a liquidity provider trade forward from each bar; the share of simulated paths that end higher is P(up).",
+      "implementationNote": "Bridge: P(up) is the share of simulated paths ending higher, through a logistic curve fitted on validation. Differs from the spec: one instrument; type proportions, impact, noise and tail are calibrated by CMA-ES (method of simulated moments) and informed agents read a ridge index of the features. Expect: calibrated to train-span bar moments; directional edge is near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "agent_based"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "agent_population_size": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 5000,
+          "label": "Agents per type",
+          "group": "Model",
+          "description": "How many heterogeneous agents of each type trade (each with its own lookback and sensitivity)."
+        },
+        "trend_follower_lookback_bars": {
+          "type": "int",
+          "default": 40,
+          "min": 5,
+          "max": 400,
+          "label": "Trend lookback (bars)",
+          "group": "Model",
+          "description": "The longest lookback a trend-following agent reads (agents draw theirs up to it)."
+        },
+        "mean_reversion_window_bars": {
+          "type": "int",
+          "default": 40,
+          "min": 5,
+          "max": 400,
+          "label": "Reversion window (bars)",
+          "group": "Model",
+          "description": "The longest moving-average window a mean-reverting agent reads."
+        },
+        "liquidity_inventory_aversion": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Liquidity provider inventory aversion",
+          "group": "Model",
+          "description": "The share of the accumulated price impact the liquidity provider works off every bar.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5
+          }
+        },
+        "factor_ridge_penalty": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Factor ridge penalty",
+          "group": "Model",
+          "description": "Ridge penalty (a share of the bar count) of the linear index that maps the features to the drift or the information agents read."
+        },
+        "path_count": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "How many future paths are simulated for every bar; the share that ends higher is the raw P(up)."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 2000,
+          "label": "Calibration generations",
+          "group": "Model",
+          "description": "CMA-ES generations of the method-of-simulated-moments calibration."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 12,
+          "min": 4,
+          "max": 200,
+          "label": "Calibration population",
+          "group": "Model",
+          "description": "Candidate parameter sets CMA-ES evaluates per generation."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "multi_agent_simulation": {
+      "catalogSpecId": "simulation-decision-models-agent-based-multi-agent-systems-multi-agent-simulation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multi-Agent Simulation",
+      "category": "Simulation and decision models",
+      "subcategory": "Agent-based and multi-agent systems",
+      "kind": "Simulator",
+      "summary": "A market maker, a trend follower, a mean reverter and an informed trader learn their policies by Q-learning, then trade forward from each bar; the share of simulated paths that end higher is P(up).",
+      "implementationNote": "Bridge: P(up) is the share of simulated paths ending higher, through a logistic curve fitted on validation. Differs from the spec: four independent tabular Q-learners trained on replayed train-span moves plus their own impact; the flow-to-move link is a train-span least-squares fit; independent learners reach no equilibrium. Expect: calibrated to train-span bar moments; directional edge is near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "multi_agent"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "episode_count": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 100000,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "Training episodes, run in parallel batches of a tenth each."
+        },
+        "episode_length_bars": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 5000,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "Consecutive training bars one episode replays."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.001,
+          "max": 1.0,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each Q-value update.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in a Q-value."
+        },
+        "exploration_rate": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Exploration rate",
+          "group": "Model",
+          "description": "Share of training actions taken at random instead of greedily."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 12,
+          "label": "Signal bins",
+          "group": "Model",
+          "description": "Train-quantile bins of each agent's own signal (its states)."
+        },
+        "impact_coefficient": {
+          "type": "float",
+          "default": 0.02,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Training impact per contract",
+          "group": "Model",
+          "description": "Price impact of one contract of net order flow in the training environment (move-scale units)."
+        },
+        "trend_follower_lookback_bars": {
+          "type": "int",
+          "default": 40,
+          "min": 5,
+          "max": 400,
+          "label": "Trend lookback (bars)",
+          "group": "Model",
+          "description": "The longest lookback a trend-following agent reads (agents draw theirs up to it)."
+        },
+        "mean_reversion_window_bars": {
+          "type": "int",
+          "default": 40,
+          "min": 5,
+          "max": 400,
+          "label": "Reversion window (bars)",
+          "group": "Model",
+          "description": "The longest moving-average window a mean-reverting agent reads."
+        },
+        "factor_ridge_penalty": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Factor ridge penalty",
+          "group": "Model",
+          "description": "Ridge penalty (a share of the bar count) of the linear index that maps the features to the drift or the information agents read."
+        },
+        "path_count": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "How many future paths are simulated for every bar; the share that ends higher is the raw P(up)."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "markov_chain_monte_carlo": {
+      "catalogSpecId": "simulation-decision-models-probabilistic-inference-sampling-markov-chain-monte-carlo-mcmc",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Markov Chain Monte Carlo (MCMC)",
+      "category": "Simulation and decision models",
+      "subcategory": "Probabilistic inference and sampling",
+      "kind": "Simulator",
+      "summary": "A Bayesian Student-t model of the h-bar move is sampled by adaptive random-walk Metropolis-Hastings; P(up) is the posterior-predictive probability of a rise.",
+      "implementationNote": "Bridge: P(up) is the posterior-predictive mean of P(move > 0), through a validation-fitted curve. Differs from the spec: the sampled model is a Student-t regression of the h-bar move on the first principal components; own adaptive Metropolis-Hastings, arviz R-hat, and a fit with R-hat above 1.05 is refused. Overlapping targets make the posterior too narrow. Expect: close to a regularised linear model.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "metropolis"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "iteration_count": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 200000,
+          "label": "Iterations per chain",
+          "group": "Model",
+          "description": "Metropolis-Hastings iterations of every chain, burn-in included."
+        },
+        "burn_in_fraction": {
+          "type": "float",
+          "default": 0.4,
+          "min": 0.1,
+          "max": 0.8,
+          "label": "Burn-in fraction",
+          "group": "Model",
+          "description": "Share of each chain discarded while the proposal adapts."
+        },
+        "chain_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 16,
+          "label": "Chains",
+          "group": "Model",
+          "description": "Independent chains; R-hat compares them."
+        },
+        "thinning_interval": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 100,
+          "label": "Thinning interval",
+          "group": "Model",
+          "description": "Every how many iterations a draw is kept."
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "How many principal components of the features describe a bar's state.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8
+          }
+        },
+        "target_acceptance_rate": {
+          "type": "float",
+          "default": 0.25,
+          "min": 0.1,
+          "max": 0.6,
+          "label": "Target acceptance rate",
+          "group": "Model",
+          "description": "The acceptance rate the proposal scale adapts toward during burn-in."
+        },
+        "student_degrees_of_freedom": {
+          "type": "float",
+          "default": 5.0,
+          "min": 2.5,
+          "max": 100.0,
+          "label": "Student-t degrees of freedom",
+          "group": "Model",
+          "description": "Tail weight of the move likelihood (lower is heavier)."
+        },
+        "chain_starting_dispersion": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.5,
+          "max": 1000.0,
+          "label": "Chain starting dispersion",
+          "group": "Model",
+          "description": "How many standard errors from the least-squares fit the chains start."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "monte_carlo_simulation": {
+      "catalogSpecId": "simulation-decision-models-probabilistic-inference-sampling-monte-carlo-simulation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Monte Carlo Simulation",
+      "category": "Simulation and decision models",
+      "subcategory": "Probabilistic inference and sampling",
+      "kind": "Simulator",
+      "summary": "Future paths are bootstrapped in blocks from the moves that followed the most similar training bars; the share that ends higher is P(up).",
+      "implementationNote": "Bridge: P(up) is the share of bootstrapped paths ending higher, through a logistic curve fitted on validation. Differs from the spec: paths are moving-block resamples of the one-bar steps that followed the nearest training bars in principal-component space (a nearest-neighbour analogue with resampled uncertainty), not draws from assumed distributions. Expect: a modest edge where the feature state recurs.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "block_bootstrap"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "path_count": {
+          "type": "int",
+          "default": 500,
+          "min": 50,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "How many future paths are simulated for every bar; the share that ends higher is the raw P(up)."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Neighbours",
+          "group": "Model",
+          "description": "Nearest training bars whose following moves are resampled.",
+          "search": {
+            "kind": "int",
+            "low": 50,
+            "high": 400
+          }
+        },
+        "block_length_bars": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 60,
+          "label": "Block length (bars)",
+          "group": "Model",
+          "description": "Consecutive steps copied per block (capped at the horizon)."
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "How many principal components of the features describe a bar's state."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 20000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "discrete_event_simulation": {
+      "catalogSpecId": "simulation-decision-models-simulation-techniques-discrete-event-simulation-des",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Discrete Event Simulation (DES)",
+      "category": "Simulation and decision models",
+      "subcategory": "Simulation techniques",
+      "kind": "Simulator",
+      "summary": "Up and down tick events follow a self-exciting Hawkes process fitted by maximum likelihood; Ogata thinning simulates the events of the next bars and the share of paths that end higher is P(up).",
+      "implementationNote": "Bridge: P(up) is the share of simulated event paths ending higher, through a validation-fitted curve. Differs from the spec: a Hawkes process on bar close-to-close tick moves (events spaced evenly inside a bar), because tick history covers only a few days and intrabar highs and lows are not available at prediction; Ogata thinning, no queues. Expect: calibrated to train-span bar moments; directional edge is near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hawkes"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-45 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "path_count": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "How many future paths are simulated for every bar; the share that ends higher is the raw P(up)."
+        },
+        "events_per_bar": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 50,
+          "label": "Events per bar",
+          "group": "Model",
+          "description": "Average events per bar the event size is set for (a bar's move in events)."
+        },
+        "memory_bars": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 1000,
+          "label": "Excitation memory (bars)",
+          "group": "Model",
+          "description": "Past bars whose events excite the intensity at the start of a simulation."
+        },
+        "hawkes_branching_limit": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 0.99,
+          "label": "Branching limit",
+          "group": "Model",
+          "description": "Upper bound of the branching matrix's spectral radius (the events one event triggers, all generations); keeps the process stationary.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.9
+          }
+        },
+        "horizon_event_limit": {
+          "type": "int",
+          "default": 5000,
+          "min": 100,
+          "max": 1000000,
+          "label": "Thinning step limit",
+          "group": "Model",
+          "description": "Most thinning steps one simulation takes before it stops."
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "How many principal components of the features describe a bar's state."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 5000,
+          "label": "Likelihood iterations",
+          "group": "Model",
+          "description": "L-BFGS-B iterations of the maximum-likelihood fit."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 5000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "event_driven_simulation": {
+      "catalogSpecId": "simulation-decision-models-simulation-techniques-event-driven-simulation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Event-Driven Simulation",
+      "category": "Simulation and decision models",
+      "subcategory": "Simulation techniques",
+      "kind": "Simulator",
+      "summary": "A typed event queue (market, signal, order, fill) replays rule strategies over the training span with slippage and costs; the best strategy's signal gives P(up).",
+      "implementationNote": "Bridge: P(up) is the kept rule strategy's signal through a logistic curve fitted on validation. Differs from the spec: the event queue (market, signal, order and fill with slippage and cost) replays 96 rule strategies over the train span and keeps the best net Sharpe; the predictive content is only the wrapped rule strategy. Expect: probabilities near the base rate unless a simple momentum or reversion rule works.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "event_replay"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "slippage_ticks": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "label": "Slippage (ticks)",
+          "group": "Model",
+          "description": "Adverse ticks every simulated fill pays on top of the cost model."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    },
+    "stochastic_differential_equation": {
+      "catalogSpecId": "simulation-decision-models-simulation-techniques-stochastic-differential-equations-sde",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Stochastic Differential Equations (SDE)",
+      "category": "Simulation and decision models",
+      "subcategory": "Simulation techniques",
+      "kind": "Simulator",
+      "summary": "Geometric Brownian motion, an Ornstein-Uhlenbeck drift factor, Heston stochastic variance or Merton jumps are fitted on the training span and simulated by Euler-Maruyama; the share of paths that end higher is P(up).",
+      "implementationNote": "Bridge: P(up) is the share of Euler-Maruyama paths ending higher, through a logistic curve fitted on validation. Differs from the spec: the drift is a one-factor Ornstein-Uhlenbeck process on a ridge index of the features (geometric Brownian motion has no conditioning); Heston and Merton change the spread more than the direction. Expect: calibrated to train-span bar moments; directional edge is near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "sde"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "diffusion_model": {
+          "type": "categorical",
+          "default": "ornstein_uhlenbeck_drift",
+          "choices": [
+            "geometric_brownian_motion",
+            "ornstein_uhlenbeck_drift",
+            "heston",
+            "merton"
+          ],
+          "label": "Diffusion model",
+          "group": "Model",
+          "description": "Which stochastic differential equation is simulated.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "ornstein_uhlenbeck_drift",
+              "heston",
+              "merton"
+            ]
+          }
+        },
+        "path_count": {
+          "type": "int",
+          "default": 1000,
+          "min": 50,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "How many future paths are simulated for every bar; the share that ends higher is the raw P(up)."
+        },
+        "discretization_steps_per_bar": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 20,
+          "label": "Euler steps per bar",
+          "group": "Model",
+          "description": "Euler-Maruyama steps each bar is split into."
+        },
+        "factor_ridge_penalty": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Factor ridge penalty",
+          "group": "Model",
+          "description": "Ridge penalty (a share of the bar count) of the linear index that maps the features to the drift or the information agents read.",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "variance_window_bars": {
+          "type": "int",
+          "default": 20,
+          "min": 5,
+          "max": 500,
+          "label": "Variance window (bars)",
+          "group": "Model",
+          "description": "Bars of residuals the Heston variance starts from and is fitted in blocks of."
+        },
+        "jump_threshold_deviations": {
+          "type": "float",
+          "default": 4.0,
+          "min": 2.0,
+          "max": 10.0,
+          "label": "Jump threshold (robust deviations)",
+          "group": "Model",
+          "description": "A Merton training residual beyond this many robust deviations is a jump."
+        }
+      }
+    },
+    "system_dynamics": {
+      "catalogSpecId": "simulation-decision-models-simulation-techniques-system-dynamics-modeling",
+      "alsoCatalogSpecIds": [],
+      "displayName": "System Dynamics Modeling",
+      "category": "Simulation and decision models",
+      "subcategory": "Simulation techniques",
+      "kind": "Simulator",
+      "summary": "Momentum pressure, stretch from a moving average, volatility and an information inflow are stocks joined by flows with a delayed feedback loop; the projected displacement over the horizon gives P(up).",
+      "implementationNote": "Bridge: P(up) is the stock-and-flow model's projected displacement through a logistic curve fitted on validation. Differs from the spec: stocks measured from bars (momentum pressure, stretch read with a delay, volatility) plus a ridge information inflow; flows fitted to train-span trajectories by differential evolution; deterministic. Expect: calibrated to train-span bar moments; directional edge is near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "path_simulator",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "stock_flow"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "pressure_span_bars": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Pressure span (bars)",
+          "group": "Model",
+          "description": "Span of the weighted mean of steps that is the pressure stock."
+        },
+        "stretch_window_bars": {
+          "type": "int",
+          "default": 20,
+          "min": 5,
+          "max": 400,
+          "label": "Stretch window (bars)",
+          "group": "Model",
+          "description": "Moving-average window the stretch stock is measured from."
+        },
+        "feedback_delay_bars": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 50,
+          "label": "Feedback delay (bars)",
+          "group": "Model",
+          "description": "How late the stretch feeds back into the price flow."
+        },
+        "discretization_steps_per_bar": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 20,
+          "label": "Euler steps per bar",
+          "group": "Model",
+          "description": "Euler integration steps each bar is split into."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 80,
+          "min": 10,
+          "max": 2000,
+          "label": "Evolution generations",
+          "group": "Model",
+          "description": "Differential-evolution generations of the flow fit."
+        },
+        "population_size": {
+          "type": "int",
+          "default": 40,
+          "min": 10,
+          "max": 400,
+          "label": "Evolution population",
+          "group": "Model",
+          "description": "Candidate parameter sets per differential-evolution generation."
+        },
+        "flow_sensitivity_bound": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.5,
+          "max": 50.0,
+          "label": "Flow sensitivity bound",
+          "group": "Model",
+          "description": "Largest absolute value a flow coefficient may take."
+        },
+        "factor_ridge_penalty": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Factor ridge penalty",
+          "group": "Model",
+          "description": "Ridge penalty (a share of the bar count) of the linear index that maps the features to the drift or the information agents read."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 200000,
+          "label": "Maximum training bars",
+          "group": "Model",
+          "description": "The most recent training bars the generator is fitted on."
+        }
+      }
+    }
+  }
+}

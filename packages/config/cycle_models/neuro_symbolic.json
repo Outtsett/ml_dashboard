@@ -1,0 +1,1582 @@
+{
+  "models": {
+    "differentiable_logic_layer": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-differentiable-logic-layer",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Differentiable logic layer",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "Soft threshold predicates on the features and the rule library's atoms feed layers of soft AND and OR neurons that learn which literals to combine; the final truth values give the call, and prior rules enter as implication constraints in the loss.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of a linear head on the last soft-OR layer's truth values. Differs from the spec: literals are learned thresholds on the engine features plus the library's atoms; rules are the shared TA library (packages/config/cycle_rules.json: RSI, MACD, band position, trend slope, volatility, named raw features), not rules from the spec. Expect: a rule-shaped MLP; accuracy close to a small network's.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "logic_layer",
+          "choices": [
+            "logic_layer"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "predicate_count": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 128,
+          "label": "Learned predicates",
+          "group": "Model",
+          "description": "How many learnable threshold predicates are cut on the window summary (thresholds start at training quantiles).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "logic_neuron_count": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 128,
+          "label": "Logic neurons per layer",
+          "group": "Model",
+          "description": "How many soft-AND and soft-OR neurons each logic layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "logic_layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 3,
+          "label": "Logic layers",
+          "group": "Model",
+          "description": "How many AND-then-OR layer pairs are stacked.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "constraint_weight": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0,
+          "max": 10,
+          "label": "Logic constraint weight",
+          "group": "Model",
+          "description": "Weight of the prior rules' implication violation P x (1 - Q) in the loss (P the rule's truth, Q the model's probability of the rule's conclusion).",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "neuro_symbolic_model": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-neuro-symbolic-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Neuro-symbolic model",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "A neural encoder embeds the bar, differentiable rules (soft conjunctions of learned predicates) are evaluated on the embedding, and a fusion layer reads the embedding and the rule truths together; declared rule relations are a loss term.",
+      "implementationNote": "Bridge: P(up) from a fusion head over the embedding and learned rule truths. Differs from the spec: the rules act on the learned embedding, so they are symbolic in form only; declared relations are paired rules mutually exclusive and rule j grounded on library rule j. Expect: roughly a plain network's accuracy; the rules add structure, not information.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "neural_then_rules",
+          "choices": [
+            "neural_then_rules"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the neural part.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "predicate_count": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 128,
+          "label": "Learned predicates",
+          "group": "Model",
+          "description": "How many predicates are read off the embedding (logistic of a learned projection over the temperature).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "rule_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Learned rules",
+          "group": "Model",
+          "description": "How many differentiable rules (soft conjunctions of predicates and their negations) are evaluated; rules 2i and 2i + 1 are declared mutually exclusive.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              8,
+              16
+            ]
+          }
+        },
+        "fusion_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Fusion hidden size",
+          "group": "Model",
+          "description": "Units of the layer that reads the embedding and the rule truths together.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "constraint_weight": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0,
+          "max": 10,
+          "label": "Logic constraint weight",
+          "group": "Model",
+          "description": "Weight of the declared rule relations in the loss: exclusive rule pairs and each learned rule grounded on the library rule of the same number.",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "rule_augmented_network": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-rule-augmented-neural-net",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Rule-augmented neural net",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "A plain network augmented by the rule library three ways: the rules' truth values are extra inputs, the output is gated by them, and a loss term penalises calls that contradict a confident rule.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the rule-gated network output. Differs from the spec: rules are the shared TA library (packages/config/cycle_rules.json: RSI, MACD, band position, trend slope, volatility, named raw features), not rules from the spec. The gate starts as the identity, so the rules only act where training moves it. Expect: close to a plain network; the contradiction hinge pulls calls toward the confident rules.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "rule_augmented",
+          "choices": [
+            "rule_augmented"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the neural part.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "rule_input": {
+          "type": "bool",
+          "default": true,
+          "label": "Rules as inputs",
+          "group": "Model",
+          "description": "Append the library rules' truth values to the network's input."
+        },
+        "output_gate": {
+          "type": "bool",
+          "default": true,
+          "label": "Rule gate on the output",
+          "group": "Model",
+          "description": "Scale the network's output by a learned gate of the rule truths and add a learned share of the rules' signed votes."
+        },
+        "rule_loss_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Rule contradiction weight",
+          "group": "Model",
+          "description": "Weight of the hinge on calls whose sign contradicts a firing confident rule.",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "rule_confidence_threshold": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0,
+          "max": 1,
+          "label": "Confident rule certainty",
+          "group": "Model",
+          "description": "Rules whose certainty is at least this take part in the contradiction penalty.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.6,
+            "log": false
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "residual_over_rules": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-residual-learning-over-rules",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Residual learning over rules",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "The rule library's weighted votes make a base prediction, fitted first; a neural residual is then trained on top, penalised so that it only corrects what the rules get wrong.",
+      "implementationNote": "Bridge: P(up) = sigmoid(rule-vote logit + residual). Differs from the spec: the rule weights are an L2-regularised logistic regression on the rule truths fitted by gradient in the first epochs, then frozen; rules are the shared TA library (packages/config/cycle_rules.json: RSI, MACD, band position, trend slope, volatility, named raw features), not rules from the spec. Expect: the rules alone sit near the base rate; the residual carries the edge.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "residual_over_rules",
+          "choices": [
+            "residual_over_rules"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the residual network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "rule_stage_epochs": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 100,
+          "label": "Rule-only epochs",
+          "group": "Model",
+          "description": "How many epochs fit the rule weights alone before the residual starts (at most all epochs but the last)."
+        },
+        "freeze_rule_weights": {
+          "type": "bool",
+          "default": true,
+          "label": "Freeze rule weights",
+          "group": "Model",
+          "description": "Hold the rule weights fixed once the residual starts training."
+        },
+        "residual_penalty_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Residual penalty",
+          "group": "Model",
+          "description": "Weight of the mean squared residual in the loss, which keeps the residual a correction.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "rule_weight_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0,
+          "max": 1,
+          "label": "Rule weight penalty",
+          "group": "Model",
+          "description": "L2 penalty on the rule weights (the regularisation of the rule base's logistic regression).",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "probabilistic_program_network": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-probabilistic-program-deepnet",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Probabilistic program + deep network",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "A deep network supplies the parameters of a small generative program: a latent market state with its own up-probability; the prediction is the exact marginal over the states, trained by maximum marginal likelihood.",
+      "implementationNote": "Bridge: P(up) is the exact marginal sum_z p(z|x) P(up|z,x); the Gaussian noise by fixed-seed draws. Differs from the spec: the program is a fixed mixture of ordered regimes whose state reads the library rules, not a general Pyro or Stan program. Expect: states are unsupervised regimes seen only through the up / down likelihood.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "probabilistic_program",
+          "choices": [
+            "probabilistic_program"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the neural part.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "state_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 12,
+          "label": "Latent states",
+          "group": "Model",
+          "description": "How many discrete market states the program sums out.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              3,
+              4,
+              6
+            ]
+          }
+        },
+        "gaussian_sample_count": {
+          "type": "int",
+          "default": 16,
+          "min": 0,
+          "max": 256,
+          "label": "Gaussian draws",
+          "group": "Model",
+          "description": "Fixed-seed draws of the per-bar Gaussian noise the program integrates (0 leaves the noise out).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              0,
+              16,
+              64
+            ]
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "constraint_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Logic constraint weight",
+          "group": "Model",
+          "description": "Weight of the program's declared constraint that the states are ordered from most bearish to most bullish.",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "neuro_symbolic_reasoning": {
+      "catalogSpecId": "probabilistic-symbolic-models-graphical-structured-models-neuro-symbolic-reasoning-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Neuro-symbolic reasoning model",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Graphical and structured models",
+      "kind": "Neuro-symbolic network",
+      "summary": "A neural backbone and a learned combination of fixed symbolic predicates are added, and hard constraint rules gate the result exactly: a firing long veto clamps the call to at most a coin flip.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of neural + symbolic logits after the hard veto gate. Differs from the spec: the predicates and constraints are the shared TA library's atoms and its rules at or above constraint_certainty, not a desk's own. Expect: calls against a firing constraint rule sit at 0.5 or on its side.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "predicate_gate",
+          "choices": [
+            "predicate_gate"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "Units of the neural backbone's embedding (and of each of its hidden layers).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "Relaxation temperature of the predicates in training, annealed to a tenth of it over the epochs; at inference the thresholds are hard.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "consistency_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 10,
+          "label": "Consistency weight",
+          "group": "Model",
+          "description": "Weight of the squared gap between the neural head's and the symbolic head's probabilities.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "constraint_certainty": {
+          "type": "float",
+          "default": 0.6,
+          "min": 0,
+          "max": 1,
+          "label": "Constraint certainty",
+          "group": "Model",
+          "description": "Library rules whose certainty is at least this are hard constraints (a down rule vetoes long calls, an up rule short calls); above every rule's certainty there are none."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "meta_learned_symbolic_router": {
+      "catalogSpecId": "hybrid-composite-architectures-neuro-symbolic-systems-meta-learned-symbolic-router",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Meta-learned symbolic router",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Neuro-symbolic systems",
+      "kind": "Neuro-symbolic network",
+      "summary": "Symbolic experts built from the rule library (trend following, mean reversion, momentum, stretch reversion, news) are mixed by a router network; both are meta-learned over consecutive blocks of the training span so the experts adapt quickly to a new regime.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the router-weighted expert outputs. Differs from the spec: episodes are consecutive training blocks (query after support and the horizon), first-order MAML, not separate tasks; no adaptation at prediction, to stay causal. Expect: close to a mixture of TA rules; edge only where a rule group has one.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_symbolic_router",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "neuro_symbolic",
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "symbolic_integration": {
+          "type": "categorical",
+          "default": "meta_router",
+          "choices": [
+            "meta_router"
+          ],
+          "label": "Symbolic integration (fixed for this model)",
+          "group": "Model",
+          "description": "How the rule library enters the network; each neuro-symbolic model has its own, so it is not tunable."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds; the network reads the last bar and the window's mean of every engine feature. The rules are evaluated on the last bar."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the router network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the neural part stacks.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "episode_block_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Episode block (bars)",
+          "group": "Model",
+          "description": "Training rows per support or query block; an episode adapts on one block and is scored on the next.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "inner_step_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "label": "Inner steps",
+          "group": "Model",
+          "description": "Gradient steps the experts take on the support block before the query is scored.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 5
+          }
+        },
+        "inner_learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Inner learning rate",
+          "group": "Model",
+          "description": "Step size of each adaptation step on the support block.",
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 5.0,
+          "label": "Predicate temperature",
+          "group": "Model",
+          "description": "How soft a rule atom's threshold is: its truth is a logistic of the distance past the threshold over (training spread x temperature). Lower is closer to a hard yes / no.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.002,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

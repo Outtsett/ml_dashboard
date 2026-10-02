@@ -1,8 +1,8 @@
 /**
- * The Python explainer's replies against the zod contract (`src/shared/cycle/explain.ts`).
+ * The Python explainer's replies against the zod contract (`packages/shared/src/cycle/explain.ts`).
  *
  * `tests/fixtures/cycle_explain/*.json` are real replies of the explainer core
- * (`src/ml/cycle/explain/`) on the synthetic runs of `tests/test_cycle_explain_core.py`
+ * (`packages/ml-engine/src/cycle/explain/`) on the synthetic runs of `tests/test_cycle_explain_core.py`
  * (regenerate with `CYCLE_EXPLAIN_WRITE_FIXTURES=1` on that test). Python cannot
  * load zod, so this is where its output meets the schemas the server validates
  * replies with: each file must parse, and the identities the core promises must hold.

@@ -19,9 +19,9 @@
  * test materialises.
  */
 import fs from 'fs';
-import { generateLabelSQL } from '../src/server/infrastructure/lib/labels/labelGenerator';
-import { LABEL_SQL_GENERATORS } from '../src/server/infrastructure/lib/labels/sqlLabelGenerators';
-import { normalizeLabelParams } from '../src/server/infrastructure/lib/labels/labelRecipe';
+import { generateLabelSQL } from '../apps/api/infrastructure/lib/labels/labelGenerator';
+import { LABEL_SQL_GENERATORS } from '../apps/api/infrastructure/lib/labels/sqlLabelGenerators';
+import { normalizeLabelParams } from '../apps/api/infrastructure/lib/labels/labelRecipe';
 
 const out = process.argv[2];
 if (!out) {

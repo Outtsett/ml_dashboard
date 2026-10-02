@@ -1,4 +1,4 @@
-"""Apply prediction_log DDL + 1m rollup mat view to local QuestDB.
+"""Apply prediction_log DDL + 1m rollup mat view to local lake.
 
 Idempotent — every statement is `CREATE ... IF NOT EXISTS`, so re-running is
 safe. Connects over PG-wire (port 8812) using psycopg2.
@@ -15,7 +15,7 @@ The script:
   3. After apply, dumps the columns of prediction_log and the list of
      materialized views matching `prediction_log_*`.
 
-Requires QuestDB running locally (electron/start-databases.cjs auto-launches it).
+Requires lake running locally (electron/start-databases.cjs auto-launches it).
 """
 
 from __future__ import annotations
@@ -85,9 +85,9 @@ def extract_object(sql: str) -> tuple[str, str]:
 
 
 def object_exists(cur, kind: str, name: str) -> bool:
-    """Check QuestDB metadata for an existing object.
+    """Check lake metadata for an existing object.
 
-    QuestDB exposes both tables and mat views via the `tables()` function;
+    lake exposes both tables and mat views via the `tables()` function;
     mat views are also listed in `materialized_views()`.
     """
     if kind == "MATERIALIZED VIEW":
@@ -146,7 +146,7 @@ def main() -> int:
         conn = psycopg2.connect(DSN)
     except OperationalError as e:
         print(
-            "ERROR: cannot connect to QuestDB at 127.0.0.1:8812.\n"
+            "ERROR: cannot connect to lake at 127.0.0.1:8812.\n"
             "  Is the local DB stack running? Launch it with:\n"
             "      node electron/start-databases.cjs\n"
             "  (the Electron app auto-launches it on dev startup.)\n"
@@ -203,3 +203,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

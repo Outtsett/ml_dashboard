@@ -4,7 +4,7 @@
       "catalogId": "machine-learning-supervised-learning-boosting-methods-xgboost",
       "displayName": "XGBoost — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -401,7 +401,7 @@
       "catalogId": "machine-learning-supervised-learning-boosting-methods-lightgbm",
       "displayName": "LightGBM — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -802,7 +802,7 @@
       "catalogId": "machine-learning-supervised-learning-linear-models-logistic-regression",
       "displayName": "Logistic regression — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -1115,7 +1115,7 @@
       "catalogId": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
       "displayName": "Multilayer perceptron — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -1516,7 +1516,7 @@
       "catalogId": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
       "displayName": "LSTM — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -1926,7 +1926,7 @@
       "catalogId": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
       "displayName": "Temporal convolution network — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -2353,7 +2353,7 @@
       "catalogId": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
       "displayName": "Transformer encoder — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -2780,7 +2780,7 @@
       "catalogId": "machine-learning-supervised-learning-ensemble-methods-random-forest",
       "displayName": "Random forest — model cycle",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "outputDir": "data/models",
       "outputs": [
         "config.json",
@@ -3129,7 +3129,7 @@
       "category": "Supervised",
       "subcategory": "Gradient Boosting",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -3536,7 +3536,7 @@
       "category": "Supervised",
       "subcategory": "Gradient Boosting",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -3946,7 +3946,7 @@
       "category": "Supervised",
       "subcategory": "Classification",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -4270,7 +4270,7 @@
       "category": "neural-network",
       "subcategory": "Feedforward Networks",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -4680,7 +4680,7 @@
       "category": "neural-network",
       "subcategory": "Recurrent Networks",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -5100,7 +5100,7 @@
       "category": "neural-network",
       "subcategory": "Convolutional Networks",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -5537,7 +5537,7 @@
       "category": "neural-network",
       "subcategory": "Time-Series Transformers",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",
@@ -5974,7 +5974,7 @@
       "category": "Supervised",
       "subcategory": "Classification",
       "runner": "python",
-      "script": "src/ml/cycle/main.py",
+      "script": "packages/ml-engine/src/cycle/main.py",
       "featurePipeline": "default-35",
       "outputs": [
         "config.json",

@@ -1,0 +1,583 @@
+{
+  "models": {
+    "ordinal_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-ordinal-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-generalized-linear-models-ordinal-regression"
+      ],
+      "displayName": "Ordinal regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "Grades the coming move from strong down to strong up and predicts the grade with one weighted vote and a ladder of cut points; P(up) is the chance of landing above zero.",
+      "implementationNote": "Bridge: a cumulative-link (proportional odds) model; P(up) = 1 - P(grade <= K/2), the model's own chance the move is above 0. Differs from the spec: the grades are cut from the scaled h-bar move with a threshold at exactly 0 (the Cycle's label is up or down). Expect: close to logistic regression; with one grade per side it is logistic regression.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ordinal"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "grades_per_side": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Grades per side",
+          "group": "Model",
+          "description": "How many ordered grades the moves below 0 and above 0 are each cut into (training quantiles). 1 is plain logistic regression.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 4
+          }
+        },
+        "cumulative_link": {
+          "type": "categorical",
+          "default": "logit",
+          "choices": [
+            "logit",
+            "probit"
+          ],
+          "label": "Link",
+          "group": "Model",
+          "description": "The latent error's distribution: logistic (proportional odds) or normal (ordered probit).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logit",
+              "probit"
+            ]
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "multinomial_logistic_regression": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-multinomial-logistic-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multinomial logistic regression",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "Three weighted votes (down, flat, up) turned into three probabilities that add to one; P(up) is up's share once flat is set aside.",
+      "implementationNote": "Bridge: softmax over down / flat / up classes of the scaled move; P(up) = p_up / (p_up + p_down). Differs from the spec: the flat band is a training quantile of |move|, because the Cycle's label is up or down. Expect: close to logistic regression; p_flat carries no direction.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "multinomial"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "neutral_band_quantile": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.6,
+          "step": 0.05,
+          "label": "Flat band (quantile of |move|)",
+          "group": "Model",
+          "description": "Moves smaller than this training quantile of the absolute move form the flat class.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "generalized_linear_model": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-generalized-linear-model-glm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Generalized linear model (GLM)",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "One weighted vote passed through a chosen link curve (logistic, normal, complementary log-log or Cauchy) to give P(up); the forecast line is the Gaussian member.",
+      "implementationNote": "Bridge: a Binomial GLM on the up / down label fitted by IRLS; P(up) = inverse link of the vote. Differs from the spec: the family is fixed by the task (Binomial for direction, Gaussian identity for the price line); the link is the choice. Expect: logit and probit equal the logistic and probit keys; cloglog and cauchit tilt the tails.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "glm_link"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "link_function": {
+          "type": "categorical",
+          "default": "cloglog",
+          "choices": [
+            "logit",
+            "probit",
+            "cloglog",
+            "cauchit"
+          ],
+          "label": "Link",
+          "group": "Model",
+          "description": "The curve from the weighted vote to P(up): logit, probit, complementary log-log (asymmetric) or cauchit (heavy tails).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logit",
+              "probit",
+              "cloglog",
+              "cauchit"
+            ]
+          }
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 (ridge) penalty on the weights, per bar; 0 fits the plain maximum-likelihood GLM by IRLS.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "gamma_regression": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-gamma-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gamma regression",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "Two models of move size, one for up moves and one for down moves; the side expected to be bigger sets the direction.",
+      "implementationNote": "Bridge: fitted twice (up and down magnitudes, log link); direction is the contest of the two means, calibrated on validation. Differs from the spec: a Gamma model has no sign, so the sign comes from the contest. Expect: weak direction; the size models carry most of the content.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "gamma"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 (ridge) penalty on the weights, per bar; 0 fits the plain maximum-likelihood GLM by IRLS.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "poisson_regression": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-poisson-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Poisson regression",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "Counts the up bars and the down bars expected in the next h bars; the Skellam chance that up bars outnumber down bars sets the direction.",
+      "implementationNote": "Bridge: fitted twice (up-bar and down-bar counts, log link); P(up side wins) from the Skellam difference, calibrated on validation. Differs from the spec: counts are bars that close a tick up or down. Expect: it predicts which side has more bars, not the sign of the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "poisson"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 (ridge) penalty on the weights, per bar; 0 fits the plain maximum-likelihood GLM by IRLS.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "tweedie_regression": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-tweedie-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Tweedie regression",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "Models the up part and the down part of the move, each a mix of 'exactly zero' and a positive size; the chance each part is nonzero sets the direction.",
+      "implementationNote": "Bridge: Tweedie GLMs on max(move, 0) and max(-move, 0); P(up) = P(u > 0) / (P(u > 0) + P(d > 0)) from each side's zero mass exp(-mu^(2-p) / (phi (2-p))). Differs from the spec: the zero mass is a sign, not a claim count. Expect: probabilities close to 0.5.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "tweedie"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "variance_power": {
+          "type": "float",
+          "default": 1.5,
+          "min": 1.05,
+          "max": 1.95,
+          "step": 0.05,
+          "label": "Variance power p",
+          "group": "Model",
+          "description": "Between 1 (Poisson) and 2 (Gamma): how the spread grows with the mean.",
+          "search": {
+            "kind": "float",
+            "low": 1.1,
+            "high": 1.9,
+            "log": false
+          }
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 (ridge) penalty on the weights, per bar; 0 fits the plain maximum-likelihood GLM by IRLS.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "zero_inflated_poisson": {
+      "catalogSpecId": "statistical-models-generalized-linear-models-zero-inflated-poisson-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Zero-inflated Poisson model",
+      "category": "Statistical models",
+      "subcategory": "Generalized linear models",
+      "kind": "Linear",
+      "summary": "Counts the large up bars and the large down bars expected in the next h bars, allowing extra 'quiet market' zeros; the side expected to have more sets the direction.",
+      "implementationNote": "Bridge: fitted twice (up and down impulse counts); direction is the contest of the two expected counts, calibrated on validation. Differs from the spec: a failed zero-inflated fit falls back to Poisson, logged. Expect: it predicts which side has more large bars, not the sign of the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "zero_inflated_poisson"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "impulse_multiple": {
+          "type": "float",
+          "default": 1.5,
+          "min": 0.25,
+          "max": 4.0,
+          "step": 0.25,
+          "label": "Impulse size (x bar scale)",
+          "group": "Model",
+          "description": "A bar counts as an impulse when its move is beyond this multiple of the trailing one-bar scale.",
+          "search": {
+            "kind": "float",
+            "low": 0.75,
+            "high": 2.5,
+            "log": false
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "multivariate_regression": {
+      "catalogSpecId": "statistical-models-regression-techniques-multivariate-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multivariate regression",
+      "category": "Statistical models",
+      "subcategory": "Regression techniques",
+      "kind": "Linear",
+      "summary": "Forecasts the move at several horizons at once from the same features, sharing their errors; P(up) is the chance the h-bar forecast lands above zero.",
+      "implementationNote": "Bridge: ridge on J horizons h/J..h with the residual covariance; P(up) = Phi(y_h / sd_h). Differs from the spec: only the h-bar column is scored; the others act through the shared covariance and the optional reduced rank. Expect: close to ridge regression with a probability of its own.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "glm_bridge",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "multivariate"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "horizon_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Horizons",
+          "group": "Model",
+          "description": "How many horizons up to h are forecast together.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "reduced_rank": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 8,
+          "label": "Reduced rank",
+          "group": "Model",
+          "description": "Rank of the coefficient matrix; 0 keeps the full rank.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 2
+          }
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 1000,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "Ridge penalty added to X'X; larger is simpler.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

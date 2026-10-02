@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 
 ROOT = pathlib.Path(r"E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models")
-OUT_DIR = pathlib.Path("src/client/src/system/architecture-explorer/mechanism/registry")
+OUT_DIR = pathlib.Path("apps/web/src/system/architecture-explorer/mechanism/registry")
 SCRATCH = pathlib.Path(
     r"C:/Users/tyler/AppData/Local/Temp/claude/E--source-repos-ml-dashboard"
     r"/c5889abe-6cb9-4352-b045-27c1a0fd242c/scratchpad"
@@ -48,12 +48,12 @@ CURATED_KEYS = {
 
 # Repo-sourced entries: real code here, no markdown spec.
 REPO_SOURCED = {
-    "xgboost+direction_classifier": "src/ml/xgb_classifier/main.py",
-    "transformer_2s+range_classifier": "src/ml/blocks/encoder.py",
-    "transformer_tiny+direction_classifier": "src/ml/blocks/encoder.py",
-    "temporal_fusion_transformer+direction_classifier": "src/ml/blocks/tft.py",
-    "temporal-fusion-transformer": "src/ml/blocks/tft.py",
-    "primitives_cnn+multi_head": "src/config/models.json",
+    "xgboost+direction_classifier": "packages/ml-engine/src/xgb_classifier/main.py",
+    "transformer_2s+range_classifier": "packages/ml-engine/src/blocks/encoder.py",
+    "transformer_tiny+direction_classifier": "packages/ml-engine/src/blocks/encoder.py",
+    "temporal_fusion_transformer+direction_classifier": "packages/ml-engine/src/blocks/tft.py",
+    "temporal-fusion-transformer": "packages/ml-engine/src/blocks/tft.py",
+    "primitives_cnn+multi_head": "packages/config/models.json",
     "voting-composite": "src/templates/architectures/composite_voting.py.j2",
     "multimodal-composite": "src/templates/architectures/composite_multimodal.py.j2",
     "stacking-composite": "src/templates/architectures/composite_stacking.py.j2",

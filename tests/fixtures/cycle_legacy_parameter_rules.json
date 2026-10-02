@@ -1,5 +1,5 @@
 {
-  "source": "src/ml/cycle/models.py at 251c9e3 (before the registry): legacy defaults, validation outcomes and Optuna calls Since 2026-09-26 the legacy search spaces live in src/config/cycle_models/*.json `search` blocks and are suggested in registry parameter order; the calls are the same set.",
+  "source": "packages/ml-engine/src/cycle/models.py at 251c9e3 (before the registry): legacy defaults, validation outcomes and Optuna calls Since 2026-09-26 the legacy search spaces live in packages/config/cycle_models/*.json `search` blocks and are suggested in registry parameter order; the calls are the same set.",
   "recorder": "suggest_float returns high when log else low; suggest_int returns high; suggest_categorical returns the last choice",
   "probes": [
     0,

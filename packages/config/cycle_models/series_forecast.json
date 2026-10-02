@@ -1,0 +1,509 @@
+{
+  "models": {
+    "autoregressive_integrated_moving_average": {
+      "catalogSpecId": "statistical-models-time-series-models-time-series-arima",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Time Series - ARIMA",
+      "category": "Statistical models",
+      "subcategory": "Time series models",
+      "kind": "Series forecast",
+      "summary": "Reads only the tape of bar returns: today's return is a weighted echo of the last few returns and the last few surprises, projected h bars ahead.",
+      "implementationNote": "Bridge: ARIMA(p,d,q) by Kalman maximum likelihood on the training span's bar returns, frozen and filtered over every bar; P(up) = Phi(h-bar mean / h-bar spread). Differs from the spec: reads the bar-return series, not the feature row; d counts on the log price (d=1 is an ARMA on returns); gap returns are missing. Expect: probabilities near 0.5 with small tilts.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "series_forecast",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "arima"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "autoregressive_order": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 5,
+          "label": "Autoregressive order (p)",
+          "group": "Model",
+          "description": "How many past returns the forecast echoes.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 3
+          }
+        },
+        "moving_average_order": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 5,
+          "label": "Moving-average order (q)",
+          "group": "Model",
+          "description": "How many past surprises the forecast echoes.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 2
+          }
+        },
+        "difference_order": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 2,
+          "label": "Difference order (d)",
+          "group": "Model",
+          "description": "Differences of the log price: 1 models returns, 2 models changes of returns."
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 2000,
+          "label": "Max optimiser iterations",
+          "group": "Model",
+          "description": "L-BFGS iterations of the likelihood fit."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 5000,
+          "label": "History bars",
+          "group": "Model",
+          "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      }
+    },
+    "seasonal_arima": {
+      "catalogSpecId": "statistical-models-time-series-models-time-series-sarima",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Time Series - SARIMA",
+      "category": "Statistical models",
+      "subcategory": "Time series models",
+      "kind": "Series forecast",
+      "summary": "ARIMA plus a same-time-yesterday echo: each return also looks at the return one session earlier.",
+      "implementationNote": "Bridge: seasonal ARIMA by conditional sum of squares on the training span's bar returns, season = the bars of one session; P(up) = Phi(h-bar mean / spread). Differs from the spec: CSS, not the Kalman likelihood (a 276-bar season makes that hours per fold); P, Q <= 1 with a logged fallback; D = 0; reads returns, not features. Expect: probabilities near 0.5.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "series_forecast",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "sarima"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-15 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "autoregressive_order": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 5,
+          "label": "Autoregressive order (p)",
+          "group": "Model",
+          "description": "How many past returns the forecast echoes.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 3
+          }
+        },
+        "moving_average_order": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 5,
+          "label": "Moving-average order (q)",
+          "group": "Model",
+          "description": "How many past surprises the forecast echoes.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 2
+          }
+        },
+        "seasonal_autoregressive_order": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "label": "Seasonal autoregressive order (P)",
+          "group": "Model",
+          "description": "Echo of the return one session earlier (0 or 1)."
+        },
+        "seasonal_moving_average_order": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "label": "Seasonal moving-average order (Q)",
+          "group": "Model",
+          "description": "Echo of the surprise one session earlier (0 or 1)."
+        },
+        "seasonal_period_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 5000,
+          "label": "Seasonal period (bars)",
+          "group": "Model",
+          "description": "Bars per season; 0 = the bars of one session, read from the training span."
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 2000,
+          "label": "Max optimiser iterations",
+          "group": "Model",
+          "description": "L-BFGS iterations of the least-squares fit."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 5000,
+          "label": "History bars",
+          "group": "Model",
+          "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      }
+    },
+    "generalized_autoregressive_volatility": {
+      "catalogSpecId": "statistical-models-time-series-models-time-series-garch",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Time Series - GARCH",
+      "category": "Statistical models",
+      "subcategory": "Time series models",
+      "kind": "Series forecast",
+      "summary": "A volatility clock: big moves are followed by big moves. It replays the training span's own surprises through that clock many times and counts how many futures end up.",
+      "implementationNote": "Bridge: AR(p) mean + GJR-GARCH(1,1) by quasi-maximum likelihood on the training returns; P(up) = the share of filtered-historical-simulation paths whose h-bar sum is positive. Differs from the spec: reads the bar-return series, not the feature row; gap returns are dropped. Expect: a volatility model, so P(up) sits near 0.5; only the AR mean and the leverage asymmetry tilt it.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "series_forecast",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "garch"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-15 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "autoregressive_order": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 10,
+          "label": "Mean autoregressive order",
+          "group": "Model",
+          "description": "Past returns in the conditional mean.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 8
+          }
+        },
+        "asymmetric_shocks": {
+          "type": "bool",
+          "default": true,
+          "label": "Asymmetric shocks (GJR)",
+          "group": "Model",
+          "description": "Down moves raise volatility more than up moves (the leverage term)."
+        },
+        "error_distribution": {
+          "type": "categorical",
+          "default": "student_t",
+          "choices": [
+            "student_t",
+            "normal",
+            "skewed_student_t"
+          ],
+          "label": "Shock distribution",
+          "group": "Model",
+          "description": "The likelihood's shock distribution (the simulation resamples the training span's own standardised shocks).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "student_t",
+              "normal"
+            ]
+          }
+        },
+        "path_count": {
+          "type": "int",
+          "default": 500,
+          "min": 100,
+          "max": 5000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "Paths per bar in the filtered historical simulation."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 5000,
+          "label": "History bars",
+          "group": "Model",
+          "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      }
+    },
+    "seasonal_decomposition": {
+      "catalogSpecId": "statistical-models-time-series-models-time-series-seasonal-decomposition",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Time Series - Seasonal Decomposition",
+      "category": "Statistical models",
+      "subcategory": "Time series models",
+      "kind": "Series forecast",
+      "summary": "Splits the price into a slow trend, a repeating time-of-day shape and noise; forecasts with the frozen shape plus the recent slope.",
+      "implementationNote": "Bridge: STL on the training span's log price, season = one session; the seasonal part becomes a frozen time-of-day profile, the trend a trailing slope; P(up) = Phi(h-bar mean / forecast error on validation). Differs from the spec: STL is never re-run on new bars (its trend is two-sided). Expect: the profile is small for index futures; the slope carries the rest.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "statsmodels",
+      "adapter": "series_forecast",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "stl"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "trend_window_bars": {
+          "type": "int",
+          "default": 30,
+          "min": 4,
+          "max": 1000,
+          "label": "Trend window (bars)",
+          "group": "Model",
+          "description": "Bars in the trailing slope of the deseasonalised price.",
+          "search": {
+            "kind": "int",
+            "low": 12,
+            "high": 240
+          }
+        },
+        "seasonal_smoother_cycles": {
+          "type": "int",
+          "default": 7,
+          "min": 3,
+          "max": 51,
+          "label": "Seasonal smoother (sessions)",
+          "group": "Model",
+          "description": "Sessions the STL seasonal smoother spans (made odd).",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 15
+          }
+        },
+        "robust_fit": {
+          "type": "bool",
+          "default": true,
+          "label": "Robust STL",
+          "group": "Model",
+          "description": "Down-weight outlying bars in the decomposition."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 5000,
+          "label": "History bars",
+          "group": "Model",
+          "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      }
+    },
+    "prophet_forecast": {
+      "catalogSpecId": "statistical-models-forecasting-additive-models-prophet-forecasting-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Prophet Forecasting Model",
+      "category": "Statistical models",
+      "subcategory": "Forecasting and additive models",
+      "kind": "Series forecast",
+      "summary": "A sum of simple pieces: a bending drift line, a time-of-day wave, event days and, optionally, the current feature readings.",
+      "implementationNote": "Bridge: Prophet fitted once per fold on the h-bar log return (drift, daily and weekly seasonality, FOMC / CPI / jobs days, the feature row as lagged regressors); P(up) = Phi(yhat / noise). Differs from the spec: models the h-bar return, not the price level, and conditions on new bars only through the regressors. Expect: without regressors it is a calendar effect.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "series_forecast",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "prophet"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "changepoint_count": {
+          "type": "int",
+          "default": 25,
+          "min": 0,
+          "max": 100,
+          "label": "Trend changepoints",
+          "group": "Model",
+          "description": "Places the drift line may bend."
+        },
+        "changepoint_prior_scale": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "label": "Changepoint flexibility",
+          "group": "Model",
+          "description": "Prior scale of the drift bends.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 0.5,
+            "log": true
+          }
+        },
+        "seasonality_prior_scale": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.01,
+          "max": 100.0,
+          "label": "Seasonality flexibility",
+          "group": "Model",
+          "description": "Prior scale of the seasonal and event terms.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "daily_fourier_order": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 30,
+          "label": "Daily Fourier order",
+          "group": "Model",
+          "description": "Wiggles in the time-of-day wave.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 15
+          }
+        },
+        "weekly_seasonality": {
+          "type": "bool",
+          "default": true,
+          "label": "Weekly seasonality",
+          "group": "Model",
+          "description": "Add a day-of-week wave."
+        },
+        "lagged_regressors": {
+          "type": "bool",
+          "default": true,
+          "label": "Feature regressors",
+          "group": "Model",
+          "description": "Use the feature row at the bar as Prophet extra regressors."
+        },
+        "scheduled_event_days": {
+          "type": "bool",
+          "default": true,
+          "label": "Event days",
+          "group": "Model",
+          "description": "FOMC, CPI and employment-report days from the lake calendars."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 5000,
+          "label": "History bars",
+          "group": "Model",
+          "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      }
+    }
+  }
+}

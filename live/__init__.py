@@ -1,6 +1,6 @@
 """The dashboard's live data hub — one long-lived process (a sidecar, port 17192).
 
-What it runs (src/config/live.json):
+What it runs (packages/config/live.json):
 
 - **oanda**: the v20 pricing stream for the 18 forex pairs the lake holds, true
   real time; ticks become 1-minute mid bars. On start it backfills M1 candles

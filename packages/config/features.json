@@ -1,0 +1,514 @@
+{
+  "version": 2,
+  "categories": {
+    "sentiment": {
+      "name": "News Sentiment (FinBERT, mandatory)",
+      "description": "ProsusAI/finbert scores of routed headlines, aggregated causally onto the bar grid. Appended to EVERY model whatever categories a runner selects; computed by packages/ml-engine/packages/shared/src/sentiment.py, not the OHLCV dispatch table."
+    },
+    "returns": {
+      "name": "Returns",
+      "description": "Log returns at various horizons"
+    },
+    "volatility": {
+      "name": "Realized Volatility",
+      "description": "Rolling std of returns"
+    },
+    "parkinson": {
+      "name": "Range-Based Volatility",
+      "description": "Parkinson high-low volatility estimator"
+    },
+    "volume": {
+      "name": "Volume Dynamics",
+      "description": "Relative volume ratios"
+    },
+    "price_structure": {
+      "name": "Price Structure",
+      "description": "Candle anatomy and structural pivot features"
+    },
+    "momentum": {
+      "name": "Rate of Change",
+      "description": "Price momentum at multiple horizons"
+    },
+    "ma_distance": {
+      "name": "Moving Average Distance",
+      "description": "Distance from moving averages"
+    },
+    "microstructure": {
+      "name": "Microstructure",
+      "description": "Order book metrics and high-frequency price action patterns"
+    },
+    "mean_reversion": {
+      "name": "Mean Reversion Logic",
+      "description": "Distance from value and elasticity metrics"
+    },
+    "anatomy": {
+      "name": "Candle Anatomy",
+      "description": "Body and wick geometry"
+    }
+  },
+  "features": [
+    {
+      "name": "return_1",
+      "displayName": "Log return over 1 bar",
+      "category": "returns",
+      "type": "log_return",
+      "params": { "horizon": 1 },
+      "requires": ["close"],
+      "description": "1-bar log return"
+    },
+    {
+      "name": "return_5",
+      "displayName": "Log return over 5 bars",
+      "category": "returns",
+      "type": "log_return",
+      "params": { "horizon": 5 },
+      "requires": ["close"],
+      "description": "5-bar cumulative log return"
+    },
+    {
+      "name": "return_10",
+      "displayName": "Log return over 10 bars",
+      "category": "returns",
+      "type": "log_return",
+      "params": { "horizon": 10 },
+      "requires": ["close"],
+      "description": "10-bar cumulative log return"
+    },
+    {
+      "name": "return_20",
+      "displayName": "Log return over 20 bars",
+      "category": "returns",
+      "type": "log_return",
+      "params": { "horizon": 20 },
+      "requires": ["close"],
+      "description": "20-bar cumulative log return"
+    },
+    {
+      "name": "volatility_10",
+      "displayName": "Realized volatility over 10 bars",
+      "category": "volatility",
+      "type": "realized_vol",
+      "params": { "window": 10 },
+      "requires": ["close"],
+      "description": "10-bar rolling std of returns"
+    },
+    {
+      "name": "volatility_20",
+      "displayName": "Realized volatility over 20 bars",
+      "category": "volatility",
+      "type": "realized_vol",
+      "params": { "window": 20 },
+      "requires": ["close"],
+      "description": "20-bar rolling std of returns"
+    },
+    {
+      "name": "volatility_50",
+      "displayName": "Realized volatility over 50 bars",
+      "category": "volatility",
+      "type": "realized_vol",
+      "params": { "window": 50 },
+      "requires": ["close"],
+      "description": "50-bar rolling std of returns"
+    },
+    {
+      "name": "parkinson_vol_10",
+      "displayName": "Parkinson high-low volatility over 10 bars",
+      "category": "parkinson",
+      "type": "parkinson_vol",
+      "params": { "window": 10 },
+      "requires": ["high", "low"],
+      "description": "10-bar Parkinson volatility"
+    },
+    {
+      "name": "parkinson_vol_20",
+      "displayName": "Parkinson high-low volatility over 20 bars",
+      "category": "parkinson",
+      "type": "parkinson_vol",
+      "params": { "window": 20 },
+      "requires": ["high", "low"],
+      "description": "20-bar Parkinson volatility"
+    },
+    {
+      "name": "volume_ratio_10",
+      "displayName": "Volume relative to its 10-bar average",
+      "category": "volume",
+      "type": "volume_ratio",
+      "params": { "window": 10 },
+      "requires": ["volume"],
+      "description": "Volume / 10-bar average"
+    },
+    {
+      "name": "volume_ratio_20",
+      "displayName": "Volume relative to its 20-bar average",
+      "category": "volume",
+      "type": "volume_ratio",
+      "params": { "window": 20 },
+      "requires": ["volume"],
+      "description": "Volume / 20-bar average"
+    },
+    {
+      "name": "bar_range",
+      "displayName": "Bar range relative to the close",
+      "category": "price_structure",
+      "type": "bar_range",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Normalized bar range (H-L)/close"
+    },
+    {
+      "name": "body_magnitude",
+      "displayName": "Candle body share of the bar range",
+      "category": "anatomy",
+      "type": "body_ratio",
+      "params": {},
+      "requires": ["open_", "high", "low", "close"],
+      "description": "|close-open|/(H-L)"
+    },
+    {
+      "name": "upper_wick_pct",
+      "displayName": "Upper wick share of the bar range",
+      "category": "anatomy",
+      "type": "upper_shadow",
+      "params": {},
+      "requires": ["open_", "high", "low", "close"],
+      "description": "Upper wick ratio"
+    },
+    {
+      "name": "lower_wick_pct",
+      "displayName": "Lower wick share of the bar range",
+      "category": "anatomy",
+      "type": "lower_shadow",
+      "params": {},
+      "requires": ["open_", "high", "low", "close"],
+      "description": "Lower wick ratio"
+    },
+    {
+      "name": "roc_5",
+      "displayName": "Rate of change over 5 bars",
+      "category": "momentum",
+      "type": "rate_of_change",
+      "params": { "horizon": 5 },
+      "requires": ["close"],
+      "description": "5-bar rate of change"
+    },
+    {
+      "name": "roc_10",
+      "displayName": "Rate of change over 10 bars",
+      "category": "momentum",
+      "type": "rate_of_change",
+      "params": { "horizon": 10 },
+      "requires": ["close"],
+      "description": "10-bar rate of change"
+    },
+    {
+      "name": "roc_20",
+      "displayName": "Rate of change over 20 bars",
+      "category": "momentum",
+      "type": "rate_of_change",
+      "params": { "horizon": 20 },
+      "requires": ["close"],
+      "description": "20-bar rate of change"
+    },
+    {
+      "name": "ma_dist_10",
+      "displayName": "Distance from the 10-bar simple moving average",
+      "category": "ma_distance",
+      "type": "ma_distance",
+      "params": { "window": 10 },
+      "requires": ["close"],
+      "description": "Distance from 10-bar SMA"
+    },
+    {
+      "name": "ma_dist_20",
+      "displayName": "Distance from the 20-bar simple moving average",
+      "category": "ma_distance",
+      "type": "ma_distance",
+      "params": { "window": 20 },
+      "requires": ["close"],
+      "description": "Distance from 20-bar SMA"
+    },
+    {
+      "name": "ma_dist_50",
+      "displayName": "Distance from the 50-bar simple moving average",
+      "category": "ma_distance",
+      "type": "ma_distance",
+      "params": { "window": 50 },
+      "requires": ["close"],
+      "description": "Distance from 50-bar SMA"
+    },
+    {
+      "name": "micro_direction",
+      "displayName": "Microstructure leg direction",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Current microstructure direction (+1 up, -1 down)"
+    },
+    {
+      "name": "micro_pct",
+      "displayName": "Percent move since the last confirmed pivot",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "% move from last confirmed structural pivot"
+    },
+    {
+      "name": "micro_duration",
+      "displayName": "Bars since the last confirmed pivot",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Bars since last confirmed structural pivot"
+    },
+    {
+      "name": "micro_velocity",
+      "displayName": "Microstructure leg speed per bar",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Microstructure move rate per bar"
+    },
+    {
+      "name": "prev_micro_pct",
+      "displayName": "Previous microstructure leg size in percent",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Previous completed microstructure leg magnitude"
+    },
+    {
+      "name": "prev_micro_duration",
+      "displayName": "Previous microstructure leg duration in bars",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Previous microstructure leg duration"
+    },
+    {
+      "name": "retracement_ratio",
+      "displayName": "Current leg size relative to the previous leg",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Current/previous leg ratio (Fibonacci-like)"
+    },
+    {
+      "name": "pivot_count_50",
+      "displayName": "Confirmed pivots in the last 50 bars",
+      "category": "microstructure",
+      "type": "microstructure",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Confirmed structural pivots in 50-bar window"
+    },
+    {
+      "name": "book_imbalance_top",
+      "displayName": "Top-of-book depth imbalance",
+      "category": "microstructure",
+      "type": "book_imbalance",
+      "params": { "depth": 1 },
+      "requires": ["bid_sz_00", "ask_sz_00"],
+      "description": "Top-of-book depth imbalance"
+    },
+    {
+      "name": "book_imbalance_5",
+      "displayName": "Five-level order book depth imbalance",
+      "category": "microstructure",
+      "type": "book_imbalance",
+      "params": { "depth": 5 },
+      "requires": ["bid_sz_00", "ask_sz_00", "bid_sz_04", "ask_sz_04"],
+      "description": "5-level cumulative depth imbalance"
+    },
+    {
+      "name": "absorption_score_10",
+      "displayName": "Absorption over 10 bars: high volume with a small range",
+      "category": "microstructure",
+      "type": "absorption_score",
+      "params": { "window": 10 },
+      "requires": ["volume", "high", "low"],
+      "description": "Effort vs Result: High vol + Low range"
+    },
+    {
+      "name": "closing_strength",
+      "displayName": "Close position within the bar range",
+      "category": "microstructure",
+      "type": "closing_strength",
+      "params": {},
+      "requires": ["high", "low", "close"],
+      "description": "Close position in bar range (0-1)"
+    },
+    {
+      "name": "vwap_stretch_100",
+      "displayName": "Distance from the 100-bar volume-weighted average price in standard deviations",
+      "category": "mean_reversion",
+      "type": "vwap_stretch",
+      "params": { "window": 100 },
+      "requires": ["close", "high", "low", "volume"],
+      "description": "Distance from rolling VWAP in standard deviations"
+    },
+    {
+      "name": "vwap_dist_100",
+      "displayName": "Percent distance from the 100-bar volume-weighted average price",
+      "category": "mean_reversion",
+      "type": "vwap_distance",
+      "params": { "window": 100 },
+      "requires": ["close", "high", "low", "volume"],
+      "description": "% distance from rolling VWAP"
+    },
+    {
+      "name": "finbert_sentiment_decayed_short",
+      "displayName": "FinBERT sentiment, short decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Signed log of the relevance x direction x FinBERT score of routed headlines, decayed with half-life max(20 min, 4 bars)"
+    },
+    {
+      "name": "finbert_sentiment_decayed_long",
+      "displayName": "FinBERT sentiment, long decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "The same sum with half-life max(1440 min, 32 bars)"
+    },
+    {
+      "name": "finbert_news_intensity_decayed",
+      "displayName": "News intensity, short decay (log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the decayed count of routed headlines (short half-life) - how much news, not its sign"
+    },
+    {
+      "name": "finbert_news_burst_ratio",
+      "displayName": "News burst ratio (short rate / long rate, log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the short-decay news rate over the long-decay news rate - news volume against its own recent norm"
+    },
+    {
+      "name": "finbert_sentiment_mean_window",
+      "displayName": "FinBERT mean sentiment over the window",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Mean signed FinBERT score over the last max(60 min, 8 bars); 0 when no headline fell in it"
+    },
+    {
+      "name": "finbert_article_count_window_log",
+      "displayName": "Articles in the window (log count)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the number of headlines in the last max(60 min, 8 bars)"
+    },
+    {
+      "name": "finbert_minutes_since_article_log",
+      "displayName": "Minutes since the last article (log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of minutes since the last routed headline, capped at 7 days"
+    },
+    {
+      "name": "finbert_macro_sentiment_decayed_short",
+      "displayName": "FinBERT macro-news sentiment, short decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "The short decayed sum over macro-tier headlines (Fed, CPI, payrolls, ...) only"
+    },
+    {
+      "name": "finbert_news_coverage_flag",
+      "displayName": "News coverage (1 = a source was collecting)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "1 when the bar opens inside a span a news source was collecting; 0 means the news is unknown, not neutral"
+    }
+  ],
+  "normalization": {
+    "method": "rolling_zscore",
+    "lookback": 250,
+    "clip": [-5, 5]
+  },
+  "pipelines": {
+    "self-contained": {
+      "name": "Self-Contained",
+      "description": "Model computes and normalizes its own features from raw OHLCV",
+      "source": "internal"
+    }
+  },
+  "featureSets": {
+    "full-344": {
+      "description": "All available pre-computed indicators",
+      "columns": "*"
+    },
+    "research-recommended": {
+      "description": "Features selected by feature-research pipeline (correlation + importance analysis)",
+      "columns": "*"
+    }
+  }
+}

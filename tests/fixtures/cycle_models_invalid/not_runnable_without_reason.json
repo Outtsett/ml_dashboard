@@ -6,7 +6,17 @@
       "file": "linear.json",
       "path": [
         "models",
-        "ordinal_regression",
+        "logistic_regression",
+        "runnable"
+      ],
+      "value": false
+    },
+    {
+      "op": "set",
+      "file": "linear.json",
+      "path": [
+        "models",
+        "logistic_regression",
         "unavailableReason"
       ],
       "value": null

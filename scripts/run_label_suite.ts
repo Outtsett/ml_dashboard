@@ -12,7 +12,7 @@
  *
  * Run from the repository root: `db.ts` resolves the SQLite path from `cwd`.
  */
-import { runLabelSuite, LABEL_SUITE, type SuiteEntry } from '../src/server/infrastructure/lib/labels/labelSuite';
+import { runLabelSuite, LABEL_SUITE, type SuiteEntry } from '../apps/api/infrastructure/lib/labels/labelSuite';
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);

@@ -1,0 +1,2109 @@
+{
+  "models": {
+    "normalizing_flow": {
+      "catalogSpecId": "generative-models-latent-variable-models-normalizing-flow",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Normalizing flow",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "A conditional RealNVP flow learns the exact density of the bar's feature row under each outcome; Bayes' rule turns the densities into P(up).",
+      "implementationNote": "Bridge: exact log p(row | outcome) from a class-conditional RealNVP (ActNorm, fixed permutations, affine couplings), Bayes' rule with the training priors, one temperature fitted on validation. Differs from the spec: it models the current feature row, not generated prices; rows are clipped at 6 standard deviations. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "normalizing_flow"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "coupling_layer_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 32,
+          "label": "Coupling layers",
+          "group": "Model",
+          "description": "Affine coupling blocks (each with ActNorm and a fixed permutation).",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 10
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of each coupling's conditioner.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of each coupling's conditioner."
+        },
+        "scale_limit": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.5,
+          "max": 10.0,
+          "label": "Scale limit",
+          "group": "Model",
+          "description": "Soft clamp on each coupling's log-scale (stability in heavy tails)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "neural_ode_generator": {
+      "catalogSpecId": "generative-models-latent-variable-models-neural-ode-generator",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Neural ODE generator",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "A continuous normalizing flow (FFJORD): a neural ODE carries the feature row to a Gaussian, and the integrated Jacobian trace gives its exact density under each outcome.",
+      "implementationNote": "Bridge: exact log p(row | outcome) from a class-conditional FFJORD flow (torchdiffeq RK4, exact trace when scoring, Hutchinson in training, kinetic penalty), Bayes' rule, validation temperature. Differs from the spec: continuous time matters only across session gaps; bars inside a session are evenly spaced. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths. The slowest scorer here.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "continuous_flow"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "20-150 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the velocity field."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the velocity field."
+        },
+        "solver_steps": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Solver steps",
+          "group": "Model",
+          "description": "Fixed RK4 steps over the flow time [0, 1]."
+        },
+        "training_trace_estimator": {
+          "type": "categorical",
+          "default": "hutchinson",
+          "choices": [
+            "hutchinson",
+            "exact"
+          ],
+          "label": "Training trace estimator",
+          "group": "Model",
+          "description": "How the Jacobian trace is estimated while training (scoring is always exact): one Gaussian probe per batch, or the exact trace."
+        },
+        "kinetic_energy_weight": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Kinetic energy weight",
+          "group": "Model",
+          "description": "RNODE penalty on the squared velocity: straighter, cheaper flows."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "pixel_autoregressive": {
+      "catalogSpecId": "generative-models-autoregressive-autoregressive-model-pixelrnn-pixelcnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Autoregressive model (PixelCNN / PixelRNN)",
+      "category": "Generative models",
+      "subcategory": "Autoregressive",
+      "kind": "Generative classifier",
+      "summary": "The feature row is read as a one-dimensional image of quantile tokens; a class-conditional PixelCNN (or PixelRNN) gives its exact likelihood column by column.",
+      "implementationNote": "Bridge: exact log p(tokens | outcome) = sum of log p(token_i | earlier tokens, outcome) over train-quantile tokens of the row, from gated causal convolutions (PixelCNN) or a GRU (PixelRNN); Bayes' rule, validation temperature. Differs from the spec: the column order is arbitrary, so the convolution's locality prior is too. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pixel_autoregressive"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "autoregressive_backbone": {
+          "type": "categorical",
+          "default": "pixel_cnn",
+          "choices": [
+            "pixel_cnn",
+            "pixel_rnn"
+          ],
+          "label": "Backbone",
+          "group": "Model",
+          "description": "Gated causal convolutions (PixelCNN) or a recurrent network (PixelRNN).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "pixel_cnn",
+              "pixel_rnn"
+            ]
+          }
+        },
+        "token_bin_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Token bins",
+          "group": "Model",
+          "description": "Quantile tokens per feature column (training-row quantiles)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Channels of the convolutions / units of the recurrent layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Gated convolution layers (or recurrent layers)."
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size",
+          "group": "Model",
+          "description": "Columns each causal convolution reads."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "generative_pretrained_transformer": {
+      "catalogSpecId": "generative-models-autoregressive-transformer-based-generator-e-g-gpt",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Transformer generator (GPT)",
+      "category": "Generative models",
+      "subcategory": "Autoregressive",
+      "kind": "Generative classifier",
+      "summary": "A decoder-only transformer reads an outcome token then the row's quantile tokens and predicts each next token; the exact likelihood under each outcome feeds Bayes' rule.",
+      "implementationNote": "Bridge: exact log p(tokens | outcome) from a causal-mask transformer over [outcome token, token_1 .. token_d-1] of train-quantile tokens (next-token cross-entropy), Bayes' rule, validation temperature. Differs from the spec: tokens are feature columns, not words, and their order is arbitrary; one bar is one short sequence. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "generative_transformer"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "token_bin_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Token bins",
+          "group": "Model",
+          "description": "Quantile tokens per feature column (training-row quantiles)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Transformer width (token embedding size).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Transformer layers."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "Heads per attention layer (1 when the width is not divisible)."
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Dropout inside the transformer while training."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "diffusion_model": {
+      "catalogSpecId": "generative-models-diffusion-score-based-diffusion-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Diffusion model",
+      "category": "Generative models",
+      "subcategory": "Diffusion and score-based",
+      "kind": "Generative classifier",
+      "summary": "A class-conditional DDPM learns to remove noise from the bar's feature row; the outcome whose model denoises the row best is the likely one (the diffusion classifier).",
+      "implementationNote": "Bridge: diffusion classifier - score_k is minus the mean epsilon-prediction error of the outcome-k DDPM (cosine schedule) on one fixed grid of (step, noise) draws; Bayes' rule, validation temperature. Differs from the spec: nothing is sampled. Expect: class-conditional density of the current row plus Bayes' rule, not future paths; the denoising error is an ELBO surrogate calibrated on validation.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "diffusion",
+          "denoiser": "multilayer_perceptron"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-45 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "diffusion_steps": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Diffusion steps",
+          "group": "Model",
+          "description": "Steps of the cosine noise schedule."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the denoiser.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the denoiser."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "scoring_noise_draws": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Scoring noise draws",
+          "group": "Model",
+          "description": "(step, noise) pairs in the fixed grid every row is scored on; more draws, a less noisy but slower score."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "unet_diffusion": {
+      "catalogSpecId": "generative-models-diffusion-score-based-unet-generator-used-in-diffusion",
+      "alsoCatalogSpecIds": [],
+      "displayName": "U-Net generator (diffusion)",
+      "category": "Generative models",
+      "subcategory": "Diffusion and score-based",
+      "kind": "Generative classifier",
+      "summary": "The diffusion classifier with a one-dimensional U-Net denoiser: the row is a signal that is encoded, attended at the bottleneck and decoded with skip connections.",
+      "implementationNote": "Bridge: diffusion classifier with a 1-D U-Net denoiser (residual blocks, bottleneck attention, skips), fixed noise grid, Bayes' rule, validation temperature. Differs from the spec: one-dimensional over the feature columns; there are no pixels; only the whole denoised row is scored. Expect: class-conditional density of the current row plus Bayes' rule, not future paths; the denoising error is an ELBO surrogate calibrated on validation.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "diffusion",
+          "denoiser": "unet"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "base_channel_count": {
+          "type": "int",
+          "default": 16,
+          "min": 4,
+          "max": 128,
+          "label": "Base channels",
+          "group": "Model",
+          "description": "Channels of the first U-Net stage (doubled at each stage)."
+        },
+        "stage_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 5,
+          "label": "Stages",
+          "group": "Model",
+          "description": "Down-sampling stages of the U-Net."
+        },
+        "diffusion_steps": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Diffusion steps",
+          "group": "Model",
+          "description": "Steps of the cosine noise schedule."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "scoring_noise_draws": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Scoring noise draws",
+          "group": "Model",
+          "description": "(step, noise) pairs in the fixed grid every row is scored on; more draws, a less noisy but slower score."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "score_based_model": {
+      "catalogSpecId": "generative-models-diffusion-score-based-score-based-generative-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Score-based generative model",
+      "category": "Generative models",
+      "subcategory": "Diffusion and score-based",
+      "kind": "Generative classifier",
+      "summary": "A noise-conditional score network (NCSN) learns the gradient of the row's log density at many noise levels under each outcome; its denoising score error ranks the outcomes.",
+      "implementationNote": "Bridge: denoising score matching over geometric noise levels; score_k is minus the outcome-k score error on one fixed grid of (level, noise) draws; Bayes' rule, validation temperature. Differs from the spec: no probability-flow likelihood and no sampling. Expect: class-conditional density of the current row plus Bayes' rule, not future paths; the denoising error is an ELBO surrogate calibrated on validation.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "score_matching"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-45 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "noise_level_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 100,
+          "label": "Noise levels",
+          "group": "Model",
+          "description": "Geometric noise levels trained and scored."
+        },
+        "largest_noise_level": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 50.0,
+          "label": "Largest noise level",
+          "group": "Model",
+          "description": "Noise standard deviation of the coarsest level (standardised units)."
+        },
+        "smallest_noise_level": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1.0,
+          "label": "Smallest noise level",
+          "group": "Model",
+          "description": "Noise standard deviation of the finest level (standardised units)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the score network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the score network."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "scoring_noise_draws": {
+          "type": "int",
+          "default": 36,
+          "min": 4,
+          "max": 256,
+          "label": "Scoring noise draws",
+          "group": "Model",
+          "description": "(step, noise) pairs in the fixed grid every row is scored on; more draws, a less noisy but slower score."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "perceptual_loss_generator": {
+      "catalogSpecId": "generative-models-diffusion-score-based-perceptual-loss-generator",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Perceptual loss generator",
+      "category": "Generative models",
+      "subcategory": "Diffusion and score-based",
+      "kind": "Generative classifier",
+      "summary": "A diffusion model trained with a perceptual loss: denoised rows are compared in the feature space of a frozen autoencoder fitted first on the training rows; the combined error ranks the outcomes.",
+      "implementationNote": "Bridge: clean-row DDPM whose loss adds the distance in a FROZEN autoencoder's hidden layers (fitted first on the training rows); score_k is minus that error on a fixed noise grid; Bayes' rule, validation temperature. Differs from the spec: no VGG exists for market rows; the perceptual space is learned. Expect: class-conditional density of the current row plus Bayes' rule, not future paths; the denoising error is an ELBO surrogate calibrated on validation.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "perceptual_diffusion"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-45 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "diffusion_steps": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Diffusion steps",
+          "group": "Model",
+          "description": "Steps of the cosine noise schedule."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the denoiser (and of the feature network).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the denoiser."
+        },
+        "perceptual_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Perceptual weight",
+          "group": "Model",
+          "description": "Weight of the feature-space distance next to the plain row error.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0
+          }
+        },
+        "perceptual_layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Perceptual layers",
+          "group": "Model",
+          "description": "Hidden layers of the frozen feature network that are compared."
+        },
+        "perceptual_epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Perceptual network epochs",
+          "group": "Model",
+          "description": "Denoising-autoencoder epochs that fit the feature network before it is frozen."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "scoring_noise_draws": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Scoring noise draws",
+          "group": "Model",
+          "description": "(step, noise) pairs in the fixed grid every row is scored on; more draws, a less noisy but slower score."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "energy_based_model": {
+      "catalogSpecId": "generative-models-energy-based-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Energy-based model",
+      "category": "Generative models",
+      "subcategory": "Energy-based",
+      "kind": "Generative classifier",
+      "summary": "A joint energy model (JEM): one network scores every outcome's energy for the row, trained on the labels and, with Langevin-sampled negatives, as a density of the rows themselves.",
+      "implementationNote": "Bridge: JEM - f(x) gives the joint energy of (row, outcome); the shared normaliser cancels, so P(k | row) is softmax(f), with one validation temperature. Training: cross-entropy plus the likelihood term with SGLD negatives from a replay buffer; unlabelled training rows count as real data. Differs from the spec: nothing is sampled for use. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "joint_energy"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the energy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the energy network."
+        },
+        "langevin_steps": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Langevin steps",
+          "group": "Model",
+          "description": "SGLD steps per negative sample."
+        },
+        "langevin_step_size": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Langevin step size",
+          "group": "Model",
+          "description": "Gradient step of each SGLD update (standardised units)."
+        },
+        "langevin_noise": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Langevin noise",
+          "group": "Model",
+          "description": "Noise standard deviation of each SGLD update."
+        },
+        "replay_buffer_size": {
+          "type": "int",
+          "default": 10000,
+          "min": 100,
+          "max": 100000,
+          "label": "Replay buffer size",
+          "group": "Model",
+          "description": "Persistent negative samples (5 percent re-seeded from noise each step)."
+        },
+        "generative_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Generative weight",
+          "group": "Model",
+          "description": "Weight of the density term next to the cross-entropy (0 is a plain classifier).",
+          "search": {
+            "kind": "float",
+            "low": 0.03,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "energy_penalty": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Energy penalty",
+          "group": "Model",
+          "description": "Penalty on squared energies (the SGLD divergence guard)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 40,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "bayesian_generator": {
+      "catalogSpecId": "generative-models-latent-variable-models-bayesian-generator",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian generator",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "Per outcome, a Gaussian mixture with a Dirichlet-process prior over its latent components is fitted by variational Bayes on the whitened rows; the prior decides how many components survive.",
+      "implementationNote": "Bridge: log p(row | outcome) of a variational-Bayes Dirichlet-process Gaussian mixture per outcome on whitened rows, Bayes' rule with training priors, validation temperature. Differs from the spec: its VAE reading is the VAE entry and its Bayesian-weights reading the Bayesian neural hybrid; this is the shallow Bayesian generator. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "bayesian_mixture"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 50,
+          "label": "Components",
+          "group": "Model",
+          "description": "Mixture components offered per outcome (the Dirichlet-process prior prunes the unused ones).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12
+          }
+        },
+        "mixture_covariance": {
+          "type": "categorical",
+          "default": "full",
+          "choices": [
+            "full",
+            "diag"
+          ],
+          "label": "Covariance",
+          "group": "Model",
+          "description": "Full or diagonal covariance per component.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "full",
+              "diag"
+            ]
+          }
+        },
+        "weight_concentration_prior": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.001,
+          "max": 100.0,
+          "logScale": true,
+          "label": "Weight concentration prior",
+          "group": "Model",
+          "description": "Dirichlet-process concentration: small values keep fewer components.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "projection_component_count": {
+          "type": "int",
+          "default": 12,
+          "min": 1,
+          "max": 200,
+          "label": "Projection components",
+          "group": "Model",
+          "description": "Principal components kept by the whitening projection."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 5000,
+          "label": "Iterations",
+          "group": "Model",
+          "description": "Variational Bayes iterations per mixture."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "deep_boltzmann_machine": {
+      "catalogSpecId": "generative-models-latent-variable-models-deep-boltzmann-machine-generator",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Deep Boltzmann machine generator",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "A two-hidden-layer Gaussian-Bernoulli deep Boltzmann machine whose visible layer holds the row and the outcome; the outcome with the lower free energy is the likely one.",
+      "implementationNote": "Bridge: joint DBM over (row, one-hot outcome): greedy CD-1 pretraining, then mean-field data statistics and persistent Gibbs chains; score_k is the mean-field lower bound on log p~(row, k), the partition function cancels; validation temperature. Differs from the spec: nothing is sampled for use; the bound is not exact. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "deep_boltzmann_machine"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units of the first hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "second_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Second hidden size",
+          "group": "Model",
+          "description": "Units of the second hidden layer."
+        },
+        "pretraining_epochs": {
+          "type": "int",
+          "default": 10,
+          "min": 0,
+          "max": 200,
+          "label": "Pretraining epochs",
+          "group": "Model",
+          "description": "Epochs of greedy layer-wise CD-1 before joint training."
+        },
+        "gibbs_chain_count": {
+          "type": "int",
+          "default": 100,
+          "min": 1,
+          "max": 5000,
+          "label": "Persistent chains",
+          "group": "Model",
+          "description": "Persistent Gibbs chains for the model statistics."
+        },
+        "mean_field_steps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Mean-field steps",
+          "group": "Model",
+          "description": "Fixed-point steps of the mean-field posterior (training and scoring)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "masked_autoencoder_density": {
+      "catalogSpecId": "generative-models-latent-variable-models-masked-autoencoder-for-distribution-learning",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Masked autoencoder for distribution learning",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "A class-conditional masked autoencoder hides most of the row's tokens and reconstructs them from the rest; how well each outcome's model fills the gaps ranks the outcomes. MADE masks give an exact likelihood instead.",
+      "implementationNote": "Bridge: score_k is minus the masked Gaussian negative log-likelihood of the hidden tokens (learned per-column variance) averaged over fixed masks, or the exact MADE likelihood with mask_style autoregressive_made; Bayes' rule, validation temperature. Differs from the spec: tokens are groups of feature columns; random masks give a pseudo-likelihood. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "masked_autoencoder"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "mask_style": {
+          "type": "categorical",
+          "default": "random_patch",
+          "choices": [
+            "random_patch",
+            "autoregressive_made"
+          ],
+          "label": "Mask style",
+          "group": "Model",
+          "description": "Random token masks (MAE) or MADE's autoregressive masks (exact likelihood)."
+        },
+        "mask_ratio": {
+          "type": "float",
+          "default": 0.75,
+          "min": 0.1,
+          "max": 0.95,
+          "step": 0.05,
+          "label": "Mask ratio",
+          "group": "Model",
+          "description": "Share of tokens hidden from the encoder.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.85
+          }
+        },
+        "features_per_token": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 32,
+          "label": "Columns per token",
+          "group": "Model",
+          "description": "Feature columns grouped into one token."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Encoder width (or MADE hidden units).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "decoder_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Decoder width",
+          "group": "Model",
+          "description": "Width of the light decoder."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Encoder layers (or MADE hidden layers)."
+        },
+        "scoring_mask_count": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 128,
+          "label": "Scoring masks",
+          "group": "Model",
+          "description": "Fixed masks every row is scored on (random-mask style)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    },
+    "variational_autoencoder_density": {
+      "catalogSpecId": "generative-models-latent-variable-models-variational-autoencoder-vae",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Variational autoencoder (VAE)",
+      "category": "Generative models",
+      "subcategory": "Latent variable models",
+      "kind": "Generative classifier",
+      "summary": "A class-conditional VAE compresses the row into a latent code under each outcome; the importance-weighted bound on its likelihood feeds Bayes' rule.",
+      "implementationNote": "Bridge: log p(row | outcome) by the importance-weighted bound (one fixed noise tensor) of a class-conditional Gaussian VAE trained on the ELBO; Bayes' rule with training priors, validation temperature. Differs from the spec: the latent code is not used on its own and nothing is generated. Expect: Class-conditional density of the current feature row plus Bayes' rule; not a model of future paths. Bound looseness can differ by outcome.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "density_classifier",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "variational_autoencoder"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 128,
+          "label": "Latent size",
+          "group": "Model",
+          "description": "Size of the latent code.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 16
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units per hidden layer of the encoder and decoder.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "Hidden layers of the encoder and decoder."
+        },
+        "divergence_weight": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "KL weight",
+          "group": "Model",
+          "description": "Weight of the KL divergence in the training ELBO (1 is the true ELBO)."
+        },
+        "importance_sample_count": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 256,
+          "label": "Importance samples",
+          "group": "Model",
+          "description": "Latent draws of the importance-weighted bound (one fixed tensor)."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Class embedding size",
+          "group": "Model",
+          "description": "Width of the learned class (outcome bin) embedding."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows; the best validation epoch is kept."
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without a better validation score before stopping."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per gradient step."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 1e-05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Adam's L2 penalty on the weights."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 20,
+          "label": "Price target bins",
+          "group": "Model",
+          "description": "Quantile bins of the training price target the price model's density is conditioned on; the forecast is the posterior-weighted bin mean.",
+          "roles": [
+            "price"
+          ]
+        }
+      }
+    }
+  }
+}

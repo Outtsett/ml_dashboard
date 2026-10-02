@@ -1,5 +1,5 @@
 """
-Parity fixture for src/shared/regression — the price-vs-variable scatter tab.
+Parity fixture for packages/shared/src/regression — the price-vs-variable scatter tab.
 
 Every statistic the TypeScript module reports is computed here by the
 reference implementations (statsmodels OLS / OLSInfluence / HAC, scipy.stats)

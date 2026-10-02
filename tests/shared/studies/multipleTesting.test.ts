@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benjaminiYekutieli, harmonicNumber } from "../../../src/shared/studies/multipleTesting";
+import { benjaminiYekutieli, harmonicNumber } from "../../../packages/shared/src/studies/multipleTesting";
 
 describe("Benjamini-Yekutieli", () => {
   it("uses the exact harmonic number", () => {

@@ -1,0 +1,1486 @@
+{
+  "models": {
+    "model_agnostic_meta_learning": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-model-agnostic-meta-learning-maml",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Model-Agnostic Meta-Learning (MAML)",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "Meta-trains a starting policy so that a few gradient steps on the latest realised bars adapt it to the current regime, then adapts it that way for every block of the test walk.",
+      "implementationNote": "Bridge: tasks are blocks of the training span; the start policy is meta-trained (second order) so a few steps on a block's realised context maximise that block's tape reward. P(up) = the adapted policy's long share of long + short. Differs from the spec: adaptation reads only rewards already realised at the bar, once per block. Expect: a gain only where regimes outlast a block.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "maml"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "30 s-3 min per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "inner_learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Inner learning rate",
+          "group": "Model",
+          "description": "Step size of each adaptation step.",
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "inner_step_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "label": "Inner steps",
+          "group": "Model",
+          "description": "Gradient steps taken on the realised context to adapt the policy.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 5
+          }
+        },
+        "adaptation_interval_bars": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 4096,
+          "label": "Adaptation block (bars)",
+          "group": "Model",
+          "description": "The policy adapts once per block of this many bars, on what was realised at the block's first bar; every bar of the block uses the same adapted weights."
+        },
+        "context_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 8192,
+          "label": "Context (bars)",
+          "group": "Model",
+          "description": "How many realised bars before a block the adaptation reads."
+        },
+        "meta_batch_size": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Tasks per meta-batch",
+          "group": "Model",
+          "description": "How many blocks one outer update averages over."
+        },
+        "first_order_gradient": {
+          "type": "bool",
+          "default": false,
+          "label": "First-order gradient",
+          "group": "Model",
+          "description": "Drop the second derivatives of the inner steps (first-order MAML): faster, slightly less exact."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "reptile_meta_learning": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-reptile-meta-rl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Reptile Meta-RL",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "First-order meta-learning: repeatedly fine-tunes a copy of the policy on one block of bars and moves the shared starting weights part of the way toward it; the test walk fine-tunes the same way on the latest realised bars.",
+      "implementationNote": "Bridge: each block of the training span is a task; K SGD steps on it, then the start weights move toward the result (step annealed). P(up) = the adapted policy's long share of long + short. Differs from the spec: adaptation reads only rewards already realised at the bar, once per block; the market ignores the agent. Expect: close to the plain policy when regimes are short.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "reptile"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "30 s-3 min per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "inner_learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Inner learning rate",
+          "group": "Model",
+          "description": "Step size of each adaptation step.",
+          "search": {
+            "kind": "float",
+            "low": 0.005,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "inner_step_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Inner steps",
+          "group": "Model",
+          "description": "SGD steps taken on a block (training) or on the realised context (test walk).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 8
+          }
+        },
+        "outer_step_size": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.001,
+          "max": 1.0,
+          "label": "Outer step size",
+          "group": "Model",
+          "description": "How far the start weights move toward the fine-tuned weights per meta-batch (annealed linearly over the epochs).",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.6,
+            "log": false
+          }
+        },
+        "adaptation_interval_bars": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 4096,
+          "label": "Adaptation block (bars)",
+          "group": "Model",
+          "description": "The policy adapts once per block of this many bars, on what was realised at the block's first bar; every bar of the block uses the same adapted weights."
+        },
+        "context_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 8192,
+          "label": "Context (bars)",
+          "group": "Model",
+          "description": "How many realised bars before a block the adaptation reads."
+        },
+        "meta_batch_size": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Tasks per meta-batch",
+          "group": "Model",
+          "description": "How many blocks one outer update averages over."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "reinforcement_learning_squared": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-rl-2-reinforcement-learning-squared",
+      "alsoCatalogSpecIds": [],
+      "displayName": "RL^2 (Reinforcement Learning Squared)",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "A recurrent policy that reads each bar together with its own earlier positions and the rewards they realised, so the learning happens inside its hidden state as the window unfolds.",
+      "implementationNote": "Bridge: a GRU reads each bar of a fixed window with its own position h bars earlier and the reward that position has realised by now. P(up) = the last step's long share of long + short. Differs from the spec: trained by the exact expected-reward gradient (the tape prices every action) instead of PPO, and the hidden state restarts every window. Expect: close to a plain recurrent policy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "rl_squared"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "30 s-3 min per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the recurrent or context network reads for one prediction (fixed: it sets the history a prediction needs)."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per gradient step."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "probabilistic_embeddings_actor_critic": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-pearl-probabilistic-embeddings-for-actor-critic-rl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "PEARL (Probabilistic Embeddings for Actor-Critic RL)",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "Encodes the latest realised bars and rewards into a probabilistic task variable and conditions a soft actor-critic on it, so the policy knows which regime it is trading.",
+      "implementationNote": "Bridge: a product-of-Gaussians encoder turns realised (bar, reward) pairs into a latent task; a SAC actor and twin critics read it. P(up) = P(position > 0) under the actor's Gaussian. Differs from the spec: one-step soft Q (the market ignores the position), latent re-read once per block, and adaptation reads only realised rewards. Expect: a regime-conditioned policy near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pearl"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Latent task size",
+          "group": "Model",
+          "description": "Dimensions of the probabilistic task variable.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "context_bars": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 8192,
+          "label": "Context (bars)",
+          "group": "Model",
+          "description": "How many realised bars before a block the encoder reads."
+        },
+        "adaptation_interval_bars": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 4096,
+          "label": "Adaptation block (bars)",
+          "group": "Model",
+          "description": "The policy adapts once per block of this many bars, on what was realised at the block's first bar; every bar of the block uses the same adapted weights."
+        },
+        "latent_divergence_weight": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Latent divergence weight",
+          "group": "Model",
+          "description": "Weight of the task posterior's Kullback-Leibler divergence from the unit Gaussian prior.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per gradient step."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.2,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "meta_policy_gradient": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-meta-policy-gradient",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Meta Policy Gradient",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "An actor-critic whose discount and auxiliary reward are themselves learned: each block's policy step is judged by the true net reward of the next block, and that judgement tunes the return the agent learns from.",
+      "implementationNote": "Bridge: actor-critic on the tape whose discount over the holding bars and learned auxiliary reward are meta-parameters; each inner step on a block is scored by the next block's net reward and the gradient flows back through it. P(up) = the final policy's long share. Differs from the spec: the market ignores the agent; no test-time adaptation. Expect: near a plain actor-critic.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "meta_policy_gradient"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.001,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Policy step size",
+          "group": "Model",
+          "description": "SGD step of the inner (policy) update, which the meta-gradient differentiates through.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "meta_learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Meta learning rate",
+          "group": "Model",
+          "description": "Adam step size of the discount and the auxiliary reward.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Starting discount",
+          "group": "Model",
+          "description": "The meta-learned discount over the holding bars starts here."
+        },
+        "task_block_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 8192,
+          "label": "Block (bars)",
+          "group": "Model",
+          "description": "Bars per block: the inner step learns on one block and is judged on the next."
+        },
+        "action_sample_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Action samples",
+          "group": "Model",
+          "description": "Sampled actions per bar in the actor-critic estimator."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "learning_to_learn_gradient_descent": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-learning-to-learn-with-gradient-descent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Learning to Learn with Gradient Descent",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "A small recurrent network learns how to update another network's weights from their gradients, meta-trained on short fits over blocks of bars, and then trains the trading policy in place of Adam.",
+      "implementationNote": "Bridge: a coordinatewise LSTM optimiser (log-magnitude and sign gradient input) is meta-trained by unrolling fits of fresh policies on training blocks, then fits the final policy on the whole span. P(up) = that policy's long share. Differs from the spec: the market ignores the agent; the learned optimiser changes how the policy is fitted, not what it sees. Expect: close to an Adam-trained policy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "learned_optimizer"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "optimizer_hidden_size": {
+          "type": "int",
+          "default": 20,
+          "min": 2,
+          "max": 128,
+          "label": "Optimiser hidden size",
+          "group": "Model",
+          "description": "Units of each of the learned optimiser's two LSTM layers (shared by every weight)."
+        },
+        "unroll_steps": {
+          "type": "int",
+          "default": 20,
+          "min": 2,
+          "max": 200,
+          "label": "Unroll steps",
+          "group": "Model",
+          "description": "Optimiser steps unrolled per meta-update and applied to the final policy per epoch.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 40
+          }
+        },
+        "meta_iteration_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 200,
+          "label": "Meta-updates per epoch",
+          "group": "Model",
+          "description": "Unrolled fits of fresh policies used to train the optimiser in each epoch."
+        },
+        "task_block_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 8192,
+          "label": "Block (bars)",
+          "group": "Model",
+          "description": "Bars per meta-training fit."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "task_aware_meta_learning": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-task-aware-meta-rl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Task-Aware Meta-RL",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "Describes the current market regime (volatility, trend, up-bar share, time of day and week) as a learned task embedding and trains an actor-critic that conditions on it.",
+      "implementationNote": "Bridge: a task embedding of causal regime statistics feeds an actor-critic trained with sampled actions and a value baseline on the tape. P(up) = the conditioned policy's long share of long + short. Differs from the spec: one instrument, so a task is a regime description; the market ignores the agent. Expect: a regime-conditioned policy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "task_aware"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "task_embedding_size": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Task embedding size",
+          "group": "Model",
+          "description": "Dimensions the regime statistics are encoded into.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              8,
+              16
+            ]
+          }
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 2000,
+          "label": "Statistics window (bars)",
+          "group": "Model",
+          "description": "Bars of history the regime statistics (volatility, trend, up-bar share) are measured over; fixed, it sets the history a prediction needs."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "action_sample_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Action samples",
+          "group": "Model",
+          "description": "Sampled actions per bar in the actor-critic estimator."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per gradient step."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "multitask_shared_latent_policy": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-multitask-rl-with-shared-latent-variables",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multitask RL with Shared Latent Variables",
+      "category": "Reinforcement learning",
+      "subcategory": "Meta-RL and hierarchical RL",
+      "kind": "Agent",
+      "summary": "Splits the training span into regimes, trains one policy per regime and a shared policy distilled from all of them, each regime policy pulled toward the shared one (Distral).",
+      "implementationNote": "Bridge: k-means regimes of causal volatility and trend statistics are the tasks; each has a policy rewarded by the tape minus a divergence from a shared distilled policy. P(up) = the current regime's long share (the shared policy for a regime seen too rarely). Differs from the spec: one instrument, tasks are regimes; the market ignores the agent. Expect: near one pooled policy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "distral"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 16,
+          "label": "Regimes (tasks)",
+          "group": "Model",
+          "description": "k-means regimes of the training span; one policy each.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 100,
+          "min": 20,
+          "max": 2000,
+          "label": "Statistics window (bars)",
+          "group": "Model",
+          "description": "Bars of history the regime statistics (volatility, trend, up-bar share) are measured over; fixed, it sets the history a prediction needs."
+        },
+        "distillation_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Distillation weight",
+          "group": "Model",
+          "description": "How strongly each regime policy is pulled toward the shared policy (the divergence penalty).",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in each hidden layer of the policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy network has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per gradient step."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "hypernetwork_policy": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-hypernetworks-for-rl",
+      "alsoCatalogSpecIds": [],
+      "displayName": "HyperNetworks for RL",
+      "category": "Reinforcement learning",
+      "subcategory": "Modularity and subgoal discovery",
+      "kind": "Agent",
+      "summary": "A hypernetwork reads the recent bars' regime and writes every weight of a small policy network, which then decides long or short for the current bar.",
+      "implementationNote": "Bridge: the repository's hypernetwork block writes all weights of a one-hidden-layer policy from the window's per-feature mean and spread; trained on the tape reward by the exact policy gradient (the tape prices both actions). P(up) = the generated policy's long probability. Differs from the spec: the market ignores the agent. Expect: a regime-modulated policy.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hypernetwork_policy"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "10-60 s per fold, untuned (tuning multiplies it by the trials)",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the recurrent or context network reads for one prediction (fixed: it sets the history a prediction needs)."
+        },
+        "hypernetwork_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hypernetwork hidden size",
+          "group": "Model",
+          "description": "Units of the weight-writing network's hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "target_hidden_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 512,
+          "label": "Policy hidden size",
+          "group": "Model",
+          "description": "Hidden units of the generated policy network.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "context_embedding_size": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 256,
+          "label": "Context embedding size",
+          "group": "Model",
+          "description": "Size the window's mean and spread are compressed to before the weights are written."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.003,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size of the network's training.",
+          "search": {
+            "kind": "float",
+            "low": 0.0003,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training bars per gradient step."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "Weight of the policy's entropy in its objective; keeps it from collapsing onto one action too early.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training span (each ends with a validation score)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Epochs without a better validation net reward before training stops."
+        }
+      }
+    },
+    "successor_features_transfer": {
+      "catalogSpecId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-successor-features-for-transfer",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Successor Features for Transfer",
+      "category": "Reinforcement learning",
+      "subcategory": "Latent skill embedding and transfer",
+      "kind": "Agent",
+      "summary": "Learns what each of a library of simple rules will be exposed to over the coming bars, re-estimates which exposures the market is paying from the latest realised bars, and picks the best rule's action.",
+      "implementationNote": "Bridge: successor features of base rules (flat, long, short, follow or fade the top features) by LSTD; reward weights re-fit by ridge on realised one-bar moves, action by GPI; P(up) = Boltzmann share of long vs short, temperature fitted on validation. Differs from the spec: the market ignores the agent, so the rules' futures cancel in the long-short gap. Expect: a rolling factor-return call.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "meta_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "successor_features"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "seconds per fold",
+      "gpu": false,
+      "parameters": {
+        "base_policy_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 16,
+          "label": "Followed features",
+          "group": "Model",
+          "description": "The features (by training information coefficient) whose follow and fade rules join flat, long and short in the library.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 6
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.99,
+          "label": "Discount",
+          "group": "Model",
+          "description": "Per-bar discount of the successor features.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97,
+            "log": false
+          }
+        },
+        "context_bars": {
+          "type": "int",
+          "default": 512,
+          "min": 16,
+          "max": 8192,
+          "label": "Context (bars)",
+          "group": "Model",
+          "description": "Realised bars the reward weights are re-fitted on."
+        },
+        "adaptation_interval_bars": {
+          "type": "int",
+          "default": 32,
+          "min": 1,
+          "max": 4096,
+          "label": "Refit block (bars)",
+          "group": "Model",
+          "description": "The reward weights are re-fitted once per block of this many bars."
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 100000.0,
+          "label": "Ridge toward the training weights",
+          "group": "Model",
+          "description": "Pulls the re-fitted reward weights toward the training span's (in rows' worth of evidence).",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 1000.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""Export a training window from QuestDB and split it 80/20 into parquet.
+"""Export a training window from lake and split it 80/20 into parquet.
 
 Runs as a child process of the training job runner, which passes the job id and
 the instrument/timeframe the user picked in the UI. Those three values reach a
@@ -14,22 +14,22 @@ import sys
 
 import duckdb
 
-# An instrument or timeframe becomes part of a QuestDB table name that is
+# An instrument or timeframe becomes part of a lake table name that is
 # interpolated into SQL, so it is restricted to what a table name may contain.
 IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_]{1,64}")
 
 # A job id becomes a directory name under the run root.
 JOB_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,128}")
 
-# QuestDB's Postgres wire endpoint. Credentials come from the environment so
+# lake's Postgres wire endpoint. Credentials come from the environment so
 # they are set per deployment rather than written into the repository; the
-# fallbacks are QuestDB's documented defaults for a local unauthenticated
+# fallbacks are lake's documented defaults for a local unauthenticated
 # instance, which is what this development stack runs.
-QUESTDB_PG_HOST = os.environ.get("QUESTDB_PG_HOST", "127.0.0.1")
-QUESTDB_PG_PORT = os.environ.get("QUESTDB_PG_PORT", "8812")
-QUESTDB_PG_USER = os.environ.get("QUESTDB_PG_USER", "admin")
-QUESTDB_PG_PASSWORD = os.environ.get("QUESTDB_PG_PASSWORD", "quest")
-QUESTDB_PG_DATABASE = os.environ.get("QUESTDB_PG_DATABASE", "qdb")
+lake_PG_HOST = os.environ.get("lake_PG_HOST", "127.0.0.1")
+lake_PG_PORT = os.environ.get("lake_PG_PORT", "8812")
+lake_PG_USER = os.environ.get("lake_PG_USER", "admin")
+lake_PG_PASSWORD = os.environ.get("lake_PG_PASSWORD", "quest")
+lake_PG_DATABASE = os.environ.get("lake_PG_DATABASE", "qdb")
 
 RUN_ROOT = os.environ.get("ML_DATA_ROOT", "E:/lake/derived/runs")
 
@@ -54,7 +54,7 @@ def connection_field(value: str, label: str) -> str:
     needs them.
     """
     if not value or any(c in value for c in FORBIDDEN_CONNECTION_CHARS):
-        print(f"[prepare_dataset] Invalid {label} in QuestDB connection settings", file=sys.stderr)
+        print(f"[prepare_dataset] Invalid {label} in lake connection settings", file=sys.stderr)
         sys.exit(2)
     return value
 
@@ -95,11 +95,11 @@ def main():
         sys.exit(2)
 
     attach = (
-        f"host={connection_field(QUESTDB_PG_HOST, 'host')} "
-        f"port={connection_field(QUESTDB_PG_PORT, 'port')} "
-        f"user={connection_field(QUESTDB_PG_USER, 'user')} "
-        f"password={connection_field(QUESTDB_PG_PASSWORD, 'password')} "
-        f"dbname={connection_field(QUESTDB_PG_DATABASE, 'database')}"
+        f"host={connection_field(lake_PG_HOST, 'host')} "
+        f"port={connection_field(lake_PG_PORT, 'port')} "
+        f"user={connection_field(lake_PG_USER, 'user')} "
+        f"password={connection_field(lake_PG_PASSWORD, 'password')} "
+        f"dbname={connection_field(lake_PG_DATABASE, 'database')}"
     )
 
     # The auto-activation mandate: "Always aim for institutional-grade processing speed... zero-copy"
@@ -118,9 +118,9 @@ def main():
     # cannot carry SQL and this clause is never empty.
     limit_clause = f"LIMIT {args.data_size}"
 
-    # First, dump all to a temporary parquet to avoid multiple heavy queries to QuestDB
+    # First, dump all to a temporary parquet to avoid multiple heavy queries to lake
     temp_path = f"{out_dir}/temp_full.parquet"
-    print(f"Exporting data from QuestDB to {temp_path}...")
+    print(f"Exporting data from lake to {temp_path}...")
     con.execute(
         f"COPY (SELECT * FROM qdb.{table_name} ORDER BY timestamp ASC {limit_clause}) TO '{temp_path}' (FORMAT PARQUET);"
     )
@@ -146,3 +146,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

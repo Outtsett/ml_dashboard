@@ -1,5 +1,5 @@
 {
-  "include": ["src/client/src/**/*", "src/shared/**/*", "src/server/**/*", "src/ml/**/*", "src/scripts/**/*"],
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "packages/**/*.tsx", "scripts/**/*.ts"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     /* Emit */
@@ -36,10 +36,11 @@
     "baseUrl": ".",
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./src/client/src/*"],
-      "@shared/*": ["./src/shared/*"],
-      "@ml/*": ["./src/ml/*"],
-      "@server/*": ["./src/server/*"]
+      "@/*": ["./apps/web/src/*"],
+      "@shared/*": ["./packages/shared/src/*"],
+      "@config/*": ["./packages/config/*"],
+      "@ml/*": ["./packages/ml-engine/src/*"],
+      "@server/*": ["./apps/api/src/*"]
     }
   }
 }

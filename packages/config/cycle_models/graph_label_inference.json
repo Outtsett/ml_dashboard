@@ -1,0 +1,656 @@
+{
+  "models": {
+    "label_propagation": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-graph-based-methods-label-propagation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Label Propagation",
+      "category": "Semi-supervised learning",
+      "subcategory": "Graph-based methods",
+      "kind": "Graph label inference",
+      "summary": "Labels of the kept training bars diffuse over a nearest-neighbour graph of the training span's bars (labelled nodes clamped); a new bar reads the propagated labels of its nearest training nodes.",
+      "implementationNote": "Bridge: sklearn LabelPropagation over the training span's bars (kNN or RBF graph, labelled nodes clamped); a new bar's P(up) is the mean propagated up-share of its nearest train nodes. Differs from the spec: labels are masked in embargoed blocks so there is an unlabelled pool, which deliberately handicaps it against full supervision; no price model. Expect: a smoothed nearest-neighbour vote, edge near k-NN's.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "graph_label_inference",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "label_propagation"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) become unlabelled graph nodes.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "maximum_graph_nodes": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 8000,
+          "label": "Maximum graph nodes",
+          "group": "Model",
+          "description": "Cap on the span rows used as nodes (evenly spaced, the labelled share kept)."
+        },
+        "kernel": {
+          "type": "categorical",
+          "default": "knn",
+          "choices": [
+            "knn",
+            "rbf"
+          ],
+          "label": "Kernel",
+          "group": "Model",
+          "description": "Graph affinity: knn (each node links to its nearest nodes) or rbf (every pair, Gaussian weight with the bandwidth quantile's width).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "knn",
+              "rbf"
+            ]
+          }
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Nearest nodes each node (and each new bar) links to.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40,
+            "log": false
+          }
+        },
+        "bandwidth_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Bandwidth quantile",
+          "group": "Model",
+          "description": "The heat kernel's width is this quantile of the nodes' nearest-neighbour distances.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.8,
+            "log": false
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 1000,
+          "min": 10,
+          "max": 10000,
+          "label": "Max iterations",
+          "group": "Model",
+          "description": "Propagation sweeps before stopping (tolerance 1e-3)."
+        }
+      }
+    },
+    "label_spreading": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-graph-based-methods-label-spreading",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Label Spreading",
+      "category": "Semi-supervised learning",
+      "subcategory": "Graph-based methods",
+      "kind": "Graph label inference",
+      "summary": "Labels spread over the normalised nearest-neighbour graph of the training span's bars with soft clamping, so a noisy label can be overridden by its neighbours; the price model spreads the scaled move the same way.",
+      "implementationNote": "Bridge: sklearn LabelSpreading (normalised graph, labelled nodes soft-clamped by the clamping factor); P(up) is the mean spread up-share of a bar's nearest train nodes; the price spreads the scaled move over the same kind of graph. Differs from the spec: labels are masked in embargoed blocks for an unlabelled pool, a deliberate handicap. Expect: close to label propagation, a little more robust to label noise.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "graph_label_inference",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "label_spreading"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) become unlabelled graph nodes.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "maximum_graph_nodes": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 8000,
+          "label": "Maximum graph nodes",
+          "group": "Model",
+          "description": "Cap on the span rows used as nodes (evenly spaced, the labelled share kept)."
+        },
+        "kernel": {
+          "type": "categorical",
+          "default": "knn",
+          "choices": [
+            "knn",
+            "rbf"
+          ],
+          "label": "Kernel",
+          "group": "Model",
+          "description": "Graph affinity: knn (each node links to its nearest nodes) or rbf (every pair, Gaussian weight with the bandwidth quantile's width).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "knn",
+              "rbf"
+            ]
+          }
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Nearest nodes each node (and each new bar) links to.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40,
+            "log": false
+          }
+        },
+        "bandwidth_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Bandwidth quantile",
+          "group": "Model",
+          "description": "The heat kernel's width is this quantile of the nodes' nearest-neighbour distances.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.8,
+            "log": false
+          }
+        },
+        "clamping_factor": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 0.99,
+          "label": "Clamping factor",
+          "group": "Model",
+          "description": "Share of a node's value taken from its neighbours each sweep (sklearn's alpha); 0 keeps the given labels, near 1 lets the graph override them.",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.9,
+            "log": false
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 1000,
+          "min": 10,
+          "max": 10000,
+          "label": "Max iterations",
+          "group": "Model",
+          "description": "Propagation sweeps before stopping (tolerance 1e-3)."
+        }
+      }
+    },
+    "harmonic_graph_learning": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-graph-based-methods-graph-based-semi-supervised-learning",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Graph-Based Semi-Supervised Learning",
+      "category": "Semi-supervised learning",
+      "subcategory": "Graph-based methods",
+      "kind": "Harmonic function",
+      "summary": "The Gaussian random field of Zhu, Ghahramani and Lafferty: on a heat-kernel nearest-neighbour graph of the training span's bars the unlabelled nodes take the harmonic solution (a sparse linear solve), then class mass normalisation; the price is the harmonic regression of the scaled move.",
+      "implementationNote": "Bridge: harmonic function on a heat-kernel kNN graph of train-span bars (sparse solve of L_uu f_u = W_ul f_l) with class mass normalisation; a new bar takes the weighted mean over its nearest train nodes. Differs from the spec: the classical Laplacian solve only, no GCN or GraphSAGE; labels masked in embargoed blocks, a deliberate handicap. Expect: a kernel-smoothed vote, edge near k-NN's.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "graph_label_inference",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "harmonic"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) become unlabelled graph nodes.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "maximum_graph_nodes": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 8000,
+          "label": "Maximum graph nodes",
+          "group": "Model",
+          "description": "Cap on the span rows used as nodes (evenly spaced, the labelled share kept)."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Nearest nodes each node (and each new bar) links to.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40,
+            "log": false
+          }
+        },
+        "bandwidth_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Bandwidth quantile",
+          "group": "Model",
+          "description": "The heat kernel's width is this quantile of the nodes' nearest-neighbour distances.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.8,
+            "log": false
+          }
+        },
+        "class_mass_normalization": {
+          "type": "bool",
+          "default": true,
+          "label": "Class mass normalization",
+          "group": "Model",
+          "description": "Re-weight the two classes' harmonic masses to the labelled up-rate (Zhu et al. 2003)."
+        }
+      }
+    },
+    "manifold_regularization": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-graph-based-methods-manifold-regularization",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Manifold Regularization",
+      "category": "Semi-supervised learning",
+      "subcategory": "Graph-based methods",
+      "kind": "Laplacian regularised kernel",
+      "summary": "Laplacian regularised least squares (Belkin, Niyogi and Sindhwani): an RBF kernel machine over the training span's bars penalised in the ambient space and along the data manifold (the graph Laplacian of labelled and unlabelled bars); P(up) is a validation-fitted curve of its decision value.",
+      "implementationNote": "Bridge: Laplacian RLS (RBF kernel expansion over train-span nodes, ambient ridge plus the kNN-graph Laplacian penalty on labelled and unlabelled bars); P(up) is a logistic curve of the decision value fitted on validation, the price is the same solve on the scaled move. Differs from the spec: no LapSVM (hinge) variant; labels masked in embargoed blocks. Expect: a smooth kernel classifier, edge near an RBF SVM's.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "graph_label_inference",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "laplacian_rls"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) become unlabelled graph nodes.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "maximum_graph_nodes": {
+          "type": "int",
+          "default": 1500,
+          "min": 200,
+          "max": 4000,
+          "label": "Maximum graph nodes",
+          "group": "Model",
+          "description": "Cap on the span rows used as nodes (evenly spaced, the labelled share kept)."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "label": "Neighbor count",
+          "group": "Model",
+          "description": "Nearest nodes each node (and each new bar) links to.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 40,
+            "log": false
+          }
+        },
+        "bandwidth_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "label": "Bandwidth quantile",
+          "group": "Model",
+          "description": "The heat kernel's width is this quantile of the nodes' nearest-neighbour distances.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 0.8,
+            "log": false
+          }
+        },
+        "kernel_width_multiple": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 20.0,
+          "label": "Kernel width multiple",
+          "group": "Model",
+          "description": "The RBF kernel's width is this multiple of the nodes' median pairwise distance.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 3.0,
+            "log": true
+          }
+        },
+        "ambient_regularization": {
+          "type": "float",
+          "default": 0.01,
+          "min": 1e-06,
+          "max": 10.0,
+          "label": "Ambient regularization",
+          "group": "Model",
+          "description": "Ridge penalty on the kernel expansion's norm (gamma_A).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "intrinsic_regularization": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Intrinsic regularization",
+          "group": "Model",
+          "description": "Penalty on variation along the graph of labelled and unlabelled bars (gamma_I); 0 is plain kernel ridge on the labelled bars.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "semi_supervised_clustering": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-clustering-based-methods-semi-supervised-clustering",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Semi-Supervised Clustering",
+      "category": "Semi-supervised learning",
+      "subcategory": "Clustering-based methods",
+      "kind": "Constrained clustering",
+      "summary": "Seeded, constrained k-means: half the centroids seeded inside the labelled up bars and half inside the down bars, Lloyd iterations over every bar of the training span where a labelled bar may only join a centroid of its own class; P(up) is the soft assignment times each centroid's smoothed up-share.",
+      "implementationNote": "Bridge: seeded constrained k-means (labelled bars may only join centroids of their own class, unlabelled bars move freely); P(up) is a softmax of centroid distances times each centroid's smoothed up-share, the price its smoothed mean move. Differs from the spec: constraints come from class labels only, no MPCK-Means metric learning or deep variants; labels masked in embargoed blocks. Expect: a prototype classifier.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "graph_label_inference",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "constrained_kmeans"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) become unlabelled graph nodes.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "maximum_graph_nodes": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 8000,
+          "label": "Maximum graph nodes",
+          "group": "Model",
+          "description": "Cap on the span rows used as nodes (evenly spaced, the labelled share kept)."
+        },
+        "cluster_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Centroids in all, half seeded from up bars and half from down bars.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24,
+            "log": false
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 10.0,
+          "label": "Temperature",
+          "group": "Model",
+          "description": "Softness of the assignment of a bar to the centroids (per-feature squared distance divided by this).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 2.0,
+            "log": true
+          }
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "Pseudo-members at the overall up-rate added to every centroid's readout.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 50.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 1000,
+          "label": "Max iterations",
+          "group": "Model",
+          "description": "Lloyd iterations before stopping."
+        }
+      }
+    }
+  }
+}

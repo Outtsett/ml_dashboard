@@ -1,0 +1,2263 @@
+{
+  "models": {
+    "proximal_policy_optimization": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-proximal-policy-optimization-ppo",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Proximal Policy Optimization (PPO)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A policy learns when to be short, flat or long by trading the training span, improving in small clipped steps so one rollout cannot pull it too far.",
+      "implementationNote": "Bridge: PPO (Stable-Baselines3) with a clipped surrogate and generalised advantages. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills); each decision's reward is its whole h-bar trade. Expect: an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ppo"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-10 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0003,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "clip_range": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 1.0,
+          "label": "Clip range",
+          "group": "Model",
+          "description": "How far one update may move the probability of an action, as a ratio.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.3,
+            "log": false
+          }
+        },
+        "generalized_advantage_decay": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Advantage trace decay",
+          "group": "Model",
+          "description": "The lambda of generalised advantage estimation: 0 uses one-step errors, 1 whole-rollout returns."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 1024,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "optimization_passes": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Optimisation passes",
+          "group": "Model",
+          "description": "How many times each rollout is reused for updates."
+        },
+        "value_loss_coefficient": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Value loss weight",
+          "group": "Model",
+          "description": "How much the critic's error counts against the policy's in one loss."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "reinforce_policy_gradient": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-reinforce",
+      "alsoCatalogSpecIds": [],
+      "displayName": "REINFORCE",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A policy plays whole episodes of the training span, then makes each action it took more likely in proportion to the reward that followed it.",
+      "implementationNote": "Bridge: Monte Carlo policy gradient (own loop): one update per episode, discounted reward-to-go minus a moving-average baseline. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: noisy learning; keep the discount low.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "reinforce"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "reinforce_baseline": {
+          "type": "categorical",
+          "default": "moving_average",
+          "choices": [
+            "moving_average",
+            "none"
+          ],
+          "label": "Baseline",
+          "group": "Model",
+          "description": "What is subtracted from the return: a moving average of past episode returns, or nothing (plain REINFORCE).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "moving_average",
+              "none"
+            ]
+          }
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "vanilla_policy_gradient": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-vanilla-policy-gradient",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Vanilla Policy Gradient",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A policy plays a batch of episodes, then takes one gradient step using how much better each action did than a learned estimate of the bar's value.",
+      "implementationNote": "Bridge: Vanilla policy gradient (own loop): a batch of episodes per step, reward-to-go minus a regressed value baseline. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "vanilla_policy_gradient"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0003,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "critic_learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Critic learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the value (critic) network.",
+          "logScale": true
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "episodes_per_iteration": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 256,
+          "label": "Episodes per step",
+          "group": "Model",
+          "description": "How many episodes one gradient step averages over."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "baseline_fit_steps": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Baseline fitting steps",
+          "group": "Model",
+          "description": "How many regression steps refit the value baseline after each update."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "trust_region_policy_optimization": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-trust-region-policy-optimization-trpo",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Trust Region Policy Optimization (TRPO)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A policy improves by the largest step whose average change in behaviour stays inside a fixed limit, found by a natural-gradient solve and a line search.",
+      "implementationNote": "Bridge: TRPO (sb3_contrib): natural gradient by conjugate gradient under a mean KL limit, line search. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: stable updates; an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "trpo"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-10 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the critic (the policy step is set by the trust region).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "trust_region_size": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0001,
+          "max": 0.5,
+          "label": "Trust region (mean KL)",
+          "group": "Model",
+          "description": "The largest average KL divergence one update may move the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.003,
+            "high": 0.05,
+            "log": true
+          }
+        },
+        "conjugate_gradient_steps": {
+          "type": "int",
+          "default": 15,
+          "min": 1,
+          "max": 100,
+          "label": "Conjugate-gradient steps",
+          "group": "Model",
+          "description": "How many steps solve for the natural gradient."
+        },
+        "critic_updates": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Critic updates",
+          "group": "Model",
+          "description": "How many critic regression steps follow each policy update."
+        },
+        "generalized_advantage_decay": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Advantage trace decay",
+          "group": "Model",
+          "description": "The lambda of generalised advantage estimation: 0 uses one-step errors, 1 whole-rollout returns."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 1024,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "actor_critic": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-actor-critic",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Actor-Critic",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free actor-critic methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "An actor chooses short, flat or long bar by bar while a critic scores each bar; the critic's surprise after every single step is what moves the actor.",
+      "implementationNote": "Bridge: one-step online actor-critic (own loop) in time order: the TD error drives the actor; separate actor and critic learning rates. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: noisy per-bar learning.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "actor_critic"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-10 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0003,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "critic_learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Critic learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the value (critic) network.",
+          "logScale": true
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "advantage_actor_critic": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-advantage-actor-critic-a2c",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Advantage Actor-Critic (A2C)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free actor-critic methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "Several copies of the trading environment run side by side; their short rollouts are pooled into one actor-critic update using n-step advantages.",
+      "implementationNote": "Bridge: A2C (Stable-Baselines3) over synchronous copies of the tape environment, n-step returns, one batched update. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "a2c"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0007,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "value_loss_coefficient": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Value loss weight",
+          "group": "Model",
+          "description": "How much the critic's error counts against the policy's in one loss."
+        },
+        "environment_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Parallel environments",
+          "group": "Model",
+          "description": "How many copies of the environment step together, each from its own starts."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps each copy collects before an update."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "asynchronous_advantage_actor_critic": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-asynchronous-advantage-actor-critic-a3c",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Asynchronous Advantage Actor-Critic (A3C)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free actor-critic methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "Several workers each trade their own stretch of the training span with a slightly out-of-date copy of the network and push their updates into one shared network.",
+      "implementationNote": "Bridge: A3C (own loop): workers take turns rolling n steps with a stale copy and pushing their gradient into the shared network. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: round-robin workers with stale weights, not OS threads; the market ignores the agent. Expect: an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "a3c"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0007,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "value_loss_coefficient": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "label": "Value loss weight",
+          "group": "Model",
+          "description": "How much the critic's error counts against the policy's in one loss."
+        },
+        "worker_count": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 64,
+          "label": "Workers",
+          "group": "Model",
+          "description": "How many workers hold their own stale copy of the network."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps each worker takes before pushing its gradient."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "q_prop": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-q-prop",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Q-Prop",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free actor-critic methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A policy gradient whose noise is cut by a control variate: an off-policy critic learned from every past step predicts part of each action's value, and only the residual is sampled.",
+      "implementationNote": "Bridge: Q-Prop (own loop): a replay-trained critic Q(s,a) is the control variate of the policy gradient. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: three discrete actions, so the control variate's expectation is exact, not a Taylor expansion; the market ignores the agent. Expect: lower-variance updates than REINFORCE; edge only where features predict the move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "q_prop"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-5 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0003,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "critic_learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Critic learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the value (critic) network.",
+          "logScale": true
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "generalized_advantage_decay": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Advantage trace decay",
+          "group": "Model",
+          "description": "The lambda of generalised advantage estimation: 0 uses one-step errors, 1 whole-rollout returns."
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "control_variate_mode": {
+          "type": "categorical",
+          "default": "conservative",
+          "choices": [
+            "conservative",
+            "aggressive",
+            "none"
+          ],
+          "label": "Control variate",
+          "group": "Model",
+          "description": "Conservative uses the critic only where it agrees in sign with the sampled advantage; aggressive flips it where it disagrees; none is a plain policy gradient.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "conservative",
+              "aggressive",
+              "none"
+            ]
+          }
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 256,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "critic_updates": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Critic updates",
+          "group": "Model",
+          "description": "How many critic regression steps follow each policy update."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "target_update_rate": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Target update rate",
+          "group": "Model",
+          "description": "The share of the online network copied into the slow target network after each update (Polyak)."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "cross_entropy_method_policy": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-evolutionary-methods-cross-entropy-method-cem",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Cross-Entropy Method (CEM)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free evolutionary methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A population of linear trading rules is drawn at random, each is backtested on the training span, and the best fifth reshapes the distribution the next population is drawn from.",
+      "implementationNote": "Bridge: the cross-entropy method over a linear short / flat / long rule; P(up) is the long share of 64 rules drawn from the final search distribution. Differs from the spec: gradient-free search (no network); the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: a simple rule; P(up) is a vote share.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "cem"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under 1 min per fold",
+      "gpu": false,
+      "parameters": {
+        "population_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Population",
+          "group": "Model",
+          "description": "How many candidate rules are drawn and backtested per iteration.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "elite_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 0.9,
+          "label": "Elite share",
+          "group": "Model",
+          "description": "The share of best-earning candidates that reshape the next draw.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.3,
+            "log": false
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 60,
+          "min": 1,
+          "max": 2000,
+          "label": "Iterations",
+          "group": "Model",
+          "description": "How many draw-backtest-refit rounds run."
+        },
+        "initial_spread": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.001,
+          "max": 10.0,
+          "label": "Initial spread",
+          "group": "Model",
+          "description": "The starting standard deviation of every rule weight."
+        },
+        "noise_floor": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Noise floor",
+          "group": "Model",
+          "description": "Added to the spread each round so the search does not collapse early."
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight penalty",
+          "group": "Model",
+          "description": "Subtracted from a rule's earnings per unit of squared weight (keeps rules simple)."
+        }
+      }
+    },
+    "soft_actor_critic": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-soft-actor-critic-sac",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Soft Actor-Critic (SAC)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free actor-critic methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "An actor chooses a position between fully short and fully long, rewarded both for earning and for staying uncertain, with two critics learned from a replay of past steps.",
+      "implementationNote": "Bridge: SAC (Stable-Baselines3): a position in [-1, 1], twin critics, learned entropy temperature. P(up) = Phi(mu/sigma), the policy's chance of going long. Differs from the spec: the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: slow (a gradient step per bar).",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "sac"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-15 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0003,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "target_update_rate": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Target update rate",
+          "group": "Model",
+          "description": "The share of the online network copied into the slow target network after each update (Polyak)."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 256,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "deep_deterministic_policy_gradient": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-deep-deterministic-policy-gradient-ddpg",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Deep Deterministic Policy Gradient (DDPG)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free deterministic policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A deterministic actor outputs a position between short and long and is pushed along the slope of a critic learned from a replay of noisy past steps.",
+      "implementationNote": "Bridge: DDPG (Stable-Baselines3): a deterministic position in [-1, 1], Gaussian action noise. P(up) = sigmoid(k x the actor's pre-tanh output). Differs from the spec: k is fitted on validation; only the sign is the policy's own; the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: often a near-constant position; slow.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "ddpg"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-15 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "action_noise_scale": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 2.0,
+          "label": "Exploration noise",
+          "group": "Model",
+          "description": "The standard deviation of the Gaussian noise added to the deterministic position while collecting."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "target_update_rate": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Target update rate",
+          "group": "Model",
+          "description": "The share of the online network copied into the slow target network after each update (Polyak)."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 256,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "twin_delayed_policy_gradient": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-twin-delayed-deep-deterministic-policy-gradient-td3",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Twin Delayed Deep Deterministic Policy Gradient (TD3)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free deterministic policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "DDPG made sturdier: two critics with the smaller one trusted, noise smoothed onto the target action, and the actor updated only every few critic steps.",
+      "implementationNote": "Bridge: TD3 (Stable-Baselines3): twin critics, target smoothing, delayed actor updates. P(up) = sigmoid(k x the actor's pre-tanh output). Differs from the spec: k is fitted on validation; only the sign is the policy's own; the market ignores the agent, whose position is not in its state: cost-aware reward maximisation on the train span's price tape (next-open fills). Expect: steadier than DDPG; slow.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "td3"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-15 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "action_noise_scale": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 2.0,
+          "label": "Exploration noise",
+          "group": "Model",
+          "description": "The standard deviation of the Gaussian noise added to the deterministic position while collecting."
+        },
+        "actor_update_interval": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Actor update interval",
+          "group": "Model",
+          "description": "The actor is updated once every this many critic updates."
+        },
+        "target_smoothing_noise": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Target smoothing noise",
+          "group": "Model",
+          "description": "The noise added to the target action when the critics' target is formed."
+        },
+        "target_smoothing_clip": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 2.0,
+          "label": "Target smoothing clip",
+          "group": "Model",
+          "description": "The largest absolute value of that target noise."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "target_update_rate": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Target update rate",
+          "group": "Model",
+          "description": "The share of the online network copied into the slow target network after each update (Polyak)."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 256,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment steps collected before each update."
+        },
+        "episode_bars": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 8192,
+          "label": "Episode length (bars)",
+          "group": "Model",
+          "description": "How many consecutive training bars one episode walks before it starts again elsewhere."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "normalized_advantage_function": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-normalized-advantage-function-naf",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Normalized Advantage Function (NAF)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free deterministic policy-gradient methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "One network gives the bar's value, the best position and how sharply value falls away from it, so the best continuous position is read off in closed form.",
+      "implementationNote": "Bridge: NAF (own torch loop): Q(s,a) = V(s) - P(s)(a - mu(s))^2/2 by replay TD with a Polyak target, Gaussian exploration decayed over the fit. P(up) is sigmoid(k x mu before the tanh), k fitted on validation. Differs from the spec: one action dimension, so P(s) is a scalar; the probability scale is fitted on validation; the market ignores the agent. Expect: slow; often a near-constant position.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "naf"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "3-10 min per fold",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the policy (and critic) has."
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the policy (and critic) networks have."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "action_noise_scale": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 2.0,
+          "label": "Exploration noise",
+          "group": "Model",
+          "description": "The standard deviation of the Gaussian noise added to the deterministic position while collecting."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "target_update_rate": {
+          "type": "float",
+          "default": 0.005,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Target update rate",
+          "group": "Model",
+          "description": "The share of the online network copied into the slow target network after each update (Polyak)."
+        },
+        "updates_per_step": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 20,
+          "label": "Updates per step",
+          "group": "Model",
+          "description": "How many replay updates follow each collected bar."
+        },
+        "rollout_length": {
+          "type": "int",
+          "default": 64,
+          "min": 1,
+          "max": 8192,
+          "label": "Rollout length",
+          "group": "Model",
+          "description": "How many environment bars collected between replay updates."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    },
+    "multi_modal_reasoning_agent": {
+      "catalogSpecId": "hybrid-composite-architectures-multi-modal-temporal-fusion-multi-modal-reasoning-agent",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multi-Modal Reasoning Agent",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Multi-modal temporal",
+      "kind": "Hybrid",
+      "summary": "Separate encoders read price geometry, volume and order flow, volatility, the calendar and news sentiment; attention fuses them bar by bar, a recurrent module reasons over the window, and an actor-critic head decides.",
+      "implementationNote": "Bridge: modality encoders, cross-modal attention per bar, a GRU over the window and an actor-critic policy head on the tape; an auxiliary Huber head on the price target is the price model. P(up) = pi(long)/(pi(long)+pi(short)), not a fitted probability. Differs from the spec: modalities are feature groups; news covers about 5% of 2025 bars; the market ignores the agent. Expect: slow; an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "policy_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "modality_policy"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {
+          "variant": "modality_policy"
+        }
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-20 min per fold",
+      "gpu": false,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the recurrent reasoning module reads for one decision."
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Modality embedding size",
+          "group": "Model",
+          "description": "The width each modality is encoded to before the attention (rounded up to a multiple of the heads)."
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "How many heads the cross-modal attention has."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units the recurrent reasoning module has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-06,
+          "max": 0.1,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The optimiser step size of the policy.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much a later decision's reward counts toward this one (0 = each trade stands alone). Each reward is already a whole h-bar trade, so a high discount mostly adds noise.",
+          "step": 0.01,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "entropy_coefficient": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Entropy bonus",
+          "group": "Model",
+          "description": "How strongly the policy is rewarded for staying undecided, which keeps it exploring.",
+          "step": 0.001,
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.05,
+            "log": false
+          }
+        },
+        "modality_dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Modality dropout",
+          "group": "Model",
+          "description": "The chance a whole modality is hidden from one training sample.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.3,
+            "log": false
+          }
+        },
+        "auxiliary_price_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Price head weight",
+          "group": "Model",
+          "description": "How much the auxiliary price-target (Huber) loss counts beside the policy's."
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 128,
+          "min": 2,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many transitions one gradient step averages over."
+        },
+        "gradient_clipping_norm": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Gradient clipping norm",
+          "group": "Model",
+          "description": "The largest gradient norm one update may take (0 = no clipping)."
+        },
+        "training_sweeps": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Training sweeps",
+          "group": "Model",
+          "description": "How many times the agent walks the training span's bars (environment steps = sweeps x bars)."
+        }
+      }
+    }
+  }
+}

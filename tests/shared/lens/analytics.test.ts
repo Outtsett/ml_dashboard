@@ -1,5 +1,5 @@
 /**
- * The Model Lens analytics (src/shared/lens/analytics.ts) against real records.
+ * The Model Lens analytics (packages/shared/src/lens/analytics.ts) against real records.
  *
  * Both committed fixtures are real models: the daily MNQ XGBoost direction
  * classifier (its trainer's diagnostics.json holds 78 trades, 47 long and 31

@@ -1,0 +1,1727 @@
+{
+  "models": {
+    "k_means_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-k-means-clustering",
+      "alsoCatalogSpecIds": [],
+      "displayName": "K-means clustering",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "k-means clusters of the standardised training bars; each cluster reads out its training up-rate and mean move.",
+      "implementationNote": "Bridge: Lloyd's k-means on the training rows' standardised features (no labels); a bar takes its nearest centroid and P(up) = the state's Beta-smoothed training up-rate. Price: the cluster's shrunk mean scaled move. Differs from the spec: clusters carry no direction until the readout gives them one. Expect: P(up) near the base rate unless clusters separate persistent regimes.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "kmeans"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Clusters",
+          "group": "Model",
+          "description": "How many centroids k-means places.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24,
+            "log": false
+          }
+        },
+        "initialization_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 50,
+          "label": "Restarts",
+          "group": "Model",
+          "description": "k-means++ restarts; the one with the lowest within-cluster sum of squares is kept."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "gaussian_mixture_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-gaussian-mixture-model-gmm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gaussian mixture model",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "A Gaussian mixture fitted by EM on the standardised training bars; a bar's soft membership weights each component's training up-rate.",
+      "implementationNote": "Bridge: a Gaussian mixture fitted by EM on standardised training rows (no labels); P(up) = sum over components of the bar's posterior responsibility times the component's responsibility-weighted Beta-smoothed training up-rate. Price: the same sum over mean scaled moves. Differs from the spec: direction comes only from the readout. Expect: soft, near-base-rate probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "gaussian_mixture"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-15 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 64,
+          "label": "Components",
+          "group": "Model",
+          "description": "How many Gaussian components the mixture has.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 16,
+            "log": false
+          }
+        },
+        "covariance_structure": {
+          "type": "categorical",
+          "default": "full",
+          "choices": [
+            "full",
+            "diag"
+          ],
+          "label": "Covariance structure",
+          "group": "Model",
+          "description": "Each component's covariance: full (any ellipsoid) or diagonal (axis-aligned).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "full",
+              "diag"
+            ]
+          }
+        },
+        "covariance_regularization": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-09,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Covariance regularization",
+          "group": "Model",
+          "description": "Added to every covariance diagonal so a component never collapses onto a few bars.",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "hierarchical_clustering_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-hierarchical-clustering-agglomerative-divisive",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hierarchical clustering",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "Agglomerative (bottom-up merges) or divisive (bisecting) clustering of spread training bars, cut at a cluster count; new bars vote by their nearest fitted bars.",
+      "implementationNote": "Bridge: agglomerative linkage or divisive bisecting k-means on up to Maximum fit rows spread training rows, cut at Clusters; a new bar's cluster shares are a distance-weighted vote of its nearest fitted rows, and P(up) = those shares times each cluster's Beta-smoothed training up-rate. Differs from the spec: fitted on a subsample; new bars take their nearest clusters (the method has no predict). Expect: near-base-rate probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hierarchical"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Clusters",
+          "group": "Model",
+          "description": "Where the merge tree is cut: how many clusters remain.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24,
+            "log": false
+          }
+        },
+        "hierarchy_direction": {
+          "type": "categorical",
+          "default": "agglomerative",
+          "choices": [
+            "agglomerative",
+            "divisive"
+          ],
+          "label": "Direction",
+          "group": "Model",
+          "description": "Agglomerative merges bars bottom-up; divisive splits the data top-down (bisecting k-means).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "agglomerative",
+              "divisive"
+            ]
+          }
+        },
+        "linkage_rule": {
+          "type": "categorical",
+          "default": "ward",
+          "choices": [
+            "ward",
+            "average",
+            "complete",
+            "single"
+          ],
+          "label": "Linkage",
+          "group": "Model",
+          "description": "How agglomerative merging measures the distance between two clusters (Ward: least added variance).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "ward",
+              "average",
+              "complete"
+            ]
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter the clustering (its cost grows with the square of the row count)."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Extension neighbours",
+          "group": "Model",
+          "description": "A new bar's cluster is a distance-weighted vote of this many nearest fitted bars.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 25,
+            "log": false
+          }
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "density_clustering_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-dbscan-density-based-spatial-clustering",
+      "alsoCatalogSpecIds": [],
+      "displayName": "DBSCAN",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "Density clusters of the training bars on their leading principal components, plus a noise state for isolated bars.",
+      "implementationNote": "Bridge: DBSCAN on the training rows' leading principal components, radius from the k-distance curve; a bar takes the cluster of its nearest core point within the radius, else the noise state, and P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: density needs few dimensions, so it runs on principal components. Expect: few clusters plus noise; probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dbscan"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "principal_component_count": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 64,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "DBSCAN runs on this many leading principal components of the standardised training rows (whitened); 0 uses every standardised feature."
+        },
+        "neighborhood_radius_quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.99,
+          "label": "Radius quantile",
+          "group": "Model",
+          "description": "The neighbourhood radius is this quantile of the training rows' distance to their k-th neighbour.",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 0.8,
+            "log": false
+          }
+        },
+        "core_point_share": {
+          "type": "float",
+          "default": 0.06,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Core point share",
+          "group": "Model",
+          "description": "A core point needs this share of the fitted rows inside its radius (at least twice the dimension).",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 5000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter the density clustering (its cost grows with the square of the row count)."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "mean_shift_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-mean-shift-clustering",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Mean shift clustering",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "Modes of the training bars' kernel density on their leading principal components; each mode reads out its training up-rate.",
+      "implementationNote": "Bridge: mean shift finds the density modes of spread training rows on their leading principal components; a bar takes its nearest mode (modes under Minimum state share are merged into one state), and P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: the mode count is capped by the merge. Expect: a handful of modes; probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "mean_shift"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "principal_component_count": {
+          "type": "int",
+          "default": 1,
+          "min": 0,
+          "max": 64,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "Mean shift runs on this many leading principal components of the standardised training rows (whitened); 0 uses every standardised feature."
+        },
+        "bandwidth_quantile": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 0.9,
+          "label": "Bandwidth quantile",
+          "group": "Model",
+          "description": "The kernel bandwidth is this quantile of the fitted rows' pairwise distances.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.4,
+            "log": false
+          }
+        },
+        "minimum_state_share": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Minimum state share",
+          "group": "Model",
+          "description": "A mode holding less than this share of the fitted rows is merged into one 'other' state."
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter mean shift (its cost grows with the square of the row count)."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "affinity_propagation_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-affinity-propagation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Affinity propagation",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "Exemplar bars chosen by message passing over the training bars' similarities; a bar reads out its nearest exemplar's up-rate.",
+      "implementationNote": "Bridge: affinity propagation (responsibility and availability messages over negative squared distances) on up to Maximum fit rows spread training rows; a bar takes its nearest exemplar, and P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: fitted on a subsample (quadratic in rows); new bars take their nearest exemplar. Expect: many small states; probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "affinity_propagation"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "preference_percentile": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 100.0,
+          "label": "Preference percentile",
+          "group": "Model",
+          "description": "Each bar's self-preference is this percentile of the similarities: lower gives fewer exemplars.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 50.0,
+            "log": false
+          }
+        },
+        "damping": {
+          "type": "float",
+          "default": 0.7,
+          "min": 0.5,
+          "max": 0.99,
+          "label": "Damping",
+          "group": "Model",
+          "description": "How much of the previous message each update keeps (steadies convergence).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.9,
+            "log": false
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "Message-passing rounds before stopping."
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 1500,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter affinity propagation (its cost grows with the square of the row count)."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "spectral_clustering_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-clustering-spectral-clustering",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Spectral clustering",
+      "category": "Unsupervised learning",
+      "subcategory": "Clustering",
+      "kind": "Clustering",
+      "summary": "Clusters of the nearest-neighbour graph of spread training bars, found in the eigenvectors of its Laplacian; new bars vote by their nearest fitted bars.",
+      "implementationNote": "Bridge: spectral clustering (normalised Laplacian of the nearest-neighbour graph) on up to Maximum fit rows spread training rows; a new bar's cluster shares are a distance-weighted vote of its nearest fitted rows, and P(up) = those shares times each cluster's Beta-smoothed training up-rate. Differs from the spec: fitted on a subsample; new bars take their nearest clusters. Expect: probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "spectral"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Clusters",
+          "group": "Model",
+          "description": "How many clusters the spectral embedding is cut into.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 24,
+            "log": false
+          }
+        },
+        "affinity_neighbor_count": {
+          "type": "int",
+          "default": 15,
+          "min": 2,
+          "max": 200,
+          "label": "Graph neighbours",
+          "group": "Model",
+          "description": "Each fitted bar is linked to this many nearest bars in the affinity graph.",
+          "search": {
+            "kind": "int",
+            "low": 8,
+            "high": 40,
+            "log": false
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 2500,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter spectral clustering (its cost grows with the square of the row count)."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Extension neighbours",
+          "group": "Model",
+          "description": "A new bar's cluster is a distance-weighted vote of this many nearest fitted bars.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 25,
+            "log": false
+          }
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "self_organizing_map": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-self-organizing-systems-self-organizing-maps-som",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-organizing map",
+      "category": "Unsupervised learning",
+      "subcategory": "Self-organizing systems",
+      "kind": "Self-organizing map",
+      "summary": "A Kohonen grid of prototypes trained by competitive learning on the training bars; a bar reads out its best-matching cell, smoothed over neighbouring cells.",
+      "implementationNote": "Bridge: a MiniSom grid trained on the standardised training rows (Gaussian neighbourhood, decaying step, PCA start); a bar's state is its best-matching cell, whose training up-rate pools neighbouring cells with a Gaussian of Topology smoothing cells. Price: the pooled mean scaled move. Differs from the spec: the map's topology is used only for that pooling. Expect: near-base-rate probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "som"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "grid_rows": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 40,
+          "label": "Grid rows",
+          "group": "Model",
+          "description": "Rows of the map's grid of cells.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12,
+            "log": false
+          }
+        },
+        "grid_columns": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 40,
+          "label": "Grid columns",
+          "group": "Model",
+          "description": "Columns of the map's grid of cells.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 12,
+            "log": false
+          }
+        },
+        "neighborhood_width": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.3,
+          "max": 20.0,
+          "label": "Neighbourhood width",
+          "group": "Model",
+          "description": "The initial width (in cells) of the Gaussian that drags a winner's neighbours along.",
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 4.0,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.001,
+          "max": 5.0,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The initial step toward each training bar; it decays over training.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 10000,
+          "min": 100,
+          "max": 1000000,
+          "label": "Training updates",
+          "group": "Model",
+          "description": "How many single-bar updates train the map."
+        },
+        "topology_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Topology smoothing",
+          "group": "Model",
+          "description": "The readout pools each cell's evidence with its grid neighbours over this many cells (0: none).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 2.0,
+            "log": false
+          }
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "isolation_forest_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-anomaly-detection-isolation-forest-anomaly-detection",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Isolation forest",
+      "category": "Unsupervised learning",
+      "subcategory": "Anomaly detection",
+      "kind": "Anomaly detector",
+      "summary": "How easily random trees isolate a bar, binned at training quantiles; each bin reads out what followed such bars in training.",
+      "implementationNote": "Bridge: isolation-forest path length (the anomaly score) binned at training quantiles, P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: the score has no direction, so each bin is split by the side of the first principal axis (unsupervised, switchable off), which mostly sets up or down; the bin sets how strongly. Expect: near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "isolation_forest"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "tree_count": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Trees",
+          "group": "Model",
+          "description": "How many random isolation trees average the path length.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              50,
+              100,
+              200
+            ]
+          }
+        },
+        "samples_per_tree": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Samples per tree",
+          "group": "Model",
+          "description": "Training bars drawn to grow each isolation tree.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Score bins",
+          "group": "Model",
+          "description": "The anomaly score is cut into this many bins at the training rows' quantiles.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "principal_axis_split": {
+          "type": "bool",
+          "default": true,
+          "label": "Split bins by the first principal axis",
+          "group": "Model",
+          "description": "Split every score bin by the side of the training median along the training rows' first principal axis (an unsupervised half-space), so the readout can carry a direction."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "local_outlier_factor_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-anomaly-detection-lof-local-outlier-factor",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Local outlier factor",
+      "category": "Unsupervised learning",
+      "subcategory": "Anomaly detection",
+      "kind": "Anomaly detector",
+      "summary": "A bar's local density against its nearest training bars (novelty mode), binned at training quantiles; each bin reads out what followed such bars.",
+      "implementationNote": "Bridge: the local outlier factor of a bar against its nearest fitted training rows (novelty mode, never test rows) binned at training quantiles, P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: the score has no direction, so each bin is split by the side of the first principal axis (unsupervised, switchable off), which mostly sets up or down; the bin sets how strongly. Expect: near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "local_outlier_factor"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "neighbor_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 200,
+          "label": "Neighbours",
+          "group": "Model",
+          "description": "The local density is measured over this many nearest training bars.",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 60,
+            "log": false
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 5000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter the neighbour set (its cost grows with the square of the row count)."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Score bins",
+          "group": "Model",
+          "description": "The anomaly score is cut into this many bins at the training rows' quantiles.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "principal_axis_split": {
+          "type": "bool",
+          "default": true,
+          "label": "Split bins by the first principal axis",
+          "group": "Model",
+          "description": "Split every score bin by the side of the training median along the training rows' first principal axis (an unsupervised half-space), so the readout can carry a direction."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "one_class_svm_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-anomaly-detection-one-class-svm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "One-class SVM",
+      "category": "Unsupervised learning",
+      "subcategory": "Anomaly detection",
+      "kind": "Anomaly detector",
+      "summary": "The RBF one-class SVM's normality score of a bar, binned at training quantiles; each bin reads out what followed such bars.",
+      "implementationNote": "Bridge: the RBF one-class SVM decision value (fitted on spread training rows) binned at training quantiles, P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: the score has no direction, so each bin is split by the side of the first principal axis (unsupervised, switchable off), which mostly sets up or down; the bin sets how strongly. Expect: near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "one_class_svm"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "outlier_share": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.005,
+          "max": 0.9,
+          "logScale": true,
+          "label": "Outlier share",
+          "group": "Model",
+          "description": "nu: an upper bound on the share of training bars left outside the boundary.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "kernel_width_scale": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "logScale": true,
+          "label": "Kernel width scale",
+          "group": "Model",
+          "description": "Multiplies the RBF kernel's inverse width 1 / (features x variance): larger is tighter.",
+          "search": {
+            "kind": "float",
+            "low": 0.2,
+            "high": 5.0,
+            "log": true
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter the SVM (its cost grows with the square of the row count)."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Score bins",
+          "group": "Model",
+          "description": "The anomaly score is cut into this many bins at the training rows' quantiles.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "principal_axis_split": {
+          "type": "bool",
+          "default": true,
+          "label": "Split bins by the first principal axis",
+          "group": "Model",
+          "description": "Split every score bin by the side of the training median along the training rows' first principal axis (an unsupervised half-space), so the readout can carry a direction."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "robust_covariance_states": {
+      "catalogSpecId": "machine-learning-unsupervised-learning-anomaly-detection-robust-covariance-estimation",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Robust covariance estimation",
+      "category": "Unsupervised learning",
+      "subcategory": "Anomaly detection",
+      "kind": "Anomaly detector",
+      "summary": "The Mahalanobis distance of a bar from the minimum-covariance-determinant centre, binned at training quantiles; each bin reads out what followed such bars.",
+      "implementationNote": "Bridge: squared Mahalanobis distance to the minimum covariance determinant fit of the training rows, binned at training quantiles, P(up) = the state's Beta-smoothed training up-rate. Differs from the spec: the score has no direction, so each bin is split by the side of the first principal axis (unsupervised, switchable off), which mostly sets up or down; the bin sets how strongly. Expect: near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "robust_covariance"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "support_fraction": {
+          "type": "float",
+          "default": 0.75,
+          "min": 0.5,
+          "max": 1.0,
+          "label": "Support fraction",
+          "group": "Model",
+          "description": "The share of training bars the robust estimate is fitted on (the rest are treated as outliers).",
+          "search": {
+            "kind": "float",
+            "low": 0.55,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 20000,
+          "min": 200,
+          "max": 50000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "At most this many training rows, spread evenly over the training span, enter the robust estimate (its cost grows with the square of the row count)."
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "label": "Score bins",
+          "group": "Model",
+          "description": "The anomaly score is cut into this many bins at the training rows' quantiles.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "principal_axis_split": {
+          "type": "bool",
+          "default": true,
+          "label": "Split bins by the first principal axis",
+          "group": "Model",
+          "description": "Split every score bin by the side of the training median along the training rows' first principal axis (an unsupervised half-space), so the readout can carry a direction."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "mixture_model_regimes": {
+      "catalogSpecId": "probabilistic-symbolic-models-generative-processes-mixtures-mixture-model-e-g-gmm-dpm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Mixture model (GMM, DPM)",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Generative processes and mixtures",
+      "kind": "Mixture density",
+      "summary": "Class-conditional Gaussian mixtures of up and down training bars joined by Bayes' rule, or one mixture of regimes read out by their up-rates.",
+      "implementationNote": "Bridge: class-conditional mode fits a Gaussian mixture to up and one to down training rows (standardised features or their principal components); P(up|x) = pi_up f_up / (pi_up f_up + pi_down f_down), then a logistic curve on validation. Regime mode reads one mixture out by up-rates. Differs from the spec: the DPM prior is the Dirichlet process key. Expect: over-confident densities tamed by the curve.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "mixture_bayes"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "mixture_mode": {
+          "type": "categorical",
+          "default": "class_conditional",
+          "choices": [
+            "class_conditional",
+            "regime_posterior"
+          ],
+          "label": "Mode",
+          "group": "Model",
+          "description": "class_conditional: one mixture per outcome and Bayes' rule; regime_posterior: one mixture of regimes read out by their up-rates.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "class_conditional",
+              "regime_posterior"
+            ]
+          }
+        },
+        "component_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 64,
+          "label": "Components",
+          "group": "Model",
+          "description": "Gaussian components per mixture (per class in class-conditional mode).",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 8,
+            "log": false
+          }
+        },
+        "covariance_structure": {
+          "type": "categorical",
+          "default": "diag",
+          "choices": [
+            "full",
+            "diag"
+          ],
+          "label": "Covariance structure",
+          "group": "Model",
+          "description": "Each component's covariance: full (any ellipsoid) or diagonal (axis-aligned).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "full",
+              "diag"
+            ]
+          }
+        },
+        "covariance_regularization": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-09,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Covariance regularization",
+          "group": "Model",
+          "description": "Added to every covariance diagonal so a component never collapses onto a few bars.",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 64,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "The mixture runs on this many leading principal components of the standardised training rows (whitened); 0 uses every standardised feature."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "dirichlet_process_regimes": {
+      "catalogSpecId": "probabilistic-symbolic-models-generative-processes-mixtures-dirichlet-process",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dirichlet process mixture",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Generative processes and mixtures",
+      "kind": "Mixture density",
+      "summary": "A truncated stick-breaking Dirichlet-process mixture of the training bars that decides how many regimes it needs; each regime reads out its up-rate.",
+      "implementationNote": "Bridge: a Dirichlet-process Gaussian mixture (stick-breaking, truncated variational inference) on standardised training rows infers how many regimes carry weight; P(up) = sum over regimes of the bar's responsibility times the regime's Beta-smoothed training up-rate. Price: the same sum over mean scaled moves. Differs from the spec: variational, not Gibbs, and truncated at Truncation level. Expect: a few regimes; probabilities near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dirichlet_process"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "truncation_level": {
+          "type": "int",
+          "default": 20,
+          "min": 2,
+          "max": 100,
+          "label": "Truncation level",
+          "group": "Model",
+          "description": "The most components the stick-breaking prior may use; unused ones keep near-zero weight."
+        },
+        "concentration": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 100.0,
+          "logScale": true,
+          "label": "Concentration",
+          "group": "Model",
+          "description": "The Dirichlet process's alpha: larger opens new regimes more readily.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "covariance_structure": {
+          "type": "categorical",
+          "default": "diag",
+          "choices": [
+            "full",
+            "diag"
+          ],
+          "label": "Covariance structure",
+          "group": "Model",
+          "description": "Each component's covariance: full (any ellipsoid) or diagonal (axis-aligned).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "full",
+              "diag"
+            ]
+          }
+        },
+        "covariance_regularization": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-09,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Covariance regularization",
+          "group": "Model",
+          "description": "Added to every covariance diagonal so a component never collapses onto a few bars.",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 300,
+          "min": 20,
+          "max": 5000,
+          "label": "Iterations",
+          "group": "Model",
+          "description": "Variational inference passes before stopping."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "hidden_markov_regimes": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-inference-models-hidden-markov-model-hmm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hidden Markov model",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic inference models",
+      "kind": "Hidden Markov model",
+      "summary": "A Gaussian hidden Markov model of the training span's bars; each bar's forward-filtered state weights the states' training up-rates.",
+      "implementationNote": "Bridge: a diagonal Gaussian HMM fitted by Baum-Welch on the training span (leading principal components); P(up) = sum over states of the forward-filtered probability at the bar times the state's training up-rate weighted by filtered probabilities. Differs from the spec: forward filter only, never the smoother. Expect: regime persistence is the whole edge.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hmm_forward"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "state_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 10,
+          "label": "Hidden states",
+          "group": "Model",
+          "description": "How many hidden market states the chain moves between.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5,
+            "log": false
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 100,
+          "min": 5,
+          "max": 2000,
+          "label": "Baum-Welch iterations",
+          "group": "Model",
+          "description": "EM passes over the training span."
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 64,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "The emission model runs on this many leading principal components of the standardised training rows (whitened); 0 uses every standardised feature."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "scenario_analysis": {
+      "catalogSpecId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-scenario-analysis",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Scenario analysis",
+      "category": "Simulation and decision models",
+      "subcategory": "Robust and multi-criteria decision frameworks",
+      "kind": "Scenario mixture",
+      "summary": "Historical scenarios found in the training bars, each with a driver table and an outcome table; today's bar is weighted across scenarios by how much it resembles each.",
+      "implementationNote": "Bridge: scenarios are Gaussian-mixture components on the training rows' leading principal components, their count chosen by BIC; each keeps a driver table and an outcome table (up-rate, scaled-move quantiles); P(up) = sum of scenario weights times up-rates, then a logistic curve on validation. Differs from the spec: scenarios are historical, not hand-written. Expect: near the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "latent_state_readout",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "scenario_mixture"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "scenario_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 20,
+          "label": "Most scenarios",
+          "group": "Model",
+          "description": "BIC picks the scenario count between 2 and this.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 12,
+            "log": false
+          }
+        },
+        "covariance_structure": {
+          "type": "categorical",
+          "default": "full",
+          "choices": [
+            "full",
+            "diag"
+          ],
+          "label": "Covariance structure",
+          "group": "Model",
+          "description": "Each component's covariance: full (any ellipsoid) or diagonal (axis-aligned).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "full",
+              "diag"
+            ]
+          }
+        },
+        "covariance_regularization": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-09,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Covariance regularization",
+          "group": "Model",
+          "description": "Added to every covariance diagonal so a component never collapses onto a few bars.",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "principal_component_count": {
+          "type": "int",
+          "default": 4,
+          "min": 0,
+          "max": 64,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "The scenario mixture runs on this many leading principal components of the standardised training rows (whitened); 0 uses every standardised feature."
+        },
+        "readout_prior_strength": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 1000.0,
+          "label": "Readout prior strength",
+          "group": "Model",
+          "description": "How many pseudo-bars at the training base rate each state's up-rate (or mean move) is shrunk toward; a rarely visited state reads close to the base rate.",
+          "search": {
+            "kind": "float",
+            "low": 2.0,
+            "high": 100.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

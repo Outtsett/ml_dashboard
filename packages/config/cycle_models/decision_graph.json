@@ -1,0 +1,631 @@
+{
+  "models": {
+    "bayesian_decision_network": {
+      "catalogSpecId": "simulation-decision-models-tree-graph-based-decision-models-bayesian-decision-networks",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian decision network",
+      "category": "Simulation and decision models",
+      "subcategory": "Tree and graph-based decision models",
+      "kind": "Decision network",
+      "summary": "A Bayesian network learned over binned features and a binned outcome, completed by a decision node (short, flat, long) and a utility node; the decision maximises expected utility.",
+      "implementationNote": "Bridge: score = expected utility of long minus short from the network's posterior over outcome bins, calibrated on validation; the price model is the posterior expected move. Differs from the spec: structure learned by pgmpy on the training span, utilities from training move bins net of cost. Expect: coarse probabilities from a few binned features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "decision_graph",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "bayesian_decision_network"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "input_feature_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 12,
+          "label": "Feature nodes",
+          "group": "Model",
+          "description": "Feature columns turned into chance nodes (most training mutual information with the direction).",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8
+          }
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Bins per node",
+          "group": "Model",
+          "description": "Training-quantile bins per feature node.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "structure_search": {
+          "type": "categorical",
+          "default": "hill_climb",
+          "choices": [
+            "hill_climb",
+            "tree_augmented",
+            "naive"
+          ],
+          "label": "Structure search",
+          "group": "Model",
+          "description": "pgmpy hill climbing on the BIC score, the tree-augmented naive Bayes tree, or naive Bayes.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "hill_climb",
+              "tree_augmented",
+              "naive"
+            ]
+          }
+        },
+        "maximum_parents": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Maximum parents",
+          "group": "Model",
+          "description": "Parent limit per node for hill climbing.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "equivalent_sample_size": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.1,
+          "max": 100.0,
+          "label": "Equivalent sample size",
+          "group": "Model",
+          "description": "BDeu prior strength: pseudo-bars spread evenly over each conditional table.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 20.0,
+            "log": true
+          }
+        },
+        "outcome_bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 9,
+          "label": "Outcome bins",
+          "group": "Model",
+          "description": "Training-quantile bins of the scaled move in the outcome node.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 5
+          }
+        },
+        "risk_aversion": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Risk aversion",
+          "group": "Model",
+          "description": "Variance penalty in the utility node: U = d x mean - aversion x d^2 x variance - |d| x cost."
+        }
+      }
+    },
+    "dynamic_decision_network": {
+      "catalogSpecId": "simulation-decision-models-tree-graph-based-decision-models-dynamic-decision-networks",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dynamic decision network",
+      "category": "Simulation and decision models",
+      "subcategory": "Tree and graph-based decision models",
+      "kind": "Hidden-regime decision process",
+      "summary": "A hidden market regime (Gaussian hidden Markov model) filtered forward bar by bar, with finite-horizon backward induction over regime and position deciding long, flat or short.",
+      "implementationNote": "Bridge: score = QMDP value of long minus short under the forward-filtered regime belief, calibrated on validation; the price model is the regime-propagated expected move. Differs from the spec: forward filter only (never the smoother), over the last history_bars bars; one regime variable. Expect: regimes on bar features are weakly predictive.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "decision_graph",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dynamic_decision_network"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-3 min per fold",
+      "gpu": false,
+      "parameters": {
+        "latent_dimension": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 12,
+          "label": "Principal components",
+          "group": "Model",
+          "description": "Feature principal components the regime model observes.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "cluster_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Regimes",
+          "group": "Model",
+          "description": "Hidden regime states.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Baum-Welch iterations",
+          "group": "Model",
+          "description": "Expectation-maximisation iterations of the regime model."
+        },
+        "history_bars": {
+          "type": "int",
+          "default": 200,
+          "min": 20,
+          "max": 2000,
+          "label": "Filter window",
+          "group": "Model",
+          "description": "Bars the forward filter runs over, ending at the bar (fixed: it sets the history requirement)."
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 12,
+          "min": 1,
+          "max": 200,
+          "label": "Planning stages",
+          "group": "Model",
+          "description": "Stages of backward induction.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 48
+          }
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.5,
+          "max": 0.999,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Per-stage discount in backward induction.",
+          "search": {
+            "kind": "float",
+            "low": 0.8,
+            "high": 0.99
+          }
+        }
+      }
+    },
+    "influence_diagram": {
+      "catalogSpecId": "simulation-decision-models-tree-graph-based-decision-models-influence-diagrams",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Influence diagram",
+      "category": "Simulation and decision models",
+      "subcategory": "Tree and graph-based decision models",
+      "kind": "Decision diagram",
+      "summary": "Market-condition chance nodes (one per feature modality), an outcome node, a position decision and a utility node, solved by node removal into an optimal policy table.",
+      "implementationNote": "Bridge: score = expected utility of long minus short given the bar's conditions, calibrated on validation; the price model is the expected move. Differs from the spec: the structure is fixed by feature modality (first principal component per group), tables from training counts. Expect: a small policy table, so coarse probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "decision_graph",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "influence_diagram"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "condition_group_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 5,
+          "label": "Condition nodes",
+          "group": "Model",
+          "description": "Modality conditions kept (most training mutual information).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Bins per node",
+          "group": "Model",
+          "description": "Training-quantile bins per condition node.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "equivalent_sample_size": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.1,
+          "max": 100.0,
+          "label": "Equivalent sample size",
+          "group": "Model",
+          "description": "BDeu prior strength: pseudo-bars spread evenly over each conditional table.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 20.0,
+            "log": true
+          }
+        },
+        "outcome_bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 9,
+          "label": "Outcome bins",
+          "group": "Model",
+          "description": "Training-quantile bins of the scaled move in the outcome node.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 5
+          }
+        },
+        "risk_aversion": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Risk aversion",
+          "group": "Model",
+          "description": "Variance penalty in the utility node: U = d x mean - aversion x d^2 x variance - |d| x cost."
+        }
+      }
+    },
+    "bayesian_network": {
+      "catalogSpecId": "probabilistic-symbolic-models-graphical-structured-models-bayesian-network-bn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian network",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Graphical and structured models",
+      "kind": "Discrete Bayesian network",
+      "summary": "A directed acyclic graph over binned features and the direction, structure learned by pgmpy, tables with the BDeu prior, answered by exact variable elimination.",
+      "implementationNote": "Bridge: P(up | the bar's bins) by exact variable elimination (a missing feature is summed out), calibrated on validation. Differs from the spec: continuous features are binned at training quantiles and the node count is capped so tables stay populated; the learned structure is associational, not causal. Expect: step-like probabilities.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "decision_graph",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "bayesian_network"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "under a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "input_feature_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 12,
+          "label": "Feature nodes",
+          "group": "Model",
+          "description": "Feature columns turned into chance nodes (most training mutual information with the direction).",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8
+          }
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Bins per node",
+          "group": "Model",
+          "description": "Training-quantile bins per feature node.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "structure_search": {
+          "type": "categorical",
+          "default": "hill_climb",
+          "choices": [
+            "hill_climb",
+            "tree_augmented",
+            "naive"
+          ],
+          "label": "Structure search",
+          "group": "Model",
+          "description": "pgmpy hill climbing on the BIC score, the tree-augmented naive Bayes tree, or naive Bayes.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "hill_climb",
+              "tree_augmented",
+              "naive"
+            ]
+          }
+        },
+        "maximum_parents": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Maximum parents",
+          "group": "Model",
+          "description": "Parent limit per node for hill climbing.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "equivalent_sample_size": {
+          "type": "float",
+          "default": 5.0,
+          "min": 0.1,
+          "max": 100.0,
+          "label": "Equivalent sample size",
+          "group": "Model",
+          "description": "BDeu prior strength: pseudo-bars spread evenly over each conditional table.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 1.0,
+            "high": 20.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "probabilistic_graphical_model": {
+      "catalogSpecId": "probabilistic-symbolic-models-graphical-structured-models-probabilistic-graphical-model-pgm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Probabilistic graphical model",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Graphical and structured models",
+      "kind": "Markov random field",
+      "summary": "An undirected pairwise Markov random field over binned features, the direction and hidden regime nodes, trained on the conditional likelihood and queried by loopy belief propagation.",
+      "implementationNote": "Bridge: P(up) is the target node's loopy-belief-propagation belief with the features clamped, calibrated on validation. Differs from the spec: the undirected model is conditional (features always observed), hidden regime nodes are summed exactly in training. Expect: close to a regularised naive Bayes with regime interactions.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "decision_graph",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "markov_random_field"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-3 min per fold",
+      "gpu": false,
+      "parameters": {
+        "input_feature_count": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 12,
+          "label": "Feature nodes",
+          "group": "Model",
+          "description": "Feature columns turned into chance nodes (most training mutual information with the direction).",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8
+          }
+        },
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Bins per node",
+          "group": "Model",
+          "description": "Training-quantile bins per feature node.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "hidden_node_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 3,
+          "label": "Hidden nodes",
+          "group": "Model",
+          "description": "Hidden regime nodes (two or more make the graph loopy).",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "hidden_state_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 4,
+          "label": "Hidden states",
+          "group": "Model",
+          "description": "States per hidden regime node.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 4
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 150,
+          "min": 1,
+          "max": 2000,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Full-batch Adam steps on the conditional likelihood."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0001,
+          "max": 1.0,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Adam step size.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.2,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "L2 penalty on every potential.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "patience": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Epochs without validation improvement before stopping."
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Belief-propagation sweeps",
+          "group": "Model",
+          "description": "Most message-passing sweeps per bar."
+        },
+        "message_damping": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Message damping",
+          "group": "Model",
+          "description": "Share of the old message kept at every update."
+        }
+      }
+    }
+  }
+}

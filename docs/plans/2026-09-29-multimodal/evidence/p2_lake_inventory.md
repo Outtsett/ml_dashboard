@@ -123,8 +123,8 @@ DATA INVENTORY OF THE LAKE (MNQ multimodal), measured 2026-09-29. All numbers co
 
 - **Rich columns in `bars` (MNQ):** `vol_at_bid`, `trades` and `bid_close` counts are 0 on 1s, 1m and 1d (SQL: `count(col)` per timeframe). Vendor is `databento` for all MNQ rows.
 - **Rich `ohlcv_<tf>` family:** non-null `vol_at_bid` only on 2026-03-27 06:00–06:58 (19 one-minute rows, 7 five-minute rows).
-- **Quantower quotes** (Iceberg, `lakehouse/6e6…/data`): 15,775,688 rows, MNQ, 2026-09-02 22:20 → 2026-09-08 17:33, 3 calendar days.
-- **Quantower book** (`lakehouse/d8b…/data`): 4,522,230 rows, MNQ, same span, 4 calendar days (level, bid, ask, sizes, orders).
+- **live_source quotes** (Iceberg, `lakehouse/6e6…/data`): 15,775,688 rows, MNQ, 2026-09-02 22:20 → 2026-09-08 17:33, 3 calendar days.
+- **live_source book** (`lakehouse/d8b…/data`): 4,522,230 rows, MNQ, same span, 4 calendar days (level, bid, ask, sizes, orders).
 - **Ticks:** no data-file prefix carries ticks; the four prefixes are bars, book, quotes and one AUDJPY file. The dashboard's DuckDB defines only `bars`, so I read the quotes and book tables by path.
 - **Stale file group** (`lakehouse/b66…/data`): 1,116,657 AUDJPY 1m rows, 2020-01-01 → 2022-12-30 (OANDA). Its role is unknown.
 - **`E:\qtcapture`:** does not exist on disk.
@@ -191,7 +191,7 @@ Read from `s3://curated/news_articles/**`, `news_sentiment/**` and `news_coverag
 ## 6. Gaps that matter for training
 
 1. Intraday MNQ ends 2025-12-30. There is nothing usable for 2026-01 → 2026-09-20 in any futures root; the live Yahoo feed starts 2026-09-21.
-2. Order flow (bid/ask volume, trades) is missing across the price history. Order-flow-style signals can only come from the Quantower quotes and book tables, which cover 2026-09-02 → 09-08 for MNQ only. That is insufficient for training.
+2. Order flow (bid/ask volume, trades) is missing across the price history. Order-flow-style signals can only come from the live_source quotes and book tables, which cover 2026-09-02 → 09-08 for MNQ only. That is insufficient for training.
 3. News coverage is 0.35% of session days (see section 4). There is no news history for the 2019–2025 span.
 4. The intraday cross-asset series (ZN, ZB, GC, SI, HG, DXY) exist only at 1h from 2024-04-26 and at daily resolution. Intraday cross-asset for 2019–2025 is not in the lake. CL, 6E and VIX are absent.
 5. The two clocks (see finding 1) must be normalised before joining `bars`, `ohlcv_*`, `mnq_*` and `derived_labels`, or news and calendar timestamps, which are UTC.

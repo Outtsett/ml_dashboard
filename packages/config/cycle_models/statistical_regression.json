@@ -1,0 +1,151 @@
+{
+  "models": {
+    "robust_regression": {
+      "alsoCatalogSpecIds": [],
+      "category": "Statistical models",
+      "subcategory": "Regression techniques",
+      "kind": "Linear",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "catalogSpecId": "statistical-models-regression-techniques-robust-regression",
+      "displayName": "Robust regression",
+      "summary": "A straight-line fit of the coming move that listens less to the bars with outsized errors (Huber loss).",
+      "implementationNote": "Bridge: scikit-learn HuberRegressor on the scaled move; P(up) from its forecast through a logistic curve fitted on validation. Differs from the spec: RANSAC and least trimmed squares are not offered. Expect: close to ridge; the engine already clips the target at its training 1st / 99th percentiles.",
+      "price": {
+        "estimator": "sklearn.linear_model.HuberRegressor",
+        "fixed": {}
+      },
+      "parameters": {
+        "huber_threshold": {
+          "type": "float",
+          "default": 1.35,
+          "min": 1.0,
+          "max": 3.0,
+          "step": 0.05,
+          "label": "Huber threshold",
+          "group": "Model",
+          "description": "Errors beyond this many scale units count linearly, not squared.",
+          "argument": "epsilon",
+          "search": {
+            "kind": "float",
+            "low": 1.1,
+            "high": 2.5,
+            "log": false
+          }
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 penalty on the weights; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 500,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights.",
+          "argument": "max_iter"
+        }
+      }
+    },
+    "partial_least_squares_regression": {
+      "alsoCatalogSpecIds": [],
+      "category": "Statistical models",
+      "subcategory": "Regression techniques",
+      "kind": "Linear",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "catalogSpecId": "statistical-models-regression-techniques-partial-least-squares-regression-plsr",
+      "displayName": "Partial least squares regression (PLSR)",
+      "summary": "Compresses the features into a few directions that co-move most with the coming move, then fits a line on them.",
+      "implementationNote": "Bridge: scikit-learn PLSRegression on the scaled move; P(up) from its forecast through a logistic curve fitted on validation. Differs from the spec: the component count is searched by the Cycle's per-fold tuning on the training span, not by k-fold CV. Expect: close to ridge.",
+      "price": {
+        "estimator": "sklearn.cross_decomposition.PLSRegression",
+        "fixed": {
+          "scale": false
+        }
+      },
+      "parameters": {
+        "component_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "label": "Components",
+          "group": "Model",
+          "description": "Latent directions kept.",
+          "argument": "n_components",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 8
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 500,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights.",
+          "argument": "max_iter"
+        }
+      }
+    }
+  }
+}

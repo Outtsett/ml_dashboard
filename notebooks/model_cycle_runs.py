@@ -15,7 +15,7 @@ def _():
         Reads the same serving views the dashboard uses: `derived_model_cycle_runs_<table>` (one recipe per run:
         `runs`, `bars`, `predictions`, `trades`, `folds`, `epochs`, `trials`, `metrics`), the in-depth metric
         tables built from that record (`model_metrics`, `trading_metrics`, `calibration_bins`, `confusion_matrix`,
-        `distributions`, `drawdowns`, `daily_results`, by `src/ml/cycle/report.py`) and
+        `distributions`, `drawdowns`, `daily_results`, by `packages/ml-engine/src/cycle/report.py`) and
         `derived_model_cycle_audit_<table>` (the 2026-09-26 audit). Pick a run; every table is drawn beside its
         eight-number summary. A run recorded before 2026-09-27 has only predictions, trades and folds, and its
         metric tables leave exposure (and the forecast, when it had no price model) null with the reason.

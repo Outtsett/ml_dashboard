@@ -113,7 +113,12 @@ fixable = ["F401", "I"]
 known-first-party = ["ml"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = [".", "src", "src/ml"]
+testpaths = ["packages/ml-engine/tests", "apps/mcp-server/tests", "tests"]
+pythonpath = [".", "packages/ml-engine", "apps/mcp-server"]
 addopts = "--import-mode=importlib"
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[tool.uv.workspace]
+members = ["apps/mcp-server", "packages/ml-engine"]
+
+

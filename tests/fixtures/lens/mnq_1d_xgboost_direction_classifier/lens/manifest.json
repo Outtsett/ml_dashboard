@@ -34,7 +34,7 @@
   "barSeconds": 86400,
   "horizonBars": 5,
   "horizonSource": "checkpoint.json params.label_horizon_bars (bars on the raw grid)",
-  "labelDefinition": "triple-barrier direction over the next 5 bars with a 5.0 basis-point barrier (src/ml/xgb_classifier/labels.py); 1 = up barrier touched first",
+  "labelDefinition": "triple-barrier direction over the next 5 bars with a 5.0 basis-point barrier (packages/ml-engine/src/xgb_classifier/labels.py); 1 = up barrier touched first",
   "defaultThreshold": 0.55,
   "cost": {
     "roundTripPoints": 1.4,
@@ -182,7 +182,7 @@
   "notes": [
     "Prices are read from the lake on the model's own bar grid. Its evaluator stepped 5 BARS ahead, not 5 rows: this record is the 427 lake bars from the first prediction to 5 bars past the last, 350 of which carry a prediction. A bar with no prediction (its label was dropped in training) carries no probability, label or realized return and never trades, exactly as in the model's own evaluation.",
     "The lake reproduces every stored realized return to 4.6e-05 basis points.",
-    "This record was scored at 1.40 points per round trip, recovered from its own trades; src/config/cost_model.json now prices MNQ at 1.39 points. The lens charges what the model's evaluator charged.",
+    "This record was scored at 1.40 points per round trip, recovered from its own trades; packages/config/cost_model.json now prices MNQ at 1.39 points. The lens charges what the model's evaluator charged.",
     "The row-by-row price reconstruction does not apply to this record: replayed 68 trades but the model's diagnostics record 78 \u2014 the trade rule in this lens does not match the one that produced them.",
     "Feature VALUES are not recoverable for this model (the artifact stores attributions only, and the lake no longer reproduces its inputs), so the playback shows each feature's contribution without the value it was computed from."
   ]

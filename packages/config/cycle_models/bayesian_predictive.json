@@ -1,0 +1,368 @@
+{
+  "models": {
+    "bayesian_linear_predictive": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-inference-models-bayesian-linear-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian linear regression",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic inference models",
+      "kind": "Probabilistic",
+      "summary": "A straight-line fit that keeps its uncertainty about every weight; P(up) is the chance its forecast, spread included, lands above zero.",
+      "implementationNote": "Bridge: closed-form conjugate posterior, prior and noise set by evidence maximisation; P(up) = Phi(mean / predictive sd), no fitted curve. Differs from the spec: the target is the scaled move clipped at its training 1st / 99th percentiles. Expect: close to Bayesian ridge; probabilities stay near 0.5.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "bayesian_predictive",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "conjugate_linear"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "prior_variance": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 100.0,
+          "logScale": true,
+          "label": "Prior variance",
+          "group": "Model",
+          "description": "Starting spread of the weights' prior (updated by evidence maximisation)."
+        },
+        "noise_variance": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 100.0,
+          "logScale": true,
+          "label": "Noise variance",
+          "group": "Model",
+          "description": "Starting variance of the move around the line (updated likewise)."
+        },
+        "evidence_iterations": {
+          "type": "int",
+          "default": 50,
+          "min": 0,
+          "max": 500,
+          "label": "Evidence iterations",
+          "group": "Model",
+          "description": "Rounds of empirical-Bayes updates of the two variances; 0 keeps them as set.",
+          "search": {
+            "kind": "int",
+            "low": 0,
+            "high": 100
+          }
+        }
+      }
+    },
+    "gaussian_process": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-inference-models-gaussian-process-gp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gaussian process (GP)",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic inference models",
+      "kind": "Probabilistic",
+      "summary": "Forecasts the coming move from the most similar recent bars, weighting each by how alike the features are, with an uncertainty that grows away from them.",
+      "implementationNote": "Bridge: GP regression (kernel + white noise, marginal-likelihood fit); P(up) = Phi(mean / predictive sd). Differs from the spec: a local model on the last N training bars, since an exact GP is N^3. Expect: near 0.5 away from the recent bars.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "bayesian_predictive",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "gaussian_process"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-40 min (paced replay); the kernel fit is seconds to a minute per fold",
+      "gpu": false,
+      "parameters": {
+        "training_window_bars": {
+          "type": "int",
+          "default": 600,
+          "min": 50,
+          "max": 3000,
+          "label": "Training window (bars)",
+          "group": "Model",
+          "description": "The most recent training bars the GP is fitted on."
+        },
+        "kernel": {
+          "type": "categorical",
+          "default": "matern_three_halves",
+          "choices": [
+            "rbf",
+            "matern_one_half",
+            "matern_three_halves",
+            "matern_five_halves"
+          ],
+          "label": "Kernel",
+          "group": "Model",
+          "description": "How similarity decays with distance: smooth (rbf) or rougher Matern.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "rbf",
+              "matern_three_halves",
+              "matern_five_halves"
+            ]
+          }
+        },
+        "optimizer_restart_count": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 10,
+          "label": "Optimizer restarts",
+          "group": "Model",
+          "description": "Extra random starts of the kernel fit."
+        }
+      }
+    },
+    "probabilistic_programming": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-programming-stan-pymc3",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Probabilistic programming (Stan, PyMC3)",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic programming and logic",
+      "kind": "Probabilistic",
+      "summary": "A written-out model (weights, a fat-tailed Student-t error) whose every uncertainty is sampled; P(up) is the share of simulated outcomes above zero.",
+      "implementationNote": "Bridge: PyMC Student-t regression sampled by NUTS through nutpie (numba); P(up) = mean over draws of P(y > 0). Differs from the spec: the last N training bars; ADVI is the variational mode; it refuses to run without nutpie. Expect: near 0.5, heavier tails than the conjugate model.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "bayesian_predictive",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "pymc_student_t"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "5-60 min (paced replay); compiles once per run (about 15 s), then seconds of sampling per fold",
+      "gpu": false,
+      "parameters": {
+        "inference_method": {
+          "type": "categorical",
+          "default": "nuts",
+          "choices": [
+            "nuts",
+            "advi"
+          ],
+          "label": "Inference",
+          "group": "Model",
+          "description": "NUTS sampling (nutpie) or ADVI (a variational fit)."
+        },
+        "training_window_bars": {
+          "type": "int",
+          "default": 3000,
+          "min": 100,
+          "max": 50000,
+          "label": "Training window (bars)",
+          "group": "Model",
+          "description": "The most recent training bars the model is fitted on."
+        },
+        "chain_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Chains",
+          "group": "Model",
+          "description": "Independent NUTS chains."
+        },
+        "warmup_iterations": {
+          "type": "int",
+          "default": 500,
+          "min": 50,
+          "max": 5000,
+          "label": "Warm-up draws",
+          "group": "Model",
+          "description": "Tuning draws per chain, discarded."
+        },
+        "draw_count": {
+          "type": "int",
+          "default": 500,
+          "min": 50,
+          "max": 5000,
+          "label": "Draws",
+          "group": "Model",
+          "description": "Kept posterior draws per chain."
+        },
+        "target_acceptance_rate": {
+          "type": "float",
+          "default": 0.85,
+          "min": 0.6,
+          "max": 0.99,
+          "step": 0.01,
+          "label": "Target acceptance",
+          "group": "Model",
+          "description": "NUTS step-size target; higher is slower and safer."
+        },
+        "prior_scale": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Prior scale",
+          "group": "Model",
+          "description": "Standard deviation of the Normal prior on each standardised weight.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        },
+        "variational_iterations": {
+          "type": "int",
+          "default": 5000,
+          "min": 200,
+          "max": 100000,
+          "label": "ADVI iterations",
+          "group": "Model",
+          "description": "Optimisation steps of the variational fit (ADVI only)."
+        }
+      }
+    },
+    "bayesian_hierarchical_model": {
+      "catalogSpecId": "statistical-models-bayesian-models-bayesian-hierarchical-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian hierarchical model",
+      "category": "Statistical models",
+      "subcategory": "Bayesian models",
+      "kind": "Probabilistic",
+      "summary": "One line per time-of-day block, each pulled toward a shared line by how much the blocks agree; P(up) is the share of sampled forecasts above zero.",
+      "implementationNote": "Bridge: Gibbs sampler for block weights around a shared mean; P(up) = mean over draws of Phi(x'b_g / sigma). Differs from the spec: groups are time-of-day session blocks, because a run holds one instrument; the group covariance is diagonal (inverse-gamma per weight). Expect: near 0.5.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "bayesian_predictive",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "hierarchical_gibbs"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "session_block_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 8,
+          "label": "Session blocks",
+          "group": "Model",
+          "description": "The day (as stamped) is cut into this many equal time-of-day groups.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6
+          }
+        },
+        "chain_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Chains",
+          "group": "Model",
+          "description": "Independent Gibbs chains."
+        },
+        "warmup_iterations": {
+          "type": "int",
+          "default": 500,
+          "min": 50,
+          "max": 5000,
+          "label": "Warm-up draws",
+          "group": "Model",
+          "description": "Tuning draws per chain, discarded."
+        },
+        "draw_count": {
+          "type": "int",
+          "default": 500,
+          "min": 50,
+          "max": 5000,
+          "label": "Draws",
+          "group": "Model",
+          "description": "Kept posterior draws per chain."
+        },
+        "prior_scale": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 10.0,
+          "logScale": true,
+          "label": "Prior scale",
+          "group": "Model",
+          "description": "Standard deviation of the Normal prior on each shared weight.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 3.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

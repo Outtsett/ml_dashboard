@@ -18,8 +18,8 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 PARQUET_DIR = ROOT / "data" / "parquet"
-HOST = os.environ.get("QUESTDB_HOST", "127.0.0.1")
-HTTP_PORT = int(os.environ.get("QUESTDB_HTTP_PORT", "9000"))
+HOST = os.environ.get("lake_HOST", "127.0.0.1")
+HTTP_PORT = int(os.environ.get("lake_HTTP_PORT", "9000"))
 BASE = f"http://{HOST}:{HTTP_PORT}"
 
 SYMBOLS = ["MNQ", "EURUSD"]
@@ -195,3 +195,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

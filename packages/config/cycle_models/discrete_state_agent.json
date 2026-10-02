@@ -1,0 +1,1022 @@
+{
+  "models": {
+    "q_learning": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-value-based-methods-q-learning",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Q-learning",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free value-based methods",
+      "kind": "Tabular agent",
+      "summary": "A table of action values over quantile-binned market cells and the agent's position, learned by Watkins' off-policy update on the train span's reward tape.",
+      "implementationNote": "Bridge: Boltzmann share of Q(flat, long) vs Q(flat, short), temperature fitted on validation. Differs from the spec: the market does not react to the agent, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost); values are read at the flat position so a bar's prediction does not depend on earlier calls. P(up) is the policy's long share, not a fitted probability. Price: the cell's training mean price target. Expect: values near conditional mean returns.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "q_learning"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "bin_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 12,
+          "label": "Bin count",
+          "group": "Model",
+          "description": "Quantile bins per state feature, edges fitted on the training span; the market cell is the combination of the bins.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 6
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each temporal-difference update of the table.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Sweeps over the training span's tape; the sweep with the best validation log loss is kept.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Sweeps without a better validation log loss before training stops.",
+          "roles": [
+            "direction"
+          ]
+        }
+      }
+    },
+    "sarsa": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-value-based-methods-sarsa-state-action-reward-state-action",
+      "alsoCatalogSpecIds": [],
+      "displayName": "SARSA",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free value-based methods",
+      "kind": "Tabular agent",
+      "summary": "On-policy temporal-difference learning: the same table as Q-learning, bootstrapped from the action the epsilon-greedy behaviour policy actually takes next.",
+      "implementationNote": "Bridge: Boltzmann share of Q(flat, long) vs Q(flat, short), temperature fitted on validation. Differs from the spec: the market does not react to the agent, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost); values are read at the flat position so a bar's prediction does not depend on earlier calls. P(up) is the policy's long share, not a fitted probability. Price: the cell's training mean price target. Expect: close to Q-learning; the action does not change the next bar.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "sarsa"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "bin_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 12,
+          "label": "Bin count",
+          "group": "Model",
+          "description": "Quantile bins per state feature, edges fitted on the training span; the market cell is the combination of the bins.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 6
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each temporal-difference update of the table.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "exploration_rate": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Exploration rate",
+          "group": "Model",
+          "description": "Final epsilon of the epsilon-greedy behaviour policy (annealed from 1 over the first half of the sweeps); SARSA bootstraps from the action it draws.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Sweeps over the training span's tape; the sweep with the best validation log loss is kept.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Sweeps without a better validation log loss before training stops.",
+          "roles": [
+            "direction"
+          ]
+        }
+      }
+    },
+    "dyna_q": {
+      "catalogSpecId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-dyna-q",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dyna-Q",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-based planning agents",
+      "kind": "Tabular agent",
+      "summary": "Q-learning plus a learned model of each state-action's last reward and next state, replayed for extra planning updates after every real bar.",
+      "implementationNote": "Bridge: Boltzmann share of Q(flat, long) vs Q(flat, short), temperature fitted on validation. Differs from the spec: the market does not react to the agent, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost); values are read at the flat position so a bar's prediction does not depend on earlier calls. P(up) is the policy's long share, not a fitted probability. Planning replays real tape outcomes. Price: the cell's training mean price target. Expect: Q-learning, converged faster.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dyna_q"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "bin_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 12,
+          "label": "Bin count",
+          "group": "Model",
+          "description": "Quantile bins per state feature, edges fitted on the training span; the market cell is the combination of the bins.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 6
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1.0,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Step size of each temporal-difference update of the table.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "planning_step_count": {
+          "type": "int",
+          "default": 5,
+          "min": 0,
+          "max": 100,
+          "label": "Planning step count",
+          "group": "Model",
+          "description": "Dyna planning updates replayed from the learned model after every real bar.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Sweeps over the training span's tape; the sweep with the best validation log loss is kept.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "patience": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Sweeps without a better validation log loss before training stops.",
+          "roles": [
+            "direction"
+          ]
+        }
+      }
+    },
+    "dynamic_programming": {
+      "catalogSpecId": "optimization-based-models-reinforcement-guided-methods-dynamic-programming-dp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dynamic programming",
+      "category": "Optimization-based models",
+      "subcategory": "Reinforcement-guided methods",
+      "kind": "Planner",
+      "summary": "Exact backward induction over a market model estimated on the training span: k-means clusters, their counted transitions, and each cluster's mean bar moves and cost.",
+      "implementationNote": "Bridge: Q0(cluster, flat, long) - Q0(cluster, flat, short) through a Boltzmann share whose temperature is fitted on validation. Differs from the spec: position is the only controlled variable; the market model (clusters, transitions, mean rewards) is estimated in-sample, the horizon ends in a flat liquidation. Expect: a discounted, cost-adjusted regime-conditional expected move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "backward_induction"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Market states: k-means clusters of the state features, fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Planning horizon",
+          "group": "Model",
+          "description": "Steps the planner looks ahead; 0 uses the run's label horizon.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      }
+    },
+    "monte_carlo_tree_search": {
+      "catalogSpecId": "simulation-decision-models-tree-graph-based-decision-models-monte-carlo-tree-search-mcts",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Monte Carlo tree search",
+      "category": "Simulation and decision models",
+      "subcategory": "Tree and graph-based decision models",
+      "kind": "Planner",
+      "summary": "UCT search at every bar over position sequences, simulating the training span's cluster Markov model with rewards resampled from each cluster's own bars.",
+      "implementationNote": "Bridge: the root's mean return of long minus short through a Boltzmann share, temperature fitted on validation; the root splits its simulations evenly, each bar's search is seeded by the bar. Differs from the spec: the simulator is a market model fitted on the same training span, and the market does not react to the agent. Expect: that model's expected-return ranking re-derived with sampling noise.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "tree_search"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Market states: k-means clusters of the state features, fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "planning_horizon": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Planning horizon",
+          "group": "Model",
+          "description": "Steps the planner looks ahead; 0 uses the run's label horizon.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "simulation_count": {
+          "type": "int",
+          "default": 400,
+          "min": 20,
+          "max": 20000,
+          "label": "Simulation count",
+          "group": "Model",
+          "description": "Tree-search simulations per bar (selection, expansion, random rollout, backup).",
+          "roles": [
+            "direction"
+          ]
+        },
+        "exploration_constant": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "step": 0.05,
+          "label": "Exploration constant",
+          "group": "Model",
+          "description": "UCB1's exploration weight below the root, on returns normalised to [0, 1] by the search's own range (sqrt 2 is textbook UCB1).",
+          "roles": [
+            "direction"
+          ]
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      }
+    },
+    "zero_sum_game": {
+      "catalogSpecId": "simulation-decision-models-game-theory-strategic-reasoning-game-theoretic-models-nash-zero-sum",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Zero-sum game (minimax)",
+      "category": "Simulation and decision models",
+      "subcategory": "Game theory and strategic reasoning",
+      "kind": "Game solver",
+      "summary": "Per market cluster, a zero-sum matrix game of the trader (short, flat, long) against a market that picks the outcome distribution, solved exactly by the minimax linear program.",
+      "implementationNote": "Bridge: the equilibrium expected position through a Boltzmann share, temperature fitted on validation. Differs from the spec: the spec ranks decisions rather than forecasting; the market is not a strategic player, so it may only shift probability within a total-variation radius of the cluster's training outcomes. Expect: the regime's worst-case edge sign; mixing only at ties.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "zero_sum_game"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Market states: k-means clusters of the state features, fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "outcome_bin_count": {
+          "type": "int",
+          "default": 6,
+          "min": 2,
+          "max": 20,
+          "label": "Outcome bin count",
+          "group": "Model",
+          "description": "Quantile bins of the h-bar move: the outcomes the market player chooses among.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "ambiguity_radius": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 0.5,
+          "step": 0.01,
+          "label": "Ambiguity radius",
+          "group": "Model",
+          "description": "Probability mass the adversarial market may move between outcome bins (a total-variation radius around the regime's empirical distribution).",
+          "roles": [
+            "direction"
+          ]
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      }
+    },
+    "utility_theory": {
+      "catalogSpecId": "simulation-decision-models-utility-value-based-decision-making-utility-theory-models",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Utility theory",
+      "category": "Simulation and decision models",
+      "subcategory": "Utility and value-based decision making",
+      "kind": "Decision rule",
+      "summary": "Per market cluster, the position in [-1, 1] that maximises expected utility (CRRA, CARA) or the cumulative-prospect-theory value of the cluster's training outcomes net of cost.",
+      "implementationNote": "Bridge: the optimal position through a Boltzmann share, temperature fitted on validation. Differs from the spec: the spec ranks decisions rather than forecasting; the lottery is each cluster's training-span outcomes, and the risk parameters are set, not fitted to revealed choices. Price: the cluster's mean price target. Expect: a regime-conditional mean-variance rule shaped by risk preference.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "expected_utility"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Market states: k-means clusters of the state features, fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "utility_form": {
+          "type": "categorical",
+          "default": "crra",
+          "choices": [
+            "crra",
+            "cara",
+            "prospect"
+          ],
+          "label": "Utility form",
+          "group": "Model",
+          "description": "Constant relative risk aversion, constant absolute risk aversion, or cumulative prospect theory.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "risk_aversion": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0.1,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Risk aversion",
+          "group": "Model",
+          "description": "The CRRA coefficient (1 = log utility, the Kelly case) or the CARA coefficient per unit of wealth.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "exposure_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Exposure fraction",
+          "group": "Model",
+          "description": "Wealth change per unit position per unit of the scaled h-bar move (the lottery's stake).",
+          "roles": [
+            "direction"
+          ]
+        },
+        "loss_aversion": {
+          "type": "float",
+          "default": 2.25,
+          "min": 1.0,
+          "max": 5.0,
+          "step": 0.05,
+          "label": "Loss aversion",
+          "group": "Model",
+          "description": "Prospect theory: how much more a loss weighs than an equal gain.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "value_curvature": {
+          "type": "float",
+          "default": 0.88,
+          "min": 0.2,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Value curvature",
+          "group": "Model",
+          "description": "Prospect theory: the power of the value function on gains and losses.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "probability_weighting": {
+          "type": "float",
+          "default": 0.65,
+          "min": 0.3,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Probability weighting",
+          "group": "Model",
+          "description": "Prospect theory: the Tversky-Kahneman weighting exponent (1 = no distortion).",
+          "roles": [
+            "direction"
+          ]
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      }
+    },
+    "markov_decision_process": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-inference-models-markov-decision-process-mdp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Markov decision process",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic inference models",
+      "kind": "Planner",
+      "summary": "A discounted Markov decision process over (market cluster, position): transitions and rewards counted from the training span's tape, solved by value iteration.",
+      "implementationNote": "Bridge: Q*(cluster, flat, long) - Q*(cluster, flat, short) through a Boltzmann share, temperature fitted on validation. Differs from the spec: the market does not react to the agent, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost); values are read at the flat position so a bar's prediction does not depend on earlier calls. P(up) is the policy's long share, not a fitted probability. Expect: a cost-aware regime drift.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "markov_decision_process"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "cluster_count": {
+          "type": "int",
+          "default": 12,
+          "min": 2,
+          "max": 64,
+          "label": "Cluster count",
+          "group": "Model",
+          "description": "Market states: k-means clusters of the state features, fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 4,
+            "high": 24
+          }
+        },
+        "state_feature_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 6,
+          "label": "State feature count",
+          "group": "Model",
+          "description": "Feature columns that define the market state: the ones with the largest training-span rank correlation with the tape's reward (or the price target)."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.95,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "Weight of the next bar's value in the Bellman target (0 = myopic, 1 = undiscounted).",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.97
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 2000,
+          "min": 10,
+          "max": 100000,
+          "label": "Iteration count",
+          "group": "Model",
+          "description": "The most value-iteration sweeps before the solver stops.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "convergence_tolerance": {
+          "type": "float",
+          "default": 1e-09,
+          "min": 1e-12,
+          "max": 0.001,
+          "logScale": true,
+          "label": "Convergence tolerance",
+          "group": "Model",
+          "description": "Value iteration stops when no state value moves by more than this.",
+          "roles": [
+            "direction"
+          ]
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      }
+    },
+    "markov_chain": {
+      "catalogSpecId": "probabilistic-symbolic-models-probabilistic-inference-models-markov-chain",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Markov chain",
+      "category": "Probabilistic and symbolic models",
+      "subcategory": "Probabilistic inference models",
+      "kind": "Chain",
+      "summary": "A higher-order Markov chain over buckets of the scaled one-bar move, with counted, smoothed transitions; h-step paths simulated from each state give its up-share.",
+      "implementationNote": "Bridge: P(up) is the share of simulated h-bar paths that end up, per chain state. Differs from the spec: the state is built from the bar-return series (closes), not the feature row; direction needs h steps, so the table is simulated, not read off P^n, with the training drift removed by default. Price: the mean simulated cumulative move. Expect: near 0.5 except where recent moves are extreme.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "discrete_state_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "markov_chain"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "bin_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Bin count",
+          "group": "Model",
+          "description": "Buckets of the scaled one-bar move (the chain's states per step), edges fitted on the training span.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "markov_order": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 3,
+          "label": "Markov order",
+          "group": "Model",
+          "description": "How many past buckets define the chain state (a higher-order chain). Not searched: it sets the history the model needs."
+        },
+        "additive_smoothing": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 20.0,
+          "step": 0.1,
+          "label": "Additive smoothing",
+          "group": "Model",
+          "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        },
+        "path_count": {
+          "type": "int",
+          "default": 4000,
+          "min": 200,
+          "max": 100000,
+          "label": "Path count",
+          "group": "Model",
+          "description": "Simulated h-step paths per chain state for the up-share table."
+        },
+        "remove_training_drift": {
+          "type": "bool",
+          "default": true,
+          "label": "Remove training drift",
+          "group": "Model",
+          "description": "Centre the simulated moves on the training span's mean move, so the table carries the chain's serial dependence rather than one window's drift."
+        }
+      }
+    }
+  }
+}

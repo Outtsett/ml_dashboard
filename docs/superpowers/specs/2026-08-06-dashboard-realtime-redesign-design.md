@@ -22,8 +22,8 @@ being wrong about the code.
   `cpu.load`, cores, and temp on the same endpoint as `system.gpu`.
 - **`ExperimentLedger` was not split.** It is a working TanStack table; the new
   card and leaderboard views sit alongside it rather than replacing it.
-- **W4 replays from the lake, not the Quantower history.** The lake holds real
-  stored bars behind an already-working query layer; the Quantower `history.db`
+- **W4 replays from the lake, not the live_source history.** The lake holds real
+  stored bars behind an already-working query layer; the live_source `history.db`
   format was unverified and would have added risk for no gain.
 
 Three silent-failure bugs were found only by checking build or wire output, and
@@ -245,17 +245,17 @@ Nothing visual is possible until bars flow again. Three candidate sources:
 
 | Source | Nature | Trade-off |
 |---|---|---|
-| Quantower / AMP tick history | 3.36 GB local, 58.9M `LAST` ticks, 39 symbols | Real data, zero cost, historical replay only |
+| live_source / AMP tick history | 3.36 GB local, 58.9M `LAST` ticks, 39 symbols | Real data, zero cost, historical replay only |
 | Databento | Paid API, live and historical | True live stream; metered by bytes retrieved |
 | Interactive Brokers connector | Live snapshots and price history | Free with account; rate-limited, not tick-grade |
 
-**Decision: build against the Quantower history first.** It exercises the entire path —
+**Decision: build against the live_source history first.** It exercises the entire path —
 producer → lake → SSE → chart — with real bars at zero cost. A live producer then
 swaps in behind the same adapter interface without touching anything downstream.
 
 New `src/server/market/ingestion/`:
 
-- A `BarSource` interface with a `replay` implementation reading the Quantower history
+- A `BarSource` interface with a `replay` implementation reading the live_source history
   and a stub `live` implementation for the eventual real feed.
 - Lands bars write-once under `E:\lakeawendor=<name>\` with a `.sha256`
   sidecar and promotes them into the Iceberg tables, with deduplication so a

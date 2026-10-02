@@ -271,7 +271,7 @@
    "s3://derived/mnq_candle_windows_1m|1h|4h/recipe=candle_vectors_v1",
    "s3://derived/mnq_next_candles_<timeframe>/recipe=pattern_forward_candles_v1 (bars, 61 TA-Lib values, avg range, sample_split, forward path)",
    "E:/source/repos/datalake/scripts/build_mnq_shape_embedding.py (learned shape encoders; measured worse than raw)",
-   "Frozen cost 2.8011 dollars round trip in Trading/quant/model/src/config/cost_model.json"
+   "Frozen cost 2.8011 dollars round trip in Trading/quant/model/packages/config/cost_model.json"
   ]
  },
  {
@@ -350,7 +350,7 @@
   "topic": "Cost-priced casebook of recent edge tests on MNQ (patterns, indicators, last-move rules)",
   "purpose": "Re-states recent research verdicts in ticks and dollars after the repo cost model; steps through pattern trades vs random-bar twins; prices the 1-minute reversal lean; lists 22 dated findings across datalake, quant, forexmodel.",
   "findings": [
-   "Cost model: round trip 5.6022 ticks = $2.80 per contract, tick 0.25 pt = $0.50 (findings_casebook_run_information; cost_model.json at Trading/quant/model/src/config/cost_model.json). Note: this is a low-cost figure; AMP actuals should be verified.",
+   "Cost model: round trip 5.6022 ticks = $2.80 per contract, tick 0.25 pt = $0.50 (findings_casebook_run_information; cost_model.json at Trading/quant/model/packages/config/cost_model.json). Note: this is a low-cost figure; AMP actuals should be verified.",
    "Candle patterns: 0 of 569 pattern sides/shape codes survived; the lone survivor (1m bullish engulfing long) failed its 2024 test (t=1.58, p=0.057) and traded at -$2.68 (23,356 trades 2024) and -$2.90 (2025) per trade after cost; day-shifted placebo produced 0 survivors in 20 of 20 sets (recent_findings).",
    "Last-move rule 1m (last_move_rules SQL): fading the last move has hit rate 0.4816-0.4921, W~10.8-18.3 ticks vs L~10.4-17.6 ticks (payoff ~1.03:1), gross +0.05 ticks/trade in the indicator window vs 5.60 ticks cost; ~1,320 trades per session gives about -$3,660 per session. Break-even cost 0.05 ticks.",
    "5m fade: gross ticks -0.19 to +0.53 per trade by year, hit ~0.50, also far below 5.6-tick cost (about -$700 to -$770 per session).",
@@ -379,7 +379,7 @@
   "reusable_assets": [
    "E:/lake-workspace/findings_casebook.duckdb tables pattern_side_dollars, last_move_rules, recent_findings",
    "s3://derived/mnq_next_candles_{tf}/recipe=pattern_forward_candles_v1 (forward candle offsets in average ranges - label source, causal features only in same table must be checked)",
-   "Trading/quant/model/src/config/cost_model.json",
+   "Trading/quant/model/packages/config/cost_model.json",
    "Break-even algebra cell (lines 588-667) for the 40%/2:1 target"
   ]
  },
@@ -554,7 +554,7 @@
   ],
   "reusable_assets": [
    "E:/source/repos/ml_dashboard/Trading/quant/analytics/crossovers/crossover.py (backtest, ann_factor, _sharpe: cost-in-pct-of-price accounting)",
-   "E:/source/repos/ml_dashboard/Trading/quant/analytics/core/costs.py (cost_points_per_side from model/src/config/cost_model.json: total_round_trip 2.8011 USD, 1.78 fees + 1.0211 measured slippage)"
+   "E:/source/repos/ml_dashboard/Trading/quant/analytics/core/costs.py (cost_points_per_side from model/packages/config/cost_model.json: total_round_trip 2.8011 USD, 1.78 fees + 1.0211 measured slippage)"
   ],
   "methods": "EWM/rolling crossover, pct_change PnL net of per-turnover cost, cumprod equity, plotly candlesticks with MACD(12,26,9) and Wilder RSI(14).",
   "recommendation": "Do not treat it as a signal source or as evidence. Use only as a benchmark to beat and as the accounting template (cost in pct of price, one-bar position lag; go one step further and fill at next-bar open). Its trade shape (22% win, 4:1 payoff) shows the 40%/2:1 target needs a different exit design (fixed 2R bracket) and is not something this rule provides."
@@ -636,17 +636,17 @@
  {
   "path": "E:/source/repos/ml_dashboard/Trading/quant/analytics/notebooks/zigzag_view.py",
   "relevant_to_training": false,
-  "topic": "Quantower ZigZag overlay on 1m MNQ candles (visual check)",
-  "purpose": "Render 200 and 80 contiguous 1-minute MNQ candles with the Quantower built-in ZigZag (deviation 0.1%) and signed leg percent. A visual sanity check of the indicator, no statistics.",
+  "topic": "live_source ZigZag overlay on 1m MNQ candles (visual check)",
+  "purpose": "Render 200 and 80 contiguous 1-minute MNQ candles with the live_source built-in ZigZag (deviation 0.1%) and signed leg percent. A visual sanity check of the indicator, no statistics.",
   "findings": [
    "Data: load_ohlcv_root('MNQ','1m') (ratio back-adjusted root, the correct loader), last 40,000 bars, longest contiguous run >= 200 bars with no gap > 90s (lines 59-66). Exact window is data-dependent and not printed in a saved output.",
    "Only two figures and three takeaway bullets; no numbers are computed. The takeaway 'most legs are ~0.1-0.2% noise; tradeable swings are the fat tail (|leg| >= 0.4%)' (line 156) has no supporting computation here.",
-   "The ZigZag repaints: the last leg is provisional and confirmed pivots are known only after a reversal of >= deviation% (analytics/zigzag/quantower.py header). The plot places pivots at the extreme bar (hindsight), which visually overstates predictability.",
+   "The ZigZag repaints: the last leg is provisional and confirmed pivots are known only after a reversal of >= deviation% (analytics/zigzag/live_source.py header). The plot places pivots at the extreme bar (hindsight), which visually overstates predictability.",
    "Related measured evidence (model/CLAUDE.md, exp06): a ZigZag-confirmation-following strategy loses ~96-100% of the oracle swing profit to the confirmation lag (median 98.6%); 4h @1.5% next_pivot exit +$52,463 net but only 5/9 folds beat buy-and-hold (p=0.570) and 84% of the profit is on the long side.",
    "Palette Okabe-Ito via core.viz UP/DOWN; matplotlib Agg backend."
   ],
   "lookahead_risk": "medium",
-  "lookahead_detail": "For visualisation only there is no model. But the plot draws confirmed pivots at the extreme bar's index (zigzag.quantower.zigzag returns 'bar' of the extreme), which is information known only later; using these pivots as features or labels at their plotted bar would leak. The last leg is explicitly repainting.",
+  "lookahead_detail": "For visualisation only there is no model. But the plot draws confirmed pivots at the extreme bar's index (zigzag.live_source.zigzag returns 'bar' of the extreme), which is information known only later; using these pivots as features or labels at their plotted bar would leak. The last leg is explicitly repainting.",
   "costs_included": "n/a",
   "out_of_sample": "n/a",
   "edge_evidence": "n/a",
@@ -657,7 +657,7 @@
    "Takeaway thresholds (|leg| >= 0.4%) unsupported in the notebook"
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/analytics/zigzag/quantower.py (exact replica of Quantower BuiltIn.ZZ)",
+   "E:/source/repos/ml_dashboard/Trading/quant/analytics/zigzag/live_source.py (exact replica of live_source BuiltIn.ZZ)",
    "E:/source/repos/ml_dashboard/Trading/quant/analytics/core/lake.py::load_ohlcv_root (ratio back-adjusted continuous root)"
   ],
   "methods": "matplotlib candles + zigzag(win, dev=0.1) polyline with leg labels.",
@@ -692,7 +692,7 @@
    "Two experiment configs only (K=24,w=4 / K=64,w=16)"
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/selforg/patterns.py (fit_vqvae, score_vqvae, stack_windows, codebook_diagnostics; 16 tests)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/selforg/patterns.py (fit_vqvae, score_vqvae, stack_windows, codebook_diagnostics; 16 tests)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/train_candle_seq.py (HAR-RV baseline + 4-representation comparison, purge horizon+width)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/candle_norm.py (12-dim causal candle embedding; build_candle_embedding)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/data/analysis/candle_seq/*.json and *_archetypes.npz; candle_lm/*.json"
@@ -726,7 +726,7 @@
   ],
   "reusable_assets": [
    "mnq_labels_1m lake view / E:/source/repos/ml_dashboard/Trading/quant/model/data/labels/mnq_labels_1m.parquet + mnq_labels_1m.json sidecar (48 label columns, forward_reach recorded per family, max 1,440 bars)",
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/direction_labels.py (generate_direction_labels)"
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/direction_labels.py (generate_direction_labels)"
   ],
   "methods": "DuckDB join of bars and labels, plotly candlesticks, arithmetic re-derivation with negative control.",
   "recommendation": "Use as the reference for label semantics and for the rule that every direction result must be graded against the majority baseline (0.5189..0.5566) and purged by H bars. For the multimodal target do not use horizon-in-bars sign labels as the trading objective; use a bracket (2R target / 1R stop) outcome label with cost, and always report accuracy minus the fold's train majority."
@@ -759,8 +759,8 @@
    "Depends on load_ohlcv_arrays common-span alignment across 8 timeframes (parquet/serving)"
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/walk_forward.py::generate_folds (list[str] timestamps; keys fold_number, train_start/end, test_start/end)",
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/shared/data.py::load_ohlcv_arrays"
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/walk_forward.py::generate_folds (list[str] timestamps; keys fold_number, train_start/end, test_start/end)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/packages/shared/src/data.py::load_ohlcv_arrays"
   ],
   "methods": "statsmodels ADF/KPSS/ACF/PACF, scipy normaltest/probplot/kruskal, rolling vol, plotly.",
   "recommendation": "Do not reuse. Its only durable facts (stationary returns, fat tails, near-zero lag-1 autocorrelation, volatility clustering) are already established elsewhere. If an EDA is needed for the new model, regenerate it on the chosen bar and horizon with color-safe palettes and no hard-coded conclusions."
@@ -795,7 +795,7 @@
    "The stored numbers pre-date later label-contract work on the ml_dashboard side (docs/labels.md, 2026-09-26)"
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/{direction,volatility,range,barrier,swing}_labels.py (post-fix defaults)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/{direction,volatility,range,barrier,swing}_labels.py (post-fix defaults)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/data/labels/mnq_labels_1m.parquet + .json sidecar (48 columns, 32 families, baselines and forward_reach)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/notebooks/label_audit.py functions fig()/fix() and the purge-audit table as a checklist"
   ],
@@ -863,7 +863,7 @@
   "reusable_assets": [
    "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/path_geometry.py (34 causal path-geometry features, er_vs_rw)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/train_path_geometry.py",
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/direction_labels.py::generate_direction_labels",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/direction_labels.py::generate_direction_labels",
    "Section 5.3 label-alignment check with off-by-one negative control (path_geometry_study.py:594)",
    "Bar-level Diebold-Mariano block-bootstrap (analytics/latent/robust.py)"
   ],
@@ -906,7 +906,7 @@
   "relevant_to_training": true,
   "topic": "Live training-run monitor for the multimodal direction model (tooling)",
   "purpose": "Reads the append-only stream written by scripts/train_multimodal_direction.py (model/data/training_runs/<run>/stream.jsonl + npz) and shows bars, each modality block, token-assembly norms, PCA of embeddings, per-layer activations/gradients, epoch and batch metrics.",
-  "data_sources": "model/data/training_runs/multimodal_MNQ_5m (6,000-bar smoke run, 3 epochs, barrier 3 pts, horizon 12) and multimodal_MNQ_1h (40,000 bars cap, 2 epochs, barrier 25 pts, horizon 12). Both from 2026-09-16. Stream reader: src/ml/cnn_transformer/training_stream.py.",
+  "data_sources": "model/data/training_runs/multimodal_MNQ_5m (6,000-bar smoke run, 3 epochs, barrier 3 pts, horizon 12) and multimodal_MNQ_1h (40,000 bars cap, 2 epochs, barrier 25 pts, horizon 12). Both from 2026-09-16. Stream reader: packages/ml-engine/src/cnn_transformer/training_stream.py.",
   "methods": "Altair charts, cividis heatmaps, per-block feature statistics (nine-number style), PCA projection, majority-baseline skill. The multimodal model has five input blocks: geometry(5), kinematics(5), volume(3), structure(6), pattern_multihot(13), 170,152 parameters, d_model 64, modality dropout 0.1.",
   "findings": [
    "The two stored runs show no direction skill. 5m: epoch accuracies 0.5099 / 0.4911 / 0.4891 vs majority 0.5099 -> skill 0.0000, -0.0188, -0.0209 (train loss 0.6940 -> 0.6922, ln2=0.6931). 1h: accuracy 0.5265 / 0.5179 vs majority 0.5156 -> skill +0.0110, +0.0023, train loss 0.69306 -> 0.69304.",
@@ -926,7 +926,7 @@
    "Direction accuracy against majority is the only metric; no trade simulation, no cost, no payoff ratio."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/training_stream.py (read_stream)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/training_stream.py (read_stream)",
    "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/train_multimodal_direction.py (existing five-block multimodal token model: geometry, kinematics, volume, structure, pattern multi-hot)",
    "Notebook panel design (block heatmaps + stats, token block norms, per-layer dead/gradient diagnostics) as the training-observability UI"
   ],
@@ -988,8 +988,8 @@
    "Calibration deciles at 45m/1h have only ~153-207 bars per bin."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/volatility_scale.py (log_range_to_points, log_range_to_quantile_points, empirical_range_calibration, range_ladder, nine_stats, instrument_scale)",
-   "E:/source/repos/ml_dashboard/Trading/quant/model/src/ml/cnn_transformer/volatility_labels.py (generate_volatility_labels with zero-range masking, ewma_log_range_forecast)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/volatility_scale.py (log_range_to_points, log_range_to_quantile_points, empirical_range_calibration, range_ladder, nine_stats, instrument_scale)",
+   "E:/source/repos/ml_dashboard/Trading/quant/model/packages/ml-engine/src/cnn_transformer/volatility_labels.py (generate_volatility_labels with zero-range masking, ewma_log_range_forecast)",
    "model/tests/test_volatility_scale.py (23 tests)",
    "Measured ladder: median USD per volatility percentile x timeframe (notebook section 3)"
   ],
@@ -1119,7 +1119,7 @@
   "relevant_to_training": true,
   "topic": "TA-indicator and conditional TA-Lib strategies on MNQ/NQ vs a 600 ticks/day goal (model rounds, rule search, level quality, pre-registered confirmation, frequency round 4)",
   "purpose": "Dashboard for the study in docs/ta-strategy-600-ticks.md. Reads derived_ta_strategy_600_ticks_*, derived_ta_rule_strategies_600_ticks_*, derived_ta_conditional_strategies_600_ticks_* (rounds, configurations, folds, daily, trades, oracle_by_session, reviews, strategies, level_quality, templates, confirmation_*, frequency_*). Contains a steppable win-rate-needed formula, per-configuration bars with 95% block-bootstrap intervals, alpha after buy-and-hold beta, matched-random-entry nulls, and per-column small multiples. It is the most decision-relevant notebook of the ten because it is the only one that measures net trading results after AMP costs.",
-  "data_sources": "MNQ 2019-05/06..2025-12 (walk-forward tests 2021-07..2025-12 for model rounds; tuning on prior years, test years 2022-2025 for conditional rounds); NQ 2010-06-07..2019-05-31 (2,306 sessions, never used for tuning); bars 1m/5m/15m/30m/1h/4h from ohlcv_full_<tf> back-adjusted at rolls (cycle.rolls). Costs from src/config/cost_model.json: $1.39/side = $0.89 fees + 1 tick slippage; 5.56 ticks round trip; +1 tick on stopped exits.",
+  "data_sources": "MNQ 2019-05/06..2025-12 (walk-forward tests 2021-07..2025-12 for model rounds; tuning on prior years, test years 2022-2025 for conditional rounds); NQ 2010-06-07..2019-05-31 (2,306 sessions, never used for tuning); bars 1m/5m/15m/30m/1h/4h from ohlcv_full_<tf> back-adjusted at rolls (cycle.rolls). Costs from packages/config/cost_model.json: $1.39/side = $0.89 fees + 1 tick slippage; 5.56 ticks round trip; +1 tick on stopped exits.",
   "methods": "Model rounds: logistic and LightGBM direction classifiers on a TA-Lib battery, fixed-hold, gate on conviction, next-open fills via cycle/simulate.py, scored per session day with Newey-West alpha over buy-and-hold beta, White Reality Check, deflated Sharpe. Rule rounds: 3,024 then 223 TA-Lib rule x filter x stop bracket strategies (stop S, target 2S) vs random-entry nulls matched on gate/hours/side. Conditional rounds: 5 to 11 Optuna-tuned templates (tuned on prior years only, objective excess Sharpe over matched random entries), multi-timeframe support/resistance zones from levels.py with two nulls (distance-matched, shuffled-minute), 1-minute path exit engine. Round 3 pre-registered confirmation on NQ 2010-2019. Round 4 varies session window, entry cap, bar size, threshold ladder.",
   "findings": [
    "Model round 1 (derived_ta_strategy_600_ticks_rounds): best 1h_h12_logistic_gate30 = +38.46 net ticks/session day, 95% interval [-1.42, +77.16], 42 configurations, 1,167 session days; buy-and-hold on the same days +27.5 (docs/ta-strategy-600-ticks.md Round 1). Review: 13.9 beta + 24.5 alpha, alpha t 1.34, Reality Check p 0.52; observed hit rate 0.51-0.54.",
@@ -1149,9 +1149,9 @@
    "Notebook renders only Round 1's model rounds table via derived_ta_strategy_600_ticks_rounds (2 rounds landed), older docs numbers for rule rounds are not all in views listed (rule strategies views exist)."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/src/ml/ta_strategy/ (data.py load_minutes_rebuilt, features.py, evaluate.py, bracket.py numba bracket sim, engine.py exit engine, levels.py, rules.py, strategy.py, optimize.py, frequency.py, confirm.py, metrics.py, oracle.py)",
-   "E:/source/repos/ml_dashboard/src/config/ta_conditional_templates.json, ta_conditional_rounds.json, ta_rule_rounds.json, ta_strategy_rounds.json",
-   "E:/source/repos/ml_dashboard/src/ml/cycle/rolls.py (back-adjustment) and cycle/simulate.py (costs, next-open fills)",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/src/ta_strategy/ (data.py load_minutes_rebuilt, features.py, evaluate.py, bracket.py numba bracket sim, engine.py exit engine, levels.py, rules.py, strategy.py, optimize.py, frequency.py, confirm.py, metrics.py, oracle.py)",
+   "E:/source/repos/ml_dashboard/packages/config/ta_conditional_templates.json, ta_conditional_rounds.json, ta_rule_rounds.json, ta_strategy_rounds.json",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/src/cycle/rolls.py (back-adjustment) and cycle/simulate.py (costs, next-open fills)",
    "Lake tables derived_ta_conditional_strategies_600_ticks_{daily,trades,frequency_daily,confirmation_daily,level_events,zones_15m,level_tests} as labelled datasets of momentum/breakout trade outcomes and matched-null trades",
    "E:/source/repos/ml_dashboard/tests/test_ta_strategy.py and tests/test_ta_rules.py (causality/truncation tests)"
   ],
@@ -1185,10 +1185,10 @@
    "Only 3 of 37 recipes carry the runs table with configuration; the older ones lack config."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/src/ml/cycle/report.py (about 100 metrics per scope: model, trading, calibration, drawdown, distribution tables)",
-   "E:/source/repos/ml_dashboard/src/ml/cycle/store.py (eight-table run record) and scripts/land_model_cycle_metrics.py",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/src/cycle/report.py (about 100 metrics per scope: model, trading, calibration, drawdown, distribution tables)",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/src/cycle/store.py (eight-table run record) and scripts/land_model_cycle_metrics.py",
    "Lake tables derived_model_cycle_runs_* as templates for how to record a run so it reproduces",
-   "src/ml/cycle/{engine,tuning,simulate,labels,rolls,features}.py and 40 registered model kinds (src/config/cycle_models/*.json)",
+   "packages/ml-engine/src/cycle/{engine,tuning,simulate,labels,rolls,features}.py and 40 registered model kinds (packages/config/cycle_models/*.json)",
    "docs/model-cycle-record.md"
   ],
   "recommendation": "Use the Model Cycle as the evaluation/record harness (reproducible tables, calibration, drawdown, per-fold metrics) and re-point it at a longer walk-forward span with the holdout kept out; do NOT treat any recorded run as evidence of edge. Fix the open audit items (#13, #14, #15, #17) before relying on it for the final backtest, and make every candidate report Sharpe with probabilistic Sharpe and payoff ratio, since the current headline (win rate) alone misleads: a 54% win rate here came with payoff 0.96."
@@ -1221,7 +1221,7 @@
   "reusable_assets": [
    "E:/source/repos/datalake/src/lake/sentiment.py (compute_from_stream, build_features, FEATURE_NAMES, causal known-at rule)",
    "E:/source/repos/datalake/src/lake/news.py (routing to roots)",
-   "E:/source/repos/ml_dashboard/src/ml/shared/sentiment.py adapter and tests/test_finbert_mandatory.py",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/packages/shared/src/sentiment.py adapter and tests/test_finbert_mandatory.py",
    "Lake curated/news_articles, curated/news_sentiment, curated/news_coverage; derived_news_features (finbert_v1)",
    "live/ hub (python -m live) for forward collection"
   ],
@@ -1257,8 +1257,8 @@
   ],
   "reusable_assets": [
    "derived_labels lake dataset (40 recipes) with contract columns; e.g. triple_barrier_MNQ_5m_e79baabef522, meta_label_MNQ_5m_df1c954753bb, direction_MNQ_5m_243239e9dfca",
-   "E:/source/repos/ml_dashboard/src/server/infrastructure/lib/labels/ (sqlLabelGenerators, labelEnrichment.ts, labelValidation.ts truncation gate, labelSetStore.ts)",
-   "E:/source/repos/ml_dashboard/src/ml/shared/labels.py ATR-scaled triple-barrier kernel",
+   "E:/source/repos/ml_dashboard/apps/api/infrastructure/lib/labels/ (sqlLabelGenerators, labelEnrichment.ts, labelValidation.ts truncation gate, labelSetStore.ts)",
+   "E:/source/repos/ml_dashboard/packages/ml-engine/packages/shared/src/labels.py ATR-scaled triple-barrier kernel",
    "E:/source/repos/ml_dashboard/docs/labels.md and tests/test_label_contract.py",
    "sample_uniqueness_weight and return_attribution_weight columns for AFML weighting"
   ],
@@ -1287,7 +1287,7 @@
    "2,000-bar sample."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/src/client/src/market/lib/calculators/overlay/averages.ts (calcHWMA, now stabilised)"
+   "E:/source/repos/ml_dashboard/apps/web/src/market/lib/calculators/overlay/averages.ts (calcHWMA, now stabilised)"
   ],
   "recommendation": "Ignore for training. If HWMA is ever used as a feature, keep rho < 1 (defaults 0.2/0.1/0.1) and treat it as a smoother of price."
  },
@@ -1316,7 +1316,7 @@
   ],
   "reusable_assets": [
    "E:/source/repos/ml_dashboard/data/diagnostics.duckdb candlestick_pattern_rules (shape conditions, required prior trend per pattern)",
-   "E:/source/repos/ml_dashboard/src/client/src/market/lib/candle_patterns.ts and src/shared/candlePatternTemplates.json",
+   "E:/source/repos/ml_dashboard/apps/web/src/market/lib/candle_patterns.ts and packages/shared/src/candlePatternTemplates.json",
    "derived candle_geometry_1m relative shape embedding (per CLAUDE.md, relative, causal z-scores window 100)"
   ],
   "recommendation": "Do not use raw CDL_* as trading signals. If patterns are used at all, use them as features together with the trend-context flag and evaluate them against the matched-random-entry null used in ta_strategy; prefer the causal candle_geometry_1m relative embedding for the vision/shape modality."
@@ -1342,7 +1342,7 @@
    "Redis rows are published benchmark figures, not measured."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/src/shared/regression/ (statsmodels-parity OLS/LOESS, parity 1e-9) for exploratory regression only"
+   "E:/source/repos/ml_dashboard/packages/shared/src/regression/ (statsmodels-parity OLS/LOESS, parity 1e-9) for exploratory regression only"
   ],
   "recommendation": "Not relevant to training; skip."
  },
@@ -1380,8 +1380,8 @@
   "path": "E:/source/repos/ml_dashboard/notebooks/contract_specifications.py",
   "relevant_to_training": true,
   "topic": "Stock-index futures contract specifications (tick, multiplier, exchange, months, rolls) cross-checked AMP vs CME",
-  "purpose": "Documents 42 contracts from src/config/contract_specifications.json (built by scripts/build_contract_specifications.py), roll dates confirmed against lake daily volumes, and the lake timestamp convention (empty stamped hour 14 Pacific).",
-  "data_sources": "src/config/contract_specifications.json (AMP Futures + CME Group pages), src/config/cost_model.json, lake ohlcv views for the roll check (front contract by highest daily volume), the eight lake roots.",
+  "purpose": "Documents 42 contracts from packages/config/contract_specifications.json (built by scripts/build_contract_specifications.py), roll dates confirmed against lake daily volumes, and the lake timestamp convention (empty stamped hour 14 Pacific).",
+  "data_sources": "packages/config/contract_specifications.json (AMP Futures + CME Group pages), packages/config/cost_model.json, lake ohlcv views for the roll check (front contract by highest daily volume), the eight lake roots.",
   "methods": "Tabulation and cross-verification; roll day = Monday before the third Friday; front-month by arg_max(symbol, volume).",
   "findings": [
    "MNQ: multiplier $2 per point, tick 0.25 = $0.50, quarterly H/M/U/Z (contract JSON).",
@@ -1399,9 +1399,9 @@
    "Costs for non-MNQ roots are assumptions."
   ],
   "reusable_assets": [
-   "E:/source/repos/ml_dashboard/src/config/contract_specifications.json",
-   "E:/source/repos/ml_dashboard/src/config/cost_model.json",
-   "E:/source/repos/ml_dashboard/src/shared/instruments.ts"
+   "E:/source/repos/ml_dashboard/packages/config/contract_specifications.json",
+   "E:/source/repos/ml_dashboard/packages/config/cost_model.json",
+   "E:/source/repos/ml_dashboard/packages/shared/src/instruments.ts"
   ],
   "recommendation": "Use as the single source for tick size, multiplier and AMP costs in labels, simulator and the holdout backtest; report every result at 1 tick and at 2 ticks slippage per side, and keep session-day computation (timestamp + 9 h) consistent with the Pacific-as-UTC stamps."
  },
@@ -2251,10 +2251,10 @@
   "relevant_to_training": true,
   "topic": "Interactive pipeline explorer: bars to scale-free features to trailing z-score to sliding windows for the quantlab transformer",
   "purpose": "Let the user pick root, dates, normalization window and sequence length, and see the vectorized features, warmup drops, per-feature eight-number distributions, walk-forward split with purge and the predict-zero vs persistence baseline.",
-  "data_sources": "quant.data.load_bars, which imports lake_bars.continuous/raw_bars from LAKE_BARS_DIR = E:\\source\\repos\\Trading\\quantower_strategies\\research (that path does not exist; the file is at E:/source/repos/ml_dashboard/Trading/quantower_strategies/research/lake_bars.py). Defaults MNQ 1m 2024-06-01 to 2024-09-01, window 256, sequence 32.",
+  "data_sources": "quant.data.load_bars, which imports lake_bars.continuous/raw_bars from LAKE_BARS_DIR = E:\\source\\repos\\Trading\\live_source_strategies\\research (that path does not exist; the file is at E:/source/repos/ml_dashboard/Trading/live_source_strategies/research/lake_bars.py). Defaults MNQ 1m 2024-06-01 to 2024-09-01, window 256, sequence 32.",
   "methods": "Six features per bar (log_return_close, body_fraction_of_range, upper/lower_wick_fraction_of_range, normalized_range, log_volume_change), trailing z-score with min_periods=window, sliding windows with next-bar log-return target, chronological split with purge = sequence_length + normalization_window, zero and scaled-persistence baselines.",
   "findings": [
-   "Pure exploration; no results or claims are produced and none are saved. It cannot run as written because the lake_bars path in quant/data.py is stale (checked: file absent at E:/source/repos/Trading/quantower_strategies/research/lake_bars.py).",
+   "Pure exploration; no results or claims are produced and none are saved. It cannot run as written because the lake_bars path in quant/data.py is stale (checked: file absent at E:/source/repos/Trading/live_source_strategies/research/lake_bars.py).",
    "The pipeline is the same one that produced the oos_results numbers (R2 -0.00095, directional accuracy 0.5066), so what it shows is the input to a model with no measured edge.",
    "Design content worth keeping: warmup rows dropped not zero-filled; absolute_close_price carried under its own name and kept out of the vector; split purge covers both window overlap (32) and normalization lookback (256); persistence baseline scaled to the target.",
    "The header says the marimo group is 'quant', port 27187, but the dashboard pins quantlab at 17187 (ml_dashboard CLAUDE.md), so its stated port is stale."
@@ -2273,7 +2273,7 @@
   ],
   "reusable_assets": [
    "E:/source/repos/ml_dashboard/Trading/quantlab/src/quant/data.py: vectorize, normalize, window_into_tensor, split_walk_forward, persistence_baseline, distribution (eight numbers)",
-   "E:/source/repos/ml_dashboard/Trading/quantower_strategies/research/lake_bars.py: raw_bars, continuous, minute_bars, second_bars"
+   "E:/source/repos/ml_dashboard/Trading/live_source_strategies/research/lake_bars.py: raw_bars, continuous, minute_bars, second_bars"
   ],
   "recommendation": "Reuse the causal data conventions (trailing z-score with min_periods, purge covering both overlaps, price kept out of vectors) as the multimodal model's data-engineering spine, but fix the LAKE_BARS_DIR path, back-adjust or gap-mask rolls, add volatility/time-of-day inputs from the magnitude notebook, and do not adopt its next-bar-return target."
  }

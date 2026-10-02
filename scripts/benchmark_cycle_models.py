@@ -1,7 +1,7 @@
 """Time every tabular Model Cycle model on real bars: one walk-forward fold's fits.
 
 Read-only. Loads MNQ 5-minute bars from the lake and builds the causal
-features exactly as ``src/ml/cycle/main.py`` does (``shared.data.load_ohlcv_arrays``
+features exactly as ``packages/ml-engine/src/cycle/main.py`` does (``shared.data.load_ohlcv_arrays``
 -> ``engine.clean_market_data`` -> roll back-adjustment -> ``features.build_features``),
 plans the folds with the engine's own planner (60 training days, 20 % of them
 validation, the label horizon purged between them), and on the most recent fold

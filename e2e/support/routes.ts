@@ -1,7 +1,7 @@
 /**
  * The client route table, as data.
  *
- * Mirrors the `<Switch>` in `src/client/src/App.tsx`. Kept as a literal rather
+ * Mirrors the `<Switch>` in `apps/web/src/App.tsx`. Kept as a literal rather
  * than imported from the app because the point of the route-coverage spec is to
  * fail when App.tsx changes and this file does not — importing the real table
  * would make the spec agree with any regression automatically.

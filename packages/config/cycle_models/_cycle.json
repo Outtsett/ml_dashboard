@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "task": "walk_forward_cycle",
+  "displayNameSuffix": " — model cycle",
+  "runnerTemplate": {
+    "runner": "python",
+    "script": "packages/ml-engine/src/cycle/main.py",
+    "outputDir": "data/models",
+    "outputs": [
+      "config.json",
+      "predictions.parquet",
+      "trades.parquet",
+      "epochs.parquet",
+      "trials.parquet",
+      "folds.json",
+      "scoreboard.json",
+      "diagnostics.json"
+    ],
+    "featurePipeline": "default-35",
+    "chartOverlay": "prediction_markers",
+    "supportedObjectives": [
+      "sharpe_ratio",
+      "log_loss",
+      "f1_score"
+    ],
+    "includeIndicators": false,
+    "allFeatures": false,
+    "maxDurationSeconds": 43200
+  },
+  "groupOrder": [
+    "Model",
+    "Walk-forward",
+    "Labels",
+    "Trading",
+    "Tuning",
+    "Replay",
+    "Runtime"
+  ],
+  "estimatorPrefixes": [
+    "sklearn.",
+    "xgboost.",
+    "lightgbm.",
+    "catboost.",
+    "statsmodels."
+  ],
+  "cycleParameters": {
+    "train_days": {
+      "type": "int",
+      "default": 60,
+      "min": 5,
+      "max": 720,
+      "label": "Training window (days)",
+      "group": "Walk-forward"
+    },
+    "validation_fraction": {
+      "type": "float",
+      "default": 0.2,
+      "min": 0.05,
+      "max": 0.5,
+      "step": 0.05,
+      "label": "Validation fraction of the training window",
+      "group": "Walk-forward"
+    },
+    "test_days": {
+      "type": "int",
+      "default": 10,
+      "min": 1,
+      "max": 180,
+      "label": "Test window (days)",
+      "group": "Walk-forward"
+    },
+    "step_days": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "max": 180,
+      "label": "Step between folds, in days (0 = test window)",
+      "group": "Walk-forward"
+    },
+    "fold_limit": {
+      "type": "int",
+      "default": 3,
+      "min": 0,
+      "max": 50,
+      "label": "Fold limit (0 = all folds)",
+      "group": "Walk-forward"
+    },
+    "expanding_window": {
+      "type": "bool",
+      "default": false,
+      "label": "Expanding training window",
+      "group": "Walk-forward"
+    },
+    "label_horizon_bars": {
+      "type": "int",
+      "default": 6,
+      "min": 1,
+      "max": 200,
+      "label": "Label horizon (bars)",
+      "group": "Labels"
+    },
+    "label_threshold_ticks": {
+      "type": "float",
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "step": 0.5,
+      "label": "Label threshold (ticks)",
+      "group": "Labels"
+    },
+    "embargo_bars": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "max": 200,
+      "label": "Embargo (bars)",
+      "group": "Labels"
+    },
+    "label_gap_multiple": {
+      "type": "float",
+      "default": 3.0,
+      "min": 0,
+      "max": 50,
+      "step": 0.5,
+      "label": "Session gap rule (× typical bar interval, 0 = off)",
+      "group": "Labels"
+    },
+    "long_only": {
+      "type": "bool",
+      "default": false,
+      "label": "Long only",
+      "group": "Trading"
+    },
+    "holding_bars": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "max": 500,
+      "label": "Holding period, in bars (0 = label horizon)",
+      "group": "Trading"
+    },
+    "stop_loss_ticks": {
+      "type": "float",
+      "default": 0,
+      "min": 0,
+      "max": 500,
+      "step": 0.5,
+      "label": "Stop loss (ticks, 0 = off)",
+      "group": "Trading"
+    },
+    "take_profit_ticks": {
+      "type": "float",
+      "default": 0,
+      "min": 0,
+      "max": 500,
+      "step": 0.5,
+      "label": "Take profit (ticks, 0 = off)",
+      "group": "Trading"
+    },
+    "contracts": {
+      "type": "int",
+      "default": 1,
+      "min": 1,
+      "max": 10,
+      "label": "Contracts per trade",
+      "group": "Trading"
+    },
+    "tuning_mode": {
+      "type": "categorical",
+      "default": "tuned",
+      "choices": [
+        "tuned",
+        "reviewed_defaults"
+      ],
+      "label": "Hyperparameters",
+      "group": "Tuning"
+    },
+    "tuning_budget_trials": {
+      "type": "int",
+      "default": 20,
+      "min": 0,
+      "max": 500,
+      "label": "Trial budget per fold",
+      "group": "Tuning"
+    },
+    "tuning_budget_seconds": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "max": 7200,
+      "label": "Time budget per fold, seconds (0 = trials only)",
+      "group": "Tuning"
+    },
+    "tuning_objective": {
+      "type": "categorical",
+      "default": "sharpe_ratio",
+      "choices": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "label": "Tuning objective",
+      "group": "Tuning"
+    },
+    "tuning_folds": {
+      "type": "int",
+      "default": 2,
+      "min": 1,
+      "max": 10,
+      "label": "Inner validation blocks",
+      "group": "Tuning"
+    },
+    "tuning_pinned_parameters": {
+      "type": "string",
+      "default": "",
+      "label": "Pinned parameters",
+      "group": "Tuning"
+    },
+    "bars_per_second": {
+      "type": "float",
+      "default": 40,
+      "min": 0,
+      "max": 2000,
+      "step": 1,
+      "label": "Bars per second (0 = as fast as possible)",
+      "group": "Replay"
+    },
+    "start_paused": {
+      "type": "bool",
+      "default": false,
+      "label": "Start paused",
+      "group": "Replay"
+    },
+    "quiet_bars": {
+      "type": "bool",
+      "default": false,
+      "label": "Suppress per-bar log lines",
+      "group": "Replay"
+    },
+    "log_every_batches": {
+      "type": "int",
+      "default": 10,
+      "min": 1,
+      "max": 1000,
+      "label": "Log every N batches",
+      "group": "Replay"
+    },
+    "device": {
+      "type": "categorical",
+      "default": "auto",
+      "choices": [
+        "auto",
+        "cuda",
+        "cpu"
+      ],
+      "label": "Device",
+      "group": "Runtime"
+    },
+    "seed": {
+      "type": "int",
+      "default": 42,
+      "min": 0,
+      "max": 999999,
+      "label": "Random seed",
+      "group": "Runtime"
+    }
+  },
+  "unavailableByCategory": {
+    "unsupervised": "Finds structure without labels; it makes no up or down call for the Cycle to trade and score.",
+    "semi-supervised": "Learns from a few labelled bars plus many unlabelled ones; every Cycle bar is labelled, so it has nothing to add yet.",
+    "self-supervised": "Learns a representation of the bars without labels; it needs a separate head to make an up or down call.",
+    "reinforcement-learning": "Learns a trading policy by acting and collecting rewards; the Cycle scores a model's per-bar predictions instead.",
+    "generative": "Generates new data rather than calling up or down.",
+    "hybrid-composite": "Combines several models in its own pipeline; not built for the Cycle yet.",
+    "probabilistic-symbolic": "Works with rules, graphs or symbolic structure rather than a row of bar features.",
+    "optimization": "Is a search or optimization method, not a model that predicts the next move.",
+    "simulation-decision": "Simulates or plans decisions rather than predicting the next move from features.",
+    "statistical": "A statistical model built for a different kind of target (counts, durations, whole-series forecasts); not built for the Cycle yet.",
+    "supervised": "Not built for the Cycle yet.",
+    "neural-network": "Not built for the Cycle yet."
+  },
+  "unavailableBySubcategory": {
+    "neural-network/generative-and-latent-models": "Learns to reconstruct or generate its input rather than calling up or down.",
+    "neural-network/graph-neural-networks": "Needs a graph of connected entities; the Cycle reads one instrument's bar features.",
+    "neural-network/convolutional-networks": "Built for images (two-dimensional pixels); the Cycle's convolution model over bars is the temporal convolution network.",
+    "statistical/time-series-models": "Forecasts a whole series from its own past, with no feature row per bar; not built for the Cycle yet.",
+    "statistical/survival-analysis": "Predicts how long until an event happens, not the direction of the next move."
+  },
+  "unavailableBySpec": {
+    "neural-network-architectures-attention-based-architectures-slot-attention-network": "Groups the parts of an image into objects; a window of bars has no objects to group.",
+    "neural-network-architectures-attention-based-architectures-vision-transformer-vit": "Cuts an image into patches; the Cycle's attention model over bars is the Transformer encoder.",
+    "neural-network-architectures-specialized-modular-networks-siamese-network": "Compares pairs of inputs for similarity rather than calling up or down.",
+    "neural-network-architectures-specialized-modular-networks-spiking-neural-network-snn": "Needs spike-train inputs and neuromorphic training.",
+    "neural-network-architectures-specialized-modular-networks-capsule-network": "Built for images: it models parts and their poses.",
+    "statistical-models-generalized-linear-models-multinomial-logistic-regression": "Needs three or more classes; the Cycle's label is up or down (with two classes it is logistic regression).",
+    "statistical-models-generalized-linear-models-poisson-regression": "Models counts (0, 1, 2, …); the Cycle's target is a signed price move.",
+    "statistical-models-generalized-linear-models-gamma-regression": "Models positive, skewed amounts; the Cycle's target is a signed price move.",
+    "statistical-models-generalized-linear-models-tweedie-regression": "Models non-negative amounts with many zeros; the Cycle's target is a signed price move.",
+    "statistical-models-generalized-linear-models-zero-inflated-poisson-model": "Models counts with extra zeros; the Cycle's target is a signed price move.",
+    "statistical-models-regression-techniques-multivariate-regression": "Predicts several targets at once; the Cycle predicts one."
+  }
+}

@@ -1,0 +1,417 @@
+{
+  "models": {
+    "kaplan_meier_barrier": {
+      "catalogSpecId": "statistical-models-survival-analysis-survival-models-kaplan-meier-estimator",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Survival Models - Kaplan-Meier Estimator",
+      "category": "Statistical models",
+      "subcategory": "Survival analysis",
+      "kind": "Survival",
+      "summary": "Counts, for bars like this one, how often price reached the upper line before the lower line, bar by bar.",
+      "implementationNote": "Bridge: Durations to a close-touch barrier; direction is the race between the up and down clocks, P(up) = CIF_up(h) / (CIF_up(h) + CIF_down(h)). Differs from the spec: Kaplan-Meier has no covariates, so the bars are split into strata by a train-fitted depth-2 tree and each stratum gets its own competing-risks (Aalen-Johansen) curve. Expect: a handful of distinct probabilities, one per stratum.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "barrier_survival",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "kaplan_meier"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-5 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "barrier_distance": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 3.0,
+          "label": "Barrier distance (move scales)",
+          "group": "Model",
+          "description": "Distance of the up and down barriers from the close, in the bar's causal h-bar standard deviations.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 1.5,
+            "log": false
+          }
+        },
+        "maximum_hold_bars": {
+          "type": "int",
+          "default": 24,
+          "min": 2,
+          "max": 500,
+          "label": "Maximum hold (bars)",
+          "group": "Model",
+          "description": "Bars a walk is watched before it is censored.",
+          "search": {
+            "kind": "int",
+            "low": 6,
+            "high": 48
+          }
+        },
+        "sampling_stride_bars": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 50,
+          "label": "Sampling stride (bars)",
+          "group": "Model",
+          "description": "A walk starts at every n-th training bar (neighbouring walks overlap)."
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "label": "Strata tree depth",
+          "group": "Model",
+          "description": "Depth of the tree that forms the strata.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 5000,
+          "label": "Smallest stratum (walks)",
+          "group": "Model",
+          "description": "Fewest barrier walks in one stratum.",
+          "search": {
+            "kind": "int",
+            "low": 30,
+            "high": 300
+          }
+        }
+      }
+    },
+    "cox_proportional_hazards": {
+      "catalogSpecId": "statistical-models-survival-analysis-survival-models-cox-proportional-hazards",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Survival Models - Cox Proportional Hazards",
+      "category": "Statistical models",
+      "subcategory": "Survival analysis",
+      "kind": "Survival",
+      "summary": "Two stopwatches, one for the upper line and one for the lower; the features speed each one up or slow it down by a fixed multiple.",
+      "implementationNote": "Bridge: Durations to a close-touch barrier; direction is the race between the up and down clocks, P(up) = CIF_up(h) / (CIF_up(h) + CIF_down(h)). Differs from the spec: two cause-specific Cox models (the other side's touch censors), Breslow baselines, an L2 penalty; covariates are the feature row of the starting bar. Expect: assumes proportional hazards; probabilities move with the features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "barrier_survival",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "cox"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "barrier_distance": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 3.0,
+          "label": "Barrier distance (move scales)",
+          "group": "Model",
+          "description": "Distance of the up and down barriers from the close, in the bar's causal h-bar standard deviations.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 1.5,
+            "log": false
+          }
+        },
+        "maximum_hold_bars": {
+          "type": "int",
+          "default": 24,
+          "min": 2,
+          "max": 500,
+          "label": "Maximum hold (bars)",
+          "group": "Model",
+          "description": "Bars a walk is watched before it is censored.",
+          "search": {
+            "kind": "int",
+            "low": 6,
+            "high": 48
+          }
+        },
+        "sampling_stride_bars": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 50,
+          "label": "Sampling stride (bars)",
+          "group": "Model",
+          "description": "A walk starts at every n-th training bar (neighbouring walks overlap)."
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 penalty on the covariate coefficients.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 2.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "accelerated_failure_time": {
+      "catalogSpecId": "statistical-models-survival-analysis-accelerated-failure-time-model-aft",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Accelerated Failure Time Model (AFT)",
+      "category": "Statistical models",
+      "subcategory": "Survival analysis",
+      "kind": "Survival",
+      "summary": "Stretches or squeezes time itself: the features make the trip to the upper or lower line faster or slower.",
+      "implementationNote": "Bridge: Durations to a close-touch barrier; direction is the race between the up and down clocks, P(up) = CIF_up(h) / (CIF_up(h) + CIF_down(h)). Differs from the spec: one AFT model per side (Weibull, log-normal or log-logistic by AIC), the other side's touch censoring it; treats the up and down times as independent. Expect: a parametric race, smooth in the features.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "barrier_survival",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "aft"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-10 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "barrier_distance": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 3.0,
+          "label": "Barrier distance (move scales)",
+          "group": "Model",
+          "description": "Distance of the up and down barriers from the close, in the bar's causal h-bar standard deviations.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 1.5,
+            "log": false
+          }
+        },
+        "maximum_hold_bars": {
+          "type": "int",
+          "default": 24,
+          "min": 2,
+          "max": 500,
+          "label": "Maximum hold (bars)",
+          "group": "Model",
+          "description": "Bars a walk is watched before it is censored.",
+          "search": {
+            "kind": "int",
+            "low": 6,
+            "high": 48
+          }
+        },
+        "sampling_stride_bars": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 50,
+          "label": "Sampling stride (bars)",
+          "group": "Model",
+          "description": "A walk starts at every n-th training bar (neighbouring walks overlap)."
+        },
+        "survival_distribution": {
+          "type": "categorical",
+          "default": "best_by_information_criterion",
+          "choices": [
+            "best_by_information_criterion",
+            "weibull",
+            "log_normal",
+            "log_logistic"
+          ],
+          "label": "Time distribution",
+          "group": "Model",
+          "description": "The distribution of log time; best = lowest AIC per side."
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 penalty on the covariate coefficients.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 2.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "mixture_of_exponentials": {
+      "catalogSpecId": "statistical-models-probabilistic-mixture-models-mixture-of-exponentials",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Mixture of Exponentials",
+      "category": "Statistical models",
+      "subcategory": "Probabilistic mixture models",
+      "kind": "Survival",
+      "summary": "A few clocks, fast and slow, blended by how the bar looks; each side of the race gets its own blend.",
+      "implementationNote": "Bridge: Durations to a close-touch barrier; direction is the race between the up and down clocks, P(up) = CIF_up(h) / (CIF_up(h) + CIF_down(h)). Differs from the spec: the mixing weights depend on the feature row (softmax), fitted by our own censored EM (one iteration per epoch); treats the up and down times as independent. Expect: close to the Cox reading with fatter-tailed timing.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "custom",
+      "adapter": "barrier_survival",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "exponential_mixture"
+        },
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "1-5 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "barrier_distance": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 3.0,
+          "label": "Barrier distance (move scales)",
+          "group": "Model",
+          "description": "Distance of the up and down barriers from the close, in the bar's causal h-bar standard deviations.",
+          "search": {
+            "kind": "float",
+            "low": 0.25,
+            "high": 1.5,
+            "log": false
+          }
+        },
+        "maximum_hold_bars": {
+          "type": "int",
+          "default": 24,
+          "min": 2,
+          "max": 500,
+          "label": "Maximum hold (bars)",
+          "group": "Model",
+          "description": "Bars a walk is watched before it is censored.",
+          "search": {
+            "kind": "int",
+            "low": 6,
+            "high": 48
+          }
+        },
+        "sampling_stride_bars": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 50,
+          "label": "Sampling stride (bars)",
+          "group": "Model",
+          "description": "A walk starts at every n-th training bar (neighbouring walks overlap)."
+        },
+        "component_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Components",
+          "group": "Model",
+          "description": "Exponential clocks per side.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 4
+          }
+        },
+        "iteration_count": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 500,
+          "label": "EM iterations",
+          "group": "Model",
+          "description": "EM iterations (epochs) at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Iterations without a better validation loss before stopping."
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0,
+          "max": 10.0,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "L2 penalty on the covariate coefficients.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 2.0,
+            "log": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -168,7 +168,7 @@ By the pre-registered rule, **the rule-based 40%-at-2:1 line is closed**. No con
 
 **What remains, from the reviews:**
 - **Sizing and instruments:** 600 ticks/day on one contract is not a rule-search target. At a real +10 to +20 ticks/day it needs 30-60 contracts, and that edge is itself unconfirmed out of sample.
-- **Different information:** order flow and depth (Quantower DomFlow capture), news and event timing, or cross-instrument signals, rather than more TA-Lib combinations of the same OHLC.
+- **Different information:** order flow and depth (live_source DomFlow capture), news and event timing, or cross-instrument signals, rather than more TA-Lib combinations of the same OHLC.
 
 ## Multi-timeframe support/resistance and conditional strategies (Optuna-tuned, no model)
 

@@ -1,0 +1,1646 @@
+{
+  "version": 1,
+  "description": "Model family templates for auto-configuring catalog models. When a catalog model has no entry in models.json, the system matches its family tag to a template here and generates a training-ready configuration.",
+  "templates": {
+    "hmm": {
+      "name": "Hidden Markov Models",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/hmm/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "regimes",
+        "transition_matrix",
+        "convergence"
+      ],
+      "chartOverlay": "regime_bands",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_log_likelihood"
+      ],
+      "estimatedTrainingTime": "1-5 min",
+      "tags": [
+        "unsupervised",
+        "time-series",
+        "regime-detection"
+      ],
+      "standardHyperparameters": {
+        "n_states": {
+          "value": 3,
+          "min": 2,
+          "max": 10,
+          "step": 1,
+          "label": "Number of States",
+          "type": "int",
+          "description": "Number of hidden states (regimes) the model can identify",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 2,
+            "max": 8,
+            "step": 1
+          }
+        },
+        "n_iter": {
+          "value": 100,
+          "min": 10,
+          "max": 1000,
+          "step": 10,
+          "label": "Max Iterations",
+          "type": "int",
+          "description": "Maximum number of EM iterations for convergence",
+          "group": "Training",
+          "searchSpace": {
+            "min": 50,
+            "max": 500,
+            "step": 50
+          }
+        },
+        "covariance_type": {
+          "value": "full",
+          "label": "Covariance Type",
+          "type": "categorical",
+          "description": "Type of covariance matrix used for emission distributions",
+          "group": "Architecture",
+          "choices": [
+            "spherical",
+            "diag",
+            "full",
+            "tied"
+          ]
+        },
+        "algorithm": {
+          "value": "viterbi",
+          "label": "Decoding Algorithm",
+          "type": "categorical",
+          "description": "Algorithm for finding the most likely state sequence",
+          "group": "Architecture",
+          "choices": [
+            "viterbi",
+            "map"
+          ]
+        },
+        "tol": {
+          "value": 0.01,
+          "min": 1e-06,
+          "max": 0.1,
+          "step": 0.001,
+          "label": "Convergence Tolerance",
+          "type": "float",
+          "description": "Convergence threshold for EM algorithm log-likelihood change",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-06,
+            "max": 0.01,
+            "scale": "log"
+          }
+        },
+        "n_random_starts": {
+          "value": 5,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "label": "Random Restarts",
+          "type": "int",
+          "description": "Number of random initializations to avoid local optima",
+          "group": "Training"
+        }
+      }
+    },
+    "sklearn": {
+      "name": "Scikit-learn Models",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/sklearn/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "feature_importance",
+        "metrics"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "volume"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_f1",
+        "maximize_auc"
+      ],
+      "estimatedTrainingTime": "1-10 min",
+      "tags": [
+        "supervised",
+        "classification",
+        "regression",
+        "random-forest",
+        "svm",
+        "gradient-boosting"
+      ],
+      "subFamilies": {
+        "random_forest": [
+          "n_estimators",
+          "max_depth",
+          "min_samples_split",
+          "min_samples_leaf",
+          "max_features"
+        ],
+        "svm": [
+          "C",
+          "kernel",
+          "gamma"
+        ],
+        "gradient_boosting": [
+          "n_estimators",
+          "max_depth",
+          "learning_rate",
+          "subsample"
+        ]
+      },
+      "standardHyperparameters": {
+        "n_estimators": {
+          "value": 100,
+          "min": 10,
+          "max": 2000,
+          "step": 10,
+          "label": "Number of Estimators",
+          "type": "int",
+          "description": "Number of trees in the ensemble (RandomForest, GradientBoosting)",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 50,
+            "max": 1000,
+            "step": 50
+          }
+        },
+        "max_depth": {
+          "value": 10,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "label": "Max Tree Depth",
+          "type": "int",
+          "description": "Maximum depth of each tree; controls model complexity",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 3,
+            "max": 30,
+            "step": 1
+          }
+        },
+        "min_samples_split": {
+          "value": 2,
+          "min": 2,
+          "max": 50,
+          "step": 1,
+          "label": "Min Samples to Split",
+          "type": "int",
+          "description": "Minimum samples required to split an internal node",
+          "group": "Regularization"
+        },
+        "min_samples_leaf": {
+          "value": 1,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "label": "Min Samples per Leaf",
+          "type": "int",
+          "description": "Minimum samples required at a leaf node",
+          "group": "Regularization"
+        },
+        "max_features": {
+          "value": "sqrt",
+          "label": "Max Features",
+          "type": "categorical",
+          "description": "Number of features to consider for best split",
+          "group": "Regularization",
+          "choices": [
+            "sqrt",
+            "log2",
+            "auto",
+            "none"
+          ]
+        },
+        "learning_rate": {
+          "value": 0.1,
+          "min": 0.0001,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Step size shrinkage to prevent overfitting (GradientBoosting)",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.1,
+            "scale": "log"
+          }
+        },
+        "subsample": {
+          "value": 1.0,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Subsample Ratio",
+          "type": "float",
+          "description": "Fraction of samples used for fitting each tree (GradientBoosting)",
+          "group": "Regularization"
+        },
+        "C": {
+          "value": 1.0,
+          "min": 0.001,
+          "max": 100.0,
+          "step": 0.1,
+          "label": "Regularization (C)",
+          "type": "float",
+          "description": "Inverse regularization strength for SVM",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.001,
+            "max": 1000.0,
+            "scale": "log"
+          }
+        },
+        "kernel": {
+          "value": "rbf",
+          "label": "SVM Kernel",
+          "type": "categorical",
+          "description": "Kernel type for SVM decision boundary",
+          "group": "Architecture",
+          "choices": [
+            "linear",
+            "poly",
+            "rbf",
+            "sigmoid"
+          ]
+        },
+        "gamma": {
+          "value": "scale",
+          "label": "Kernel Coefficient",
+          "type": "categorical",
+          "description": "Kernel coefficient for rbf/poly/sigmoid kernels",
+          "group": "Architecture",
+          "choices": [
+            "scale",
+            "auto"
+          ]
+        }
+      }
+    },
+    "pytorch": {
+      "name": "PyTorch Neural Networks",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/pytorch/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "loss_curve",
+        "weights"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": true,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "orderflow"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_sharpe"
+      ],
+      "estimatedTrainingTime": "5-60 min",
+      "tags": [
+        "supervised",
+        "deep-learning",
+        "neural-network",
+        "lstm",
+        "mlp",
+        "cnn"
+      ],
+      "standardHyperparameters": {
+        "lr": {
+          "value": 0.001,
+          "min": 0.0001,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Optimizer step size; controls speed and stability of training",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.1,
+            "scale": "log"
+          }
+        },
+        "epochs": {
+          "value": 50,
+          "min": 5,
+          "max": 500,
+          "step": 5,
+          "label": "Training Epochs",
+          "type": "int",
+          "description": "Number of full passes through the training dataset",
+          "group": "Training",
+          "searchSpace": {
+            "min": 10,
+            "max": 300,
+            "step": 10
+          }
+        },
+        "batch_size": {
+          "value": 64,
+          "min": 8,
+          "max": 512,
+          "step": 8,
+          "label": "Batch Size",
+          "type": "int",
+          "description": "Number of samples per gradient update",
+          "group": "Training",
+          "searchSpace": {
+            "min": 16,
+            "max": 256,
+            "options": [
+              16,
+              32,
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "hidden_dims": {
+          "value": [
+            128,
+            64
+          ],
+          "label": "Hidden Layer Dimensions",
+          "type": "array",
+          "description": "List of neuron counts for each hidden layer",
+          "group": "Architecture",
+          "searchSpace": {
+            "presets": [
+              [
+                64,
+                32
+              ],
+              [
+                128,
+                64
+              ],
+              [
+                256,
+                128
+              ],
+              [
+                128,
+                64,
+                32
+              ],
+              [
+                256,
+                128,
+                64
+              ]
+            ]
+          }
+        },
+        "dropout": {
+          "value": 0.2,
+          "min": 0.0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout Rate",
+          "type": "float",
+          "description": "Fraction of neurons randomly zeroed during training for regularization",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.0,
+            "max": 0.5,
+            "step": 0.1
+          }
+        },
+        "optimizer_type": {
+          "value": "adam",
+          "label": "Optimizer",
+          "type": "categorical",
+          "description": "Gradient descent optimization algorithm",
+          "group": "Training",
+          "choices": [
+            "adam",
+            "adamw",
+            "sgd",
+            "rmsprop",
+            "radam"
+          ]
+        },
+        "scheduler": {
+          "value": "cosine",
+          "label": "LR Scheduler",
+          "type": "categorical",
+          "description": "Learning rate scheduling strategy during training",
+          "group": "Training",
+          "choices": [
+            "none",
+            "step",
+            "cosine",
+            "reduce_on_plateau",
+            "one_cycle"
+          ]
+        },
+        "weight_decay": {
+          "value": 0.0001,
+          "min": 0.0,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Weight Decay",
+          "type": "float",
+          "description": "L2 regularization penalty on model weights",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-06,
+            "max": 0.01,
+            "scale": "log"
+          }
+        },
+        "early_stopping_patience": {
+          "value": 10,
+          "min": 3,
+          "max": 50,
+          "step": 1,
+          "label": "Early Stopping Patience",
+          "type": "int",
+          "description": "Epochs to wait for validation improvement before stopping",
+          "group": "Training"
+        }
+      }
+    },
+    "xgboost": {
+      "name": "XGBoost Gradient Boosting",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/xgboost/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "feature_importance",
+        "shap"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "volume"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_auc",
+        "maximize_f1"
+      ],
+      "estimatedTrainingTime": "2-15 min",
+      "tags": [
+        "supervised",
+        "gradient-boosting",
+        "classification",
+        "regression",
+        "tabular"
+      ],
+      "standardHyperparameters": {
+        "n_estimators": {
+          "value": 200,
+          "min": 50,
+          "max": 5000,
+          "step": 50,
+          "label": "Number of Boosting Rounds",
+          "type": "int",
+          "description": "Number of gradient-boosted trees to build",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 100,
+            "max": 3000,
+            "step": 100
+          }
+        },
+        "max_depth": {
+          "value": 6,
+          "min": 1,
+          "max": 15,
+          "step": 1,
+          "label": "Max Tree Depth",
+          "type": "int",
+          "description": "Maximum depth of each boosted tree",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 3,
+            "max": 12,
+            "step": 1
+          }
+        },
+        "learning_rate": {
+          "value": 0.1,
+          "min": 0.0001,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Learning Rate (eta)",
+          "type": "float",
+          "description": "Shrinkage rate applied to each tree's contribution",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.1,
+            "scale": "log"
+          }
+        },
+        "subsample": {
+          "value": 0.8,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Row Subsample Ratio",
+          "type": "float",
+          "description": "Fraction of training rows sampled per boosting round",
+          "group": "Regularization"
+        },
+        "colsample_bytree": {
+          "value": 0.8,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Column Subsample per Tree",
+          "type": "float",
+          "description": "Fraction of features randomly sampled per tree",
+          "group": "Regularization"
+        },
+        "reg_alpha": {
+          "value": 0.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "L1 Regularization (alpha)",
+          "type": "float",
+          "description": "L1 regularization term on leaf weights; promotes sparsity",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-08,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "reg_lambda": {
+          "value": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "L2 Regularization (lambda)",
+          "type": "float",
+          "description": "L2 regularization term on leaf weights; prevents overfitting",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-08,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "min_child_weight": {
+          "value": 1,
+          "min": 0,
+          "max": 20,
+          "step": 1,
+          "label": "Min Child Weight",
+          "type": "int",
+          "description": "Minimum sum of instance weight needed in a child node",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1,
+            "max": 10,
+            "step": 1
+          }
+        },
+        "gamma": {
+          "value": 0.0,
+          "min": 0.0,
+          "max": 5.0,
+          "step": 0.1,
+          "label": "Min Split Loss (gamma)",
+          "type": "float",
+          "description": "Minimum loss reduction required to make a further partition",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.0,
+            "max": 5.0,
+            "step": 0.5
+          }
+        }
+      }
+    },
+    "lightgbm": {
+      "name": "LightGBM",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/lightgbm/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "feature_importance",
+        "shap"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "volume"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_auc",
+        "maximize_f1"
+      ],
+      "estimatedTrainingTime": "1-10 min",
+      "tags": [
+        "supervised",
+        "gradient-boosting",
+        "classification",
+        "regression",
+        "tabular",
+        "fast"
+      ],
+      "standardHyperparameters": {
+        "num_leaves": {
+          "value": 31,
+          "min": 8,
+          "max": 256,
+          "step": 1,
+          "label": "Number of Leaves",
+          "type": "int",
+          "description": "Maximum number of leaves per tree; primary complexity control",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 16,
+            "max": 128,
+            "step": 8
+          }
+        },
+        "max_depth": {
+          "value": -1,
+          "min": -1,
+          "max": 30,
+          "step": 1,
+          "label": "Max Tree Depth",
+          "type": "int",
+          "description": "Maximum tree depth (-1 means no limit); secondary complexity control",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 3,
+            "max": 15,
+            "step": 1
+          }
+        },
+        "learning_rate": {
+          "value": 0.05,
+          "min": 0.0001,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Boosting learning rate (shrinkage)",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.1,
+            "scale": "log"
+          }
+        },
+        "n_estimators": {
+          "value": 200,
+          "min": 50,
+          "max": 5000,
+          "step": 50,
+          "label": "Number of Boosting Rounds",
+          "type": "int",
+          "description": "Number of boosting iterations",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 100,
+            "max": 3000,
+            "step": 100
+          }
+        },
+        "min_child_samples": {
+          "value": 20,
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "label": "Min Samples per Leaf",
+          "type": "int",
+          "description": "Minimum number of data samples in one leaf to prevent overfitting",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 5,
+            "max": 100,
+            "step": 5
+          }
+        },
+        "subsample": {
+          "value": 0.8,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Bagging Fraction",
+          "type": "float",
+          "description": "Fraction of data used for each boosting iteration (requires bagging_freq > 0)",
+          "group": "Regularization"
+        },
+        "colsample_bytree": {
+          "value": 0.8,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Feature Fraction",
+          "type": "float",
+          "description": "Fraction of features selected for each tree",
+          "group": "Regularization"
+        },
+        "reg_alpha": {
+          "value": 0.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "L1 Regularization",
+          "type": "float",
+          "description": "L1 regularization term on weights",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-08,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "reg_lambda": {
+          "value": 0.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "L2 Regularization",
+          "type": "float",
+          "description": "L2 regularization term on weights",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-08,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "bagging_freq": {
+          "value": 5,
+          "min": 0,
+          "max": 20,
+          "step": 1,
+          "label": "Bagging Frequency",
+          "type": "int",
+          "description": "Frequency of bagging (0 = disabled); set > 0 to enable subsample",
+          "group": "Regularization"
+        }
+      }
+    },
+    "catboost": {
+      "name": "CatBoost",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/catboost/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "feature_importance",
+        "shap"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "volume"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_auc",
+        "maximize_f1"
+      ],
+      "estimatedTrainingTime": "2-20 min",
+      "tags": [
+        "supervised",
+        "gradient-boosting",
+        "classification",
+        "regression",
+        "tabular",
+        "categorical-native"
+      ],
+      "standardHyperparameters": {
+        "iterations": {
+          "value": 500,
+          "min": 50,
+          "max": 5000,
+          "step": 50,
+          "label": "Iterations",
+          "type": "int",
+          "description": "Maximum number of boosting iterations",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 100,
+            "max": 3000,
+            "step": 100
+          }
+        },
+        "depth": {
+          "value": 6,
+          "min": 1,
+          "max": 16,
+          "step": 1,
+          "label": "Tree Depth",
+          "type": "int",
+          "description": "Depth of each symmetric tree",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 4,
+            "max": 10,
+            "step": 1
+          }
+        },
+        "learning_rate": {
+          "value": 0.03,
+          "min": 0.0001,
+          "max": 0.01,
+          "step": 0.0001,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Step size shrinkage used to prevent overfitting",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.1,
+            "scale": "log"
+          }
+        },
+        "l2_leaf_reg": {
+          "value": 3.0,
+          "min": 0.0,
+          "max": 100.0,
+          "step": 0.5,
+          "label": "L2 Leaf Regularization",
+          "type": "float",
+          "description": "L2 regularization coefficient for leaf values",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.01,
+            "max": 100.0,
+            "scale": "log"
+          }
+        },
+        "border_count": {
+          "value": 254,
+          "min": 1,
+          "max": 65535,
+          "step": 1,
+          "label": "Border Count",
+          "type": "int",
+          "description": "Number of splits for numerical features (higher = more precise but slower)",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 32,
+            "max": 255,
+            "options": [
+              32,
+              64,
+              128,
+              254
+            ]
+          }
+        },
+        "random_strength": {
+          "value": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "Random Strength",
+          "type": "float",
+          "description": "Amount of randomness for scoring splits; higher = more regularization",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.1,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "bagging_temperature": {
+          "value": 1.0,
+          "min": 0.0,
+          "max": 10.0,
+          "step": 0.1,
+          "label": "Bagging Temperature",
+          "type": "float",
+          "description": "Controls intensity of Bayesian bootstrap bagging (0 = no bagging)",
+          "group": "Regularization"
+        },
+        "subsample": {
+          "value": 0.8,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Subsample Ratio",
+          "type": "float",
+          "description": "Fraction of the training data used per iteration (Bernoulli sampling)",
+          "group": "Regularization"
+        }
+      }
+    },
+    "transformer": {
+      "name": "Transformer Models",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/transformer/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "attention_maps",
+        "embeddings"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": true,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "orderflow",
+        "microstructure"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_sharpe"
+      ],
+      "estimatedTrainingTime": "15-120 min",
+      "tags": [
+        "supervised",
+        "deep-learning",
+        "attention",
+        "sequence-modeling",
+        "time-series"
+      ],
+      "standardHyperparameters": {
+        "n_heads": {
+          "value": 4,
+          "min": 1,
+          "max": 16,
+          "step": 1,
+          "label": "Attention Heads",
+          "type": "int",
+          "description": "Number of parallel attention heads in multi-head attention",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 2,
+            "max": 8,
+            "options": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "n_layers": {
+          "value": 4,
+          "min": 1,
+          "max": 24,
+          "step": 1,
+          "label": "Encoder Layers",
+          "type": "int",
+          "description": "Number of stacked transformer encoder layers",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 2,
+            "max": 12,
+            "step": 1
+          }
+        },
+        "d_model": {
+          "value": 128,
+          "min": 32,
+          "max": 1024,
+          "step": 32,
+          "label": "Model Dimension",
+          "type": "int",
+          "description": "Dimensionality of the model's internal representations",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 64,
+            "max": 512,
+            "options": [
+              64,
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "d_ff": {
+          "value": 512,
+          "min": 64,
+          "max": 4096,
+          "step": 64,
+          "label": "Feed-Forward Dimension",
+          "type": "int",
+          "description": "Inner dimension of position-wise feed-forward layers",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 128,
+            "max": 2048,
+            "options": [
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ]
+          }
+        },
+        "dropout": {
+          "value": 0.1,
+          "min": 0.0,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Dropout Rate",
+          "type": "float",
+          "description": "Dropout probability applied in attention and feed-forward layers",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 0.0,
+            "max": 0.3,
+            "step": 0.05
+          }
+        },
+        "lr": {
+          "value": 0.0001,
+          "min": 1e-05,
+          "max": 0.001,
+          "step": 1e-05,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Peak learning rate for the optimizer",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.01,
+            "scale": "log"
+          }
+        },
+        "warmup_steps": {
+          "value": 1000,
+          "min": 100,
+          "max": 10000,
+          "step": 100,
+          "label": "Warmup Steps",
+          "type": "int",
+          "description": "Number of linear warmup steps before learning rate decay",
+          "group": "Training",
+          "searchSpace": {
+            "min": 200,
+            "max": 5000,
+            "step": 200
+          }
+        },
+        "max_seq_len": {
+          "value": 128,
+          "min": 16,
+          "max": 2048,
+          "step": 16,
+          "label": "Max Sequence Length",
+          "type": "int",
+          "description": "Maximum input sequence length in time steps",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 32,
+            "max": 512,
+            "options": [
+              32,
+              64,
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "batch_size": {
+          "value": 32,
+          "min": 4,
+          "max": 256,
+          "step": 4,
+          "label": "Batch Size",
+          "type": "int",
+          "description": "Number of sequences per gradient update",
+          "group": "Training",
+          "searchSpace": {
+            "min": 8,
+            "max": 128,
+            "options": [
+              8,
+              16,
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "epochs": {
+          "value": 100,
+          "min": 10,
+          "max": 500,
+          "step": 10,
+          "label": "Training Epochs",
+          "type": "int",
+          "description": "Number of full passes through the training dataset",
+          "group": "Training",
+          "searchSpace": {
+            "min": 20,
+            "max": 300,
+            "step": 20
+          }
+        },
+        "weight_decay": {
+          "value": 0.01,
+          "min": 0.0,
+          "max": 0.1,
+          "step": 0.001,
+          "label": "Weight Decay",
+          "type": "float",
+          "description": "L2 regularization coefficient for AdamW optimizer",
+          "group": "Regularization",
+          "searchSpace": {
+            "min": 1e-06,
+            "max": 0.1,
+            "scale": "log"
+          }
+        }
+      }
+    },
+    "reinforcement": {
+      "name": "Reinforcement Learning",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/reinforcement/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "rewards",
+        "policy",
+        "value_function"
+      ],
+      "chartOverlay": "reward_curve",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "position",
+        "portfolio"
+      ],
+      "supportedObjectives": [
+        "maximize_reward",
+        "maximize_sharpe",
+        "minimize_drawdown"
+      ],
+      "estimatedTrainingTime": "10-120 min",
+      "tags": [
+        "reinforcement-learning",
+        "dqn",
+        "ppo",
+        "a2c",
+        "policy-gradient",
+        "trading-agent"
+      ],
+      "standardHyperparameters": {
+        "gamma": {
+          "value": 0.99,
+          "min": 0.9,
+          "max": 0.999,
+          "step": 0.001,
+          "label": "Discount Factor (\u00ce\u00b3)",
+          "type": "float",
+          "description": "Discount factor for future rewards; higher values weight future rewards more",
+          "group": "Training",
+          "searchSpace": {
+            "min": 0.95,
+            "max": 0.999,
+            "options": [
+              0.95,
+              0.97,
+              0.99,
+              0.995,
+              0.999
+            ]
+          }
+        },
+        "lr": {
+          "value": 0.0003,
+          "min": 1e-05,
+          "max": 0.01,
+          "step": 1e-05,
+          "label": "Learning Rate",
+          "type": "float",
+          "description": "Optimizer learning rate for policy and value networks",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1e-05,
+            "max": 0.01,
+            "scale": "log"
+          }
+        },
+        "epsilon": {
+          "value": 1.0,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Initial Epsilon",
+          "type": "float",
+          "description": "Initial exploration rate for epsilon-greedy policy (DQN)",
+          "group": "Training"
+        },
+        "epsilon_decay": {
+          "value": 0.995,
+          "min": 0.9,
+          "max": 0.9999,
+          "step": 0.001,
+          "label": "Epsilon Decay",
+          "type": "float",
+          "description": "Multiplicative decay applied to epsilon after each episode",
+          "group": "Training",
+          "searchSpace": {
+            "min": 0.99,
+            "max": 0.9999,
+            "scale": "log"
+          }
+        },
+        "epsilon_min": {
+          "value": 0.01,
+          "min": 0.001,
+          "max": 0.1,
+          "step": 0.001,
+          "label": "Minimum Epsilon",
+          "type": "float",
+          "description": "Floor value for exploration rate",
+          "group": "Training"
+        },
+        "buffer_size": {
+          "value": 100000,
+          "min": 1000,
+          "max": 1000000,
+          "step": 10000,
+          "label": "Replay Buffer Size",
+          "type": "int",
+          "description": "Maximum number of transitions stored in the experience replay buffer",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 10000,
+            "max": 500000,
+            "step": 50000
+          }
+        },
+        "batch_size": {
+          "value": 64,
+          "min": 16,
+          "max": 512,
+          "step": 16,
+          "label": "Batch Size",
+          "type": "int",
+          "description": "Number of transitions sampled from buffer per update step",
+          "group": "Training",
+          "searchSpace": {
+            "min": 32,
+            "max": 256,
+            "options": [
+              32,
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "target_update_freq": {
+          "value": 1000,
+          "min": 100,
+          "max": 50000,
+          "step": 100,
+          "label": "Target Network Update Frequency",
+          "type": "int",
+          "description": "Steps between target network synchronizations (DQN)",
+          "group": "Training",
+          "searchSpace": {
+            "min": 500,
+            "max": 20000,
+            "step": 500
+          }
+        },
+        "n_episodes": {
+          "value": 1000,
+          "min": 100,
+          "max": 50000,
+          "step": 100,
+          "label": "Training Episodes",
+          "type": "int",
+          "description": "Total number of episodes to train the agent",
+          "group": "Training",
+          "searchSpace": {
+            "min": 500,
+            "max": 20000,
+            "step": 500
+          }
+        },
+        "clip_ratio": {
+          "value": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "PPO Clip Ratio",
+          "type": "float",
+          "description": "Clipping parameter for PPO surrogate objective",
+          "group": "Training",
+          "searchSpace": {
+            "min": 0.1,
+            "max": 0.3,
+            "step": 0.05
+          }
+        }
+      }
+    },
+    "bayesian": {
+      "name": "Bayesian Models",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/bayesian/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "posterior",
+        "credible_intervals",
+        "diagnostics"
+      ],
+      "chartOverlay": "credible_bands",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility"
+      ],
+      "supportedObjectives": [
+        "maximize_log_likelihood",
+        "maximize_elbo",
+        "minimize_divergence"
+      ],
+      "estimatedTrainingTime": "5-60 min",
+      "tags": [
+        "bayesian",
+        "probabilistic",
+        "uncertainty",
+        "mcmc",
+        "variational-inference"
+      ],
+      "standardHyperparameters": {
+        "n_samples": {
+          "value": 2000,
+          "min": 500,
+          "max": 50000,
+          "step": 500,
+          "label": "MCMC Samples",
+          "type": "int",
+          "description": "Number of posterior samples to draw after warmup",
+          "group": "Training",
+          "searchSpace": {
+            "min": 1000,
+            "max": 20000,
+            "step": 1000
+          }
+        },
+        "n_chains": {
+          "value": 4,
+          "min": 1,
+          "max": 16,
+          "step": 1,
+          "label": "Number of Chains",
+          "type": "int",
+          "description": "Parallel MCMC chains for convergence diagnostics (R-hat)",
+          "group": "Training",
+          "searchSpace": {
+            "min": 2,
+            "max": 8,
+            "step": 1
+          }
+        },
+        "warmup": {
+          "value": 1000,
+          "min": 100,
+          "max": 10000,
+          "step": 100,
+          "label": "Warmup / Burn-in Samples",
+          "type": "int",
+          "description": "Number of initial samples discarded for chain adaptation",
+          "group": "Training",
+          "searchSpace": {
+            "min": 500,
+            "max": 5000,
+            "step": 500
+          }
+        },
+        "prior_scale": {
+          "value": 1.0,
+          "min": 0.01,
+          "max": 100.0,
+          "step": 0.1,
+          "label": "Prior Scale",
+          "type": "float",
+          "description": "Scale (standard deviation) of the default prior distributions",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 0.1,
+            "max": 10.0,
+            "scale": "log"
+          }
+        },
+        "target_accept": {
+          "value": 0.8,
+          "min": 0.5,
+          "max": 0.99,
+          "step": 0.01,
+          "label": "Target Accept Rate",
+          "type": "float",
+          "description": "Target acceptance probability for NUTS/HMC sampler adaptation",
+          "group": "Training",
+          "searchSpace": {
+            "min": 0.65,
+            "max": 0.95,
+            "step": 0.05
+          }
+        },
+        "max_tree_depth": {
+          "value": 10,
+          "min": 5,
+          "max": 20,
+          "step": 1,
+          "label": "Max Tree Depth (NUTS)",
+          "type": "int",
+          "description": "Maximum trajectory tree depth for the NUTS sampler",
+          "group": "Training"
+        },
+        "inference_method": {
+          "value": "nuts",
+          "label": "Inference Method",
+          "type": "categorical",
+          "description": "Posterior inference algorithm: MCMC (nuts/hmc) or variational (advi/svgd/svi)",
+          "group": "Architecture",
+          "choices": [
+            "nuts",
+            "hmc",
+            "advi",
+            "svgd",
+            "svi"
+          ]
+        }
+      }
+    },
+    "ensemble": {
+      "name": "Ensemble Methods",
+      "runner": "python",
+      "scriptTemplate": "packages/ml-engine/src/generic/ensemble/train.py",
+      "featurePipeline": "configurable",
+      "outputs": [
+        "predictions",
+        "member_weights",
+        "diversity_metrics"
+      ],
+      "chartOverlay": "prediction_line",
+      "outputDir": "data/models",
+      "gpuRequired": false,
+      "defaultFeatureCategories": [
+        "returns",
+        "volatility",
+        "momentum",
+        "volume"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_accuracy",
+        "maximize_sharpe",
+        "maximize_f1"
+      ],
+      "estimatedTrainingTime": "5-30 min",
+      "tags": [
+        "ensemble",
+        "stacking",
+        "blending",
+        "model-combination",
+        "meta-learning"
+      ],
+      "standardHyperparameters": {
+        "n_models": {
+          "value": 5,
+          "min": 2,
+          "max": 50,
+          "step": 1,
+          "label": "Number of Base Models",
+          "type": "int",
+          "description": "Number of base models in the ensemble",
+          "group": "Architecture",
+          "searchSpace": {
+            "min": 3,
+            "max": 20,
+            "step": 1
+          }
+        },
+        "aggregation_method": {
+          "value": "weighted_average",
+          "label": "Aggregation Method",
+          "type": "categorical",
+          "description": "Strategy for combining predictions from base models",
+          "group": "Architecture",
+          "choices": [
+            "simple_average",
+            "weighted_average",
+            "stacking",
+            "voting",
+            "bayesian_averaging"
+          ]
+        },
+        "diversity_weight": {
+          "value": 0.1,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Diversity Weight",
+          "type": "float",
+          "description": "Weight given to ensemble diversity in the combined objective (higher = more diverse members)",
+          "group": "Training",
+          "searchSpace": {
+            "min": 0.01,
+            "max": 0.5,
+            "step": 0.05
+          }
+        },
+        "cv_folds": {
+          "value": 5,
+          "min": 2,
+          "max": 20,
+          "step": 1,
+          "label": "Cross-Validation Folds",
+          "type": "int",
+          "description": "Number of folds for stacking/blending cross-validation",
+          "group": "Training"
+        },
+        "meta_learner": {
+          "value": "ridge",
+          "label": "Meta-Learner",
+          "type": "categorical",
+          "description": "Model used to learn optimal combination of base model predictions (stacking)",
+          "group": "Architecture",
+          "choices": [
+            "ridge",
+            "lasso",
+            "logistic",
+            "xgboost",
+            "linear"
+          ]
+        },
+        "weight_optimization": {
+          "value": "minimize_loss",
+          "label": "Weight Optimization Objective",
+          "type": "categorical",
+          "description": "Objective function used to optimize member weights in weighted averaging",
+          "group": "Training",
+          "choices": [
+            "minimize_loss",
+            "maximize_sharpe",
+            "equal_weight",
+            "inverse_error"
+          ]
+        },
+        "bootstrap_members": {
+          "value": true,
+          "label": "Bootstrap Base Models",
+          "type": "bool",
+          "description": "Whether base models are trained on bootstrap samples for diversity",
+          "group": "Regularization"
+        }
+      }
+    }
+  }
+}

@@ -57,14 +57,14 @@ FINDINGS = [
     # severity, area, where, finding, action
     ("high", "server", "sqlLabelGenerators/helpers.ts rollingStd", "warmup rows evaluated to exactly 0 (AVG(x^2) - AVG(x)^2 over a one-row frame), so a barrier in volatility units collapsed onto the entry price for the first rows of every bounded request", "fixed: every trailing aggregate is guarded by a row count and NULL until the frame is full"),
     ("high", "server", "sqlLabelGenerators/trendScanning.ts", "max |pseudo-t| over 18 horizons with no correction; 93% of MNQ 5m bars labelled significant at t >= 2", "fixed: least-squares t on log close, Šidák-adjusted threshold, scaled t beside it"),
-    ("high", "python", "src/ml/shared/labels.py triple barrier", "fixed basis-point barrier only; the reference model had measured 14.6% keep rate on daily bars vs 94% ATR-scaled", "fixed: ATR-scaled kernel is the shared one; xgb_classifier re-exports it"),
+    ("high", "python", "packages/ml-engine/packages/shared/src/labels.py triple barrier", "fixed basis-point barrier only; the reference model had measured 14.6% keep rate on daily bars vs 94% ATR-scaled", "fixed: ATR-scaled kernel is the shared one; xgb_classifier re-exports it"),
     ("high", "python", "_walk_forward.py.j2 / codegen.router.ts", "purge defaulted to 0 and was never derived from the label horizon", "fixed: purge = max(requested, label horizon) in the template; codegen clamps and warns; a landed set carries its purge"),
     ("high", "lake", "mnq_tbl_5m, mnq_swing_5m", "1,409,553 + 469,851 rows with no producer in any repository", "reported: kept as legacy; the suite lands triple-barrier and structural sets with a recorded recipe"),
     ("medium", "server", "futureReturn.ts normalize, marketRegime.ts PERCENT_RANK", "whole-series statistics: a bar's label changed with the query's end date", "fixed: trailing windows; the truncation gate now fails any generator that does this"),
     ("medium", "server", "tripleBarrier.ts", "realised return was the horizon-end close even when a barrier resolved the row; same-bar double touch guessed by proximity; vol_scale used the whole-sample mean volatility", "fixed: fill price at the barrier or the gap open; ambiguity flagged; causal scale"),
     ("medium", "server", "contrastivePairs.ts", "read the sub-minute table directly, so a 60-bar window was ~3 minutes of ticks", "fixed: routed through the sampled bars"),
     ("medium", "server", "generated_labels", "no idempotency (three identical requests made ids 6, 7, 8) and no horizon or resolution recorded", "fixed: recipe identity with a unique index; max_horizon_bars, purge_bars, embargo_bars, validation, source fingerprint on the row"),
-    ("medium", "lake", "derived/recipe=questdb_full_2026-09-09", "the snapshot the dashboard serves has no ingest manifest", "reported"),
+    ("medium", "lake", "derived/recipe=lake_full_2026-09-09", "the snapshot the dashboard serves has no ingest manifest", "reported"),
     ("medium", "lake", "mnq_labels_1m vs mnq_labels_1m_new", "byte-identical (full EXCEPT both ways = 0 rows); the migration plan marked the first obsolete and the drop never ran", "reported: deleting data is not the dashboard's call"),
     ("medium", "lake", "mnq_zigzag_1m", "580 timestamps (2026-03-02 to 2026-03-27) that are not in mnq_ohlcv_1m", "reported"),
     ("medium", "lake", "derived/ layout", "two layouts on disk: derived/<dataset>/recipe=... (documented) and derived/recipe=.../table=... (hand-built)", "fixed for labels: landed under the documented layout; the dashboard's derived views follow the manifests"),
@@ -83,7 +83,7 @@ LEGACY_TABLES = [
     ("mnq_tbl_5m", 1_409_553, "2019-05-05", "2025-12-30", "none in any repository", "irreplaceable; superseded by the suite's triple-barrier recipes"),
     ("mnq_swing_5m", 469_851, "2019-05-05", "2025-12-30", "none in any repository", "irreplaceable; carries w_uniqueness and w_proximity"),
     ("mnq_zigzag_1m", 647_506, "2024-03-01", "2026-03-27", "Trading/quant/analytics/zigzag/columns.py (loader deleted)", "580 timestamps not in mnq_ohlcv_1m; repainting columns not marked by name"),
-    ("talib_candle_patterns", 216_540, "2025-09-30", "2025-12-30", "analytics/structure/to_questdb.py (file gone)", "three months only; the chart computes patterns itself"),
+    ("talib_candle_patterns", 216_540, "2025-09-30", "2025-12-30", "analytics/structure/to_lake.py (file gone)", "three months only; the chart computes patterns itself"),
 ]
 
 
@@ -104,7 +104,7 @@ def write_table(name: str, frame: pl.DataFrame, source: str) -> None:
 
 
 def suite_frame() -> pl.DataFrame:
-    """The suite as the dashboard declares it (`src/server/infrastructure/lib/labels/labelSuite.ts`), read from the running server."""
+    """The suite as the dashboard declares it (`apps/api/infrastructure/lib/labels/labelSuite.ts`), read from the running server."""
     import urllib.request
 
     with urllib.request.urlopen("http://127.0.0.1:5000/api/labels/suite", timeout=30) as response:
@@ -126,13 +126,13 @@ def main() -> int:
     print(f"landing {DATASET} recipe={RECIPE}")
     write_table("generators", pl.DataFrame(
         [{"generator_id": g[0], "category": g[1], "label_encoding": g[2], "horizon_parameter": g[3], "describes_the_bar_itself": g[4], "audit_change": g[5]} for g in GENERATORS]
-    ), source="src/server/infrastructure/lib/labels/sqlLabelGenerators")
+    ), source="apps/api/infrastructure/lib/labels/sqlLabelGenerators")
     write_table("findings", pl.DataFrame(
         [{"severity": f[0], "area": f[1], "location": f[2], "finding": f[3], "action": f[4]} for f in FINDINGS]
     ), source="docs/plans/2026-09-26-label-lifecycle.md")
     write_table("legacy_tables", pl.DataFrame(
         [{"table_name": t[0], "row_count": t[1], "first_day": t[2], "last_day": t[3], "producer": t[4], "status": t[5]} for t in LEGACY_TABLES]
-    ), source="lake serving snapshot derived/recipe=questdb_full_2026-09-09")
+    ), source="lake serving snapshot derived/recipe=lake_full_2026-09-09")
     if not args.skip_suite:
         write_table("suite", suite_frame(), source="GET /api/labels/suite")
     print(f"done: s3://derived/{DATASET}/recipe={RECIPE}/")
@@ -141,3 +141,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

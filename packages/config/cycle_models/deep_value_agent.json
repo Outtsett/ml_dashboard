@@ -1,0 +1,971 @@
+{
+  "models": {
+    "deep_q_network": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-value-based-methods-deep-q-network-dqn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Deep Q-Network (DQN)",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free value-based methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A neural network learns the value of going short, flat or long from each bar's features by walking the training span, replaying past steps and learning against a frozen copy of itself.",
+      "implementationNote": "Bridge: P(up) is the long share of a softmax over Q(long) and Q(short), temperature fitted on validation. Differs from the spec: the market ignores the agent and its position is not in the state, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost). Expect: an edge only where the features predict the h-bar move.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "deep_value_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dqn",
+          "double_target": false,
+          "dueling": false,
+          "noisy": false,
+          "distributional": false,
+          "prioritized_replay": false,
+          "multi_step": false
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-10 min",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the Q-network has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the shared encoder has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each gradient update takes (Adam).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.002,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 16,
+          "max": 1024,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many replayed transitions one gradient update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "How many times the agent walks the whole training span bar by bar (one episode each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Stop after this many episodes without a better validation net reward."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much the value of the next bar counts in today's value. The next bar does not depend on the action here, so this changes the scale of the values, not the choice.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.99,
+            "log": false
+          }
+        },
+        "replay_capacity": {
+          "type": "int",
+          "default": 50000,
+          "min": 1000,
+          "max": 1000000,
+          "label": "Replay capacity",
+          "group": "Model",
+          "description": "How many past transitions the replay buffer keeps; the oldest are overwritten."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 250,
+          "min": 1,
+          "max": 100000,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "How many gradient updates pass before the frozen target network is refreshed with the online network's weights."
+        },
+        "environment_steps_per_update": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Bars per update",
+          "group": "Model",
+          "description": "How many bars the agent walks between two gradient updates."
+        },
+        "gradient_norm_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.1,
+          "max": 1000.0,
+          "label": "Gradient norm limit",
+          "group": "Model",
+          "description": "Gradients are rescaled so their norm never exceeds this."
+        },
+        "exploration_start": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration at the start",
+          "group": "Model",
+          "description": "The chance of a random action at the first bar (epsilon-greedy)."
+        },
+        "exploration_end": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Exploration at the end",
+          "group": "Model",
+          "description": "The chance of a random action once the decay is over."
+        },
+        "exploration_decay_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration decay share",
+          "group": "Model",
+          "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
+        }
+      }
+    },
+    "double_deep_q_network": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-value-based-methods-double-dqn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Double DQN",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free value-based methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "DQN whose target lets the online network pick the next action and the frozen network value it, which removes the upward bias of taking a maximum over noisy estimates.",
+      "implementationNote": "Bridge: P(up) is the long share of a softmax over Q(long) and Q(short), temperature fitted on validation. Differs from the spec: the market ignores the agent and its position is not in the state, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost). The online net picks the next action, the target net values it. Expect: less inflated values than DQN; much the same calls.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "deep_value_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "double",
+          "double_target": true,
+          "dueling": false,
+          "noisy": false,
+          "distributional": false,
+          "prioritized_replay": false,
+          "multi_step": false
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-10 min",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the Q-network has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the shared encoder has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each gradient update takes (Adam).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.002,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 16,
+          "max": 1024,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many replayed transitions one gradient update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "How many times the agent walks the whole training span bar by bar (one episode each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Stop after this many episodes without a better validation net reward."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much the value of the next bar counts in today's value. The next bar does not depend on the action here, so this changes the scale of the values, not the choice.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.99,
+            "log": false
+          }
+        },
+        "replay_capacity": {
+          "type": "int",
+          "default": 50000,
+          "min": 1000,
+          "max": 1000000,
+          "label": "Replay capacity",
+          "group": "Model",
+          "description": "How many past transitions the replay buffer keeps; the oldest are overwritten."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 250,
+          "min": 1,
+          "max": 100000,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "How many gradient updates pass before the frozen target network is refreshed with the online network's weights."
+        },
+        "environment_steps_per_update": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Bars per update",
+          "group": "Model",
+          "description": "How many bars the agent walks between two gradient updates."
+        },
+        "gradient_norm_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.1,
+          "max": 1000.0,
+          "label": "Gradient norm limit",
+          "group": "Model",
+          "description": "Gradients are rescaled so their norm never exceeds this."
+        },
+        "exploration_start": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration at the start",
+          "group": "Model",
+          "description": "The chance of a random action at the first bar (epsilon-greedy)."
+        },
+        "exploration_end": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Exploration at the end",
+          "group": "Model",
+          "description": "The chance of a random action once the decay is over."
+        },
+        "exploration_decay_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration decay share",
+          "group": "Model",
+          "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
+        }
+      }
+    },
+    "dueling_deep_q_network": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-value-based-methods-dueling-dqn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dueling DQN",
+      "category": "Reinforcement learning",
+      "subcategory": "Model-free value-based methods",
+      "kind": "Reinforcement learning agent",
+      "summary": "A Q-network split into a state-value stream and an action-advantage stream, recombined with the mean advantage subtracted, trained with the Double DQN target.",
+      "implementationNote": "Bridge: P(up) is the long share of a softmax over Q(long) and Q(short), temperature fitted on validation. Differs from the spec: the market ignores the agent and its position is not in the state, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost). Uses the Double DQN target (the spec's practical default). Expect: calls close to Double DQN.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "deep_value_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "dueling",
+          "double_target": true,
+          "dueling": true,
+          "noisy": false,
+          "distributional": false,
+          "prioritized_replay": false,
+          "multi_step": false
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-10 min",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the Q-network has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the shared encoder has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each gradient update takes (Adam).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.002,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 16,
+          "max": 1024,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many replayed transitions one gradient update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "How many times the agent walks the whole training span bar by bar (one episode each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Stop after this many episodes without a better validation net reward."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much the value of the next bar counts in today's value. The next bar does not depend on the action here, so this changes the scale of the values, not the choice.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.99,
+            "log": false
+          }
+        },
+        "replay_capacity": {
+          "type": "int",
+          "default": 50000,
+          "min": 1000,
+          "max": 1000000,
+          "label": "Replay capacity",
+          "group": "Model",
+          "description": "How many past transitions the replay buffer keeps; the oldest are overwritten."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 250,
+          "min": 1,
+          "max": 100000,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "How many gradient updates pass before the frozen target network is refreshed with the online network's weights."
+        },
+        "environment_steps_per_update": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Bars per update",
+          "group": "Model",
+          "description": "How many bars the agent walks between two gradient updates."
+        },
+        "gradient_norm_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.1,
+          "max": 1000.0,
+          "label": "Gradient norm limit",
+          "group": "Model",
+          "description": "Gradients are rescaled so their norm never exceeds this."
+        },
+        "exploration_start": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration at the start",
+          "group": "Model",
+          "description": "The chance of a random action at the first bar (epsilon-greedy)."
+        },
+        "exploration_end": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "label": "Exploration at the end",
+          "group": "Model",
+          "description": "The chance of a random action once the decay is over."
+        },
+        "exploration_decay_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.01,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Exploration decay share",
+          "group": "Model",
+          "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
+        }
+      }
+    },
+    "noisy_deep_q_network": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-noisy-dqn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Noisy DQN",
+      "category": "Reinforcement learning",
+      "subcategory": "Distributional and exploration enhancements",
+      "kind": "Reinforcement learning agent",
+      "summary": "DQN that explores through learned noise in the weights of its Q-head instead of random actions; training shrinks the noise where the agent is sure.",
+      "implementationNote": "Bridge: P(up) is the long share of a softmax over Q(long) and Q(short), temperature fitted on validation. Differs from the spec: the market ignores the agent and its position is not in the state, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost). Learned head noise explores; it is off at prediction. Expect: calls like DQN once the noise shrinks.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "deep_value_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "noisy",
+          "double_target": false,
+          "dueling": false,
+          "noisy": true,
+          "distributional": false,
+          "prioritized_replay": false,
+          "multi_step": false
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "1-10 min",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the Q-network has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the shared encoder has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each gradient update takes (Adam).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.002,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 16,
+          "max": 1024,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many replayed transitions one gradient update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "How many times the agent walks the whole training span bar by bar (one episode each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Stop after this many episodes without a better validation net reward."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much the value of the next bar counts in today's value. The next bar does not depend on the action here, so this changes the scale of the values, not the choice.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.99,
+            "log": false
+          }
+        },
+        "replay_capacity": {
+          "type": "int",
+          "default": 50000,
+          "min": 1000,
+          "max": 1000000,
+          "label": "Replay capacity",
+          "group": "Model",
+          "description": "How many past transitions the replay buffer keeps; the oldest are overwritten."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 250,
+          "min": 1,
+          "max": 100000,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "How many gradient updates pass before the frozen target network is refreshed with the online network's weights."
+        },
+        "environment_steps_per_update": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Bars per update",
+          "group": "Model",
+          "description": "How many bars the agent walks between two gradient updates."
+        },
+        "gradient_norm_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.1,
+          "max": 1000.0,
+          "label": "Gradient norm limit",
+          "group": "Model",
+          "description": "Gradients are rescaled so their norm never exceeds this."
+        },
+        "initial_noise_scale": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "step": 0.05,
+          "label": "Initial noise scale",
+          "group": "Model",
+          "description": "The starting size of the learned weight noise in the noisy head layers (sigma zero); training shrinks it where the agent is sure."
+        }
+      }
+    },
+    "rainbow_deep_q_network": {
+      "catalogSpecId": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-rainbow-dqn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Rainbow DQN",
+      "category": "Reinforcement learning",
+      "subcategory": "Distributional and exploration enhancements",
+      "kind": "Reinforcement learning agent",
+      "summary": "Six DQN improvements together: the Double target, dueling streams, noisy layers, multi-step returns, prioritized replay and a distribution over returns instead of one expected value.",
+      "implementationNote": "Bridge: P(up) is the long share of a softmax over Q(long) and Q(short), temperature fitted on validation. Differs from the spec: the market ignores the agent and its position is not in the state, so this is cost-aware reward maximisation on the train span's price tape (next-open fills, round-trip cost). C51 atoms span the scaled reward; P(up) reads their means. Expect: the slowest of the five.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "deep_value_agent",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "rainbow",
+          "double_target": true,
+          "dueling": true,
+          "noisy": true,
+          "distributional": true,
+          "prioritized_replay": true,
+          "multi_step": true
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of the Q-network has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hidden layers",
+          "group": "Model",
+          "description": "How many hidden layers the shared encoder has."
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each gradient update takes (Adam).",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.002,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 64,
+          "min": 16,
+          "max": 1024,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many replayed transitions one gradient update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Episodes",
+          "group": "Model",
+          "description": "How many times the agent walks the whole training span bar by bar (one episode each)."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience",
+          "group": "Model",
+          "description": "Stop after this many episodes without a better validation net reward."
+        },
+        "discount_factor": {
+          "type": "float",
+          "default": 0.9,
+          "min": 0.0,
+          "max": 0.999,
+          "step": 0.01,
+          "label": "Discount factor",
+          "group": "Model",
+          "description": "How much the value of the next bar counts in today's value. The next bar does not depend on the action here, so this changes the scale of the values, not the choice.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 0.99,
+            "log": false
+          }
+        },
+        "replay_capacity": {
+          "type": "int",
+          "default": 50000,
+          "min": 1000,
+          "max": 1000000,
+          "label": "Replay capacity",
+          "group": "Model",
+          "description": "How many past transitions the replay buffer keeps; the oldest are overwritten."
+        },
+        "target_update_interval": {
+          "type": "int",
+          "default": 250,
+          "min": 1,
+          "max": 100000,
+          "label": "Target update interval",
+          "group": "Model",
+          "description": "How many gradient updates pass before the frozen target network is refreshed with the online network's weights."
+        },
+        "environment_steps_per_update": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Bars per update",
+          "group": "Model",
+          "description": "How many bars the agent walks between two gradient updates."
+        },
+        "gradient_norm_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.1,
+          "max": 1000.0,
+          "label": "Gradient norm limit",
+          "group": "Model",
+          "description": "Gradients are rescaled so their norm never exceeds this."
+        },
+        "initial_noise_scale": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 5.0,
+          "step": 0.05,
+          "label": "Initial noise scale",
+          "group": "Model",
+          "description": "The starting size of the learned weight noise in the noisy head layers (sigma zero); training shrinks it where the agent is sure."
+        },
+        "atom_count": {
+          "type": "int",
+          "default": 51,
+          "min": 5,
+          "max": 201,
+          "label": "Return atoms",
+          "group": "Model",
+          "description": "How many fixed return values the distributional head spreads its probability over."
+        },
+        "value_limit": {
+          "type": "float",
+          "default": 10.0,
+          "min": 1.0,
+          "max": 1000.0,
+          "label": "Return support limit",
+          "group": "Model",
+          "description": "The atoms span minus to plus this value, in scaled-reward units (a trade's net points divided by the volatility scale)."
+        },
+        "return_step_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "label": "Multi-step returns",
+          "group": "Model",
+          "description": "How many real rewards are summed before the target network's estimate is used."
+        },
+        "priority_exponent": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Priority exponent",
+          "group": "Model",
+          "description": "How strongly replay favours transitions with a large error (0 = uniform)."
+        },
+        "importance_sampling_start": {
+          "type": "float",
+          "default": 0.4,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.05,
+          "label": "Importance correction at the start",
+          "group": "Model",
+          "description": "The starting exponent of the importance weights that undo the priority bias; it rises linearly to 1 over training."
+        }
+      }
+    }
+  }
+}

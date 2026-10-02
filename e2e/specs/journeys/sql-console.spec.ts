@@ -130,7 +130,7 @@ test.describe('SQL console error handling', () => {
  *
  * The SQL console runs a query and discards the result. `DatabasesPage.tsx:142-149`
  * wires the mutation's `onSuccess` to a toast and a cache invalidation; nothing
- * reads `runQuery.data`, and `QueryConsole` (src/client/src/data/QueryConsole.tsx)
+ * reads `runQuery.data`, and `QueryConsole` (apps/web/src/data/QueryConsole.tsx)
  * has no results prop and renders no grid. So a user can execute SQL and is told
  * "Query ran" without ever seeing a row.
  *

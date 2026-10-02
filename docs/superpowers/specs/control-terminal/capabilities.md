@@ -101,7 +101,7 @@ and `system.gpu` SSE channels via `scripts/hardware_node.py` → `telemetry.rout
 Ground truth: ~30 git repos under `E:\source\repos` (from the global `C:\Users\tyler\.claude\CLAUDE.md`
 "Active Project Locations" and this repo's `CLAUDE.md`). Launch commands are heterogeneous —
 `ml_dashboard` uses `npm run dev` (Electron + Vite), the `Trading\quant` workspace uses
-`uv run`, the Java plugin build uses `mvn`/`--release 17`, `Trading\quantower_strategies` builds C# via
+`uv run`, the Java plugin build uses `mvn`/`--release 17`, `Trading\live_source_strategies` builds C# via
 `dotnet`/msbuild, Flutter apps use `flutter run`, Rust repos use `cargo`. This mandates a
 **per-repo launch descriptor** rather than a hardcoded command.
 

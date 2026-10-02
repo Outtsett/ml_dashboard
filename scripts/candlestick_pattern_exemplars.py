@@ -71,7 +71,7 @@ def load_rules() -> pd.DataFrame:
 
 
 def load_bars(symbol: str, timeframe: str, max_bars: int) -> pd.DataFrame:
-    from src.ml.shared.data import load_ohlcv_arrays
+    from core.shared.data import load_ohlcv_arrays
 
     arrays = load_ohlcv_arrays(symbol, timeframe, max_bars=max_bars)
     frame = pd.DataFrame({

@@ -1,0 +1,85 @@
+import type { LabelGeneratorConfig } from './helpers';
+import { DEFAULT_CONFIG } from './helpers';
+
+export interface MetaLabelParams {
+  primarySignalColumn?: string;
+  horizonBars?: number;
+  transactionCostBasisPoints?: number;
+  minimumProfitBasisPoints?: number;
+  /**
+   * Where the primary signal comes from.
+   *
+   * `trailing_momentum` (default) — sign of the trailing `primaryLookback`-bar
+   * return when it clears `primaryThresholdBps`; a causal rule a model could
+   * actually have traded. `next_bar_oracle` — sign(close[t+1] - close[t]), a
+   * perfect one-bar-ahead signal. That is a leakage self-test, kept so the
+   * meta-labeller can be shown to reach ~100% on it, and named so it can never
+   * be mistaken for a strategy.
+   */
+  primarySource?: 'trailing_momentum' | 'next_bar_oracle';
+  primaryLookbackBars?: number;
+  primaryThresholdBasisPoints?: number;
+}
+
+export function generateMetaLabelsSQL(
+  params: MetaLabelParams,
+  config: LabelGeneratorConfig,
+  primaryLabelsTable: string = 'primary_labels'
+): string {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+  const primarySignalColumn = params.primarySignalColumn || 'label';
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 10)));
+  const txCost = Number(params.transactionCostBasisPoints ?? 5) / 10000;
+  const minProfit = Number(params.minimumProfitBasisPoints ?? 10) / 10000;
+
+  return `
+WITH base AS (
+  SELECT
+    o.${cfg.timestampColumn} as timestamp,
+    o.${cfg.symbolColumn} as symbol,
+    o.close,
+    p.${primarySignalColumn} as primary_signal,
+    -- Both joined tables expose symbol and timestamp, so the window's
+    -- PARTITION/ORDER columns must be qualified or lake reports
+    -- Ambiguous column [name=symbol].
+    LEAD(o.close, ${horizon}) OVER (
+      PARTITION BY o.${cfg.symbolColumn} ORDER BY o.${cfg.timestampColumn}
+    ) as future_close
+  FROM ${cfg.tableName} o
+  INNER JOIN ${primaryLabelsTable} p ON o.${cfg.timestampColumn} = p.timestamp
+    AND o.${cfg.symbolColumn} = p.symbol
+  WHERE o.${cfg.symbolColumn} = '${config.symbol}'
+),
+with_pnl AS (
+  SELECT
+    timestamp,
+    symbol,
+    close,
+    primary_signal,
+    future_close,
+    CASE
+      WHEN primary_signal = 0 OR future_close IS NULL THEN NULL
+      ELSE primary_signal * (future_close - close) / close - ${txCost}
+    END as net_profit_fraction
+  FROM base
+  WHERE primary_signal != 0
+),
+labeled AS (
+  SELECT
+    timestamp,
+    symbol,
+    close,
+    primary_signal,
+    net_profit_fraction,
+    CASE
+      WHEN net_profit_fraction >= ${minProfit} THEN 1
+      ELSE 0
+    END as label
+  FROM with_pnl
+  WHERE net_profit_fraction IS NOT NULL
+)
+SELECT timestamp, symbol, close, label, ${horizon} as resolution_bars, primary_signal, net_profit_fraction
+FROM labeled
+ORDER BY timestamp`;
+}
+

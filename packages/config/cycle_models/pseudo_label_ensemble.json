@@ -1,0 +1,688 @@
+{
+  "models": {
+    "self_training_classifier": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-self-training-classifier",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Self-Training Classifier",
+      "category": "Semi-supervised learning",
+      "subcategory": "Self-training and bootstrapping",
+      "kind": "Self-training",
+      "summary": "A base learner fitted on the labelled bars labels the unlabelled bars it is most sure of, is refitted on them, and repeats: scikit-learn's self-training loop, one reported round at a time.",
+      "implementationNote": "Bridge: the SelfTrainingClassifier loop written out (fit on labelled rows, admit pool rows whose top class probability is above the threshold, refit), one solver pass per round; P(up) from the final learner; the price uses a 3-regressor bootstrap committee admitting rows it agrees on most. Differs from the spec: labels masked in embargoed blocks for an unlabelled pool, a deliberate handicap. Expect: close to its base learner.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "pseudo_label_ensemble",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "self_training"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) form the unlabelled pool.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "base_learner": {
+          "type": "categorical",
+          "default": "logistic",
+          "choices": [
+            "logistic",
+            "gradient_boosting",
+            "random_forest"
+          ],
+          "label": "Base learner",
+          "group": "Model",
+          "description": "The model retrained every round: logistic regression (ridge for the price), histogram gradient boosting (100 rounds of 15-leaf trees) or a random forest (40 trees of depth 8).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logistic",
+              "gradient_boosting",
+              "random_forest"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the logistic base learner (C; 1/alpha of the ridge); the tree learners ignore it.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "maximum_rounds": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Maximum rounds",
+          "group": "Model",
+          "description": "Pseudo-labelling rounds before stopping (each is one solver pass)."
+        },
+        "confidence_threshold": {
+          "type": "float",
+          "default": 0.75,
+          "min": 0.5,
+          "max": 0.999,
+          "label": "Confidence threshold",
+          "group": "Model",
+          "description": "A pool row is admitted when its most likely class has a probability above this.",
+          "search": {
+            "kind": "float",
+            "low": 0.55,
+            "high": 0.95,
+            "log": false
+          }
+        },
+        "pseudo_target_share": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 0.5,
+          "label": "Pseudo-target share",
+          "group": "Model",
+          "description": "Price model only: share of the pool admitted per round, the rows the regressors agree on most.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3,
+            "log": false
+          }
+        }
+      }
+    },
+    "tri_training": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-tri-training",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Tri-Training",
+      "category": "Semi-supervised learning",
+      "subcategory": "Self-training and bootstrapping",
+      "kind": "Tri-training",
+      "summary": "Three learners fitted on bootstrap samples of the labelled bars teach each other: a learner receives the unlabelled bars on which the other two agree, under Zhou and Li's error-rate conditions, until none changes.",
+      "implementationNote": "Bridge: Zhou-Li tri-training: three learners on bootstrap samples, each fed the pool rows the other two agree on under the paper's error-rate and size conditions, until none changes; P(up) is the mean of the three; the price is tri-regression on rows the other two agree on most. Differs from the spec: i.i.d. bootstrap, not time-aware; labels masked in embargoed blocks, a deliberate handicap. Expect: a small bagging-like gain at best.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "pseudo_label_ensemble",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "tri_training"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) form the unlabelled pool.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "base_learner": {
+          "type": "categorical",
+          "default": "logistic",
+          "choices": [
+            "logistic",
+            "gradient_boosting",
+            "random_forest"
+          ],
+          "label": "Base learner",
+          "group": "Model",
+          "description": "The model retrained every round: logistic regression (ridge for the price), histogram gradient boosting (100 rounds of 15-leaf trees) or a random forest (40 trees of depth 8).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logistic",
+              "gradient_boosting",
+              "random_forest"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the logistic base learner (C; 1/alpha of the ridge); the tree learners ignore it.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "maximum_rounds": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 50,
+          "label": "Maximum rounds",
+          "group": "Model",
+          "description": "Pseudo-labelling rounds before stopping (each is one solver pass)."
+        },
+        "pseudo_target_share": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 0.5,
+          "label": "Pseudo-target share",
+          "group": "Model",
+          "description": "Price model only: share of the pool admitted per round, the rows the regressors agree on most.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3,
+            "log": false
+          }
+        }
+      }
+    },
+    "co_training": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-multi-view-co-training-co-training-dual-view",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Co-Training (Dual View)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Multi-view and co-training",
+      "kind": "Co-training",
+      "summary": "Two learners, each reading one view of the feature columns, label their most confident unlabelled bars for each other round by round (Blum and Mitchell); P(up) combines the two views.",
+      "implementationNote": "Bridge: Blum-Mitchell co-training on two views of the feature columns (grouped by what they measure: price, volume and order flow, volatility, news); each round each view labels its most confident up and down pool rows for both; P(up) combines the views as independent evidence. Differs from the spec: views are feature groups of one instrument, not independent; labels masked in embargoed blocks. Expect: at most the stronger view's edge.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "pseudo_label_ensemble",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "co_training"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) form the unlabelled pool.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "base_learner": {
+          "type": "categorical",
+          "default": "logistic",
+          "choices": [
+            "logistic",
+            "gradient_boosting",
+            "random_forest"
+          ],
+          "label": "Base learner",
+          "group": "Model",
+          "description": "The model retrained every round: logistic regression (ridge for the price), histogram gradient boosting (100 rounds of 15-leaf trees) or a random forest (40 trees of depth 8).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logistic",
+              "gradient_boosting",
+              "random_forest"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the logistic base learner (C; 1/alpha of the ridge); the tree learners ignore it.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "maximum_rounds": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 50,
+          "label": "Maximum rounds",
+          "group": "Model",
+          "description": "Pseudo-labelling rounds before stopping (each is one solver pass)."
+        },
+        "per_round_up_count": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Up rows per round",
+          "group": "Model",
+          "description": "Most confident up rows each view labels per round.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 50,
+            "log": false
+          }
+        },
+        "per_round_down_count": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 500,
+          "label": "Down rows per round",
+          "group": "Model",
+          "description": "Most confident down rows each view labels per round.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 50,
+            "log": false
+          }
+        },
+        "candidate_pool_size": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Candidate pool size",
+          "group": "Model",
+          "description": "Unlabelled rows drawn into the working pool the views pick from (refilled each round).",
+          "search": {
+            "kind": "int",
+            "low": 75,
+            "high": 500,
+            "log": false
+          }
+        },
+        "pseudo_target_share": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.01,
+          "max": 0.5,
+          "label": "Pseudo-target share",
+          "group": "Model",
+          "description": "Price model only: share of the pool admitted per round, the rows the regressors agree on most.",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3,
+            "log": false
+          }
+        }
+      }
+    },
+    "multi_view_learning": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-multi-view-co-training-multi-view-learning",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multi-View Learning",
+      "category": "Semi-supervised learning",
+      "subcategory": "Multi-view and co-training",
+      "kind": "Co-EM consensus",
+      "summary": "Two to four learners, one per view of the feature columns, are refitted each round on the labelled bars plus every unlabelled bar soft-labelled by the other views' consensus (co-EM); P(up) is their mean.",
+      "implementationNote": "Bridge: co-EM: 2 to 4 views of the feature columns, each view's learner refitted every round on labelled rows plus all pool rows soft-labelled by the other views' consensus; P(up) is the mean of the views. Differs from the spec: no canonical correlation or deep multi-view variants; views are feature groups of one instrument; labels masked in embargoed blocks. Expect: close to the average of per-view learners.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "pseudo_label_ensemble",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "co_em"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) form the unlabelled pool.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "base_learner": {
+          "type": "categorical",
+          "default": "logistic",
+          "choices": [
+            "logistic",
+            "gradient_boosting",
+            "random_forest"
+          ],
+          "label": "Base learner",
+          "group": "Model",
+          "description": "The model retrained every round: logistic regression (ridge for the price), histogram gradient boosting (100 rounds of 15-leaf trees) or a random forest (40 trees of depth 8).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "logistic",
+              "gradient_boosting",
+              "random_forest"
+            ]
+          }
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.0001,
+          "max": 10000.0,
+          "label": "Regularization strength",
+          "group": "Model",
+          "description": "Inverse L2 penalty of the logistic base learner (C; 1/alpha of the ridge); the tree learners ignore it.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "maximum_rounds": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 50,
+          "label": "Maximum rounds",
+          "group": "Model",
+          "description": "Pseudo-labelling rounds before stopping (each is one solver pass)."
+        },
+        "view_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 4,
+          "label": "View count",
+          "group": "Model",
+          "description": "Views the feature columns are grouped into (merged smallest first)."
+        },
+        "consensus_weight": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.0,
+          "max": 1.0,
+          "label": "Consensus weight",
+          "group": "Model",
+          "description": "Sample weight of the soft-labelled pool rows relative to a labelled row.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 1.0,
+            "log": false
+          }
+        }
+      }
+    },
+    "transductive_support_vector_machine": {
+      "catalogSpecId": "machine-learning-semi-supervised-learning-regularization-theoretical-semi-supervised-svm-s3vm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Semi-Supervised Support Vector Machine (S3VM)",
+      "category": "Semi-supervised learning",
+      "subcategory": "Regularization and theoretical",
+      "kind": "Transductive SVM",
+      "summary": "Joachims' transductive SVM: the unlabelled bars get balance-constrained labels from a labelled SVM, then their penalty is annealed upward while pairs of wrongly placed labels are swapped, pushing the margin through low-density regions.",
+      "implementationNote": "Bridge: Joachims' transductive SVM: labelled SVM, balance-constrained labels for the pool, unlabelled penalty annealed upward while slack pairs are swapped; P(up) is a logistic curve of the decision value fitted on validation. Differs from the spec: rows capped and pairs swapped in batches per refit (no warm start); labels masked in embargoed blocks; no price model. Expect: near a linear SVM.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "pseudo_label_ensemble",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {
+          "variant": "transductive_svm"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "solver_pass",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-20 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "labeled_fraction": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Labeled fraction",
+          "group": "Model",
+          "description": "Share of the training span's blocks whose labels are kept; the other blocks (and an embargo of the label horizon around them) form the unlabelled pool.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.7,
+            "log": false
+          }
+        },
+        "masking_block_bars": {
+          "type": "int",
+          "default": 120,
+          "min": 10,
+          "max": 5000,
+          "label": "Masking block bars",
+          "group": "Model",
+          "description": "Length in bars of the contiguous blocks labels are kept or hidden in."
+        },
+        "kernel": {
+          "type": "categorical",
+          "default": "linear",
+          "choices": [
+            "linear",
+            "rbf"
+          ],
+          "label": "Kernel",
+          "group": "Model",
+          "description": "linear (LinearSVC, hinge loss) or rbf (SVC, width 1 / (features x variance)).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "linear",
+              "rbf"
+            ]
+          }
+        },
+        "labeled_penalty": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 100.0,
+          "label": "Labeled penalty",
+          "group": "Model",
+          "description": "Penalty on a labelled row's slack (C).",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 10.0,
+            "log": true
+          }
+        },
+        "unlabeled_penalty": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0.0001,
+          "max": 10.0,
+          "label": "Unlabeled penalty",
+          "group": "Model",
+          "description": "Final penalty on an unlabelled row's slack (C*), reached by doubling from 1e-5.",
+          "logScale": true,
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "maximum_switches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Maximum switches",
+          "group": "Model",
+          "description": "Refits per annealing pass in which slack pairs are swapped."
+        },
+        "maximum_fit_rows": {
+          "type": "int",
+          "default": 2000,
+          "min": 200,
+          "max": 8000,
+          "label": "Maximum fit rows",
+          "group": "Model",
+          "description": "Cap on the rows the SVM fits (half labelled, evenly spaced)."
+        }
+      }
+    }
+  }
+}

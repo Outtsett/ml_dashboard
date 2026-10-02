@@ -1,0 +1,1466 @@
+{
+  "models": {
+    "graph_convolutional_network": {
+      "catalogSpecId": "neural-network-architectures-graph-neural-networks-graph-convolutional-network-gcn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Graph Convolutional Network (GCN)",
+      "category": "Neural network architectures",
+      "subcategory": "Graph neural networks",
+      "kind": "Graph network",
+      "summary": "Treats every feature column as a node linked to the columns it moves with, and lets each node average in its neighbours' recent history through normalised graph convolutions before one readout makes the call.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. A node holds its last sequence_length values plus a learned identity; layers are ReLU(D^-1/2 (A+I) D^-1/2 H W). Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "gcn",
+          "choices": [
+            "gcn"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: normalised graph convolution. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars each feature column carries as its node attributes (its own series, oldest first); the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each node's state (and the readout) holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Graph convolution layers",
+          "group": "Model",
+          "description": "How many graph convolutions run; each reaches one hop further.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "graph_attention_network": {
+      "catalogSpecId": "neural-network-architectures-graph-neural-networks-graph-attention-network-gat",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Graph Attention Network (GAT)",
+      "category": "Neural network architectures",
+      "subcategory": "Graph neural networks",
+      "kind": "Graph network",
+      "summary": "Like a graph convolution over the feature columns, but each column learns, bar by bar, how much to listen to each of its neighbours, with several attention heads side by side.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. Attention over each column's neighbours is learned per bar; heads are concatenated. Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "gat",
+          "choices": [
+            "gat"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: multi-head graph attention. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars each feature column carries as its node attributes (its own series, oldest first); the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each node's state (and the readout) holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "How many attention heads run side by side; each learns its own weighting.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Graph attention layers",
+          "group": "Model",
+          "description": "How many graph attention layers run; each reaches one hop further.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "graph_neural_network": {
+      "catalogSpecId": "neural-network-architectures-graph-neural-networks-graph-neural-network-gnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Graph Neural Network (GNN)",
+      "category": "Neural network architectures",
+      "subcategory": "Graph neural networks",
+      "kind": "Graph network",
+      "summary": "The general message-passing form: every feature column sends a learned message to each linked column, messages are pooled in an order-free way, and each column updates its state from what it received.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. Messages and updates are small learned networks, pooled by mean, sum or max; one graph-level prediction. Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "message_passing",
+          "choices": [
+            "message_passing"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: learned message passing. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars each feature column carries as its node attributes (its own series, oldest first); the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each node's state (and the readout) holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "aggregation": {
+          "type": "categorical",
+          "default": "mean",
+          "choices": [
+            "mean",
+            "sum",
+            "max"
+          ],
+          "label": "Message aggregation",
+          "group": "Model",
+          "description": "How a column pools the messages of its neighbours: their mean, their sum, or their element-wise maximum.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "mean",
+              "sum",
+              "max"
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Message-passing rounds",
+          "group": "Model",
+          "description": "How many rounds of messages run; each reaches one hop further.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "graph_augmented_lstm": {
+      "catalogSpecId": "hybrid-composite-architectures-graph-attention-hybrids-graph-augmented-lstm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Graph-Augmented LSTM",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Graph and attention hybrids",
+      "kind": "Graph network",
+      "summary": "One shared LSTM reads each feature column's own recent series, then graph convolutions mix the columns' final states along the correlation graph before the readout.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. One shared LSTM reads each column's series; final states are mixed at the last bar only (loose coupling); one graph-level prediction. Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "15-120 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "graph_lstm",
+          "choices": [
+            "graph_lstm"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: per-node LSTM, then graph mixing. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars each feature column's LSTM reads, oldest first; the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each node's state (and the readout) holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Graph mixing layers",
+          "group": "Model",
+          "description": "How many graph convolutions mix the columns' LSTM states.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "transformer_graph_hybrid": {
+      "catalogSpecId": "hybrid-composite-architectures-graph-attention-hybrids-transformer-gnn-hybrid",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Transformer-GNN Hybrid",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Graph and attention hybrids",
+      "kind": "Graph network",
+      "summary": "Every feature column at every bar is a token: causal self-attention looks back along each column's bars while message passing mixes the columns at each bar, both inside every layer.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. Each layer is LayerNorm(h + graph message + causal attention along bars); cost grows with columns times bars squared, so windows stay short. Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "15-120 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "transformer_graph",
+          "choices": [
+            "transformer_graph"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: interleaved causal attention and message passing. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 24,
+          "min": 4,
+          "max": 128,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars each feature column's tokens cover; attention along them is causal and the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 256,
+          "label": "Model dimension",
+          "group": "Model",
+          "description": "How many units each (column, bar) token holds; rounded up to a multiple of the attention heads.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "How many attention heads run side by side; each learns its own weighting.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Hybrid layers",
+          "group": "Model",
+          "description": "How many attention-plus-message-passing layers run.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "spatiotemporal_fusion_network": {
+      "catalogSpecId": "hybrid-composite-architectures-multi-modal-temporal-fusion-spatiotemporal-fusion-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Spatiotemporal Fusion Network",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Multi-modal and temporal fusion",
+      "kind": "Graph network",
+      "summary": "A spatial branch reads the feature graph at every bar, a temporal LSTM reads that sequence of snapshots, and a learned gate decides at the last bar how much each branch drives the call.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the network's own logit. Differs from the spec: nodes are this model's feature columns and edges are train-span correlations; there is no multi-asset graph. Graph convolutions at every bar, an LSTM over those snapshots, gated fusion at the last bar. Expect: the graph only regroups this bar's own features; no edge over a plain network is assured.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "spatiotemporal",
+          "choices": [
+            "spatiotemporal"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: graph snapshots per bar, an LSTM over them, gated fusion. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the spatial branch reads a graph snapshot of and the temporal LSTM runs over; the last one is the bar being predicted."
+        },
+        "neighbor_count": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 64,
+          "label": "Neighbours per feature",
+          "group": "Model",
+          "description": "How many partners each feature column keeps in the graph: its strongest absolute correlations on the training rows. An edge kept by either end is kept, so a column can have more.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              3,
+              5,
+              8
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each node's state (and the readout) holds.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Spatial graph layers",
+          "group": "Model",
+          "description": "How many graph convolutions the spatial branch runs per bar.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "latent_attention_decision_graph": {
+      "catalogSpecId": "hybrid-composite-architectures-graph-attention-hybrids-latent-attention-decision-graph",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Latent Attention Decision Graph",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Graph and attention hybrids",
+      "kind": "Graph network",
+      "summary": "A few learned latents absorb the window by cross-attention, talk to each other over an attention graph, and their summary is routed through a soft decision graph whose leaves each hold a vote.",
+      "implementationNote": "Bridge: P(up) is the sigmoid of the mass-weighted mixture of leaf logits. Differs from the spec: the graph is over learned latents, not instruments; the decision graph is layered (each node routes to every node of the next layer by a softmax gate); routing temperature anneals temperature to final_temperature; soft routing at inference. Expect: leaves specialise only if the entropy penalty keeps them in use.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": true,
+      "network": "feature_graph",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "graph_layer": {
+          "type": "categorical",
+          "default": "latent_decision_graph",
+          "choices": [
+            "latent_decision_graph"
+          ],
+          "label": "Graph mechanism",
+          "group": "Model",
+          "description": "The mechanism this model runs on the feature graph: latent cross-attention, latent graph, decision graph. Fixed for this model; the other graph models of the catalog are separate entries."
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the latents cross-attend to; the last one is the bar being predicted."
+        },
+        "latent_count": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 64,
+          "label": "Latent nodes",
+          "group": "Model",
+          "description": "How many learned latents absorb the window.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              8,
+              16
+            ]
+          }
+        },
+        "latent_dimension": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 256,
+          "label": "Latent dimension",
+          "group": "Model",
+          "description": "How many units each latent holds; rounded up to a multiple of the attention heads.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64
+            ]
+          }
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention heads",
+          "group": "Model",
+          "description": "How many attention heads run side by side; each learns its own weighting.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4
+            ]
+          }
+        },
+        "message_passing_rounds": {
+          "type": "int",
+          "default": 2,
+          "min": 0,
+          "max": 6,
+          "label": "Latent message-passing rounds",
+          "group": "Model",
+          "description": "How many rounds the latents exchange messages over their attention graph.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "decision_depth": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 8,
+          "label": "Decision graph depth",
+          "group": "Model",
+          "description": "How many routing steps lie between the root and the leaves.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              3,
+              4
+            ]
+          }
+        },
+        "decision_width": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 16,
+          "label": "Decision graph width",
+          "group": "Model",
+          "description": "How many nodes each layer of the decision graph has; the last layer's nodes are the leaves.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "temperature": {
+          "type": "float",
+          "default": 2.0,
+          "min": 0.05,
+          "max": 10.0,
+          "label": "Starting routing temperature",
+          "group": "Model",
+          "description": "How soft the routing gates are at the first epoch; higher spreads the mass over more paths.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 5.0,
+            "log": true
+          }
+        },
+        "final_temperature": {
+          "type": "float",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 10.0,
+          "label": "Final routing temperature",
+          "group": "Model",
+          "description": "The temperature the routing anneals to by the last epoch; lower makes routes sharper.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "leaf_entropy_weight": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0,
+          "max": 1.0,
+          "label": "Leaf entropy weight",
+          "group": "Model",
+          "description": "How strongly training penalises the batch's leaf usage for concentrating on few leaves.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training (node states, attention coefficients and the readout).",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

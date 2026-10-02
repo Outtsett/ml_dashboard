@@ -93,10 +93,10 @@ jobs:
         run: pip install ruff==0.15.7
 
       - name: Ruff check
-        run: ruff check src/ml/ scripts/ mcp_server/ tests/
+        run: ruff check apps/ packages/ scripts/
 
       - name: Ruff format check
-        run: ruff format --check src/ml/ scripts/
+        run: ruff format --check apps/ packages/ scripts/
 
   test:
     name: Unit Tests
@@ -134,7 +134,7 @@ jobs:
         run: npx vitest run --reporter=dot
 
       - name: Vitest (coverage thresholds)
-        run: npx vitest run --coverage --exclude "tests/client/**" --exclude "**/performance.test.ts" --reporter=dot
+        run: npx vitest run --coverage --exclude "apps/web/tests/**" --exclude "**/performance.test.ts" --reporter=dot
 
       # NOTE (2026-09-16): tests/client used to run here under
       # `continue-on-error: true`, quarantined because 17 of its files imported
@@ -397,3 +397,4 @@ jobs:
             exit 1
           fi
           echo "All required jobs succeeded."
+

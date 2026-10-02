@@ -70,11 +70,11 @@ const KNOWN_DEFECT_PATTERNS: Array<{ pattern: RegExp; defect: string }> = [
     pattern: /<line> attribute x[12]: Expected length, "NaN"/i,
     defect:
       'Lens RollingPanel renders ReferenceLines at a NaN null-band. ' +
-      'src/shared/lens/rolling.ts:40-44 — `Math.max(1, Math.floor(params.rollingWindowBars))` ' +
+      'packages/shared/src/lens/rolling.ts:40-44 — `Math.max(1, Math.floor(params.rollingWindowBars))` ' +
       'returns NaN when rollingWindowBars is non-finite, because Math.max propagates NaN; ' +
       '`half` is then NaN and both nullBand bounds reach SVG as NaN coordinates ' +
-      '(src/client/src/lens/panels/RollingPanel.tsx:93-94). ' +
-      'The same NaN already shows up in tests/client/lens/panels.test.tsx, which passes anyway. ' +
+      '(apps/web/src/lens/panels/RollingPanel.tsx:93-94). ' +
+      'The same NaN already shows up in apps/web/tests/lens/panels.test.tsx, which passes anyway. ' +
       'Fix: reject a non-finite window at the top of computeRolling rather than relying on Math.max.',
   },
   {

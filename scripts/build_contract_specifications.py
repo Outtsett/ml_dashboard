@@ -1,4 +1,4 @@
-"""Build ``src/config/contract_specifications.json`` from AMP Futures' contract-specifications page.
+"""Build ``packages/config/contract_specifications.json`` from AMP Futures' contract-specifications page.
 
     uv run python scripts/build_contract_specifications.py                 # fetch the live page
     uv run python scripts/build_contract_specifications.py --html <file>   # parse a saved copy
@@ -343,9 +343,9 @@ def build(raw_html: str, retrieved_on: str) -> dict:
             "Stock-index futures contract specifications. Built by scripts/build_contract_specifications.py "
             "from AMP Futures' contract-specifications page; CME / CBOT rows carry the fields CME Group's own "
             "contract-specs pages state. Read by scripts/seed-instruments.ts (the SQLite instruments table), "
-            "src/client/src/market/components/chartConfig.ts (chart tick labels) and "
+            "apps/web/src/market/components/chartConfig.ts (chart tick labels) and "
             "notebooks/contract_specifications.py. Every number the simulators use for USD P&L "
-            "(src/config/cost_model.json) must agree with this file; tests/test_contract_specifications.py checks."
+            "(packages/config/cost_model.json) must agree with this file; tests/test_contract_specifications.py checks."
         ),
         "source_url": SOURCE_URL,
         "retrieved_on": retrieved_on,

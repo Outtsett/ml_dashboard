@@ -6,7 +6,7 @@
 For every fold and role whose model is on disk, it explains the fold's
 structure and a random sample of its test bars in-process (the same code the
 explainer process runs, ``cycle.explain.server.Explainer``) and checks the
-parity gates of ``src/shared/cycle/explain.ts``:
+parity gates of ``packages/shared/src/cycle/explain.ts``:
 
     G1  the reloaded adapter's prediction equals what the engine streamed to
         predictions.parquet: 1e-12 for CPU libraries, 1e-6 torch on CPU, 1e-4
@@ -15,7 +15,7 @@ parity gates of ``src/shared/cycle/explain.ts``:
         none while the kind has no module
 
 Every reply is also checked against the zod schemas themselves (node + tsx
-load ``src/shared/cycle/explain.ts``); ``--no-schema`` skips that. With
+load ``packages/shared/src/cycle/explain.ts``); ``--no-schema`` skips that. With
 ``--write-fixtures DIR`` the first reply of each shape is written there as JSON
 (the samples ``tests/shared/cycleExplainFixtures.test.ts`` parses).
 

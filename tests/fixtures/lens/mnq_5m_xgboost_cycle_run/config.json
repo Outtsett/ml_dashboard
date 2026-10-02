@@ -61,7 +61,7 @@
       "pointValueUsd": 2.0,
       "costPerSideUsd": 1.4,
       "roundTripCostUsd": 2.8,
-      "source": "src/config/cost_model.json:MNQ"
+      "source": "packages/config/cost_model.json:MNQ"
     },
     "trading": {
       "entryProbability": 0.55,

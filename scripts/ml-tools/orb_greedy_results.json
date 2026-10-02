@@ -1,0 +1,398 @@
+{
+  "forward_greedy": {
+    "optimal_signals": [
+      "atr",
+      "bbw"
+    ],
+    "pnl": 566.4200061296415,
+    "log": [
+      {
+        "step": 1,
+        "added": "atr",
+        "signals": [
+          "atr"
+        ],
+        "pnl": 517.9049459659527,
+        "marginal_gain": 517.9049459659527,
+        "follow_trades": "24",
+        "threshold_pct": 0.5499999999999999
+      },
+      {
+        "step": 2,
+        "added": "bbw",
+        "signals": [
+          "atr",
+          "bbw"
+        ],
+        "pnl": 566.4200061296415,
+        "marginal_gain": 48.51506016368876,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 3,
+        "added": "roc",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc"
+        ],
+        "pnl": 535.7860795050565,
+        "marginal_gain": -30.633926624585,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 4,
+        "added": "range_w",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w"
+        ],
+        "pnl": 507.20730886613273,
+        "marginal_gain": -28.578770638923743,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 5,
+        "added": "adx",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w",
+          "adx"
+        ],
+        "pnl": 516.6139468615747,
+        "marginal_gain": 9.406637995441997,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 6,
+        "added": "clv",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w",
+          "adx",
+          "clv"
+        ],
+        "pnl": 502.64692687364914,
+        "marginal_gain": -13.967019987925596,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 7,
+        "added": "macdh",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w",
+          "adx",
+          "clv",
+          "macdh"
+        ],
+        "pnl": 502.64692687364914,
+        "marginal_gain": 0.0,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 8,
+        "added": "vol_ratio",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w",
+          "adx",
+          "clv",
+          "macdh",
+          "vol_ratio"
+        ],
+        "pnl": 504.80751291612796,
+        "marginal_gain": 2.160586042478826,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 9,
+        "added": "bb_pctb",
+        "signals": [
+          "atr",
+          "bbw",
+          "roc",
+          "range_w",
+          "adx",
+          "clv",
+          "macdh",
+          "vol_ratio",
+          "bb_pctb"
+        ],
+        "pnl": 438.07076315290215,
+        "marginal_gain": -66.73674976322582,
+        "follow_trades": "19",
+        "threshold_pct": 0.6499999999999999
+      }
+    ]
+  },
+  "backward_greedy": {
+    "optimal_signals": [
+      "bbw",
+      "atr"
+    ],
+    "pnl": 566.4200061296415,
+    "log": [
+      {
+        "step": 1,
+        "removed": "bb_pctb",
+        "signals": [
+          "adx",
+          "bbw",
+          "roc",
+          "clv",
+          "vol_ratio",
+          "macdh",
+          "atr",
+          "range_w"
+        ],
+        "pnl": 504.80751291612796,
+        "marginal_gain": 66.73674976322582,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 2,
+        "removed": "vol_ratio",
+        "signals": [
+          "adx",
+          "bbw",
+          "roc",
+          "clv",
+          "macdh",
+          "atr",
+          "range_w"
+        ],
+        "pnl": 502.64692687364914,
+        "marginal_gain": -2.160586042478826,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 3,
+        "removed": "macdh",
+        "signals": [
+          "adx",
+          "bbw",
+          "roc",
+          "clv",
+          "atr",
+          "range_w"
+        ],
+        "pnl": 502.64692687364914,
+        "marginal_gain": 0.0,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 4,
+        "removed": "clv",
+        "signals": [
+          "adx",
+          "bbw",
+          "roc",
+          "atr",
+          "range_w"
+        ],
+        "pnl": 516.6139468615747,
+        "marginal_gain": 13.967019987925596,
+        "follow_trades": "27",
+        "threshold_pct": 0.49999999999999994
+      },
+      {
+        "step": 5,
+        "removed": "adx",
+        "signals": [
+          "bbw",
+          "roc",
+          "atr",
+          "range_w"
+        ],
+        "pnl": 507.20730886613273,
+        "marginal_gain": -9.406637995441997,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 6,
+        "removed": "range_w",
+        "signals": [
+          "bbw",
+          "roc",
+          "atr"
+        ],
+        "pnl": 535.7860795050565,
+        "marginal_gain": 28.578770638923743,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 7,
+        "removed": "roc",
+        "signals": [
+          "bbw",
+          "atr"
+        ],
+        "pnl": 566.4200061296415,
+        "marginal_gain": 30.633926624585,
+        "follow_trades": "22",
+        "threshold_pct": 0.5999999999999999
+      },
+      {
+        "step": 8,
+        "removed": "bbw",
+        "signals": [
+          "atr"
+        ],
+        "pnl": 517.9049459659527,
+        "marginal_gain": -48.51506016368876,
+        "follow_trades": "24",
+        "threshold_pct": 0.5499999999999999
+      }
+    ]
+  },
+  "exhaustive_best": {
+    "signals": [
+      "bbw",
+      "atr"
+    ],
+    "pnl": 566.4200061296415,
+    "n_signals": 2,
+    "threshold_pct": 0.5999999999999999
+  },
+  "exhaustive_top10": [
+    {
+      "signals": [
+        "bbw",
+        "atr"
+      ],
+      "n_signals": 2,
+      "pnl": 566.4200061296415,
+      "follow_trades": 22,
+      "threshold_pct": 0.5999999999999999
+    },
+    {
+      "signals": [
+        "bbw",
+        "clv",
+        "macdh",
+        "atr"
+      ],
+      "n_signals": 4,
+      "pnl": 553.0140126841488,
+      "follow_trades": 24,
+      "threshold_pct": 0.5499999999999999
+    },
+    {
+      "signals": [
+        "bbw",
+        "roc"
+      ],
+      "n_signals": 2,
+      "pnl": 546.3667787787217,
+      "follow_trades": 19,
+      "threshold_pct": 0.6499999999999999
+    },
+    {
+      "signals": [
+        "bbw",
+        "roc",
+        "atr"
+      ],
+      "n_signals": 3,
+      "pnl": 535.7860795050565,
+      "follow_trades": 22,
+      "threshold_pct": 0.5999999999999999
+    },
+    {
+      "signals": [
+        "adx",
+        "bbw",
+        "roc",
+        "bb_pctb",
+        "atr"
+      ],
+      "n_signals": 5,
+      "pnl": 535.7095091876854,
+      "follow_trades": 24,
+      "threshold_pct": 0.5499999999999999
+    },
+    {
+      "signals": [
+        "clv",
+        "atr"
+      ],
+      "n_signals": 2,
+      "pnl": 532.0391938619196,
+      "follow_trades": 27,
+      "threshold_pct": 0.49999999999999994
+    },
+    {
+      "signals": [
+        "adx",
+        "bbw",
+        "roc",
+        "macdh",
+        "bb_pctb",
+        "atr"
+      ],
+      "n_signals": 6,
+      "pnl": 529.7034989448966,
+      "follow_trades": 22,
+      "threshold_pct": 0.5999999999999999
+    },
+    {
+      "signals": [
+        "atr"
+      ],
+      "n_signals": 1,
+      "pnl": 517.9049459659527,
+      "follow_trades": 24,
+      "threshold_pct": 0.5499999999999999
+    },
+    {
+      "signals": [
+        "adx",
+        "bbw",
+        "roc",
+        "atr",
+        "range_w"
+      ],
+      "n_signals": 5,
+      "pnl": 516.6139468615747,
+      "follow_trades": 27,
+      "threshold_pct": 0.49999999999999994
+    },
+    {
+      "signals": [
+        "adx",
+        "bbw",
+        "clv",
+        "macdh",
+        "bb_pctb",
+        "atr"
+      ],
+      "n_signals": 6,
+      "pnl": 508.1635562061292,
+      "follow_trades": 27,
+      "threshold_pct": 0.49999999999999994
+    }
+  ]
+}
