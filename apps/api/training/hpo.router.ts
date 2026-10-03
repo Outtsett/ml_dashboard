@@ -250,13 +250,13 @@ router.post("/hpo/sessions/:id/trials/:trialId/kill", async (req: Request, res: 
       return res.status(400).json({ error: "Invalid trial id" });
     }
     const { db } = await import("../infrastructure/database/db");
-    const { hpoSessions } = await import("@shared/schema");
+    const { hpoSessions } = await import("@shared/pg_schema");
     const { eq } = await import("drizzle-orm");
-    const session = await db.select({
-      modelType: hpoSessions.modelType,
-      symbol: hpoSessions.symbol,
-      timeframe: hpoSessions.timeframe,
-    }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)).get();
+    const session = (await db.select({
+          modelType: hpoSessions.modelType,
+          symbol: hpoSessions.symbol,
+          timeframe: hpoSessions.timeframe,
+        }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)))[0];
     if (!session) {
       return res.status(404).json({ error: `Unknown session ${sessionId}` });
     }
@@ -289,13 +289,13 @@ router.get("/hpo/sessions/:id/importance", async (req: Request, res: Response) =
   try {
     const sessionId = String(req.params.id);
     const { db } = await import("../infrastructure/database/db");
-    const { hpoSessions } = await import("@shared/schema");
+    const { hpoSessions } = await import("@shared/pg_schema");
     const { eq } = await import("drizzle-orm");
-    const session = await db.select({
-      modelType: hpoSessions.modelType,
-      symbol: hpoSessions.symbol,
-      timeframe: hpoSessions.timeframe,
-    }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)).get();
+    const session = (await db.select({
+          modelType: hpoSessions.modelType,
+          symbol: hpoSessions.symbol,
+          timeframe: hpoSessions.timeframe,
+        }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)))[0];
     if (!session) {
       return res.status(404).json({ error: `Unknown session ${sessionId}` });
     }
@@ -360,7 +360,7 @@ router.delete("/hpo/trial/:id", async (req: Request, res: Response) => {
 
     // Mark trial as stopped in SQLite
     const { db } = await import("../infrastructure/database/db");
-    const { hpoTrials } = await import("@shared/schema");
+    const { hpoTrials } = await import("@shared/pg_schema");
     const { eq } = await import("drizzle-orm");
 
     const [trial] = await db.update(hpoTrials)
@@ -379,3 +379,4 @@ router.delete("/hpo/trial/:id", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to stop trial", details: (err as Error).message });
   }
 });
+

@@ -2,9 +2,9 @@ import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
   out: "./migrations_pg",
-  schema: "../shared/src/pg_schema.ts",
+  schema: "packages/shared/src/pg_schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.PG_DATABASE_URL || "postgres://postgres:postgres@localhost:5432/ml_dashboard",
+    url: process.env.PG_DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5433/quant",
   },
 });

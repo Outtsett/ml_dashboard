@@ -8,7 +8,8 @@ dependencies = [
     "numpy>=2.4,<3",
     "pandas>=2.3,<3",           # pandas 3.0 ecosystem support incomplete as of 2026-05
     "polars>=1.37",
-    "pyarrow>=23",
+"pyarrow>=23",
+    "ta-lib>=0.8.1",             # packages/config/build_talib_features.py + 7 feature modules import it
     "scipy>=1.16,<2",
     "duckdb>=1.4",
     # ── ML / training ───────────────────────────────────────────────

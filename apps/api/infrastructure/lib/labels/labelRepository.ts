@@ -5,7 +5,7 @@
  */
 
 import { db } from '../../database/db';
-import { generatedLabels, contrastivePairs, trainingSessions } from '@shared/schema';
+import { generatedLabels, contrastivePairs, trainingSessions } from '@shared/pg_schema';
 import { and, eq, desc, isNotNull, sql, type SQL } from 'drizzle-orm';
 
 export type GeneratedLabelRow = typeof generatedLabels.$inferSelect;
@@ -87,3 +87,4 @@ export async function deleteLabelSet(id: number) {
   await db.delete(generatedLabels).where(eq(generatedLabels.id, id));
   return { success: true };
 }
+

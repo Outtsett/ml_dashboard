@@ -37,7 +37,7 @@ import {
   backtestTrades,
   marketRegimes,
   regimeHistory,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { mlRateLimiter, queryRateLimiter } from '../infrastructure/lib/rateLimiter';
 
 const router = Router();
@@ -542,3 +542,4 @@ router.get('/eval/regime-breakdown', queryRateLimiter, async (req: Request, res:
 void and; void eq; void inArray; void backtestTrades; void marketRegimes; void regimeHistory;
 
 export default router;
+

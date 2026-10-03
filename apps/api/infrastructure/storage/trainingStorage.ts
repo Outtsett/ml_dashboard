@@ -20,7 +20,7 @@ import {
   type InsertEvaluationResult,
   type InsertRunMetric,
   type InsertLossHistory,
-} from "@shared/schema";
+} from "@shared/pg_schema";
 import { getEventBus } from "../events/event-bus";
 import type { DomainEvent } from "@shared/event-types";
 import { log } from "../lib/log";
@@ -44,20 +44,20 @@ export function createTrainingSession(data: {
   labelSetId?: number;
 }) {
   return db.insert(trainingSessions).values({
-    modelName: data.modelName,
-    modelType: data.modelType,
-    symbol: data.symbol,
-    timeframe: data.timeframe,
-    versionedModelId: data.versionedModelId,
-    maxEpochs: data.maxEpochs,
-    learningRate: data.learningRate,
-    hyperparameters: data.hyperparameters ? JSON.stringify(data.hyperparameters) : null,
-    featureCategories: data.featureCategories ? JSON.stringify(data.featureCategories) : null,
-    walkForwardGroupId: data.walkForwardGroupId ?? null,
-    windowIndex: data.windowIndex ?? null,
-    labelSetId: data.labelSetId ?? null,
-    status: "running",
-  }).returning().get();
+      modelName: data.modelName,
+      modelType: data.modelType,
+      symbol: data.symbol,
+      timeframe: data.timeframe,
+      versionedModelId: data.versionedModelId,
+      maxEpochs: data.maxEpochs,
+      learningRate: data.learningRate,
+      hyperparameters: data.hyperparameters ? JSON.stringify(data.hyperparameters) : null,
+      featureCategories: data.featureCategories ? JSON.stringify(data.featureCategories) : null,
+      walkForwardGroupId: data.walkForwardGroupId ?? null,
+      windowIndex: data.windowIndex ?? null,
+      labelSetId: data.labelSetId ?? null,
+      status: "running",
+    }).returning().then(res => res[0]);
 }
 
 /** Update session progress fields (called during training). */
@@ -73,17 +73,17 @@ export function updateSessionProgress(id: number, data: {
   testDateEnd?: number;
 }) {
   db.update(trainingSessions)
-    .set({ ...data, updatedAt: sql`(unixepoch() * 1000)` })
+    .set({ ...data, updatedAt: sql`now()` })
     .where(eq(trainingSessions.id, id))
-    .run();
+    .execute();
 }
 
 /** Store the process PID for recovery/cleanup. */
 export function updateSessionPid(id: number, pid: number) {
   db.update(trainingSessions)
-    .set({ pid, updatedAt: sql`(unixepoch() * 1000)` })
+    .set({ pid, updatedAt: sql`now()` })
     .where(eq(trainingSessions.id, id))
-    .run();
+    .execute();
 }
 
 /** Finalize session on completion, failure, or stop. */
@@ -109,21 +109,21 @@ export function finalizeSession(id: number, data: {
       errorMessage: data.errorMessage ?? null,
       resourcePeakMemoryMb: data.resourcePeakMemoryMb ?? null,
       resourceAvgCpuPct: data.resourceAvgCpuPct ?? null,
-      updatedAt: sql`(unixepoch() * 1000)`,
+      updatedAt: sql`now()`,
     })
     .where(eq(trainingSessions.id, id))
-    .run();
+    .execute();
 }
 
 /** Get a single session by id. */
 export function getSession(id: number) {
-  return db.select().from(trainingSessions).where(eq(trainingSessions.id, id)).get();
+  return db.select().from(trainingSessions).where(eq(trainingSessions.id, id)).then(res => res[0]);
 }
 
 /** Get a session by versioned model ID. */
 export function getSessionByVersionedId(versionedModelId: string) {
   return db.select().from(trainingSessions)
-    .where(eq(trainingSessions.versionedModelId, versionedModelId)).get();
+      .where(eq(trainingSessions.versionedModelId, versionedModelId)).then(res => res[0]);
 }
 
 /** List sessions with optional filters. */
@@ -148,44 +148,41 @@ export function listSessions(opts?: {
     query = query.limit(opts.limit) as typeof query;
   }
 
-  return query.all();
+  return query;
 }
 
 /** Get all sessions in a walk-forward group, ordered by window index. */
 export function getWalkForwardGroup(groupId: string) {
   return db.select().from(trainingSessions)
-    .where(eq(trainingSessions.walkForwardGroupId, groupId))
-    .orderBy(trainingSessions.windowIndex)
-    .all();
+      .where(eq(trainingSessions.walkForwardGroupId, groupId))
+      .orderBy(trainingSessions.windowIndex);
 }
 
 /** Get quality score history for a symbol+modelType combo (for degradation tracking). */
 export function getQualityHistory(symbol: string, modelType: string) {
   return db.select({
-    id: trainingSessions.id,
-    versionedModelId: trainingSessions.versionedModelId,
-    qualityScore: trainingSessions.qualityScore,
-    evaluationGrade: trainingSessions.evaluationGrade,
-    startedAt: trainingSessions.startedAt,
-    elapsedSec: trainingSessions.elapsedSec,
-  })
-  .from(trainingSessions)
-  .where(and(
-    eq(trainingSessions.symbol, symbol),
-    eq(trainingSessions.modelType, modelType),
-    eq(trainingSessions.status, "completed"),
-  ))
-  .orderBy(trainingSessions.startedAt)
-  .all();
+      id: trainingSessions.id,
+      versionedModelId: trainingSessions.versionedModelId,
+      qualityScore: trainingSessions.qualityScore,
+      evaluationGrade: trainingSessions.evaluationGrade,
+      startedAt: trainingSessions.startedAt,
+      elapsedSec: trainingSessions.elapsedSec,
+    })
+    .from(trainingSessions)
+    .where(and(
+      eq(trainingSessions.symbol, symbol),
+      eq(trainingSessions.modelType, modelType),
+      eq(trainingSessions.status, "completed"),
+    ))
+    .orderBy(trainingSessions.startedAt);
 }
 
 /** Mark any "running" sessions as "failed" — call on server startup to clean up orphans. */
-export function markOrphanedSessionsFailed(): number {
+export async function markOrphanedSessionsFailed(): number {
   // Find PIDs of orphaned sessions to kill them (production-like resilience)
-  const orphans = db.select({ id: trainingSessions.id, pid: trainingSessions.pid })
-    .from(trainingSessions)
-    .where(eq(trainingSessions.status, "running"))
-    .all();
+  const orphans = await db.select({ id: trainingSessions.id, pid: trainingSessions.pid })
+      .from(trainingSessions)
+      .where(eq(trainingSessions.status, "running"));
 
   for (const orphan of orphans) {
     if (orphan.pid) {
@@ -202,10 +199,10 @@ export function markOrphanedSessionsFailed(): number {
     .set({
       status: "failed",
       errorMessage: "Server restarted during training",
-      updatedAt: sql`(unixepoch() * 1000)`,
+      updatedAt: sql`now()`,
     })
     .where(eq(trainingSessions.status, "running"))
-    .run();
+    .execute();
   return result.changes;
 }
 
@@ -213,13 +210,13 @@ export function markOrphanedSessionsFailed(): number {
 
 /** Insert a single metric row. */
 export function insertMetric(data: InsertTrainingMetric) {
-  db.insert(trainingMetrics).values(data).run();
+  db.insert(trainingMetrics).values(data).execute();
 }
 
 /** Insert a batch of metric rows (one per metric name per iteration). */
 export function insertMetricsBatch(data: InsertTrainingMetric[]) {
   if (data.length === 0) return;
-  db.insert(trainingMetrics).values(data).run();
+  db.insert(trainingMetrics).values(data).execute();
 }
 
 /** Get metrics for a session, optionally filtered by metric name. */
@@ -228,17 +225,15 @@ export function getMetrics(sessionId: number, metricName?: string) {
   if (metricName) conditions.push(eq(trainingMetrics.metricName, metricName));
 
   return db.select().from(trainingMetrics)
-    .where(and(...conditions))
-    .orderBy(trainingMetrics.iteration)
-    .all();
+      .where(and(...conditions))
+      .orderBy(trainingMetrics.iteration);
 }
 
 /** Get distinct metric names for a session (for convergence chart series selection). */
-export function getMetricNames(sessionId: number): string[] {
-  const rows = db.selectDistinct({ metricName: trainingMetrics.metricName })
-    .from(trainingMetrics)
-    .where(eq(trainingMetrics.sessionId, sessionId))
-    .all();
+export async function getMetricNames(sessionId: number): string[] {
+  const rows = await db.selectDistinct({ metricName: trainingMetrics.metricName })
+      .from(trainingMetrics)
+      .where(eq(trainingMetrics.sessionId, sessionId));
   return rows.map(r => r.metricName);
 }
 
@@ -246,13 +241,13 @@ export function getMetricNames(sessionId: number): string[] {
 
 /** Insert a single evaluation test result. */
 export function insertEvaluation(data: InsertEvaluationResult) {
-  db.insert(evaluationResults).values(data).run();
+  db.insert(evaluationResults).values(data).execute();
 }
 
 /** Insert a batch of evaluation results (e.g., all Stage 1 tests at once). */
 export function insertEvaluationsBatch(data: InsertEvaluationResult[]) {
   if (data.length === 0) return;
-  db.insert(evaluationResults).values(data).run();
+  db.insert(evaluationResults).values(data).execute();
 }
 
 /** Get evaluation results for a session, optionally filtered by stage. */
@@ -261,23 +256,21 @@ export function getEvaluations(sessionId: number, stage?: string) {
   if (stage) conditions.push(eq(evaluationResults.stage, stage));
 
   return db.select().from(evaluationResults)
-    .where(and(...conditions))
-    .orderBy(evaluationResults.stage, evaluationResults.testName)
-    .all();
+      .where(and(...conditions))
+      .orderBy(evaluationResults.stage, evaluationResults.testName);
 }
 
 /** Get per-stage pass/fail summary for a session. */
 export function getEvaluationSummary(sessionId: number) {
   return db.select({
-    stage: evaluationResults.stage,
-    totalTests: sql<number>`count(*)`,
-    passedTests: sql<number>`sum(case when ${evaluationResults.testPassed} = 1 then 1 else 0 end)`,
-    failedTests: sql<number>`sum(case when ${evaluationResults.testPassed} = 0 then 1 else 0 end)`,
-  })
-    .from(evaluationResults)
-    .where(eq(evaluationResults.sessionId, sessionId))
-    .groupBy(evaluationResults.stage)
-    .all();
+      stage: evaluationResults.stage,
+      totalTests: sql<number>`count(*)`,
+      passedTests: sql<number>`sum(case when ${evaluationResults.testPassed} = 1 then 1 else 0 end)`,
+      failedTests: sql<number>`sum(case when ${evaluationResults.testPassed} = 0 then 1 else 0 end)`,
+    })
+      .from(evaluationResults)
+      .where(eq(evaluationResults.sessionId, sessionId))
+      .groupBy(evaluationResults.stage);
 }
 
 // ─── Model State Snapshots ────────────────────────────────────────────────────
@@ -288,7 +281,7 @@ export function insertModelStateSnapshot(data: {
   iteration: number;
   snapshot: string;
 }) {
-  db.insert(modelStateSnapshots).values(data).run();
+  db.insert(modelStateSnapshots).values(data).execute();
 }
 
 /** Get model state snapshots for a session, ordered by iteration descending. */
@@ -301,26 +294,24 @@ export function getModelStateSnapshots(sessionId: number, limit?: number) {
     query = query.limit(limit) as typeof query;
   }
 
-  return query.all();
+  return query;
 }
 
 /** Get a specific model state snapshot by session + iteration. */
 export function getModelStateSnapshot(sessionId: number, iteration: number) {
   return db.select().from(modelStateSnapshots)
-    .where(and(
-      eq(modelStateSnapshots.sessionId, sessionId),
-      eq(modelStateSnapshots.iteration, iteration),
-    ))
-    .get();
+      .where(and(
+        eq(modelStateSnapshots.sessionId, sessionId),
+        eq(modelStateSnapshots.iteration, iteration),
+      )).then(res => res[0]);
 }
 
 /** Get the latest (highest iteration) model state snapshot for a session. */
 export function getLatestModelStateSnapshot(sessionId: number) {
   return db.select().from(modelStateSnapshots)
-    .where(eq(modelStateSnapshots.sessionId, sessionId))
-    .orderBy(desc(modelStateSnapshots.iteration))
-    .limit(1)
-    .get();
+      .where(eq(modelStateSnapshots.sessionId, sessionId))
+      .orderBy(desc(modelStateSnapshots.iteration))
+      .limit(1).then(res => res[0]);
 }
 
 // ─── Loss History ─────────────────────────────────────────────────────────────
@@ -328,7 +319,7 @@ export function getLatestModelStateSnapshot(sessionId: number) {
 /** Insert a batch of loss-history rows (epoch, loss, valLoss) for the 3D surface. */
 export function insertLossHistoryBatch(rows: InsertLossHistory[]) {
   if (rows.length === 0) return;
-  db.insert(lossHistory).values(rows).run();
+  db.insert(lossHistory).values(rows).execute();
 }
 
 // ─── Run Metrics (durable, provenance-keyed per-iteration metrics) ───────────
@@ -338,7 +329,7 @@ export function insertRunMetricsBatch(rows: InsertRunMetric[]) {
   if (rows.length === 0) return;
   const CHUNK = 150; // 11 bound columns x 150 = 1650 variables, well under 32766
   for (let i = 0; i < rows.length; i += CHUNK) {
-    db.insert(runMetrics).values(rows.slice(i, i + CHUNK)).run();
+    db.insert(runMetrics).values(rows.slice(i, i + CHUNK)).execute();
   }
 }
 
@@ -347,31 +338,29 @@ export function getRunMetrics(runId: string, metricName?: string) {
   const conditions = [eq(runMetrics.runId, runId)];
   if (metricName) conditions.push(eq(runMetrics.metricName, metricName));
   return db.select().from(runMetrics)
-    .where(and(...conditions))
-    .orderBy(runMetrics.iteration, runMetrics.id)
-    .all();
+      .where(and(...conditions))
+      .orderBy(runMetrics.iteration, runMetrics.id);
 }
 
 /** Row count for a run — the cheap "did anything land?" probe. */
-export function countRunMetrics(runId: string): number {
-  const row = db.select({ n: sql<number>`count(*)` })
-    .from(runMetrics).where(eq(runMetrics.runId, runId)).get();
+export async function countRunMetrics(runId: string): number {
+  const row = (await db.select({ n: sql<number>`count(*)` })
+      .from(runMetrics).where(eq(runMetrics.runId, runId)))[0];
   return row?.n ?? 0;
 }
 
 /** Latest provenance identity for a legacy model id, for events that carry none. */
 export function getLatestRunForModelId(legacyModelId: string) {
   return db.select({
-    runId: runs.runId,
-    experimentId: runs.experimentId,
-    trialIdx: runs.trialIdx,
-    foldIdx: runs.foldIdx,
-  })
-    .from(runs)
-    .where(eq(runs.legacyModelId, legacyModelId))
-    .orderBy(desc(runs.startedAt))
-    .limit(1)
-    .get();
+      runId: runs.runId,
+      experimentId: runs.experimentId,
+      trialIdx: runs.trialIdx,
+      foldIdx: runs.foldIdx,
+    })
+      .from(runs)
+      .where(eq(runs.legacyModelId, legacyModelId))
+      .orderBy(desc(runs.startedAt))
+      .limit(1).then(res => res[0]);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -894,3 +883,5 @@ export function flushTrainingMetricRecorder(): void {
     flushRecorderState(state);
   }
 }
+
+

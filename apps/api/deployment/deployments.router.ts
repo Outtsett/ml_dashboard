@@ -35,7 +35,7 @@ import {
   modelVersions,
   type Deployment,
   type DeploymentStatus,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { mlRateLimiter } from '../infrastructure/lib/rateLimiter';
 import {
   startLiveDeployment,
@@ -95,7 +95,7 @@ function isLiveDeployEnabled(): boolean {
 
 // ─── GET /api/deployments ───────────────────────────────────────────────────
 
-router.get('/deployments', (req: Request, res: Response) => {
+router.get('/deployments', async (req: Request, res: Response) => {
   const parsed = ListQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json(formatZodErrors(parsed.error));
@@ -109,19 +109,18 @@ router.get('/deployments', (req: Request, res: Response) => {
   if (symbol) conditions.push(eq(deployments.symbol, symbol));
   if (timeframe) conditions.push(eq(deployments.timeframe, timeframe));
 
-  const rows = db
-    .select()
-    .from(deployments)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(deployments.startedAt))
-    .all();
+  const rows = await db
+      .select()
+      .from(deployments)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(deployments.startedAt));
 
   return res.json({ items: rows });
 });
 
 // ─── POST /api/deployments ──────────────────────────────────────────────────
 
-router.post('/deployments', mlRateLimiter, (req: Request, res: Response) => {
+router.post('/deployments', mlRateLimiter, async (req: Request, res: Response) => {
   const parsed = StartDeploymentRequest.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json(formatZodErrors(parsed.error));
@@ -137,11 +136,10 @@ router.post('/deployments', mlRateLimiter, (req: Request, res: Response) => {
   }
 
   // Verify the model version exists (FK is RESTRICT but a 404 is friendlier than a 500)
-  const [version] = db
-    .select({ versionId: modelVersions.versionId, status: modelVersions.status })
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, version_id))
-    .all();
+  const [version] = await db
+      .select({ versionId: modelVersions.versionId, status: modelVersions.status })
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, version_id));
   if (!version) {
     return res.status(404).json({ error: 'model version not found' });
   }
@@ -150,16 +148,15 @@ router.post('/deployments', mlRateLimiter, (req: Request, res: Response) => {
   // this (symbol, timeframe). The partial unique index in the migration would
   // catch a duplicate too, but a clean 409 is better than a SQLITE_CONSTRAINT.
   if (mode === 'live') {
-    const existing = db
-      .select({ id: deployments.deploymentId })
-      .from(deployments)
-      .where(and(
-        eq(deployments.symbol, symbol),
-        eq(deployments.timeframe, timeframe),
-        eq(deployments.mode, 'live'),
-        eq(deployments.status, 'running'),
-      ))
-      .all();
+    const existing = await db
+          .select({ id: deployments.deploymentId })
+          .from(deployments)
+          .where(and(
+            eq(deployments.symbol, symbol),
+            eq(deployments.timeframe, timeframe),
+            eq(deployments.mode, 'live'),
+            eq(deployments.status, 'running'),
+          ));
     if (existing.length > 0) {
       return res.status(409).json({
         error: 'a live deployment is already running for this (symbol, timeframe)',
@@ -170,19 +167,18 @@ router.post('/deployments', mlRateLimiter, (req: Request, res: Response) => {
 
   const ts = new Date().toISOString();
   try {
-    const [inserted] = db
-      .insert(deployments)
-      .values({
-        versionId: version_id,
-        mode,
-        status: 'running',
-        symbol,
-        timeframe,
-        startedAt: ts,
-        predictionsEmitted: 0,
-      })
-      .returning()
-      .all();
+    const [inserted] = await db
+          .insert(deployments)
+          .values({
+            versionId: version_id,
+            mode,
+            status: 'running',
+            symbol,
+            timeframe,
+            startedAt: ts,
+            predictionsEmitted: 0,
+          })
+          .returning();
 
     // W9.b: live deployments spawn a background polling loop that talks to
     // MLBridge. Fire-and-forget — HTTP response should not block on socket
@@ -209,18 +205,17 @@ router.post('/deployments', mlRateLimiter, (req: Request, res: Response) => {
 
 // ─── State transitions: pause / stop ────────────────────────────────────────
 
-function transition(req: Request, res: Response, target: DeploymentStatus): void {
+async function transition(req: Request, res: Response, target: DeploymentStatus): void {
   const id = parseId(req.params.id);
   if (id === null) {
     res.status(400).json({ error: 'Invalid id' });
     return;
   }
 
-  const [current] = db
-    .select()
-    .from(deployments)
-    .where(eq(deployments.deploymentId, id))
-    .all();
+  const [current] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.deploymentId, id));
   if (!current) {
     res.status(404).json({ error: 'deployment not found' });
     return;
@@ -247,12 +242,11 @@ function transition(req: Request, res: Response, target: DeploymentStatus): void
     update.stoppedAt = ts;
   }
 
-  const [updated] = db
-    .update(deployments)
-    .set(update)
-    .where(eq(deployments.deploymentId, id))
-    .returning()
-    .all();
+  const [updated] = await db
+      .update(deployments)
+      .set(update)
+      .where(eq(deployments.deploymentId, id))
+      .returning();
 
   // W9.b: when transitioning a live deployment, tear down (or pause) the
   // polling loop. Non-live deployments (shadow / paper) have no loop yet —
@@ -282,3 +276,4 @@ router.post('/deployments/:id/stop', mlRateLimiter, (req: Request, res: Response
 });
 
 export default router;
+

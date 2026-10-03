@@ -1,4 +1,4 @@
- {
+export default {
   id: "gen-vae",
   title: "Variational Autoencoders",
   description: "Master Variational Autoencoders from first principles: derive the ELBO from maximum likelihood, understand why the reparameterization trick enables gradient-based optimization through stochastic nodes, explore β-VAE for disentangled representations and Conditional VAE for regime-aware generation, and apply these generative models to synthesize realistic forex market scenarios for stress testing and anomaly detection.",
@@ -410,3 +410,4 @@ for r in range(n_regimes):
     }
   ]
 }
+

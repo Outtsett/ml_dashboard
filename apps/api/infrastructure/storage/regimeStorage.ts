@@ -2,7 +2,7 @@
  * Storage — Market Regimes
  */
 
-import { marketRegimes, regimeHistory, type MarketRegime, type RegimeHistory } from '@shared/schema';
+import { marketRegimes, regimeHistory, type MarketRegime, type RegimeHistory } from '@shared/pg_schema';
 import { db } from '../database/db';
 import type { CreateMarketRegimeParams, RecordRegimeHistoryParams } from './types';
 
@@ -33,3 +33,4 @@ export async function recordRegimeHistory(data: RecordRegimeHistoryParams): Prom
   }).returning();
   return result!;
 }
+

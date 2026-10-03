@@ -178,7 +178,7 @@ interface FamilyTemplate {
 
 const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
   sklearn: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['predictions', 'feature_importance'],
     chartOverlay: 'prediction_markers',
@@ -193,7 +193,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     ],
   },
   xgboost: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['predictions', 'feature_importance', 'shap_values'],
     chartOverlay: 'prediction_markers',
@@ -204,7 +204,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     keywords: ['xgboost', 'xgb'],
   },
   lightgbm: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['predictions', 'feature_importance'],
     chartOverlay: 'prediction_markers',
@@ -215,7 +215,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     keywords: ['lightgbm', 'light gbm', 'lgbm'],
   },
   catboost: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['predictions', 'feature_importance'],
     chartOverlay: 'prediction_markers',
@@ -226,7 +226,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     keywords: ['catboost'],
   },
   pytorch: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['predictions', 'loss_curve', 'model_weights'],
     chartOverlay: 'prediction_markers',
@@ -241,7 +241,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     ],
   },
   transformer: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'sequence',
     outputs: ['predictions', 'attention_weights', 'loss_curve'],
     chartOverlay: 'prediction_markers',
@@ -252,7 +252,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     keywords: ['transformer', 'bert', 'gpt', 'self-attention'],
   },
   hmm: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'self-contained',
     outputs: ['regimes', 'transition_matrix', 'convergence'],
     chartOverlay: 'regime_zones',
@@ -266,7 +266,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     ],
   },
   reinforcement: {
-    runner: 'python',
+    runner: 'async-orchestrator',
     featurePipeline: 'standard',
     outputs: ['policy', 'reward_curve', 'episode_stats'],
     chartOverlay: 'action_markers',
@@ -553,7 +553,7 @@ function rebuildCache(): BridgeCache {
       name: x.name,
       category: x.category,
       subcategory: x.subcategory,
-      runner: 'python',
+      runner: 'async-orchestrator',
       featurePipeline: 'standard',
       outputs: ['predictions', 'composite_diagnostics'],
       chartOverlay: 'prediction_markers',
@@ -585,7 +585,7 @@ function rebuildCache(): BridgeCache {
       name: x.name,
       category: x.category,
       subcategory: x.subcategory,
-      runner: 'python',
+      runner: 'async-orchestrator',
       featurePipeline: 'standard',
       outputs: ['checkpoint.json', 'diagnostics.json', 'oos_predictions.parquet'],
       chartOverlay: 'prediction_markers',

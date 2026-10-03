@@ -1,4 +1,4 @@
-{
+export default {
   id: "gen-bayesian",
   title: "Bayesian Inference",
   description: "Master Bayesian inference from first principles: derive Bayes' theorem, construct conjugate priors, compute posteriors analytically and via MCMC, interpret credible intervals, and apply Bayesian model comparison to quantify parameter uncertainty in forex trading strategies.",
@@ -678,3 +678,4 @@ print(f"This demonstrates the automatic Occam's razor of Bayesian model comparis
     }
   ],
 }
+

@@ -22,7 +22,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "../infrastructure/database/db";
-import { modelCheckpoints, predictionLog } from "@shared/schema";
+import { modelCheckpoints, predictionLog } from "@shared/pg_schema";
 import { queryLake } from "../infrastructure/database/lake/connection";
 import { sanitizeModelId } from "../infrastructure/lib/modelResults";
 import { CACHE_SEMI } from "../infrastructure/cache/headers";
@@ -129,9 +129,8 @@ router.get("/models/:id", async (req: Request, res: Response) => {
       return;
     }
 
-    const checkpoint = db.select().from(modelCheckpoints)
-      .where(eq(modelCheckpoints.id, id))
-      .get();
+    const checkpoint = (await db.select().from(modelCheckpoints)
+          .where(eq(modelCheckpoints.id, id)))[0];
 
     if (!checkpoint) {
       res.status(404).json({ error: "Checkpoint not found" });
@@ -161,16 +160,14 @@ router.get("/models/:id/diagnostics", async (req: Request, res: Response) => {
     let checkpoint;
     const numId = parseInt(idParam, 10);
     if (!isNaN(numId) && String(numId) === idParam) {
-      checkpoint = db.select({ diagnosticsJson: modelCheckpoints.diagnosticsJson })
-        .from(modelCheckpoints)
-        .where(eq(modelCheckpoints.id, numId))
-        .get();
+      checkpoint = (await db.select({ diagnosticsJson: modelCheckpoints.diagnosticsJson })
+              .from(modelCheckpoints)
+              .where(eq(modelCheckpoints.id, numId)))[0];
     } else {
       const safeId = sanitizeModelId(idParam);
-      checkpoint = db.select({ diagnosticsJson: modelCheckpoints.diagnosticsJson })
-        .from(modelCheckpoints)
-        .where(eq(modelCheckpoints.modelId, safeId))
-        .get();
+      checkpoint = (await db.select({ diagnosticsJson: modelCheckpoints.diagnosticsJson })
+              .from(modelCheckpoints)
+              .where(eq(modelCheckpoints.modelId, safeId)))[0];
     }
 
     if (!checkpoint) {
@@ -205,22 +202,22 @@ router.post("/models", async (req: Request, res: Response) => {
       return;
     }
 
-    const result = db.insert(modelCheckpoints).values({
-      modelId: data.modelId,
-      modelType: data.modelType,
-      symbol: data.symbol,
-      timeframe: data.timeframe,
-      diagnosticsJson: data.diagnosticsJson,
-      checkpointPath: data.checkpointPath,
-      diagnosticsPath: data.diagnosticsPath,
-      primaryMetric: data.primaryMetric,
-      primaryMetricName: data.primaryMetricName,
-      paramCount: data.paramCount,
-      trainingDurationSec: data.trainingDurationSec,
-      nBarsTrain: data.nBarsTrain,
-      nBarsVal: data.nBarsVal,
-      sessionId: data.sessionId,
-    }).returning().get();
+    const result = (await db.insert(modelCheckpoints).values({
+          modelId: data.modelId,
+          modelType: data.modelType,
+          symbol: data.symbol,
+          timeframe: data.timeframe,
+          diagnosticsJson: data.diagnosticsJson,
+          checkpointPath: data.checkpointPath,
+          diagnosticsPath: data.diagnosticsPath,
+          primaryMetric: data.primaryMetric,
+          primaryMetricName: data.primaryMetricName,
+          paramCount: data.paramCount,
+          trainingDurationSec: data.trainingDurationSec,
+          nBarsTrain: data.nBarsTrain,
+          nBarsVal: data.nBarsVal,
+          sessionId: data.sessionId,
+        }).returning())[0];
 
     res.status(201).json(result);
   } catch (err: unknown) {
@@ -240,9 +237,8 @@ router.patch("/models/:id/activate", async (req: Request, res: Response) => {
       return;
     }
 
-    const checkpoint = db.select().from(modelCheckpoints)
-      .where(eq(modelCheckpoints.id, id))
-      .get();
+    const checkpoint = (await db.select().from(modelCheckpoints)
+          .where(eq(modelCheckpoints.id, id)))[0];
 
     if (!checkpoint) {
       res.status(404).json({ error: "Checkpoint not found" });
@@ -256,13 +252,13 @@ router.patch("/models/:id/activate", async (req: Request, res: Response) => {
         eq(modelCheckpoints.symbol, checkpoint.symbol),
         eq(modelCheckpoints.timeframe, checkpoint.timeframe),
       ))
-      .run();
+      .execute();
 
     // Activate this one
     db.update(modelCheckpoints)
       .set({ isActive: 1 })
       .where(eq(modelCheckpoints.id, id))
-      .run();
+      .execute();
 
     res.json({ message: `Checkpoint ${id} activated for ${checkpoint.symbol} ${checkpoint.timeframe}` });
   } catch (err: unknown) {
@@ -281,10 +277,9 @@ router.delete("/models/:id", async (req: Request, res: Response) => {
       return;
     }
 
-    const deleted = db.delete(modelCheckpoints)
-      .where(eq(modelCheckpoints.id, id))
-      .returning()
-      .get();
+    const deleted = (await db.delete(modelCheckpoints)
+          .where(eq(modelCheckpoints.id, id))
+          .returning())[0];
 
     if (!deleted) {
       res.status(404).json({ error: "Checkpoint not found" });
@@ -312,16 +307,14 @@ router.get("/models/:id/predictions", async (req: Request, res: Response) => {
       conditions.push(eq(predictionLog.splitType, splitType as string));
     }
 
-    const rows = db.select().from(predictionLog)
-      .where(and(...conditions))
-      .limit(limit)
-      .offset(offset)
-      .all();
+    const rows = await db.select().from(predictionLog)
+          .where(and(...conditions))
+          .limit(limit)
+          .offset(offset);
 
-    const total = db.select({ count: sql<number>`count(*)` })
-      .from(predictionLog)
-      .where(and(...conditions))
-      .get();
+    const total = (await db.select({ count: sql<number>`count(*)` })
+          .from(predictionLog)
+          .where(and(...conditions)))[0];
 
     res.set(CACHE_SEMI).json({
       rows,
@@ -372,10 +365,9 @@ router.post("/models/:id/predictions", async (req: Request, res: Response) => {
     const safeId = sanitizeModelId(String(req.params.id));
 
     // Verify checkpoint exists
-    const checkpoint = db.select({ id: modelCheckpoints.id, symbol: modelCheckpoints.symbol })
-      .from(modelCheckpoints)
-      .where(eq(modelCheckpoints.modelId, safeId))
-      .get();
+    const checkpoint = (await db.select({ id: modelCheckpoints.id, symbol: modelCheckpoints.symbol })
+          .from(modelCheckpoints)
+          .where(eq(modelCheckpoints.modelId, safeId)))[0];
 
     if (!checkpoint) {
       res.status(404).json({ error: `Checkpoint ${safeId} not found` });
@@ -412,7 +404,7 @@ router.post("/models/:id/predictions", async (req: Request, res: Response) => {
         splitType: p.splitType ?? "oos",
       }));
 
-      db.insert(predictionLog).values(values).run();
+      db.insert(predictionLog).values(values).execute();
       inserted += chunk.length;
     }
 
@@ -438,20 +430,19 @@ router.get("/models/:id/predictions/summary", async (req: Request, res: Response
     const whereClause = and(...conditions);
 
     // Total counts and accuracy
-    const stats = db.select({
-      totalPredictions: sql<number>`count(*)`,
-      correctPredictions: sql<number>`sum(case when predicted_class = actual_class then 1 else 0 end)`,
-      avgConfidence: sql<number>`avg(confidence)`,
-      avgRealizedReturn: sql<number>`avg(realized_return)`,
-      totalPositiveReturn: sql<number>`sum(case when realized_return > 0 then realized_return else 0 end)`,
-      totalNegativeReturn: sql<number>`sum(case when realized_return < 0 then realized_return else 0 end)`,
-      tpCount: sql<number>`sum(case when barrier_hit = 'tp' then 1 else 0 end)`,
-      slCount: sql<number>`sum(case when barrier_hit = 'sl' then 1 else 0 end)`,
-      timeoutCount: sql<number>`sum(case when barrier_hit = 'timeout' then 1 else 0 end)`,
-      pendingCount: sql<number>`sum(case when actual_class is null then 1 else 0 end)`,
-    }).from(predictionLog)
-      .where(whereClause)
-      .get();
+    const stats = (await db.select({
+          totalPredictions: sql<number>`count(*)`,
+          correctPredictions: sql<number>`sum(case when predicted_class = actual_class then 1 else 0 end)`,
+          avgConfidence: sql<number>`avg(confidence)`,
+          avgRealizedReturn: sql<number>`avg(realized_return)`,
+          totalPositiveReturn: sql<number>`sum(case when realized_return > 0 then realized_return else 0 end)`,
+          totalNegativeReturn: sql<number>`sum(case when realized_return < 0 then realized_return else 0 end)`,
+          tpCount: sql<number>`sum(case when barrier_hit = 'tp' then 1 else 0 end)`,
+          slCount: sql<number>`sum(case when barrier_hit = 'sl' then 1 else 0 end)`,
+          timeoutCount: sql<number>`sum(case when barrier_hit = 'timeout' then 1 else 0 end)`,
+          pendingCount: sql<number>`sum(case when actual_class is null then 1 else 0 end)`,
+        }).from(predictionLog)
+          .where(whereClause))[0];
 
     if (!stats || stats.totalPredictions === 0) {
       res.status(404).json({ error: "No predictions found" });
@@ -467,15 +458,14 @@ router.get("/models/:id/predictions/summary", async (req: Request, res: Response
       : (stats.totalPositiveReturn ?? 0) > 0 ? Infinity : 0;
 
     // Per-class breakdown
-    const classCounts = db.select({
-      predictedClass: predictionLog.predictedClass,
-      count: sql<number>`count(*)`,
-      avgConfidence: sql<number>`avg(confidence)`,
-      correct: sql<number>`sum(case when predicted_class = actual_class then 1 else 0 end)`,
-    }).from(predictionLog)
-      .where(whereClause)
-      .groupBy(predictionLog.predictedClass)
-      .all();
+    const classCounts = await db.select({
+          predictedClass: predictionLog.predictedClass,
+          count: sql<number>`count(*)`,
+          avgConfidence: sql<number>`avg(confidence)`,
+          correct: sql<number>`sum(case when predicted_class = actual_class then 1 else 0 end)`,
+        }).from(predictionLog)
+          .where(whereClause)
+          .groupBy(predictionLog.predictedClass);
 
     res.set(CACHE_SEMI).json({
       modelId: safeId,
@@ -504,4 +494,6 @@ router.get("/models/:id/predictions/summary", async (req: Request, res: Response
 });
 
 export default router;
+
+
 

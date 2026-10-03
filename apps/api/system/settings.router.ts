@@ -30,7 +30,7 @@ import {
   mlStudioPipelineStates,
   validateSymbol,
   type MlStudioPipelineDocument,
-} from "@shared/schema";
+} from "@shared/pg_schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import fs from "fs";
@@ -292,10 +292,10 @@ router.put("/settings/ml-studio-pipeline/:symbol/:timeframe", async (req, res) =
           pipelineState: values.pipelineState,
           clientRevision: values.clientRevision,
           updatedByClientId: values.updatedByClientId,
-          updatedAt: sql`(unixepoch() * 1000)`,
+          updatedAt: sql`now()`,
         },
       })
-      .run();
+      .execute();
 
     res.json({
       saved: true,
@@ -320,7 +320,7 @@ router.delete("/settings/ml-studio-pipeline/:symbol/:timeframe", async (req, res
 
     db.delete(mlStudioPipelineStates)
       .where(pipelinePairWhere(pair.symbol, pair.timeframe))
-      .run();
+      .execute();
 
     res.json({ deleted: true, ...pair });
   } catch (error) {
@@ -357,10 +357,10 @@ router.put("/settings", async (req, res) => {
           set: {
             value: jsonValue,
             category: cat,
-            updatedAt: sql`(unixepoch() * 1000)`,
+            updatedAt: sql`now()`,
           },
         })
-        .run();
+        .execute();
 
       results.push({ key, status: "saved" });
     }
@@ -376,7 +376,7 @@ router.put("/settings", async (req, res) => {
 router.delete("/settings/:key", async (req, res) => {
   try {
     const { key } = req.params;
-    db.delete(userPreferences).where(eq(userPreferences.key, key)).run();
+    db.delete(userPreferences).where(eq(userPreferences.key, key)).execute();
     res.json({ deleted: key });
   } catch (error) {
     console.error("[settings] Failed to delete preference:", error);
@@ -440,4 +440,6 @@ router.post("/settings/test-connection", async (req, res) => {
 });
 
 export default router;
+
+
 

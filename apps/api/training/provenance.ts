@@ -36,10 +36,10 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import { Logger } from "@nestjs/common";
-// Type-only: `@shared/schema` is a pure Drizzle declaration module with no
+// Type-only: `@shared/pg_schema` is a pure Drizzle declaration module with no
 // import side effects. The *values* (table objects) are still loaded lazily
 // alongside the database handle below.
-import type { RunStatus, ExperimentStatus } from "@shared/schema";
+import type { RunStatus, ExperimentStatus } from "@shared/pg_schema";
 
 export type { RunStatus, ExperimentStatus };
 
@@ -513,7 +513,7 @@ export function runContextEnv(ctx: RunContext): Record<string, string> {
 // ─── Persistence (lazy database handle) ──────────────────────────────────────
 
 type DbModule = typeof import("../infrastructure/database/db");
-type SchemaModule = typeof import("@shared/schema");
+type SchemaModule = typeof import("@shared/pg_schema");
 
 let dbModulePromise: Promise<{ db: DbModule["db"]; schema: SchemaModule }> | null = null;
 
@@ -521,7 +521,7 @@ async function getPersistence(): Promise<{ db: DbModule["db"]; schema: SchemaMod
   dbModulePromise ??= (async () => {
     const [dbModule, schema] = await Promise.all([
       import("../infrastructure/database/db"),
-      import("@shared/schema"),
+      import("@shared/pg_schema"),
     ]);
     return { db: dbModule.db, schema };
   })();
@@ -561,7 +561,7 @@ export async function beginExperiment(input: BeginExperimentInput): Promise<stri
     runCount: 0,
     createdAt: ts,
     updatedAt: ts,
-  }).run();
+  }).execute();
   return experimentId;
 }
 
@@ -638,7 +638,7 @@ export async function beginRun(input: BeginRunInput): Promise<RunContext> {
     manifestPath: ctx.manifestPath,
     manifest: { ...manifest, manifest_hash: manifestHash },
     createdAt: ts,
-  }).onConflictDoNothing().run();
+  }).onConflictDoNothing().execute();
 
   db.insert(schema.runs).values({
     runId,
@@ -656,7 +656,7 @@ export async function beginRun(input: BeginRunInput): Promise<RunContext> {
     trainingSessionId: input.trainingSessionId ?? null,
     startedAt: ts,
     heartbeatAt: ts,
-  }).run();
+  }).execute();
 
   registerRunContext(input.legacyModelId, ctx);
   return ctx;
@@ -670,7 +670,7 @@ export async function markRunSpawned(runId: string, pid: number | null): Promise
   db.update(schema.runs)
     .set({ status: "running", pid: pid ?? null, heartbeatAt: ts })
     .where(eq(schema.runs.runId, runId))
-    .run();
+    .execute();
 }
 
 /** Minimum wall-clock gap between heartbeat writes, per run. */
@@ -692,7 +692,7 @@ export async function touchRunHeartbeat(runId: string, now: number = Date.now())
   db.update(schema.runs)
     .set({ heartbeatAt: new Date(now).toISOString() })
     .where(eq(schema.runs.runId, runId))
-    .run();
+    .execute();
 }
 
 export interface FinishRunInput {
@@ -725,7 +725,7 @@ export async function finishRun(runId: string, input: FinishRunInput): Promise<v
       heartbeatAt: ts,
     })
     .where(eq(schema.runs.runId, runId))
-    .run();
+    .execute();
   lastHeartbeat.delete(runId);
 }
 
@@ -740,7 +740,7 @@ export async function finishExperiment(
   db.update(schema.experiments)
     .set({ status, finalizedAt: ts, updatedAt: ts })
     .where(eq(schema.experiments.experimentId, experimentId))
-    .run();
+    .execute();
 }
 
 /** Increment an experiment's run counter (roll-up for the experiment manifest). */
@@ -750,7 +750,7 @@ export async function incrementExperimentRunCount(experimentId: string): Promise
   db.update(schema.experiments)
     .set({ runCount: sql`${schema.experiments.runCount} + 1`, updatedAt: nowIso() })
     .where(eq(schema.experiments.experimentId, experimentId))
-    .run();
+    .execute();
 }
 
 /**
@@ -763,3 +763,5 @@ export function detach(promise: Promise<unknown>, what: string): void {
     logger.error(`Provenance ${what} failed: ${err instanceof Error ? err.message : String(err)}`);
   });
 }
+
+

@@ -1,13 +1,13 @@
 {
   "version": 1,
   "description": "Every TA-Lib function as one feature. The name is the expression; the parameterization is in `parameters` and is declared once. No parameter suffix appears in any name.",
-  "talib_version": "0.7.1",
+  "talib_version": "0.8.1",
   "counts": {
-    "functions": 161,
-    "features": 180,
-    "indicator_features": 91,
+    "functions": 201,
+    "features": 234,
+    "indicator_features": 144,
     "pattern_features": 61,
-    "operator_features": 28
+    "operator_features": 29
   },
   "features": [
     {
@@ -111,6 +111,19 @@
       "inputs": [
         "high",
         "low"
+      ],
+      "requires_normalized_input": true,
+      "bounded": false
+    },
+    {
+      "name": "cumsum",
+      "talib_function": "CUMSUM",
+      "talib_group": "Math Operators",
+      "talib_output": "real",
+      "kind": "operator",
+      "parameters": {},
+      "inputs": [
+        "close"
       ],
       "requires_normalized_input": true,
       "bounded": false
@@ -488,6 +501,23 @@
       "bounded": false
     },
     {
+      "name": "ac",
+      "talib_function": "AC",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 5,
+        "slowperiod": 34,
+        "signalperiod": 5
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "adx",
       "talib_function": "ADX",
       "talib_group": "Momentum Indicators",
@@ -518,6 +548,22 @@
       "bounded": false
     },
     {
+      "name": "ao",
+      "talib_function": "AO",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 5,
+        "slowperiod": 34
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "apo",
       "talib_function": "APO",
       "talib_group": "Momentum Indicators",
@@ -526,7 +572,7 @@
       "parameters": {
         "fastperiod": 12,
         "slowperiod": 26,
-        "matype": 0
+        "matype": 1
       },
       "inputs": [
         "ohlcv"
@@ -623,6 +669,53 @@
       "bounded": true
     },
     {
+      "name": "cmou",
+      "talib_function": "CMOU",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "coppock",
+      "talib_function": "COPPOCK",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "wmaperiod": 10,
+        "roc1period": 11,
+        "roc2period": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "dpo",
+      "talib_function": "DPO",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "dx",
       "talib_function": "DX",
       "talib_group": "Momentum Indicators",
@@ -638,6 +731,98 @@
       "bounded": false
     },
     {
+      "name": "er",
+      "talib_function": "ER",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "eri_bearpower",
+      "talib_function": "ERI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "bearpower",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "eri_bullpower",
+      "talib_function": "ERI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "bullpower",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "fosc",
+      "talib_function": "FOSC",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 5
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "fractal_swinghigh",
+      "talib_function": "FRACTAL",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "swinghigh",
+      "kind": "indicator",
+      "parameters": {
+        "leftbars": 2,
+        "rightbars": 2
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "fractal_swinglow",
+      "talib_function": "FRACTAL",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "swinglow",
+      "kind": "indicator",
+      "parameters": {
+        "leftbars": 2,
+        "rightbars": 2
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "imi",
       "talib_function": "IMI",
       "talib_group": "Momentum Indicators",
@@ -645,6 +830,63 @@
       "kind": "indicator",
       "parameters": {
         "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kdj_d",
+      "talib_function": "KDJ",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "d",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 9,
+        "slowk_period": 3,
+        "slowk_matype": 13,
+        "slowd_period": 3,
+        "slowd_matype": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kdj_j",
+      "talib_function": "KDJ",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "j",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 9,
+        "slowk_period": 3,
+        "slowk_matype": 13,
+        "slowd_period": 3,
+        "slowd_matype": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kdj_k",
+      "talib_function": "KDJ",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "k",
+      "kind": "indicator",
+      "parameters": {
+        "fastk_period": 9,
+        "slowk_period": 3,
+        "slowk_matype": 13,
+        "slowd_period": 3,
+        "slowd_matype": 13
       },
       "inputs": [
         "ohlcv"
@@ -907,7 +1149,22 @@
       "parameters": {
         "fastperiod": 12,
         "slowperiod": 26,
-        "matype": 0
+        "matype": 1
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "qstick",
+      "talib_function": "QSTICK",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10
       },
       "inputs": [
         "ohlcv"
@@ -989,6 +1246,42 @@
       ],
       "requires_normalized_input": false,
       "bounded": true
+    },
+    {
+      "name": "smi",
+      "talib_function": "SMI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "smi",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 13,
+        "fastperiod": 2,
+        "slowperiod": 25,
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "smi_smisignal",
+      "talib_function": "SMI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "smisignal",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 13,
+        "fastperiod": 2,
+        "slowperiod": 25,
+        "signalperiod": 9
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
     },
     {
       "name": "stoch_slowd",
@@ -1114,6 +1407,22 @@
       "bounded": false
     },
     {
+      "name": "tsi",
+      "talib_function": "TSI",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "firstperiod": 25,
+        "secondperiod": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "ultosc",
       "talib_function": "ULTOSC",
       "talib_group": "Momentum Indicators",
@@ -1129,6 +1438,64 @@
       ],
       "requires_normalized_input": false,
       "bounded": true
+    },
+    {
+      "name": "vhf",
+      "talib_function": "VHF",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 28
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "vortex_minusvi",
+      "talib_function": "VORTEX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "minusvi",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "vortex_plusvi",
+      "talib_function": "VORTEX",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "plusvi",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "wad",
+      "talib_function": "WAD",
+      "talib_group": "Momentum Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
     },
     {
       "name": "willr",
@@ -1197,7 +1564,7 @@
       "talib_output": "lowerband",
       "kind": "indicator",
       "parameters": {
-        "timeperiod": 5,
+        "timeperiod": 20,
         "nbdevup": 2.0,
         "nbdevdn": 2.0,
         "matype": 0
@@ -1215,7 +1582,7 @@
       "talib_output": "middleband",
       "kind": "indicator",
       "parameters": {
-        "timeperiod": 5,
+        "timeperiod": 20,
         "nbdevup": 2.0,
         "nbdevdn": 2.0,
         "matype": 0
@@ -1233,7 +1600,7 @@
       "talib_output": "upperband",
       "kind": "indicator",
       "parameters": {
-        "timeperiod": 5,
+        "timeperiod": 20,
         "nbdevup": 2.0,
         "nbdevdn": 2.0,
         "matype": 0
@@ -1260,6 +1627,51 @@
       "bounded": false
     },
     {
+      "name": "donchian_lower",
+      "talib_function": "DONCHIAN",
+      "talib_group": "Overlap Studies",
+      "talib_output": "lowerband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "donchian_middle",
+      "talib_function": "DONCHIAN",
+      "talib_group": "Overlap Studies",
+      "talib_output": "middleband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "donchian_upper",
+      "talib_function": "DONCHIAN",
+      "talib_group": "Overlap Studies",
+      "talib_output": "upperband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "ema",
       "talib_function": "EMA",
       "talib_group": "Overlap Studies",
@@ -1267,6 +1679,21 @@
       "kind": "indicator",
       "parameters": {
         "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "hma",
+      "talib_function": "HMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
       },
       "inputs": [
         "ohlcv"
@@ -1295,6 +1722,57 @@
       "kind": "indicator",
       "parameters": {
         "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kc_lower",
+      "talib_function": "KC",
+      "talib_group": "Overlap Studies",
+      "talib_output": "lowerband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20,
+        "atrperiod": 10,
+        "nbdev": 2.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kc_middle",
+      "talib_function": "KC",
+      "talib_group": "Overlap Studies",
+      "talib_output": "middleband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20,
+        "atrperiod": 10,
+        "nbdev": 2.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "kc_upper",
+      "talib_function": "KC",
+      "talib_group": "Overlap Studies",
+      "talib_output": "upperband",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20,
+        "atrperiod": 10,
+        "nbdev": 2.0
       },
       "inputs": [
         "ohlcv"
@@ -1398,6 +1876,21 @@
       "bounded": false
     },
     {
+      "name": "rma",
+      "talib_function": "RMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "sar",
       "talib_function": "SAR",
       "talib_group": "Overlap Studies",
@@ -1443,6 +1936,38 @@
       "kind": "indicator",
       "parameters": {
         "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "supertrend",
+      "talib_function": "SUPERTREND",
+      "talib_group": "Overlap Studies",
+      "talib_output": "supertrend",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10,
+        "multiplier": 3.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "supertrend_trend",
+      "talib_function": "SUPERTREND",
+      "talib_group": "Overlap Studies",
+      "talib_output": "trend",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10,
+        "multiplier": 3.0
       },
       "inputs": [
         "ohlcv"
@@ -1497,8 +2022,38 @@
       "bounded": false
     },
     {
+      "name": "vwma",
+      "talib_function": "VWMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "wma",
       "talib_function": "WMA",
+      "talib_group": "Overlap Studies",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "zlema",
+      "talib_function": "ZLEMA",
       "talib_group": "Overlap Studies",
       "talib_output": "real",
       "kind": "indicator",
@@ -2347,6 +2902,58 @@
       "bounded": false
     },
     {
+      "name": "ha_haclose",
+      "talib_function": "HA",
+      "talib_group": "Price Transform",
+      "talib_output": "haclose",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ha_hahigh",
+      "talib_function": "HA",
+      "talib_group": "Price Transform",
+      "talib_output": "hahigh",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ha_halow",
+      "talib_function": "HA",
+      "talib_group": "Price Transform",
+      "talib_output": "halow",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "ha_haopen",
+      "talib_function": "HA",
+      "talib_group": "Price Transform",
+      "talib_output": "haopen",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "medprice",
       "talib_function": "MEDPRICE",
       "talib_group": "Price Transform",
@@ -2476,6 +3083,37 @@
       "bounded": false
     },
     {
+      "name": "percentile",
+      "talib_function": "PERCENTILE",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 30,
+        "percentile": 50.0
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "percentrank",
+      "talib_function": "PERCENTRANK",
+      "talib_group": "Statistic Functions",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 100
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "stddev",
       "talib_function": "STDDEV",
       "talib_group": "Statistic Functions",
@@ -2523,6 +3161,21 @@
       "bounded": false
     },
     {
+      "name": "adr",
+      "talib_function": "ADR",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "atr",
       "talib_function": "ATR",
       "talib_group": "Volatility Indicators",
@@ -2538,6 +3191,38 @@
       "bounded": false
     },
     {
+      "name": "cvi",
+      "talib_function": "CVI",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 10,
+        "rocperiod": 10
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "massi",
+      "talib_function": "MASSI",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 9,
+        "slowperiod": 25
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "natr",
       "talib_function": "NATR",
       "talib_group": "Volatility Indicators",
@@ -2545,6 +3230,22 @@
       "kind": "indicator",
       "parameters": {
         "timeperiod": 14
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rvi",
+      "talib_function": "RVI",
+      "talib_group": "Volatility Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 14,
+        "stddevperiod": 10
       },
       "inputs": [
         "ohlcv"
@@ -2595,8 +3296,135 @@
       "bounded": false
     },
     {
+      "name": "cmf",
+      "talib_function": "CMF",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "efi",
+      "talib_function": "EFI",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 13
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "marketfi",
+      "talib_function": "MARKETFI",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "nvi",
+      "talib_function": "NVI",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
       "name": "obv",
       "talib_function": "OBV",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "pvi",
+      "talib_function": "PVI",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "pvo",
+      "talib_function": "PVO",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "fastperiod": 12,
+        "slowperiod": 26,
+        "matype": 1
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "pvt",
+      "talib_function": "PVT",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {},
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "rvol",
+      "talib_function": "RVOL",
+      "talib_group": "Volume Indicators",
+      "talib_output": "real",
+      "kind": "indicator",
+      "parameters": {
+        "timeperiod": 20
+      },
+      "inputs": [
+        "ohlcv"
+      ],
+      "requires_normalized_input": false,
+      "bounded": false
+    },
+    {
+      "name": "vwap",
+      "talib_function": "VWAP",
       "talib_group": "Volume Indicators",
       "talib_output": "real",
       "kind": "indicator",

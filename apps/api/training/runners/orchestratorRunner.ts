@@ -62,7 +62,14 @@ export class OrchestratorRunner implements ITrainerRunner {
       session.exitCode = code === 1000 ? 0 : 1;
       emitSessionEvent(session, "info", { message: `Orchestrator closed connection: ${reason}` });
       this.activeSessions.delete(sessionId);
-      trainingStorage.saveTrainingSession(session).catch(e => logger.error("Failed to save session", e));
+      const dbSessId = (session as any).dbSessionId;
+      if (dbSessId) {
+        Promise.resolve(trainingStorage.finalizeSession(dbSessId, {
+          status: code === 1000 ? "completed" : "failed",
+          exitCode: code === 1000 ? 0 : 1,
+          elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1))
+        })).catch(e => logger.error("Failed to save session", e));
+      }
     });
 
     ws.on("error", (error) => {

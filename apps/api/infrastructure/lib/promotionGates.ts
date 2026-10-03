@@ -30,7 +30,7 @@ import {
   deployments,
   type ModelVersionStatus,
   type PromotionGate,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 
 export type GateMetric =
   | 'sharpe_after_costs'
@@ -104,13 +104,12 @@ interface MetricFetchResult {
 }
 
 async function fetchSharpeAfterCosts(ctx: MetricFetchContext): Promise<MetricFetchResult> {
-  const rows = db
-    .select({ sharpe: backtestRuns.sharpeRatio })
-    .from(backtestRuns)
-    .where(and(eq(backtestRuns.symbol, ctx.symbol), eq(backtestRuns.timeframe, ctx.timeframe)))
-    .orderBy(desc(backtestRuns.createdAt))
-    .limit(1)
-    .all();
+  const rows = await db
+      .select({ sharpe: backtestRuns.sharpeRatio })
+      .from(backtestRuns)
+      .where(and(eq(backtestRuns.symbol, ctx.symbol), eq(backtestRuns.timeframe, ctx.timeframe)))
+      .orderBy(desc(backtestRuns.createdAt))
+      .limit(1);
   const sharpe = rows[0]?.sharpe;
   if (sharpe == null || !Number.isFinite(sharpe)) {
     return { value: null, reason: 'no completed backtest_runs row for this symbol/timeframe' };
@@ -162,17 +161,16 @@ async function fetchBootstrapPvalue(_ctx: MetricFetchContext): Promise<MetricFet
   };
 }
 
-function fetchPaperPnl14d(ctx: MetricFetchContext): MetricFetchResult {
+async function fetchPaperPnl14d(ctx: MetricFetchContext): MetricFetchResult {
   const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-  const rows = db
-    .select({ pnl: deployments.paperPnl })
-    .from(deployments)
-    .where(and(
-      eq(deployments.versionId, ctx.versionId),
-      eq(deployments.mode, 'paper'),
-      gte(deployments.startedAt, cutoff),
-    ))
-    .all();
+  const rows = await db
+      .select({ pnl: deployments.paperPnl })
+      .from(deployments)
+      .where(and(
+        eq(deployments.versionId, ctx.versionId),
+        eq(deployments.mode, 'paper'),
+        gte(deployments.startedAt, cutoff),
+      ));
   if (rows.length === 0) {
     return { value: null, reason: 'no paper deployments started within last 14 days' };
   }
@@ -216,18 +214,17 @@ export async function evaluateGates(
   toStatus: ModelVersionStatus,
 ): Promise<GateEvaluation> {
   // Load the version row (need symbol/timeframe/diagnosticsPath + current status)
-  const [version] = db
-    .select({
-      versionId: modelVersions.versionId,
-      catalogId: modelVersions.catalogId,
-      status: modelVersions.status,
-      symbol: modelVersions.symbol,
-      timeframe: modelVersions.timeframe,
-      diagnosticsPath: modelVersions.diagnosticsPath,
-    })
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, versionId))
-    .all();
+  const [version] = await db
+      .select({
+        versionId: modelVersions.versionId,
+        catalogId: modelVersions.catalogId,
+        status: modelVersions.status,
+        symbol: modelVersions.symbol,
+        timeframe: modelVersions.timeframe,
+        diagnosticsPath: modelVersions.diagnosticsPath,
+      })
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, versionId));
 
   if (!version) {
     throw new Error(`model version ${versionId} not found`);
@@ -235,14 +232,13 @@ export async function evaluateGates(
 
   const fromStatus = version.status;
 
-  const gates = db
-    .select()
-    .from(promotionGates)
-    .where(and(
-      eq(promotionGates.fromStatus, fromStatus),
-      eq(promotionGates.toStatus, toStatus),
-    ))
-    .all();
+  const gates = await db
+      .select()
+      .from(promotionGates)
+      .where(and(
+        eq(promotionGates.fromStatus, fromStatus),
+        eq(promotionGates.toStatus, toStatus),
+      ));
 
   const ctx: MetricFetchContext = {
     versionId: version.versionId,
@@ -274,3 +270,4 @@ export async function evaluateGates(
   const allowed = results.every((r) => r.passed);
   return { allowed, results };
 }
+

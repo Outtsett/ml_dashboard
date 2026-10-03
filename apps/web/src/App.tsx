@@ -12,6 +12,7 @@ import Layout from "@/shared/layout/Layout";
 import { ResizableSidePanel } from "@/shared/layout/ResizableSidePanel";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
+import { DuckDBProvider } from "@/shared/contexts/DuckDBContext";
 import { TrainingProvider } from "@/training/lib/TrainingContext";
 import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
 import {
@@ -75,11 +76,6 @@ registerComponentFactory("/paper", PaperFactory);
 const DatabasesFactory = () => import("@/data/DatabasesPage");
 const Databases = lazyRetry(DatabasesFactory, "Databases");
 registerComponentFactory("/databases", DatabasesFactory);
-
-// ML Domain
-const MLStudioFactory = () => import("@/ml/MLStudioPage");
-const MLStudio = lazyRetry(MLStudioFactory, "MLStudio");
-registerComponentFactory("/ml-studio", MLStudioFactory);
 
 const ForecastFactory = () => import("@/ml/ForecastPage");
 const Forecast = lazyRetry(ForecastFactory, "Forecast");
@@ -197,10 +193,9 @@ function Router() {
               <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
 <Route path="/feature-graph"><ErrorBoundary><Suspense fallback={<PageLoader />}><FeatureGraph /></Suspense></ErrorBoundary></Route>
               <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
-              <Route path="/ml-studio"><ErrorBoundary><Suspense fallback={<PageLoader />}><MLStudio /></Suspense></ErrorBoundary></Route>
               <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
               <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
-              <Route path="/model-catalog"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+              <Route path="/models"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
               <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
               <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
               <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
@@ -281,6 +276,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <DuckDBProvider>
       <TooltipProvider>
         <UnifiedDashboardProvider>
           <TrainingProvider>
@@ -295,8 +291,10 @@ function App() {
           </TrainingProvider>
         </UnifiedDashboardProvider>
       </TooltipProvider>
+      </DuckDBProvider>
     </QueryClientProvider>
   );
 }
 
 export default App;
+

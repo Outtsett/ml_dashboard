@@ -1,10 +1,10 @@
 /**
- * Structural — bar-level swing-structure classification.
+ * Structural — bar-level microstructure-structure classification.
  *
  * For each bar, compares its high/low to the rolling max-high / min-low over
  * the previous `pivotLookback` bars (current row excluded — critical for
  * preventing leakage). Maps the (broke_high?, broke_low?) truth table to a
- * 5-class swing-structure label suitable for swing/structural models.
+ * 5-class microstructure-structure label suitable for microstructure/structural models.
  *
  *   high > prev_max_high AND low >= prev_min_low  →  +2  (HH — clean breakout up)
  *   high <= prev_max_high AND low > prev_min_low  →  +1  (HL — held above prior low)

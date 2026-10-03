@@ -36,7 +36,7 @@ import {
   unregisterSeriesTitle,
 } from "@/market/lib/indicator_panels";
 
-const STORAGE_KEY = "lake-series-selection-v1";
+const STORAGE_KEY = "lake-series-selection-v2";
 export const LAKE_SERIES_LIMIT = 8;
 
 /** Okabe-Ito, one hue per family. Never red/green for meaning. */

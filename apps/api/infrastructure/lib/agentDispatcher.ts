@@ -55,7 +55,7 @@ import {
   type AgentRunStatus,
   type AgentReport,
   type AgentTokenUsage,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { getEventBus } from '../events/event-bus';
 import { childEnvironment } from '../../claude/session';
 import type { DomainEvent } from '@shared/event-types';
@@ -156,7 +156,7 @@ function ensureBootRecovery(): void {
         completedAt: new Date().toISOString(),
       })
       .where(sql`${agentRuns.status} IN ('queued','running')`)
-      .run();
+      .execute();
     const changes = (result as { changes?: number })?.changes ?? 0;
     if (changes > 0) {
       logger.warn(`Boot recovery: marked ${changes} stale agent_runs as failed`);
@@ -478,7 +478,7 @@ function insertAgentRunRow(runId: string, agentId: AgentId, blob: AgentContextBl
       contextBlobHash: hashContextBlob(blob),
       requestedAt: new Date().toISOString(),
     })
-    .run();
+    .execute();
 }
 
 function updateRunStatus(
@@ -494,13 +494,13 @@ function updateRunStatus(
   },
 ): void {
   // Drizzle's `set()` strips undefined fields; nulls are written through.
-  db.update(agentRuns).set(patch).where(eq(agentRuns.runId, runId)).run();
+  db.update(agentRuns).set(patch).where(eq(agentRuns.runId, runId)).execute();
 }
 
 /** Public typed lookup — used by SSE route + GET /runs/:id route. */
-export function getAgentRun(runId: string): AgentRun | null {
+export async function getAgentRun(runId: string): AgentRun | null {
   try {
-    const rows = db.select().from(agentRuns).where(eq(agentRuns.runId, runId)).all();
+    const rows = await db.select().from(agentRuns).where(eq(agentRuns.runId, runId));
     return rows[0] ?? null;
   } catch (err) {
     const msg = (err as Error).message;
@@ -891,3 +891,5 @@ export function clearAgentDispatcher(): void {
 export function getDispatcherStats(): { queued: number; running: number; bufferedRuns: number } {
   return { queued: queue.length, running: running.size, bufferedRuns: ringBuffers.size };
 }
+
+

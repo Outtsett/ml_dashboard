@@ -246,3 +246,4 @@ export function writeNotebookFromTemplate(rootPath: string, fileName: string, ti
   if (!statSync(target).isFile()) throw new Error(`${target} is not a regular file.`);
   return target;
 }
+

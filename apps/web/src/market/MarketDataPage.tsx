@@ -650,7 +650,6 @@ export default function MarketData() {
               labelMarkers={labelMarkers}
               indicatorOverlays={allOverlays}
               onRemoveIndicators={handleRemoveIndicators}
-              supportResistanceLevels={srLevels}
               zigZagPoints={zigZagPts}
               swingZigZagPoints={structurePts}
               tradeMarkers={dashboard.overlays.tradeMarkers}

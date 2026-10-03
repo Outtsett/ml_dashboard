@@ -1,20 +1,15 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { BrainCircuit, Library, Database, BookOpen, BookMarked, Newspaper, ActivitySquare, BarChart3, Microscope, NotebookPen, ScatterChart, PlayCircle, Tags, Radio, Compass, FlaskConical } from "lucide-react";
+import { BrainCircuit, Library, Database, BookMarked, Newspaper, BarChart3, Microscope, NotebookPen, Tags, Radio, Compass } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Market", href: "/", icon: BarChart3 },
-  { label: "Live", href: "/live", icon: Radio },
-  { label: "Analytics", href: "/analytics", icon: Compass },
-  { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
-  { label: "Catalog", href: "/model-catalog", icon: Library },
-  { label: "Data", href: "/databases", icon: Database },
-  { label: "Labels", href: "/labels", icon: Tags },
-  { label: "Lens", href: "/lens", icon: Microscope },
-  { label: "Glossary", href: "/glossary", icon: BookMarked },
-  { label: "Paper", href: "/paper", icon: NotebookPen },
-  { label: "News", href: "/news", icon: Newspaper },
+  { label: "Assets", href: "/", icon: BarChart3 },
+  { label: "Models", href: "/models", icon: Library },
+  { label: "Inference", href: "/live", icon: Radio },
+  { label: "Datasets", href: "/databases", icon: Database },
+  { label: "Experiments", href: "/analytics", icon: Compass },
+  { label: "Knowledge", href: "/glossary", icon: BookMarked },
 ];
 
 export function HorizontalNav() {
@@ -54,3 +49,4 @@ export function HorizontalNav() {
     </div>
   );
 }
+

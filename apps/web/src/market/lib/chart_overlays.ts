@@ -100,7 +100,7 @@ function clusterLevels(
 
   // Sort by price
   const sorted = [...points].sort((a, b) => a.price - b.price);
-  let clusters: { prices: number[]; times: number[]; bodies: number[]; volumes: number[] }[] = [];
+  const clusters: { prices: number[]; times: number[]; bodies: number[]; volumes: number[] }[] = [];
 
   let currentCluster = { prices: [sorted[0]!.price], times: [sorted[0]!.time], bodies: [sorted[0]!.bodyEdge], volumes: [sorted[0]!.volume] };
 

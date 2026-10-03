@@ -27,7 +27,7 @@ export async function checkSqliteHealth(): Promise<DatabaseHealthStatus> {
   const startTime = Date.now();
 
   try {
-    db.get(sql`SELECT 1`);
+    await db.execute(sql`SELECT 1`);
 
     const latencyMs = Date.now() - startTime;
     const status: DatabaseHealthStatus = {

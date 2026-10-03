@@ -1,4 +1,4 @@
-{
+export default {
   id: "gen-gan",
   title: "GANs for Financial Data",
   description: "A deep dive into Generative Adversarial Networks for financial time-series synthesis, covering the minimax objective, Nash equilibrium, training instability, Wasserstein GANs with gradient penalty, conditional GANs, and TimeGAN architectures for generating realistic forex price paths and multi-asset synthetic data.",
@@ -470,3 +470,4 @@ print(f"Synth std={synthetic.std():.6f}  autocorr_sq={np.corrcoef(synthetic[:,:-
     },
   ],
 };
+

@@ -33,7 +33,7 @@ import type {
   CatalogLifecycleResponse,
   LifecycleStage,
 } from '@shared/catalogLifecycle';
-import { modelVersions, deployments } from '@shared/schema';
+import { modelVersions, deployments } from '@shared/pg_schema';
 import { CYCLE_RUNNER_SUFFIX } from '@shared/cycle/models';
 import { db } from '../infrastructure/database/db';
 import { listSessions } from '../infrastructure/storage/trainingStorage';
@@ -213,7 +213,7 @@ export function buildCatalogLifecycle(inputs: LifecycleInputs): CatalogLifecycle
 
 // ─── Gathering ──────────────────────────────────────────────────────────────
 
-export function getCatalogLifecycle(): CatalogLifecycleResponse {
+export async function getCatalogLifecycle(): CatalogLifecycleResponse {
   const specs = getCatalogModels({ includeEmpty: true }).models.map(m => ({
     id: m.id,
     hasContent: m.hasContent,
@@ -251,18 +251,17 @@ export function getCatalogLifecycle(): CatalogLifecycleResponse {
     trainable: getTrainableModels(),
     runners,
     sessions,
-    versions: db
-      .select({
-        versionId: modelVersions.versionId,
-        catalogId: modelVersions.catalogId,
-        runnerKey: modelVersions.runnerKey,
-      })
-      .from(modelVersions)
-      .all(),
-    deployments: db
-      .select({ versionId: deployments.versionId, status: deployments.status })
-      .from(deployments)
-      .all(),
+    versions: await db
+          .select({
+            versionId: modelVersions.versionId,
+            catalogId: modelVersions.catalogId,
+            runnerKey: modelVersions.runnerKey,
+          })
+          .from(modelVersions),
+    deployments: await db
+          .select({ versionId: deployments.versionId, status: deployments.status })
+          .from(deployments),
     isLensReady,
   });
 }
+

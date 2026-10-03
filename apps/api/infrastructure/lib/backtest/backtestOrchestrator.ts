@@ -15,7 +15,7 @@ import {
 import { generateModelSignals, generateMomentumSignals } from "./modelInference";
 import { executeStrategy } from "./strategyEngine";
 import type { StrategyDefinition, SignalSource } from "@shared/strategyTypes";
-import type { BacktestRun } from "@shared/schema";
+import type { BacktestRun } from "@shared/pg_schema";
 import { getEventBus } from "../../events/event-bus";
 
 // ── Request / Response Types ─────────────────────────────────────────────────
@@ -297,3 +297,4 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
     throw error;
   }
 }
+

@@ -3,7 +3,7 @@ import {
   curriculumProgress, type CurriculumProgress, type InsertCurriculumProgress,
   curriculumSectionProgress, type CurriculumSectionProgress,
   curriculumBookmarks, type CurriculumBookmark,
-} from "@shared/schema";
+} from "@shared/pg_schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export class CurriculumStorage {
@@ -14,16 +14,16 @@ export class CurriculumStorage {
   }
 
   async updateProgress(progress: InsertCurriculumProgress): Promise<CurriculumProgress> {
-    const existing = await db.select()
-      .from(curriculumProgress)
-      .where(
-        and(
-          eq(curriculumProgress.userId, progress.userId),
-          eq(curriculumProgress.moduleId, progress.moduleId),
-          eq(curriculumProgress.lessonId, progress.lessonId)
-        )
-      )
-      .get();
+    const existing = (await db.select()
+          .from(curriculumProgress)
+          .where(
+            and(
+              eq(curriculumProgress.userId, progress.userId),
+              eq(curriculumProgress.moduleId, progress.moduleId),
+              eq(curriculumProgress.lessonId, progress.lessonId)
+            )
+          )
+          )[0];
 
     if (existing) {
       const [updated] = await db.update(curriculumProgress)
@@ -60,16 +60,16 @@ export class CurriculumStorage {
   }
 
   async markSectionViewed(userId: string, lessonId: string, sectionIndex: number): Promise<CurriculumSectionProgress> {
-    const existing = await db.select()
-      .from(curriculumSectionProgress)
-      .where(
-        and(
-          eq(curriculumSectionProgress.userId, userId),
-          eq(curriculumSectionProgress.lessonId, lessonId),
-          eq(curriculumSectionProgress.sectionIndex, sectionIndex)
-        )
-      )
-      .get();
+    const existing = (await db.select()
+          .from(curriculumSectionProgress)
+          .where(
+            and(
+              eq(curriculumSectionProgress.userId, userId),
+              eq(curriculumSectionProgress.lessonId, lessonId),
+              eq(curriculumSectionProgress.sectionIndex, sectionIndex)
+            )
+          )
+          )[0];
 
     if (existing) return existing;
 
@@ -87,15 +87,15 @@ export class CurriculumStorage {
   async addTimeSpent(userId: string, lessonId: string, additionalMs: number): Promise<void> {
     if (additionalMs <= 0) return;
 
-    const existing = await db.select()
-      .from(curriculumProgress)
-      .where(
-        and(
-          eq(curriculumProgress.userId, userId),
-          eq(curriculumProgress.lessonId, lessonId)
-        )
-      )
-      .get();
+    const existing = (await db.select()
+          .from(curriculumProgress)
+          .where(
+            and(
+              eq(curriculumProgress.userId, userId),
+              eq(curriculumProgress.lessonId, lessonId)
+            )
+          )
+          )[0];
 
     if (existing) {
       await db.update(curriculumProgress)
@@ -130,14 +130,13 @@ export class CurriculumStorage {
 
   async getBookmark(userId: string, lessonId: string): Promise<CurriculumBookmark | undefined> {
     return db.select()
-      .from(curriculumBookmarks)
-      .where(
-        and(
-          eq(curriculumBookmarks.userId, userId),
-          eq(curriculumBookmarks.lessonId, lessonId)
-        )
-      )
-      .get();
+          .from(curriculumBookmarks)
+          .where(
+            and(
+              eq(curriculumBookmarks.userId, userId),
+              eq(curriculumBookmarks.lessonId, lessonId)
+            )
+          ).then(res => res[0]);
   }
 
   async toggleBookmark(userId: string, lessonId: string): Promise<{ bookmarked: boolean }> {

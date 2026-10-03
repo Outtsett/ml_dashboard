@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { computeSupportResistance, computeZigZag, computeMicroStructure } from "@/market/lib/chart_overlays";
+import { computeZigZag, computeMicroStructure } from "@/market/lib/chart_overlays";
 import { useRegimeAssignments } from "@/ml/lib/useRegimeData";
 import type { RegimeInfo } from "@/ml/components/RegimeLegend";
 import type { OhlcvData } from "@/market/components/types";
@@ -165,7 +165,9 @@ export function useChartOverlayData(
 ): ChartOverlayResult {
   // â”€â”€ Overlay toggles â”€â”€
   // The overlay toggles survive a reload (per browser), so the chart comes back the way it was left.
-  const [showSR, setShowSR] = useState(() => readToggle("showSR"));
+  // S/R zones default OFF: the shaded support/resistance clouds are opt-in, and a stale
+  // `true` from a prior session painted them on every chart until the user found the toggle.
+  const [showSR, setShowSR] = useState(false);
   const [showZigZag, setShowZigZag] = useState(() => readToggle("showZigZag"));
   const [showStructure, setShowStructure] = useState(() => readToggle("showStructure"));
   useEffect(() => { writeToggle("showSR", showSR); }, [showSR]);
@@ -280,16 +282,7 @@ export function useChartOverlayData(
   // Support / resistance is computed on the bars ON SCREEN (settled visible range), so the ten
   // strongest zones are the ones that matter where you are looking; over the whole 50,000-bar load
   // they all sat in one week's congestion far from the current price.
-  const srLevels = useMemo(() => {
-    if (!showSR || chartData.length < 20) return [];
-    const mapped = mapBars(chartData);
-    // Before the chart has reported a visible range (first paint), the newest bars stand in for it.
-    // Note: visibleRange is in milliseconds, but mapped bars have time in seconds.
-    const onScreen = visibleRange
-      ? mapped.filter((bar) => bar.time >= Math.floor(visibleRange.start / 1000) && bar.time <= Math.floor(visibleRange.end / 1000))
-      : mapped.slice(-300);
-    return computeSupportResistance(onScreen.length >= 20 ? onScreen : mapped.slice(-300), 5, 8);
-  }, [showSR, chartData, mapBars, visibleRange]);
+  
 
   const zigZagPts = useMemo(() => {
     if (!showZigZag || chartData.length < 10) return [];
@@ -402,7 +395,7 @@ export function useChartOverlayData(
     trainTestSplitTime,
     regimeQualityScore,
     matchedModelId,
-    srLevels,
+    
     zigZagPts,
     structurePts,
     trainingRevealRange,

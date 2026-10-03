@@ -1,21 +1,21 @@
-/**
+﻿/**
  * The serving layer that replaced lake.
  *
- * lake was emptied and retired on 2026-09-10 — all 41 objects dropped after
+ * lake was emptied and retired on 2026-09-10 â€” all 41 objects dropped after
  * every one was copied to parquet in the lake and row-count verified. It holds
  * zero tables and nothing may read or write it again. This module is what the
  * dashboard reads instead: an in-process DuckDB with one view per former
  * lake table, named exactly as it was named there, so a query that used to
  * run against :9000 runs here unchanged.
  *
- * It is the TypeScript mirror of `lake/serving.py` in the datalake repo — same
+ * It is the TypeScript mirror of `lake/serving.py` in the datalake repo â€” same
  * snapshot, same view names, same `SELECT * EXCLUDE (recipe, "table")`, same
  * `bars` view over the Iceberg system of record. The two must not drift.
  *
  * Three things are load-bearing.
  *
- * **In memory, one instance per process.** The views hold no data — they are
- * pointers at parquet in the lake — so the catalog costs milliseconds to build
+ * **In memory, one instance per process.** The views hold no data â€” they are
+ * pointers at parquet in the lake â€” so the catalog costs milliseconds to build
  * and nothing is contended. A shared database file would make two consumers
  * fight over a write lock they have no reason to share.
  *
@@ -29,7 +29,7 @@
  * silently returning different rows. Every such query in this repo has been
  * translated; a new one that slips in will stop rather than drift.
  *
- * The exported surface is unchanged from the lake era on purpose — thirty
+ * The exported surface is unchanged from the lake era on purpose â€” thirty
  * modules import through `./index`, and none of them needed editing for the
  * backend swap. The names still say "lake"; a later pass handles renaming.
  */
@@ -45,7 +45,7 @@ import { buildObjectRegistry } from "./objectRegistry";
 
 export { derivedViews, servedRecipes };
 
-// ─── Lake configuration (mirrors datalake/src/lake/catalog.py) ───────────────
+// â”€â”€â”€ Lake configuration (mirrors datalake/src/lake/catalog.py) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** AIStor serves both the S3 API and the Iceberg REST catalog on one port. */
 const LAKE_S3_ENDPOINT = process.env.LAKE_S3_ENDPOINT || "http://127.0.0.1:9100";
@@ -64,7 +64,7 @@ const LAKE_SIGNING_NAME = "s3tables";
  *
  * The pinned name is a rename that was applied to this code and to the docs and
  * never to the objects. The directory on disk is still
- * `recipe=questdb_full_2026-09-09` (verified against `E:\lake\warehouse\derived`),
+ * `recipe=snapshot_full_2026-09-09` (verified against `E:\lake\warehouse\derived`),
  * so the pinned name is tried first and the on-disk name is the fallback, and
  * whichever one resolves is logged and exported. Pin it either way with
  * `LAKE_SERVING_SNAPSHOT`; renaming the objects is the other fix and is
@@ -74,7 +74,7 @@ const SERVING_SNAPSHOT =
   process.env.LAKE_SERVING_SNAPSHOT || "derived/recipe=lake_snapshot_2026-09-09";
 
 /** The snapshot as it is actually named in the lake. */
-const SERVING_SNAPSHOT_ON_DISK = "derived/recipe=questdb_full_2026-09-09";
+const SERVING_SNAPSHOT_ON_DISK = "derived/recipe=snapshot_full_2026-09-09";
 
 /** The snapshot this process actually bound to; set once, by `buildInstance`. */
 let activeSnapshot = SERVING_SNAPSHOT;
@@ -84,11 +84,11 @@ export function servingSnapshot(): string {
   return activeSnapshot;
 }
 
-// ─── Legacy lake env constants ────────────────────────────────────────────
+// â”€â”€â”€ Legacy lake env constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Still exported because `index.ts` re-exports them and callers outside this
-// directory read them. They no longer address a running service — lake is
-// retired — and nothing in this module dials them.
+// directory read them. They no longer address a running service â€” lake is
+// retired â€” and nothing in this module dials them.
 
 export const lake_HOST = process.env.lake_HOST || "localhost";
 export const lake_PG_PORT = process.env.lake_PG_PORT || "8812";
@@ -105,7 +105,7 @@ const SLOW_QUERY_THRESHOLD_MS = 1000;
  */
 function retiredWriteMessage(): string {
   return (
-    "lake was retired on 2026-09-10 and this server is read-only over the lake — " +
+    "lake was retired on 2026-09-10 and this server is read-only over the lake â€” " +
     "nothing writes to the lake from ml_dashboard. Land new data through datalake " +
     "(scripts/land_raw.py, then scripts/migrate_to_iceberg.py). Restore path if lake " +
     "is ever needed again: s3://meta/lake_schema/lake_schema_latest.sql plus the " +
@@ -117,7 +117,7 @@ function retiredWrite(operation: string): never {
   throw new Error(`[lake] ${operation} is not available. ${retiredWriteMessage()}`);
 }
 
-// ─── Iceberg catalog resolution (SigV4) ──────────────────────────────────────
+// â”€â”€â”€ Iceberg catalog resolution (SigV4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const sha256Hex = (data: string) => crypto.createHash("sha256").update(data).digest("hex");
 const hmac = (key: crypto.BinaryLike | Buffer, data: string) =>
@@ -128,7 +128,7 @@ const hmac = (key: crypto.BinaryLike | Buffer, data: string) =>
  *
  * AIStor will not accept an unsigned catalog call and answers
  * `AUTHORIZATION_TYPE 'none'` with a 403, so there is no unauthenticated path.
- * Signing name is `s3tables`, not `s3` — a mismatch reads as a signature
+ * Signing name is `s3tables`, not `s3` â€” a mismatch reads as a signature
  * failure rather than as a configuration error.
  */
 function signedCatalogHeaders(method: string, urlString: string): Record<string, string> {
@@ -176,9 +176,9 @@ function signedCatalogHeaders(method: string, urlString: string): Record<string,
  * Current metadata location for one Iceberg table.
  *
  * Resolved rather than cached at import time so a scan always sees the latest
- * committed snapshot. DuckDB cannot ATTACH this catalog directly — its Iceberg
+ * committed snapshot. DuckDB cannot ATTACH this catalog directly â€” its Iceberg
  * SigV4 path parses the AWS service out of the hostname and fails on a custom
- * host with "Could not parse AWS service from host" — so the way through is to
+ * host with "Could not parse AWS service from host" â€” so the way through is to
  * resolve here and hand `iceberg_scan` the metadata file.
  */
 async function resolveIcebergMetadataLocation(table: string): Promise<string> {
@@ -211,7 +211,7 @@ async function resolveIcebergMetadataLocation(table: string): Promise<string> {
 
 /**
  * The Iceberg catalog's own answer for one table: schema, partition spec,
- * snapshot log, properties. This is the system of record describing itself —
+ * snapshot log, properties. This is the system of record describing itself â€”
  * DuckDB's iceberg_* functions cannot reach it here (they resolve a path, and
  * this catalog is only addressable over its signed REST API).
  */
@@ -244,7 +244,7 @@ export async function listIcebergTables(): Promise<string[]> {
   return (body.identifiers ?? []).map((i) => i.name);
 }
 
-// ─── DuckDB instance and view catalog ────────────────────────────────────────
+// â”€â”€â”€ DuckDB instance and view catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let instance: DuckDBInstance | null = null;
 let instancePromise: Promise<DuckDBInstance> | null = null;
@@ -313,7 +313,7 @@ async function buildInstance(): Promise<DuckDBInstance> {
       await con.run("SET memory_limit = '8GB'");
     // vss carries HNSW, which the Lens vector-space panel searches for a bar's
     // nearest neighbours in the full feature space. It loads at the INSTANCE
-    // level, so it has to be here rather than in that router — a second
+    // level, so it has to be here rather than in that router â€” a second
     // DuckDBInstance would not see the snapshot views this one defines.
     // The instance is :memory:, so hnsw_enable_experimental_persistence is not
     // needed; an HNSW index on a file-backed database would require it.
@@ -335,7 +335,7 @@ async function buildInstance(): Promise<DuckDBInstance> {
     const names = await bindSnapshot(con);
     if (names.length === 0) {
       throw new Error(
-        `Lake serving snapshot s3://${activeSnapshot}/ is empty or unreachable — ` +
+        `Lake serving snapshot s3://${activeSnapshot}/ is empty or unreachable â€” ` +
           "no views could be defined.",
       );
     }
@@ -343,8 +343,8 @@ async function buildInstance(): Promise<DuckDBInstance> {
       // SELECT * EXCLUDE, not SELECT *. The export is hive-partitioned by
       // recipe= / table= / year=, so read_parquet hands those path segments back
       // as columns lake never had. Two are actively hostile: `table` is a
-      // DuckDB reserved word, so any generated query naming every column — a
-      // discovered SELECT list, a resample — is a parser error rather than a
+      // DuckDB reserved word, so any generated query naming every column â€” a
+      // discovered SELECT list, a resample â€” is a parser error rather than a
       // wrong answer. Dropping them makes each view the shape its original was.
       await con.run(
         `CREATE OR REPLACE VIEW "${name}" AS ` +
@@ -371,12 +371,12 @@ servingViewNames = names;
       console.warn(
         "[lake] Iceberg view 'bars' not defined:",
         (error as Error).message,
-        "— the snapshot views are unaffected.",
+        "â€” the snapshot views are unaffected.",
       );
     }
 
-    // Every manifested derived dataset (`derived/<dataset>/recipe=…/`) becomes a
-    // `derived_<dataset>` view — labels, calibration records, landed studies —
+    // Every manifested derived dataset (`derived/<dataset>/recipe=â€¦/`) becomes a
+    // `derived_<dataset>` view â€” labels, calibration records, landed studies â€”
 // so a landing is queryable from the SQL console the moment it is manifested.
     // Best-effort for the same reason as `bars`.
     let definedDerived: DerivedView[] = [];
@@ -387,7 +387,7 @@ servingViewNames = names;
       console.warn("[lake] derived-dataset views not defined:", (error as Error).message);
     }
 
-    // The registry is built here, once, from what actually got defined — so it
+    // The registry is built here, once, from what actually got defined â€” so it
     // never names an object the serving layer failed to create.
     buildObjectRegistry({
       snapshotViews: snapshotNames,
@@ -457,7 +457,7 @@ async function getInstance(): Promise<DuckDBInstance> {
  * A fresh connection onto the shared instance.
  *
  * Per query, not pooled: views live in the instance catalog so every connection
- * sees them, connections are cheap, and `interrupt()` is per-connection — a
+ * sees them, connections are cheap, and `interrupt()` is per-connection â€” a
  * shared one would let a timed-out query cancel its neighbours.
  */
 async function openConnection(): Promise<DuckDBConnection> {
@@ -470,7 +470,7 @@ async function openConnection(): Promise<DuckDBConnection> {
       await con.run("SET threads = 4");
       await con.run("SET memory_limit = '8GB'");
   // Session-scoped too, and measured to revert to their defaults on every
-  // fresh connection — so setting them once at instance build did nothing for
+  // fresh connection â€” so setting them once at instance build did nothing for
   // the queries that matter. parquet_metadata_cache stops DuckDB re-reading a
   // parquet footer per sub-select (worth 1.15-1.4x on the multi-subselect
   // front-month union); preserve_insertion_order lets it skip keeping row
@@ -494,13 +494,13 @@ function releaseConnection(con: DuckDBConnection, interrupted: boolean = false) 
   }
 }
 
-// ─── Value conversion ────────────────────────────────────────────────────────
+// â”€â”€â”€ Value conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * DuckDB hands BIGINT back as a JS bigint, which breaks arithmetic against the
  * numbers every caller here expects (`Number(row.c)`, `a - b`) and throws on
  * `JSON.stringify`. Narrow to a number where that is lossless and fall back to
- * the decimal string — never to a silently truncated number — beyond 2^53.
+ * the decimal string â€” never to a silently truncated number â€” beyond 2^53.
  */
 function normalizeValue(value: unknown): unknown {
   if (typeof value === "bigint") {
@@ -519,7 +519,7 @@ function normalizeRows<T>(rows: Record<string, unknown>[]): T[] {
   });
 }
 
-// ─── Read paths ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Read paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function runQuery<T>(
   sql: string,
@@ -548,7 +548,7 @@ async function runQuery<T>(
       reader = await con.runAndReadAll(sql);
     } catch (error) {
       if (timedOut) {
-        const preview = sql.length > 120 ? `${sql.slice(0, 120)}…` : sql;
+        const preview = sql.length > 120 ? `${sql.slice(0, 120)}â€¦` : sql;
         console.warn(`[lake] QUERY TIMEOUT (${opts.timeoutMs}ms): ${preview}`);
         throw new Error(`Query timed out after ${opts.timeoutMs}ms`);
       }
@@ -557,7 +557,7 @@ async function runQuery<T>(
 
     const rows = normalizeRows<T>(reader.getRowObjectsJS());
     const durationMs = performance.now() - start;
-    const preview = sql.length > 120 ? `${sql.slice(0, 120)}…` : sql;
+    const preview = sql.length > 120 ? `${sql.slice(0, 120)}â€¦` : sql;
     if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
       console.warn(
         `[${opts.label}] SLOW QUERY (${durationMs.toFixed(0)}ms, ${rows.length} rows): ${preview}`,
@@ -575,7 +575,7 @@ async function runQuery<T>(
 
 /**
  * Bulk reader. Once the backend is an in-process DuckDB there is no wire
- * protocol to bypass, so this and {@link queryLake} run the same path — the
+ * protocol to bypass, so this and {@link queryLake} run the same path â€” the
  * name is kept because thirty modules import it.
  *
  * The lake-era version caught its own failures and silently re-ran the query
@@ -670,50 +670,12 @@ export interface OHLCVRow {
   volume: number;
 }
 
-// ─── Retired connection handles ──────────────────────────────────────────────
+// â”€â”€â”€ Retired connection handles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Kept on the exported surface because `index.ts` re-exports them and
 // `lake.service.ts` wraps them. There is no PG wire endpoint behind them any
 // more, so they raise rather than hand back a pool that would hang on connect.
 
-/** @deprecated lake is retired — there is no PG wire pool. Raises. */
-export function initLakePool(): pg.Pool {
-  return retiredWrite("The lake PG-wire connection pool");
-}
-
-/** @deprecated lake is retired — there is no PG wire pool. Raises. */
-export function lakePool(): pg.Pool {
-  return retiredWrite("The lake PG-wire connection pool");
-}
-
-/** @deprecated lake is retired — there is no ILP sender. Raises. */
-export async function lakeSender(): Promise<never> {
-  return retiredWrite("The lake ILP sender");
-}
-
-// ─── Retired write paths ─────────────────────────────────────────────────────
-
-export async function insertLakeBatch(rows: OHLCVRow[]): Promise<void> {
-  void rows;
-  return retiredWrite("insertLakeBatch");
-}
-
-export async function insertLakeStream(
-  symbol: string,
-  timestamp: number,
-  open: number,
-  high: number,
-  low: number,
-  close: number,
-  volume: number,
-  assetClass?: string,
-  root?: string,
-): Promise<void> {
-  void [symbol, timestamp, open, high, low, close, volume, assetClass, root];
-  return retiredWrite("insertLakeStream");
-}
-
-// ─── Lifecycle ───────────────────────────────────────────────────────────────
 
 export async function closeLake(): Promise<void> {
   if (instance) {
@@ -727,7 +689,7 @@ export async function closeLake(): Promise<void> {
 /**
  * Is the lake reachable and are the serving views defined?
  *
- * Not a bare `SELECT 1` — DuckDB is in-process and would always answer. Forcing
+ * Not a bare `SELECT 1` â€” DuckDB is in-process and would always answer. Forcing
  * the instance to build exercises the object store, the snapshot glob and the
  * view definitions, which is the thing a caller actually wants to know.
  */
@@ -769,6 +731,7 @@ export function getServingLocation(): { endpoint: string; snapshot: string; name
     namespace: LAKE_NAMESPACE,
   };
 }
+
 
 
 

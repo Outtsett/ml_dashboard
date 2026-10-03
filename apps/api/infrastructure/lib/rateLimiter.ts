@@ -172,7 +172,7 @@ export function getRateLimitStats(): {
 }
 
 // Re-export shared symbol validation for convenience
-export { validateSymbol } from "@shared/schema";
+export { validateSymbol } from "@shared/pg_schema";
 
 const VALID_TABLE_NAME = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
 const VALID_IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9_]{0,100}$/;
@@ -230,3 +230,4 @@ export function validationErrorHandler(err: Error, req: Request, res: Response, 
   }
   next(err);
 }
+

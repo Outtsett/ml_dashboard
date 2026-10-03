@@ -24,7 +24,7 @@
 
 import { eq } from 'drizzle-orm';
 import { db } from '../infrastructure/database/db';
-import { deployments, modelVersions } from '@shared/schema';
+import { deployments, modelVersions } from '@shared/pg_schema';
 import { queryLakeFast } from '../infrastructure/database/lake/connection';
 import { getBaseTableForType, detectInstrumentType } from '../infrastructure/database/lake/marketData';
 import { getMLBridgeClient, type MLBridgeClient } from './mlbridgeClient';
@@ -98,7 +98,7 @@ export async function startLiveDeployment(
     return;
   }
 
-  const [row] = db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId)).all();
+  const [row] = await db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
   if (!row) {
     throw new Error(`deployment ${deploymentId} not found`);
   }
@@ -210,7 +210,7 @@ async function runLoop(
         db.update(deployments)
           .set({ lastError: errMsg })
           .where(eq(deployments.deploymentId, deploymentId))
-          .run();
+          .execute();
       } catch {
         /* ignore — the loop must keep counting failures */
       }
@@ -234,7 +234,7 @@ async function tick(
   // Reload latest row each tick so external pause/stop transitions take
   // effect at the next iteration (belt-and-suspenders against AbortController
   // being missed — e.g. /pause sets status without aborting).
-  const [row] = db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId)).all();
+  const [row] = await db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
   if (!row || row.status !== 'running') {
     state.abort.abort();
     return;
@@ -306,7 +306,7 @@ async function tick(
       lastError: null,
     })
     .where(eq(deployments.deploymentId, deploymentId))
-    .run();
+    .execute();
 
   // SSE + event-store: one prediction event per tick.
   await publishPrediction({
@@ -384,7 +384,7 @@ async function tripCircuitBreaker(deploymentId: number, error: string): Promise<
     db.update(deployments)
       .set({ status: 'failed', stoppedAt: failedAt, lastError: error })
       .where(eq(deployments.deploymentId, deploymentId))
-      .run();
+      .execute();
   } catch (err) {
     console.error(`[deployments.lifecycle] failed to persist failed state for ${deploymentId}:`, err);
   }
@@ -419,4 +419,6 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 // ─── Unused-import guard (drizzle eq referenced by ESM tree-shaker only) ───
 void modelVersions;
+
+
 

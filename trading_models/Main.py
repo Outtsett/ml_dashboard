@@ -24,26 +24,37 @@ def main():
     # 1. Setup Workspace (GPU throttling, seeds)
     workspace = WorkspaceManager(config)
     
+    # Init wandb
+    import wandb
+    wandb.init(project="ml_dashboard_trading", config=config, mode="offline")
+    wandb.define_metric("val_loss", summary="min")
+    wandb.define_metric("val_rmse", summary="min")
+    wandb.define_metric("val_unc", summary="min")
+    
     # 2. Data Engineering
     pipeline = DataPipeline(config)
     df = pipeline.load_and_prepare()
-    train_loader, val_loader = pipeline.create_loaders(df)
+    folds = pipeline.create_loaders(df, n_splits=5)
     
-    # 3. Model Initialization
-    model = ProbabilisticTransformer(
-        config=config,
-        input_dim=40, # 8 features * 5 timeframes (1m, 2m, 3m, 4m, 5m)
-        d_model=128,
-        nhead=4,
-        num_layers=2,
-        dropout=config['training'].get('dropout', 0.1)
-    )
-    
-    # 4. Training Engine
-    trainer = Trainer(model, train_loader, val_loader, config, workspace)
-    
-    logger.info("Starting orchestrated run.")
-    trainer.run()
+    # Iterate through folds for WFV
+    for fold_idx, (train_loader, val_loader) in enumerate(folds):
+        logger.info(f"Starting Fold {fold_idx + 1}")
+        
+        # 3. Model Initialization
+        model = ProbabilisticTransformer(
+            config=config,
+            input_dim=25, # 5 features * 5 timeframes (1m, 2m, 3m, 4m, 5m)
+            d_model=128,
+            nhead=4,
+            num_layers=2,
+            dropout=config['training'].get('dropout', 0.1)
+        )
+        
+        # 4. Training Engine
+        trainer = Trainer(model, train_loader, val_loader, config, workspace)
+        
+        logger.info(f"Starting orchestrated run for Fold {fold_idx + 1}.")
+        trainer.run()
     
 if __name__ == '__main__':
     main()

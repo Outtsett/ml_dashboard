@@ -1,4 +1,4 @@
-{
+export default {
   id: "gen-mcmc-sampling",
   title: "MCMC & Bayesian Estimation",
   description: "Master Markov Chain Monte Carlo methods for Bayesian inference: derive Metropolis-Hastings from detailed balance, implement Hamiltonian Monte Carlo with leapfrog integration, understand NUTS adaptive sampling, apply rigorous convergence diagnostics, and estimate trading strategy parameters with full posterior uncertainty quantification.",
@@ -758,3 +758,4 @@ print(f"True half-life: {np.log(2)/true_kappa*252:.1f} trading days")`,
     }
   ],
 }
+

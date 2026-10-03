@@ -9,6 +9,7 @@ import { useSSEConnection } from "@/infrastructure/lib/useSSEConnection";
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFetchLimit, minutesToApiKey } from "@/market/lib/timeframes";
+import { tableFromIPC } from "apache-arrow";
 import {
   getCachedBars,
   storeBars,
@@ -32,10 +33,46 @@ function getPrefetchUrl(symbol: string, apiTimeframe: string, fetchLimit: number
 
 async function fetchAndCachePage(url: string, signal?: AbortSignal): Promise<OhlcvData[] | null> {
   try {
-    const response = await fetch(url, { signal });
+    const response = await fetch(url, { 
+      signal,
+      headers: { 'Accept': 'application/vnd.apache.arrow.stream, application/msgpack' }
+    });
     if (!response.ok) return null;
-    const result = await response.json();
-    const data: OhlcvData[] = Array.isArray(result) ? result : (result.data || []);
+    
+    let data: OhlcvData[];
+    const contentType = response.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/vnd.apache.arrow.stream')) {
+      const buffer = await response.arrayBuffer();
+      const table = tableFromIPC(new Uint8Array(buffer));
+      const ts = table.getChild('timestamp')?.toArray() || [];
+      const open = table.getChild('open')?.toArray() || [];
+      const high = table.getChild('high')?.toArray() || [];
+      const low = table.getChild('low')?.toArray() || [];
+      const close = table.getChild('close')?.toArray() || [];
+      const volume = table.getChild('volume')?.toArray() || [];
+      const length = table.numRows;
+      
+      data = new Array(length);
+      for (let i = 0; i < length; i++) {
+        data[i] = {
+          timestamp: ts[i],
+          open: open[i],
+          high: high[i],
+          low: low[i],
+          close: close[i],
+          volume: volume[i]
+        } as OhlcvData;
+      }
+    } else if (contentType.includes('application/msgpack')) {
+      // (Optional) We could import msgpack here, but the server will return Arrow now.
+      const result = await response.json(); // Fallback if msgpack is missing in this file's scope
+      data = Array.isArray(result) ? result : (result.data || []);
+    } else {
+      const result = await response.json();
+      data = Array.isArray(result) ? result : (result.data || []);
+    }
+    
     prefetchCache.set(url, { data, ts: Date.now() });
     // Evict stale entries
     for (const [key, entry] of prefetchCache) {
@@ -83,33 +120,65 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   } = useQuery<OhlcvData[]>({
     queryKey: ['/api/charts/ohlcv', symbol, apiTimeframe],
     queryFn: async ({ signal }) => {
-      // L0: Check IndexedDB cache first — instant load on revisit
-      const cached = await getCachedBars(symbol, apiTimeframe);
-      if (cached && cached.length > 0) {
-        return cached as unknown as OhlcvData[];
-      }
-
-      // L1: Fetch from server (prefer MessagePack for ~50% smaller payload)
+      // L1: Fetch from server FIRST (prefer MessagePack for ~50% smaller payload).
+      // The server anchors its default window on max(timestamp) in the lake, so a
+      // network response is always the newest bars. The IndexedDB cache is NOT
+      // consulted first: a cached window captured while the chart was scrolled back
+      // into history would paint historical candles and never reach the newest bar
+      // until the user scrolled right themselves.
       const url = `/api/charts/ohlcv?symbol=${symbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
-      const response = await fetch(url, {
-        signal,
-        headers: { 'Accept': 'application/msgpack' },
-      });
-      if (!response.ok) {
-        const errText = await response.text().catch(() => response.statusText);
-        throw new Error(`Failed to load chart data: ${errText}`);
-      }
-
       let bars: OhlcvData[];
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/msgpack')) {
-        const buffer = await response.arrayBuffer();
-        bars = msgpackDecode(new Uint8Array(buffer)) as OhlcvData[];
-      } else {
-        bars = await response.json() as OhlcvData[];
+      try {
+        const response = await fetch(url, {
+          signal,
+          headers: { 'Accept': 'application/vnd.apache.arrow.stream, application/msgpack' },
+        });
+        if (!response.ok) {
+          const errText = await response.text().catch(() => response.statusText);
+          throw new Error(`Failed to load chart data: ${errText}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/vnd.apache.arrow.stream')) {
+          const buffer = await response.arrayBuffer();
+          const table = tableFromIPC(new Uint8Array(buffer));
+          const ts = table.getChild('timestamp')?.toArray() || [];
+          const open = table.getChild('open')?.toArray() || [];
+          const high = table.getChild('high')?.toArray() || [];
+          const low = table.getChild('low')?.toArray() || [];
+          const close = table.getChild('close')?.toArray() || [];
+          const volume = table.getChild('volume')?.toArray() || [];
+          const length = table.numRows;
+
+          bars = new Array(length);
+          for (let i = 0; i < length; i++) {
+            bars[i] = {
+              timestamp: ts[i],
+              open: open[i],
+              high: high[i],
+              low: low[i],
+              close: close[i],
+              volume: volume[i]
+            } as OhlcvData;
+          }
+        } else if (contentType.includes('application/msgpack')) {
+          const buffer = await response.arrayBuffer();
+          bars = msgpackDecode(new Uint8Array(buffer)) as OhlcvData[];
+        } else {
+          bars = await response.json() as OhlcvData[];
+        }
+      } catch (err) {
+        // L0: Network failed — fall back to the IndexedDB cache so the chart still
+        // renders something rather than a blank error state.
+        const cached = await getCachedBars(symbol, apiTimeframe);
+        if (cached && cached.length > 0) {
+          return cached as unknown as OhlcvData[];
+        }
+        throw err;
       }
 
-      // Persist to IndexedDB for next visit (fire-and-forget)
+      // Persist to IndexedDB for offline fallback (fire-and-forget)
       storeBars(symbol, apiTimeframe, bars);
 
       return bars;

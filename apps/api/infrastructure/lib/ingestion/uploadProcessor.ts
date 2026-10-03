@@ -112,8 +112,8 @@ export async function processOhlcvFile(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          import("../../database/lake").then(({ insertLakeBatch }) =>
-            insertLakeBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
+          import("../../database/lake").then(({ insertOHLCVToLake }) =>
+            insertOHLCVToLake(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })), symbol)
           )
             .then(() => logInfo(`Inserted batch to lake ohlcv, total: ${recordCount}`))
             .catch(err => console.error("Batch insert error:", err));
@@ -129,8 +129,8 @@ export async function processOhlcvFile(
 
     parser.on('end', async () => {
       if (records.length > 0) {
-        const { insertLakeBatch } = await import("../../database/lake");
-        await insertLakeBatch(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
+        const { insertOHLCVToLake } = await import("../../database/lake");
+        await insertOHLCVToLake(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })), symbol);
       }
 
       await storage.updateUploadStatus(uploadId, "completed", recordCount);
@@ -164,7 +164,7 @@ export async function processOhlcvFileFromDisk(
 
   logInfo(`Processing file from disk: ${filename} for symbol: ${symbol}`);
 
-  const { insertLakeBatch } = await import("../../database/lake");
+  const { insertOHLCVToLake } = await import("../../database/lake");
 
   return new Promise((resolve, reject) => {
     let inputStream: Readable;
@@ -218,7 +218,7 @@ export async function processOhlcvFileFromDisk(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          const promise = insertLakeBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
+          const promise = insertOHLCVToLake(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })), symbol)
             .then(() => logInfo(`Inserted batch -> lake ohlcv, total: ${recordCount}`))
             .catch(err => console.error("Batch insert error:", err));
           batchPromises.push(promise);
@@ -245,7 +245,7 @@ export async function processOhlcvFileFromDisk(
         await Promise.all(batchPromises);
 
         if (records.length > 0) {
-          await insertLakeBatch(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
+          await insertOHLCVToLake(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })), symbol);
         }
 
         // Clean up original file
@@ -323,8 +323,8 @@ async function processParquetFile(
         });
       }
 
-      const { insertLakeBatch } = await import("../../database/lake");
-      await insertLakeBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
+      const { insertOHLCVToLake } = await import("../../database/lake");
+      await insertOHLCVToLake(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })), symbol);
       insertedCount += batch.length;
       if (insertedCount % 10000 === 0 || insertedCount === count) {
         logInfo(`Inserted ${insertedCount}/${count} -> lake ohlcv`);

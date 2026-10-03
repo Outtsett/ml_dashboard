@@ -6,7 +6,7 @@ import { db } from "../../infrastructure/database/db";
 import {
   hpoSessions,
   type HpoSession,
-} from "@shared/schema";
+} from "@shared/pg_schema";
 import {
   hpoRequestSchema,
   type HPORequest,
@@ -191,9 +191,8 @@ export function listPastSessions(opts?: {
   }
 
   return query
-    .orderBy(desc(hpoSessions.startedAt))
-    .limit(opts?.limit ?? 50)
-    .all();
+      .orderBy(desc(hpoSessions.startedAt))
+      .limit(opts?.limit ?? 50);
 }
 
 export function applyBestParams(sessionId: string) {
@@ -309,5 +308,6 @@ export class HpoService {
   listPastSessions(opts?: Parameters<typeof listPastSessions>[0]) { return listPastSessions(opts); }
   applyBestParams(sessionId: string) { return applyBestParams(sessionId); }
 }
+
 
 

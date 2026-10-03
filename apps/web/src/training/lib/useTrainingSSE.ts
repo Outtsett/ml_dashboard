@@ -153,12 +153,25 @@ export function useMetricStream(options: UseMetricStreamOptions): UseMetricStrea
 
   const { iterationHistory } = useTrainingMetrics();
 
+  const prevHistoryLenRef = useRef(0);
+  const eventsRef = useRef<MetricEvent[]>([]);
+
   const events = useMemo<MetricEvent[]>(() => {
     if (!enabled) return [];
-    const result: MetricEvent[] = [];
-    for (const entry of iterationHistory) {
+    if (iterationHistory.length === 0) {
+      prevHistoryLenRef.current = 0;
+      eventsRef.current = [];
+      return [];
+    }
+    if (iterationHistory.length < prevHistoryLenRef.current) {
+      prevHistoryLenRef.current = 0;
+      eventsRef.current = [];
+    }
+    let added = false;
+    for (let i = prevHistoryLenRef.current; i < iterationHistory.length; i++) {
+      const entry = iterationHistory[i];
       for (const [metric, value] of Object.entries(entry.metrics)) {
-        result.push({
+        eventsRef.current.push({
           ts: '',
           phase,
           model,
@@ -169,8 +182,13 @@ export function useMetricStream(options: UseMetricStreamOptions): UseMetricStrea
           fold: 0,
         });
       }
+      added = true;
     }
-    return result;
+    if (added) {
+      prevHistoryLenRef.current = iterationHistory.length;
+      eventsRef.current = [...eventsRef.current];
+    }
+    return eventsRef.current;
   }, [iterationHistory, phase, model, enabled]);
 
   const connected = iterationHistory.length > 0 || enabled;

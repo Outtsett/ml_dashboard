@@ -8,3 +8,5 @@ export { PerformanceTab } from "@/system/PerformanceTab";
 export { DesktopTab } from "@/system/DesktopTab";
 export type { ServerConfig, ConnectionTestResult, Preferences } from "@/system/types";
 
+
+export { LakeConfigTab } from "@/system/LakeConfigTab";

@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 export class SQLiteHealthIndicator extends HealthIndicator {
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
     try {
-      db.get(sql`SELECT 1`);
+      await db.execute(sql`SELECT 1`);
       return this.getStatus(key, true);
     } catch {
       throw new HealthCheckError('SQLite check failed', this.getStatus(key, false));

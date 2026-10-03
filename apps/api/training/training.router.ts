@@ -40,7 +40,7 @@ import { loadCycleReport } from "./cycleReport";
 import { cycleControlSchema } from "@shared/cycle/schema";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
 import { lakeHttpQuery } from "../infrastructure/database/lake/httpQuery";
-import { validateSymbol } from "@shared/schema";
+import { validateSymbol } from "@shared/pg_schema";
 import {
   sanitizeModelId,
   listTrainedModels,
@@ -966,4 +966,5 @@ router.get("/training/visualizations/:category", CACHE_SEMI, (req: Request, res:
 });
 
 export default router;
+
 

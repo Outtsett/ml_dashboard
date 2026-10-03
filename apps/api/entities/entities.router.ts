@@ -17,7 +17,7 @@ import {
   wfvDefinitions,
   modelDriftMetrics,
   systemComponents
-} from '@shared/schema';
+} from '@shared/pg_schema';
 
 const logger = new Logger('EntitiesRouter');
 
@@ -102,7 +102,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/relationships/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)).get();
+      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -138,7 +138,7 @@ export function createEntitiesRouter(): Router {
         id: newId,
         ...parsed
       });
-      const record = await db.select().from(entityRelationships).where(eq(entityRelationships.id, newId)).get();
+      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating relationship', err);
@@ -152,7 +152,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = RelationshipSchema.parse(req.body);
       await db.update(entityRelationships).set(parsed).where(eq(entityRelationships.id, id));
-      const record = await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)).get();
+      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -291,7 +291,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/datasets/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(datasets).where(eq(datasets.id, id)).get();
+      const record = (await db.select().from(datasets).where(eq(datasets.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -306,7 +306,7 @@ export function createEntitiesRouter(): Router {
       const parsed = DatasetSchema.parse(req.body);
       const newId = genId();
       await db.insert(datasets).values({ id: newId, ...parsed });
-      const record = await db.select().from(datasets).where(eq(datasets.id, newId)).get();
+      const record = (await db.select().from(datasets).where(eq(datasets.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating dataset', err);
@@ -320,7 +320,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = DatasetSchema.parse(req.body);
       await db.update(datasets).set(parsed).where(eq(datasets.id, id));
-      const record = await db.select().from(datasets).where(eq(datasets.id, id)).get();
+      const record = (await db.select().from(datasets).where(eq(datasets.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -366,7 +366,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/dataset-versions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)).get();
+      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -381,7 +381,7 @@ export function createEntitiesRouter(): Router {
       const parsed = DatasetVersionSchema.parse(req.body);
       const newId = genId();
       await db.insert(datasetVersions).values({ id: newId, ...parsed });
-      const record = await db.select().from(datasetVersions).where(eq(datasetVersions.id, newId)).get();
+      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating dataset version', err);
@@ -395,7 +395,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = DatasetVersionSchema.parse(req.body);
       await db.update(datasetVersions).set(parsed).where(eq(datasetVersions.id, id));
-      const record = await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)).get();
+      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -631,7 +631,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/features/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(features).where(eq(features.id, id)).get();
+      const record = (await db.select().from(features).where(eq(features.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -646,7 +646,7 @@ export function createEntitiesRouter(): Router {
       const parsed = FeatureSchema.parse(req.body);
       const newId = genId();
       await db.insert(features).values({ id: newId, ...parsed });
-      const record = await db.select().from(features).where(eq(features.id, newId)).get();
+      const record = (await db.select().from(features).where(eq(features.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating feature', err);
@@ -660,7 +660,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = FeatureSchema.parse(req.body);
       await db.update(features).set(parsed).where(eq(features.id, id));
-      const record = await db.select().from(features).where(eq(features.id, id)).get();
+      const record = (await db.select().from(features).where(eq(features.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -708,7 +708,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/wfv-definitions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)).get();
+      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -730,7 +730,7 @@ export function createEntitiesRouter(): Router {
         outSampleStart: new Date(parsed.outSampleStart),
         outSampleEnd: new Date(parsed.outSampleEnd)
       });
-      const record = await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, newId)).get();
+      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating WFV definition', err);
@@ -750,7 +750,7 @@ export function createEntitiesRouter(): Router {
         outSampleStart: new Date(parsed.outSampleStart),
         outSampleEnd: new Date(parsed.outSampleEnd)
       }).where(eq(wfvDefinitions.id, id));
-      const record = await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)).get();
+      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -797,7 +797,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/model-drift-metrics/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)).get();
+      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -812,7 +812,7 @@ export function createEntitiesRouter(): Router {
       const parsed = ModelDriftMetricSchema.parse(req.body);
       const newId = genId();
       await db.insert(modelDriftMetrics).values({ id: newId, ...parsed });
-      const record = await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, newId)).get();
+      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating model drift metric', err);
@@ -826,7 +826,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = ModelDriftMetricSchema.parse(req.body);
       await db.update(modelDriftMetrics).set(parsed).where(eq(modelDriftMetrics.id, id));
-      const record = await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)).get();
+      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -872,7 +872,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/system-components/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = await db.select().from(systemComponents).where(eq(systemComponents.id, id)).get();
+      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -887,7 +887,7 @@ export function createEntitiesRouter(): Router {
       const parsed = SystemComponentSchema.parse(req.body);
       const newId = genId();
       await db.insert(systemComponents).values({ id: newId, ...parsed });
-      const record = await db.select().from(systemComponents).where(eq(systemComponents.id, newId)).get();
+      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating system component', err);
@@ -901,7 +901,7 @@ export function createEntitiesRouter(): Router {
       const id = req.params.id as string;
       const parsed = SystemComponentSchema.parse(req.body);
       await db.update(systemComponents).set(parsed).where(eq(systemComponents.id, id));
-      const record = await db.select().from(systemComponents).where(eq(systemComponents.id, id)).get();
+      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -926,3 +926,4 @@ export function createEntitiesRouter(): Router {
 }
 
 export default createEntitiesRouter();
+

@@ -6,8 +6,8 @@
 
 import {
   brokerConfigs, backtestRuns, backtestTrades, mlModels,
-} from '@shared/schema';
-import type { BrokerConfig, BacktestRun, BacktestTrade } from '@shared/schema';
+} from '@shared/pg_schema';
+import type { BrokerConfig, BacktestRun, BacktestTrade } from '@shared/pg_schema';
 import { db } from '../database/db';
 import { eq, and, desc, asc, getTableColumns, type SQL } from 'drizzle-orm';
 import type {
@@ -162,3 +162,4 @@ export async function getBacktestTrades(backtestRunId: number, limit?: number): 
     .orderBy(asc(backtestTrades.entryTimestamp))
     .limit(limit || 10000);
 }
+

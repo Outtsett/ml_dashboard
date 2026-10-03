@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { curriculumStorage } from "../infrastructure/storage/curriculum";
 import { z } from "zod";
-import { insertCurriculumProgressSchema } from "@shared/schema";
+import { insertCurriculumProgressSchema } from "@shared/pg_schema";
 
 const router = Router();
 

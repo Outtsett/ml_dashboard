@@ -20,7 +20,7 @@ import {
   type BacktestConfig,
   type BacktestMetrics,
 } from './tradeSimulator';
-import type { BrokerConfig } from '@shared/schema';
+import type { BrokerConfig } from '@shared/pg_schema';
 
 // ============================================================
 // TYPES
@@ -344,3 +344,4 @@ function combineOosMetrics(
 function safeNumber(v: number): number {
   return isFinite(v) ? v : 0;
 }
+

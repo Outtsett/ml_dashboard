@@ -4,36 +4,19 @@
  * Shows: current iteration, elapsed time, iterations/sec, ETA, active regimes.
  */
 import { useMemo } from "react";
-import { Activity, BarChart3, Clock, Gauge, Layers, Timer } from "lucide-react";
+import { RadialGauge } from "@/training/analytics/RadialGauge";
+import { useTrainingLive } from "@/training/lib/TrainingContext";
 
 interface IterationMetricsProps {
   isTraining: boolean;
   progress: number; // 0-100
   phase: string;
   iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
-  elapsedSec: number;
 }
 
-interface MetricCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: string;
-}
+export function IterationMetrics({ isTraining, progress, phase, iterationHistory }: IterationMetricsProps) {
+  const { elapsedSec } = useTrainingLive();
 
-function MetricCard({ icon, label, value, color }: MetricCardProps) {
-  return (
-    <div className="flex items-center gap-2 p-2 rounded-md" style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <div style={{ color }} className="shrink-0">{icon}</div>
-      <div className="min-w-0">
-        <div className="text-[8px] font-mono text-muted-foreground/50 uppercase tracking-wider">{label}</div>
-        <div className="text-sm font-mono font-bold" style={{ color }}>{value}</div>
-      </div>
-    </div>
-  );
-}
-
-export function IterationMetrics({ isTraining, progress, phase, iterationHistory, elapsedSec }: IterationMetricsProps) {
   const stats = useMemo(() => {
     if (!iterationHistory.length) return null;
 
@@ -61,12 +44,6 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
     );
   }
 
-  const formatTime = (sec: number) => {
-    if (sec < 60) return `${Math.round(sec)}s`;
-    if (sec < 3600) return `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s`;
-    return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
-  };
-
   return (
     <div className="h-full w-full flex flex-col">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5">
@@ -75,45 +52,33 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
           <span className="text-[9px] font-mono text-muted-foreground/50 ml-auto">{phase}</span>
         )}
       </div>
-      <div className="flex-1 p-2 grid grid-cols-2 gap-2 content-start">
-        <MetricCard
-          icon={<Activity className="h-3.5 w-3.5" />}
-          label="Iteration"
-          value={String(stats.currentIter)}
+      <div className="flex-1 p-2 grid grid-cols-2 lg:grid-cols-4 gap-2 content-start overflow-y-auto">
+        <RadialGauge
+          value={stats.currentIter}
+          max={10000}
+          label="ITERATION"
+          color="#3b82f6"
+        />
+        <RadialGauge
+          value={stats.iterPerSec}
+          max={100}
+          label="SPEED"
+          unit="it/s"
+          color="#10b981"
+        />
+        <RadialGauge
+          value={stats.nRegimes}
+          max={50}
+          label="REGIMES"
           color="#f59e0b"
         />
-        <MetricCard
-          icon={<Clock className="h-3.5 w-3.5" />}
-          label="Elapsed"
-          value={formatTime(stats.elapsed)}
-          color="#6366f1"
+        <RadialGauge
+          value={stats.ll != null ? stats.ll : 0}
+          min={-5000}
+          max={0}
+          label="LOG-LIKELIHOOD"
+          color="#ef4444"
         />
-        <MetricCard
-          icon={<Gauge className="h-3.5 w-3.5" />}
-          label="Speed"
-          value={`${stats.iterPerSec.toFixed(1)} it/s`}
-          color="#06b6d4"
-        />
-        <MetricCard
-          icon={<Timer className="h-3.5 w-3.5" />}
-          label="ETA"
-          value={stats.eta > 0 ? formatTime(stats.eta) : "--"}
-          color="#8b5cf6"
-        />
-        <MetricCard
-          icon={<Layers className="h-3.5 w-3.5" />}
-          label="Regimes"
-          value={String(Math.round(stats.nRegimes))}
-          color="#a855f7"
-        />
-        {stats.ll != null && (
-          <MetricCard
-            icon={<BarChart3 className="h-3.5 w-3.5" />}
-            label="Log-Likelihood"
-            value={stats.ll.toFixed(1)}
-            color="#3b82f6"
-          />
-        )}
       </div>
     </div>
   );

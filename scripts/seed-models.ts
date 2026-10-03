@@ -1,4 +1,4 @@
-import { db } from "../apps/api/database/db";
+import { db } from "../apps/api/infrastructure/database/db";
 import { mlModels } from "../packages/shared/src/schema";
 
 const ARCHITECTURES = [

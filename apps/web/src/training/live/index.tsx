@@ -22,7 +22,7 @@ type LayoutMode = "detailed" | "compact" | "split";
 
 export function LiveTrainingDashboard() {
   const { isTraining, completedModelId, config: _config, progress, phase, selectedModelType } = useTrainingControl();
-  const { iterationHistory, overlayData, diagnostics, elapsedSec } = useTrainingLive();
+  const { iterationHistory, overlayData, diagnostics } = useTrainingLive();
   const [layout, setLayout] = useState<LayoutMode>("detailed");
 
   const modelType = selectedModelType || "primitives-discovery";
@@ -111,7 +111,6 @@ export function LiveTrainingDashboard() {
             iterationHistory={iterationHistory ?? []}
             progress={progress ?? 0}
             phase={phase ?? ""}
-            elapsedSec={elapsedSec ?? 0}
           />
         )}
         {layout === "split" && (
@@ -123,7 +122,6 @@ export function LiveTrainingDashboard() {
             iterationHistory={iterationHistory ?? []}
             progress={progress ?? 0}
             phase={phase ?? ""}
-            elapsedSec={elapsedSec ?? 0}
             hasTransitionMatrix={hasTransitionMatrix}
             overlay={overlay}
             diag={diag}
@@ -177,12 +175,10 @@ function CompactLayout({
   iterationHistory,
   progress,
   phase,
-  elapsedSec,
 }: LayoutProps & {
   iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
   progress: number;
   phase: string;
-  elapsedSec: number;
 }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 h-full min-h-0">
@@ -193,7 +189,6 @@ function CompactLayout({
           progress={progress}
           phase={phase}
           iterationHistory={iterationHistory}
-          elapsedSec={elapsedSec}
         />
       </div>
       {activeMetrics.map(key => (
@@ -219,7 +214,6 @@ function SplitLayout({
   iterationHistory,
   progress,
   phase,
-  elapsedSec,
   hasTransitionMatrix,
   overlay,
   diag,
@@ -227,7 +221,6 @@ function SplitLayout({
   iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
   progress: number;
   phase: string;
-  elapsedSec: number;
   hasTransitionMatrix: boolean;
   overlay: Record<string, unknown> | undefined;
   diag: Record<string, unknown> | null;
@@ -242,7 +235,6 @@ function SplitLayout({
             progress={progress}
             phase={phase}
             iterationHistory={iterationHistory}
-            elapsedSec={elapsedSec}
           />
         </div>
         <div>

@@ -82,9 +82,6 @@ def coverage(registry: dict, catalogue: pd.DataFrame) -> pd.DataFrame:
 
 
 def parity(merged: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
-    import talib
-    from talib import abstract
-
     import talib  # noqa: F401 - parity re-runs TA-Lib itself
     from talib import abstract
 
@@ -141,11 +138,17 @@ def parity(merged: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
                 recomputed = np.asarray(values[entry.talib_output], dtype=float)
         stored = np.asarray(bars[entry.column_name], dtype=float)
         finite = np.isfinite(recomputed) & np.isfinite(stored)
+        # Relative, not absolute. The lake was built with TA-Lib 0.7.1 and this
+        # runs 0.8.1: identical parameters still disagree in the 7th significant
+        # figure through accumulation order. 1e-6 relative absorbs that; a
+        # changed default lands orders of magnitude above it.
         if finite.sum() == 0:
-            status, diff = "no_overlap", np.nan
+            status, diff, relative = "no_overlap", np.nan, np.nan
         else:
             diff = float(np.max(np.abs(recomputed[finite] - stored[finite])))
-            status = "match" if diff < 1e-8 else "MISMATCH"
+            scale = float(np.max(np.abs(stored[finite])))
+            relative = diff / scale if scale else diff
+            status = "match" if diff <= 1e-8 + 1e-6 * scale else "MISMATCH"
         # A column that is non-finite everywhere, or finite but constant, carries
         # no information and cannot be a feature. Measured, not asserted.
         stored_finite = stored[np.isfinite(stored)]
@@ -162,6 +165,7 @@ def parity(merged: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
                 "stored": float(np.mean(stored_finite)) if stored_finite.size else np.nan,
                 "recomputed": float(np.nanmean(recomputed)) if np.isfinite(recomputed).any() else np.nan,
                 "max_abs_diff": diff,
+                "max_rel_diff": relative,
                 "finite_bars": int(stored_finite.size),
                 "distinct_values": distinct,
                 "standard_deviation": variation,

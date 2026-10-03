@@ -2,7 +2,7 @@
  * Trade simulator — entry/exit mechanics, stops, P&L, cost model.
  */
 
-import type { BrokerConfig } from '@shared/schema';
+import type { BrokerConfig } from '@shared/pg_schema';
 import { computeMetrics } from './metricsCalculator';
 
 // ============================================================
@@ -416,3 +416,4 @@ export function runBacktest(
     openPosition = null;
   }
 }
+

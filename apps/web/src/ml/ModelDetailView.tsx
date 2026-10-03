@@ -1,19 +1,5 @@
 
-import { Badge } from "@/shared/ui/badge";
-import { Button } from "@/shared/ui/button";
-import { ScrollArea } from "@/shared/ui/scroll-area";
-import {
-  ArrowLeft,
-  BookOpen,
-  Sparkles,
-  CheckCircle2,
-  Info,
-  Tag,
-  Cpu,
-  Brain,
-  FileText,
-  Play,
-} from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { categoryColor } from "./constants";
@@ -81,27 +67,27 @@ export function ModelDetailView({
             </div>
           </div>
         </div>
-        {/* One training path. This used to open a wizard that posted straight to
-            /api/experiments/launch, so a run started here never reached ML
-            Studio's experiment ledger -- and so never showed on this page's own
-            lifecycle. It hands off to the Train stage instead. */}
-        <Button
-          className="shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:shadow-[0_0_25px_rgba(var(--primary),0.5)] transition-shadow duration-300 ml-4"
-          disabled={!trainableKey}
-          title={trainableKey ? undefined : "No runner or template can train this spec yet"}
-          onClick={() => trainableKey && navigate(`/ml-studio?model=${encodeURIComponent(trainableKey)}`)}
-          data-testid="train-in-studio"
-        >
-          <Play className="h-4 w-4 mr-2" /> Train in ML Studio
-        </Button>
+        
       </div>
 
-      {/* Content */}
-      <ScrollArea className="flex-1">
-        {/* The diagram takes the full width — a 7-to-12 column graph squeezed
-            into the reading column rendered cards too small to read. The prose
-            below keeps the narrower measure. */}
-        <div className="px-6 pt-6 space-y-6">
+      
+      {/* Entity Tabs */}
+      <MLStudioProvider>
+      <Tabs defaultValue="spec" className="flex-1 flex flex-col min-h-0">
+        <div className="px-6 pt-2 pb-2 border-b border-border/50 bg-muted/10">
+          <TabsList className="w-fit">
+            <TabsTrigger value="spec"><FileText className="h-3.5 w-3.5 mr-1.5" /> Blueprint</TabsTrigger>
+            <TabsTrigger value="train" disabled={!trainableKey}><Play className="h-3.5 w-3.5 mr-1.5" /> Pipeline</TabsTrigger>
+            <TabsTrigger value="evaluate"><LineChart className="h-3.5 w-3.5 mr-1.5" /> Evaluate</TabsTrigger>
+            <TabsTrigger value="rl"><Bot className="h-3.5 w-3.5 mr-1.5" /> RL Console</TabsTrigger>
+            <TabsTrigger value="risk"><AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Risk</TabsTrigger>
+          </TabsList>
+        </div>
+        
+        <TabsContent value="spec" className="flex-1 min-h-0 m-0">
+          <ScrollArea className="h-full">
+            <div className="px-6 pt-6 space-y-6">
+
           {lifecycle && <LifecyclePanel lifecycle={lifecycle} />}
           <ArchitecturePreview specId={model.id} templateId={lifecycle?.templateId ?? null} />
         </div>
@@ -238,9 +224,26 @@ export function ModelDetailView({
           )}
         </div>
       </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="train" className="flex-1 min-h-0 m-0 overflow-y-auto p-4">
+        <RunConfigurator model={model} />
+      </TabsContent>
+      <TabsContent value="evaluate" className="flex-1 min-h-0 m-0 overflow-y-auto p-4">
+        <EvaluateStage />
+      </TabsContent>
+      <TabsContent value="rl" className="flex-1 min-h-0 m-0 overflow-y-auto p-4">
+        <RLConsolePanel />
+      </TabsContent>
+      <TabsContent value="risk" className="flex-1 min-h-0 m-0 overflow-y-auto p-4">
+        <RiskPanel />
+      </TabsContent>
+      </Tabs>
+      </MLStudioProvider>
     </div>
   );
 }
+
 
 function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
@@ -250,3 +253,4 @@ function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string 
     </h3>
   );
 }
+

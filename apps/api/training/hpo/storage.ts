@@ -5,7 +5,7 @@ import {
   hpoTrials,
   type HpoSession,
   type HpoTrial,
-} from "@shared/schema";
+} from "@shared/pg_schema";
 
 /** Insert a new HPO session row and return the generated row. */
 export function dbCreateSession(data: {
@@ -26,27 +26,26 @@ export function dbCreateSession(data: {
   featureCategories: string | null;
 }) {
   return db
-    .insert(hpoSessions)
-    .values({
-      sessionId: data.sessionId,
-      modelType: data.modelType,
-      symbol: data.symbol,
-      timeframe: data.timeframe,
-      status: "pending",
-      optimizerType: data.optimizerType,
-      optimizerConfig: data.optimizerConfig,
-      objectiveMetric: data.objectiveMetric,
-      objectiveDirection: data.objectiveDirection,
-      searchSpace: data.searchSpace,
-      fixedHyperparameters: data.fixedHyperparameters,
-      totalTrials: data.totalTrials,
-      dateRangeStart: data.dateRangeStart,
-      dateRangeEnd: data.dateRangeEnd,
-      maxBars: data.maxBars,
-      featureCategories: data.featureCategories,
-    })
-    .returning()
-    .get();
+      .insert(hpoSessions)
+      .values({
+        sessionId: data.sessionId,
+        modelType: data.modelType,
+        symbol: data.symbol,
+        timeframe: data.timeframe,
+        status: "pending",
+        optimizerType: data.optimizerType,
+        optimizerConfig: data.optimizerConfig,
+        objectiveMetric: data.objectiveMetric,
+        objectiveDirection: data.objectiveDirection,
+        searchSpace: data.searchSpace,
+        fixedHyperparameters: data.fixedHyperparameters,
+        totalTrials: data.totalTrials,
+        dateRangeStart: data.dateRangeStart,
+        dateRangeEnd: data.dateRangeEnd,
+        maxBars: data.maxBars,
+        featureCategories: data.featureCategories,
+      })
+      .returning().then(res => res[0]);
 }
 
 /** Update session-level fields (status, best score, counts, etc.). */
@@ -66,9 +65,9 @@ export function dbUpdateSession(
   }>,
 ) {
   db.update(hpoSessions)
-    .set({ ...data, updatedAt: sql`(unixepoch() * 1000)` })
+    .set({ ...data, updatedAt: sql`now()` })
     .where(eq(hpoSessions.sessionId, sessionId))
-    .run();
+    .execute();
 }
 
 /** Insert a new trial row for a session. */
@@ -79,7 +78,7 @@ export function dbInsertTrial(data: {
   params: string;
   foldIndex?: number | null;
 }) {
-  return db.insert(hpoTrials).values(data).returning().get();
+  return db.insert(hpoTrials).values(data).returning().then(res => res[0]);
 }
 
 /** Update an existing trial row by sessionId + trialId. */
@@ -110,23 +109,22 @@ export function dbUpdateTrial(
         eq(hpoTrials.trialId, trialId)
       )
     )
-    .run();
+    .execute();
 }
 
 /** Append a single (step, value) intermediate to the trial's iteration_history.
  *  Used by the hpo-trial-intermediate event handler for nested HPO. */
-export function dbAppendTrialIntermediate(
+export async function dbAppendTrialIntermediate(
   sessionId: string,
   trialId: number,
   step: number,
   value: number,
 ): void {
   // Read-modify-write the JSON array. Cheap because individual rows are tiny.
-  const row = db
-    .select({ iv: hpoTrials.intermediateValues })
-    .from(hpoTrials)
-    .where(and(eq(hpoTrials.sessionId, sessionId), eq(hpoTrials.trialId, trialId)))
-    .get();
+  const row = (await db
+      .select({ iv: hpoTrials.intermediateValues })
+      .from(hpoTrials)
+      .where(and(eq(hpoTrials.sessionId, sessionId), eq(hpoTrials.trialId, trialId))))[0];
   let arr: Array<{ step: number; value: number }> = [];
   if (row?.iv) {
     try { arr = JSON.parse(row.iv); } catch { arr = []; }
@@ -135,27 +133,27 @@ export function dbAppendTrialIntermediate(
   db.update(hpoTrials)
     .set({ intermediateValues: JSON.stringify(arr) })
     .where(and(eq(hpoTrials.sessionId, sessionId), eq(hpoTrials.trialId, trialId)))
-    .run();
+    .execute();
 }
 
 /** Get full session + trial results from the database. */
-export function dbGetSessionResults(
+export async function dbGetSessionResults(
   sessionId: string,
 ): { session: HpoSession; trials: HpoTrial[] } | null {
-  const session = db
-    .select()
-    .from(hpoSessions)
-    .where(eq(hpoSessions.sessionId, sessionId))
-    .get();
+  const session = (await db
+      .select()
+      .from(hpoSessions)
+      .where(eq(hpoSessions.sessionId, sessionId)))[0];
 
   if (!session) return null;
 
-  const trials = db
-    .select()
-    .from(hpoTrials)
-    .where(eq(hpoTrials.sessionId, sessionId))
-    .all();
+  const trials = await db
+      .select()
+      .from(hpoTrials)
+      .where(eq(hpoTrials.sessionId, sessionId));
 
   return { session, trials };
 }
+
+
 

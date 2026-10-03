@@ -13,6 +13,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { useTrainingMetrics, useTrainingOverlays } from "@/training/lib/TrainingContext";
 import { cn } from "@/shared/utils/utils";
 import { getSectionColor } from '@/ml/components/MetricGrid';
+import { DiagnosticsPanel } from './live/DiagnosticsPanel';
 
 const TrainingLogTab = lazy(() =>
   import('@/system/components/TrainingLogTab').then(m => ({ default: m.TrainingLogTab }))
@@ -268,11 +269,16 @@ export function LiveTrainingView({ className }: LiveTrainingViewProps) {
           )}
         </div>
 
-        {/* RIGHT: Terminal log */}
-        <div className="bg-black/40">
-          <Suspense fallback={<div className="h-full bg-black/40 animate-pulse" />}>
-            <TrainingLogTab visible />
-          </Suspense>
+        {/* RIGHT: Diagnostics & Terminal log */}
+        <div className="bg-black/40 flex flex-col min-h-0">
+          <DiagnosticsPanel metrics={metrics} />
+          <div className="flex-1 min-h-0 border-t border-white/5 relative">
+            <Suspense fallback={<div className="h-full w-full absolute inset-0 bg-black/40 animate-pulse" />}>
+              <div className="absolute inset-0">
+                <TrainingLogTab visible />
+              </div>
+            </Suspense>
+          </div>
         </div>
       </div>
 

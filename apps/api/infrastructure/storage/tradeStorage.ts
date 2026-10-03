@@ -2,7 +2,7 @@
  * Storage — Trades
  */
 
-import { trades, type Trade } from '@shared/schema';
+import { trades, type Trade } from '@shared/pg_schema';
 import { db } from '../database/db';
 import { eq, and, desc } from 'drizzle-orm';
 import type { CreateTradeParams } from './types';
@@ -60,3 +60,4 @@ export async function closeTrade(id: number, exitPrice: number, exitTimestamp: n
     .returning();
   return result ?? null;
 }
+

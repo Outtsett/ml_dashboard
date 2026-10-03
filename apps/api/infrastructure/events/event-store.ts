@@ -1,6 +1,6 @@
 import { eq, gt, and, asc, sql, like } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { events } from '@shared/schema';
+import { events } from '@shared/pg_schema';
 import type { StoredEvent, NewEvent, EventMetadata } from '@shared/event-types';
 
 type DrizzleDb = BetterSQLite3Database<Record<string, unknown>>;
@@ -58,10 +58,10 @@ export class EventStore {
 
     // Insert all rows inside a transaction for atomicity.
     // The UNIQUE constraint on (stream_id, stream_position) rejects stale writes.
-    const inserted = this.db.transaction((tx) => {
+    const inserted = await this.db.transaction(async (tx) => {
       const results: StoredEvent[] = [];
       for (const row of rows) {
-        const [result] = tx.insert(events).values(row).returning().all();
+        const [result] = await tx.insert(events).values(row).returning();
         results.push(toStoredEvent(result!));
       }
       return results;
@@ -77,17 +77,16 @@ export class EventStore {
    * @param fromPosition Start reading from this position (inclusive). Defaults to 0.
    */
   async readStream(streamId: string, fromPosition = 0): Promise<StoredEvent[]> {
-    const rows = this.db
-      .select()
-      .from(events)
-      .where(
-        and(
-          eq(events.streamId, streamId),
-          sql`${events.streamPosition} >= ${fromPosition}`,
-        ),
-      )
-      .orderBy(asc(events.streamPosition))
-      .all();
+    const rows = await this.db
+          .select()
+          .from(events)
+          .where(
+            and(
+              eq(events.streamId, streamId),
+              sql`${events.streamPosition} >= ${fromPosition}`,
+            ),
+          )
+          .orderBy(asc(events.streamPosition));
 
     return rows.map(toStoredEvent);
   }
@@ -104,12 +103,11 @@ export class EventStore {
       conditions.push(gt(events.id, afterId));
     }
 
-    const rows = this.db
-      .select()
-      .from(events)
-      .where(and(...conditions))
-      .orderBy(asc(events.id))
-      .all();
+    const rows = await this.db
+          .select()
+          .from(events)
+          .where(and(...conditions))
+          .orderBy(asc(events.id));
 
     return rows.map(toStoredEvent);
   }
@@ -122,12 +120,11 @@ export class EventStore {
   async readAll(afterId?: number): Promise<StoredEvent[]> {
     const condition = afterId !== undefined ? gt(events.id, afterId) : undefined;
 
-    const rows = this.db
-      .select()
-      .from(events)
-      .where(condition)
-      .orderBy(asc(events.id))
-      .all();
+    const rows = await this.db
+          .select()
+          .from(events)
+          .where(condition)
+          .orderBy(asc(events.id));
 
     return rows.map(toStoredEvent);
   }
@@ -138,11 +135,10 @@ export class EventStore {
    * @returns The highest position, or -1 if the stream has no events.
    */
   async getStreamPosition(streamId: string): Promise<number> {
-    const [row] = this.db
-      .select({ maxPos: sql<number>`MAX(${events.streamPosition})` })
-      .from(events)
-      .where(eq(events.streamId, streamId))
-      .all();
+    const [row] = await this.db
+          .select({ maxPos: sql<number>`MAX(${events.streamPosition})` })
+          .from(events)
+          .where(eq(events.streamId, streamId));
 
     return row?.maxPos ?? -1;
   }
@@ -156,25 +152,23 @@ export class EventStore {
    */
   async findIncompleteStreams(prefix: string): Promise<StoredEvent[]> {
     // Step 1: find all distinct stream IDs matching the prefix
-    const allStreams = this.db
-      .selectDistinct({ streamId: events.streamId })
-      .from(events)
-      .where(like(events.streamId, `${prefix}%`))
-      .all();
+    const allStreams = await this.db
+          .selectDistinct({ streamId: events.streamId })
+          .from(events)
+          .where(like(events.streamId, `${prefix}%`));
 
     if (allStreams.length === 0) return [];
 
     // Step 2: find streams that contain a terminal event
-    const completedStreams = this.db
-      .selectDistinct({ streamId: events.streamId })
-      .from(events)
-      .where(
-        and(
-          like(events.streamId, `${prefix}%`),
-          sql`(${events.type} LIKE '%.completed' OR ${events.type} LIKE '%.failed' OR ${events.type} LIKE '%.compensated')`,
-        ),
-      )
-      .all();
+    const completedStreams = await this.db
+          .selectDistinct({ streamId: events.streamId })
+          .from(events)
+          .where(
+            and(
+              like(events.streamId, `${prefix}%`),
+              sql`(${events.type} LIKE '%.completed' OR ${events.type} LIKE '%.failed' OR ${events.type} LIKE '%.compensated')`,
+            ),
+          );
 
     const completedIds = new Set(completedStreams.map((r) => r.streamId));
 
@@ -189,13 +183,12 @@ export class EventStore {
     // (gives the caller enough context to decide what to do)
     const results: StoredEvent[] = [];
     for (const sid of incompleteIds) {
-      const [latest] = this.db
-        .select()
-        .from(events)
-        .where(eq(events.streamId, sid))
-        .orderBy(asc(events.streamPosition))
-        .limit(1)
-        .all();
+      const [latest] = await this.db
+              .select()
+              .from(events)
+              .where(eq(events.streamId, sid))
+              .orderBy(asc(events.streamPosition))
+              .limit(1);
 
       if (latest) {
         results.push(toStoredEvent(latest));
@@ -205,3 +198,4 @@ export class EventStore {
     return results;
   }
 }
+

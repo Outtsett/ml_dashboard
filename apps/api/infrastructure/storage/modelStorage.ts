@@ -5,7 +5,7 @@
 import {
   mlModels, featureSets, modelOutputs, coherenceSnapshots, ensembleConfigs,
   type MlModel, type FeatureSet, type ModelOutput, type CoherenceSnapshot, type EnsembleConfig,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { db } from '../database/db';
 import { eq, and, gte, lte, desc, asc, inArray, getTableColumns } from 'drizzle-orm';
 import type {
@@ -297,3 +297,4 @@ export async function simulateEnsemble(
   }
   return signals;
 }
+

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../infrastructure/database/db";
-import { featureSets } from "@shared/schema";
+import { featureSets } from "@shared/pg_schema";
 
 export const featuresRouter = Router();
 
@@ -57,3 +57,4 @@ featuresRouter.post("/sets", async (req, res) => {
     res.status(500).json({ error: String(error) });
   }
 });
+

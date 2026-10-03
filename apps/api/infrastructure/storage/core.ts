@@ -12,7 +12,7 @@ import {
   type FeatureImportance, type InsertFeatureImportance,
   type TrainingSession, type InsertTrainingSession, type LossHistory, type InsertLossHistory,
   type Instrument, type NewsArticle, type InsertNewsArticle,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { db } from '../database/db';
 import { eq, and, gte, lte, desc, asc, getTableColumns } from 'drizzle-orm';
 
@@ -188,3 +188,4 @@ export async function linkNewsToSymbols(newsId: number, symbols: string[], prima
   }));
   await db.insert(newsSymbols).values(entries);
 }
+

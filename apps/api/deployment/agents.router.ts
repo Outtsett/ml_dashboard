@@ -33,7 +33,7 @@ import {
   isValidAgentId,
   type AgentContextBlob,
 } from '../infrastructure/lib/agentDispatcher';
-import type { AgentId } from '@shared/schema';
+import type { AgentId } from '@shared/pg_schema';
 
 const router = Router();
 
@@ -150,3 +150,4 @@ router.get('/agents/runs/:runId', (req: Request, res: Response) => {
 });
 
 export default router;
+

@@ -1,5 +1,8 @@
 {
   "name": "@ml-dashboard/shared",
   "version": "1.0.0",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "dependencies": {
+    "apache-arrow": "^21.2.0"
+  }
 }

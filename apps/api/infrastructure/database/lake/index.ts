@@ -15,8 +15,6 @@ export {
   querylakeStream,
   querylakeValidated,
   LakeOHLCVRowSchema,
-  insertLakeBatch,
-  insertLakeStream,
   closeLake,
   checkLakeHealth,
   servingSnapshot,

@@ -1,5 +1,5 @@
-/**
- * The lake object registry — one identity per thing the serving layer exposes.
+﻿/**
+ * The lake object registry â€” one identity per thing the serving layer exposes.
  *
  * The 439 objects DuckDB answers `information_schema.tables` with are not 439
  * tables. They are 439 *views*, and their names are computed rather than stored:
@@ -10,7 +10,7 @@
  *     ingest manifests (`derivedDatasets.ts`);
  *   - `bars`, the only real Iceberg table, read through `iceberg_scan`.
  *
- * So "rename the tables" is not a rename — it is a change to the two functions
+ * So "rename the tables" is not a rename â€” it is a change to the two functions
  * that manufacture names, and the readers that hold those names as string
  * literals do not move with them. `bars` alone is referenced across ~26 files
  * and is genuinely ambiguous: the same token names the Iceberg bar table, the
@@ -24,9 +24,9 @@
  *
  * Two identifiers, deliberately:
  *
- *   objectId  `market.candles.ohlcv_1m` — how code and the UI refer to it.
+ *   objectId  `market.candles.ohlcv_1m` â€” how code and the UI refer to it.
  *             Stable across a rename of either the view or the dataset.
- *   viewName  `ohlcv_1m` — what DuckDB knows it by, and the only thing a query
+ *   viewName  `ohlcv_1m` â€” what DuckDB knows it by, and the only thing a query
  *             can actually name. Never invent this; read it from here.
  */
 
@@ -46,7 +46,7 @@ export interface LakeObject {
   /** Human-facing name, derived from the view name. */
   displayName: string;
   kind: LakeObjectKind;
-  /** Where it came from — the two different identification paths. */
+  /** Where it came from â€” the two different identification paths. */
   origin: 'iceberg' | 'snapshot' | 'manifest';
   /** The manifest dataset, when the object came from one. */
   dataset?: string;
@@ -62,8 +62,8 @@ const ROOT_PREFIX = /^(mnq|es|nq|eurusd)_/;
 /**
  * Classify a snapshot view by its name.
  *
- * The snapshot is a frozen export of what was in QuestDB, so these names predate
- * any convention and carry real ambiguity — `mnq_tbl_5m` has no producer
+ * The snapshot is a frozen export of what was in the original high-frequency store, so these names predate
+ * any convention and carry real ambiguity â€” `mnq_tbl_5m` has no producer
  * anywhere in the repo, and `mnq_labels_1m` is byte-identical to
  * `mnq_labels_1m_new`. The rules are therefore ordered, first match wins, and an
  * unrecognised name falls through to `events` rather than being forced into a
@@ -82,13 +82,13 @@ function classifySnapshot(viewName: string): LakeObjectKind {
  * Classify a manifest-derived view.
  *
  * A separate rule set from `classifySnapshot`, because the two populations are
- * different things. The snapshot is a frozen export carrying QuestDB-era names;
+ * different things. The snapshot is a frozen export carrying legacy names;
  * the derived views are named by whoever wrote the ingest manifest, and most of
  * them are a study or an audit whose output happens to be parquet. Reusing the
  * snapshot rules here classified 338 of 397 derived views as `events`, which is a
  * fact about the rules and not about the lake.
  *
- * Matching is on the *dataset* name, because that is the authored part — the
+ * Matching is on the *dataset* name, because that is the authored part â€” the
  * table part is usually a column grouping (`predictions`, `folds`, `metrics`)
  * and carries no kind of its own.
  */
@@ -123,7 +123,7 @@ function snapshotObjectId(viewName: string, kind: LakeObjectKind): string {
 /**
  * The object id for a derived view: `lake.<dataset>[.<table>]`.
  *
- * The view name is not parsed — it cannot be, since dataset and table are both
+ * The view name is not parsed â€” it cannot be, since dataset and table are both
  * underscore-joined and `derived_label_audit_findings` splits three ways. The
  * dataset and table arrive as separate fields from the manifest.
  */
@@ -161,7 +161,7 @@ function fromSnapshot(viewName: string): LakeObject {
 }
 
 let registry: LakeObject[] = [];
-/** Every spelling we accept — object id, view name, dataset — to a view name. */
+/** Every spelling we accept â€” object id, view name, dataset â€” to a view name. */
 let aliases = new Map<string, string>();
 
 /**
@@ -210,7 +210,7 @@ export function lakeObjects(): LakeObject[] {
  * Resolve any accepted spelling to the DuckDB view name.
  *
  * Returns the input unchanged when nothing matches, so a caller passing a name
- * the registry has never seen is not blocked by it — the registry resolves what
+ * the registry has never seen is not blocked by it â€” the registry resolves what
  * it knows and defers on what it does not.
  */
 export function resolveViewName(nameOrId: string): string {

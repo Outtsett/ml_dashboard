@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
 import {
   PanelLeftClose, PanelLeftOpen, BrainCircuit, Search,
@@ -71,6 +72,7 @@ function groupModels(
 }
 
 export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
+  const [, navigate] = useLocation();
   const { setEntity, activeEntity } = useEntityStore();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -298,7 +300,7 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
                                             )}
                                             <button
                                               onClick={() => {
-                                                setEntity("model", model.id, model.name);
+                                                setEntity("model", model.id, model.name); navigate("/models?model=" + encodeURIComponent(model.id));
                                                 if (hasVersions && !isModelExpanded) toggle(modelKey);
                                               }}
                                               className="flex-1 flex items-center gap-1.5 py-1 outline-none text-left min-w-0"

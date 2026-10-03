@@ -12,7 +12,7 @@ import type {
   Instrument, NewsArticle, InsertNewsArticle,
   MlModel, FeatureSet, ModelOutput, CoherenceSnapshot, EnsembleConfig,
   Trade, MarketRegime, RegimeHistory, BrokerConfig, BacktestRun, BacktestTrade,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 
 // ─── Asset Type Helper ──────────────────────────────────────────────────────
 
@@ -341,3 +341,4 @@ export interface IStorage extends
   IObservatoryStorage,
   IBrokerStorage,
   IBacktestStorage {}
+

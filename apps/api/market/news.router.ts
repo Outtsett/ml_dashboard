@@ -7,7 +7,7 @@
 
 import { Router, Request, Response } from "express";
 import { storage } from "../infrastructure/storage";
-import { insertNewsArticleSchema } from "@shared/schema";
+import { insertNewsArticleSchema } from "@shared/pg_schema";
 import { z } from "zod";
 import { getString } from "../infrastructure/lib/routeHelpers";
 import { fetchYahooNews, fetchAlphaVantageNews, fetchCombinedNews } from "../infrastructure/lib/news/newsFetcher";
@@ -212,3 +212,4 @@ router.get("/news-db/symbol/:symbol", async (req: Request, res: Response) => {
 });
 
 export default router;
+

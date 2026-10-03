@@ -1,4 +1,4 @@
-{
+export default {
   id: "gen-gp",
   title: "Gaussian Processes",
   description: "Master Gaussian Processes from first principles: define GPs via mean and kernel functions, derive the posterior predictive distribution for GP regression, understand marginal likelihood for automatic hyperparameter tuning, and apply sparse approximations for scalable non-parametric volatility surface modeling in forex markets.",
@@ -552,3 +552,4 @@ print(f"Memory: exact={n_exact**2*8/1e6:.1f}MB, sparse(m=50)={n_exact*50*8/1e6:.
     },
   ],
 }
+

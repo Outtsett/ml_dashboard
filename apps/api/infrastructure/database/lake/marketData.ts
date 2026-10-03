@@ -19,7 +19,7 @@
  * bar whose open drifts between runs without ever raising.
  */
 
-import { validateSymbol } from "@shared/schema";
+import { validateSymbol } from "@shared/pg_schema";
 import type { StitchedOHLCVBar } from "@shared/ohlcv";
 import { cachedQuery, OHLCVCache } from "../../cache/ohlcv";
 import { queryLake, queryLakeFast } from "./connection";
@@ -138,7 +138,7 @@ export async function getOHLCVSampleBy(
   const safeLimit = limit ? validatePositiveInt(limit, 100000) : undefined;
 
   const escapedSymbol = safeSymbol.replace(/'/g, "''");
-  let whereClause = `WHERE symbol = '${escapedSymbol}'`;
+  let whereClause = `AND symbol = '${escapedSymbol}'`;
   if (safeStartTime) {
     whereClause += ` AND ts >= '${new Date(safeStartTime).toISOString()}'`;
   }
@@ -169,10 +169,10 @@ export async function getOHLCVSampleBy(
   const sql =
     newest && limitClause
       ? `SELECT * FROM (${select}
-    ORDER BY ts DESC
-    ${limitClause}) ORDER BY ts`
+    ORDER BY timestamp DESC
+    ${limitClause}) ORDER BY timestamp`
       : `${select}
-    ORDER BY ts
+    ORDER BY timestamp
     ${limitClause}`;
 
   return await queryLakeFast<LakeBarRow>(sql);
@@ -259,7 +259,7 @@ async function getFullFrontMonthRanges(
     const dailyBars = await queryLake<{ symbol: string; timestamp: Date | string; volume: number }>(
       `SELECT symbol, ts AS timestamp, sum(volume) AS volume FROM ${DAILY_VIEW} WHERE timeframe = '1d' AND root = '${escaped}' AND asset_class = 'futures'
        GROUP BY symbol, ts
-       ORDER BY ts`,
+       ORDER BY timestamp`,
       30_000, // 30s timeout — this is the heaviest single query in the pipeline
     );
 
@@ -436,7 +436,7 @@ export async function getFrontMonthOHLCV(
       // keeps its bar, flat or not — that is a thin market, not a fabrication.
       return `(SELECT symbol, ts AS timestamp, open, high, low, close, volume,${ANATOMY_COLUMNS}
          FROM ${view} WHERE timeframe = '${timeframe}'
-         WHERE symbol = '${sym}' AND ts >= '${s}' AND ts <= '${e}'
+         AND symbol = '${sym}' AND ts >= '${s}' AND ts <= '${e}'
            AND volume > 0)`;
     });
 
@@ -456,8 +456,8 @@ export async function getFrontMonthOHLCV(
     // ascending sort and tail-slice below remain the backstop that picks the
     // true newest N across batches.
     const ordered = safeLimit
-      ? `\nORDER BY ts DESC\nLIMIT ${safeLimit}`
-      : '\nORDER BY ts';
+      ? `\nORDER BY timestamp DESC\nLIMIT ${safeLimit}`
+      : '\nORDER BY timestamp';
     const sql = parts.join('\nUNION ALL\n') + ordered;
     const rows = await queryLakeFast<LakeBarRow>(sql);
     allBars = allBars.concat(rows);
@@ -653,6 +653,7 @@ export async function getSymbolStats(symbol: string): Promise<{
     timeSpanDays: Math.round(timeSpanDays * 100) / 100
   };
 }
+
 
 
 

@@ -40,7 +40,7 @@ import {
   modelVersions,
   deployments,
   type ModelVersion,
-} from '@shared/schema';
+} from '@shared/pg_schema';
 import { mlRateLimiter } from '../infrastructure/lib/rateLimiter';
 import { evaluateGates } from '../infrastructure/lib/promotionGates';
 
@@ -139,37 +139,36 @@ function appendNote(existing: ModelVersion['notes'], entry: { ts: string; author
 
 // ─── POST /api/model-versions ───────────────────────────────────────────────
 
-router.post('/model-versions', mlRateLimiter, (req: Request, res: Response) => {
+router.post('/model-versions', mlRateLimiter, async (req: Request, res: Response) => {
   const parsed = RegisterModelVersionRequest.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json(formatZodErrors(parsed.error));
   }
 
   try {
-    const inserted = db
-      .insert(modelVersions)
-      .values({
-        catalogId: parsed.data.catalogId,
-        runnerKey: parsed.data.runnerKey,
-        status: parsed.data.status,
-        dataHash: parsed.data.dataHash,
-        symbol: parsed.data.symbol,
-        timeframe: parsed.data.timeframe,
-        dateRangeStart: parsed.data.dateRangeStart,
-        dateRangeEnd: parsed.data.dateRangeEnd,
-        featurePipeline: parsed.data.featurePipeline,
-        labelConfig: parsed.data.labelConfig as ModelVersion['labelConfig'],
-        hyperparameters: parsed.data.hyperparameters,
-        walkForwardConfig: (parsed.data.walkForwardConfig ?? null) as ModelVersion['walkForwardConfig'],
-        hpoStudyId: parsed.data.hpoStudyId ?? null,
-        modelArtifactPath: parsed.data.modelArtifactPath,
-        diagnosticsPath: parsed.data.diagnosticsPath,
-        metricsSummary: parsed.data.metricsSummary as ModelVersion['metricsSummary'],
-        trainedAt: parsed.data.trainedAt,
-        parentVersionId: parsed.data.parentVersionId ?? null,
-      })
-      .returning()
-      .all();
+    const inserted = await db
+          .insert(modelVersions)
+          .values({
+            catalogId: parsed.data.catalogId,
+            runnerKey: parsed.data.runnerKey,
+            status: parsed.data.status,
+            dataHash: parsed.data.dataHash,
+            symbol: parsed.data.symbol,
+            timeframe: parsed.data.timeframe,
+            dateRangeStart: parsed.data.dateRangeStart,
+            dateRangeEnd: parsed.data.dateRangeEnd,
+            featurePipeline: parsed.data.featurePipeline,
+            labelConfig: parsed.data.labelConfig as ModelVersion['labelConfig'],
+            hyperparameters: parsed.data.hyperparameters,
+            walkForwardConfig: (parsed.data.walkForwardConfig ?? null) as ModelVersion['walkForwardConfig'],
+            hpoStudyId: parsed.data.hpoStudyId ?? null,
+            modelArtifactPath: parsed.data.modelArtifactPath,
+            diagnosticsPath: parsed.data.diagnosticsPath,
+            metricsSummary: parsed.data.metricsSummary as ModelVersion['metricsSummary'],
+            trainedAt: parsed.data.trainedAt,
+            parentVersionId: parsed.data.parentVersionId ?? null,
+          })
+          .returning();
 
     return res.status(201).json(inserted[0]);
   } catch (err) {
@@ -183,7 +182,7 @@ router.post('/model-versions', mlRateLimiter, (req: Request, res: Response) => {
 
 // ─── GET /api/model-versions ────────────────────────────────────────────────
 
-router.get('/model-versions', (req: Request, res: Response) => {
+router.get('/model-versions', async (req: Request, res: Response) => {
   const parsed = ListQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json(formatZodErrors(parsed.error));
@@ -200,13 +199,12 @@ router.get('/model-versions', (req: Request, res: Response) => {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = db
-    .select()
-    .from(modelVersions)
-    .where(whereClause)
-    .orderBy(desc(modelVersions.trainedAt), desc(modelVersions.versionId))
-    .limit(limit + 1)
-    .all();
+  const rows = await db
+      .select()
+      .from(modelVersions)
+      .where(whereClause)
+      .orderBy(desc(modelVersions.trainedAt), desc(modelVersions.versionId))
+      .limit(limit + 1);
 
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
@@ -217,15 +215,14 @@ router.get('/model-versions', (req: Request, res: Response) => {
 
 // ─── GET /api/model-versions/:id ────────────────────────────────────────────
 
-router.get('/model-versions/:id', (req: Request, res: Response) => {
+router.get('/model-versions/:id', async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (id === null) return res.status(400).json({ error: 'Invalid id' });
 
-  const [version] = db
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, id))
-    .all();
+  const [version] = await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, id));
   if (!version) return res.status(404).json({ error: 'model version not found' });
 
   // Walk parent chain (cap at 50 to avoid runaway loops on accidental cycles)
@@ -233,30 +230,27 @@ router.get('/model-versions/:id', (req: Request, res: Response) => {
   let cur: ModelVersion | undefined = version;
   const seen = new Set<number>([version.versionId]);
   while (cur?.parentVersionId && ancestors.length < 50) {
-    const [parent] = db
-      .select()
-      .from(modelVersions)
-      .where(eq(modelVersions.versionId, cur.parentVersionId))
-      .all();
+    const [parent] = await db
+          .select()
+          .from(modelVersions)
+          .where(eq(modelVersions.versionId, cur.parentVersionId));
     if (!parent || seen.has(parent.versionId)) break;
     seen.add(parent.versionId);
     ancestors.push(parent);
     cur = parent;
   }
 
-  const children = db
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.parentVersionId, id))
-    .orderBy(asc(modelVersions.trainedAt))
-    .all();
+  const children = await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.parentVersionId, id))
+      .orderBy(asc(modelVersions.trainedAt));
 
-  const versionDeployments = db
-    .select()
-    .from(deployments)
-    .where(eq(deployments.versionId, id))
-    .orderBy(desc(deployments.startedAt))
-    .all();
+  const versionDeployments = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.versionId, id))
+      .orderBy(desc(deployments.startedAt));
 
   return res.json({ version, ancestors, children, deployments: versionDeployments });
 });
@@ -274,11 +268,10 @@ router.post('/model-versions/:id/promote', mlRateLimiter, async (req: Request, r
 
   const { to_status, dryRun, override, reason } = parsed.data;
 
-  const [version] = db
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, id))
-    .all();
+  const [version] = await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, id));
   if (!version) return res.status(404).json({ error: 'model version not found' });
 
   // Override path bypasses gate evaluation entirely.
@@ -300,16 +293,15 @@ router.post('/model-versions/:id/promote', mlRateLimiter, async (req: Request, r
       author,
       text: overrideNote,
     });
-    const [updated] = db
-      .update(modelVersions)
-      .set({
-        status: to_status,
-        promotedAt: ts,
-        notes: updatedNotes,
-      })
-      .where(eq(modelVersions.versionId, id))
-      .returning()
-      .all();
+    const [updated] = await db
+          .update(modelVersions)
+          .set({
+            status: to_status,
+            promotedAt: ts,
+            notes: updatedNotes,
+          })
+          .where(eq(modelVersions.versionId, id))
+          .returning();
     return res.json({
       allowed: true,
       results: [],
@@ -340,22 +332,21 @@ router.post('/model-versions/:id/promote', mlRateLimiter, async (req: Request, r
   }
 
   const ts = new Date().toISOString();
-  const [updated] = db
-    .update(modelVersions)
-    .set({
-      status: to_status,
-      promotedAt: ts,
-    })
-    .where(eq(modelVersions.versionId, id))
-    .returning()
-    .all();
+  const [updated] = await db
+      .update(modelVersions)
+      .set({
+        status: to_status,
+        promotedAt: ts,
+      })
+      .where(eq(modelVersions.versionId, id))
+      .returning();
 
   return res.json({ ...evaluation, dryRun: false, version: updated });
 });
 
 // ─── POST /api/model-versions/:id/rollback ──────────────────────────────────
 
-router.post('/model-versions/:id/rollback', mlRateLimiter, (req: Request, res: Response) => {
+router.post('/model-versions/:id/rollback', mlRateLimiter, async (req: Request, res: Response) => {
   const id = parseId(req.params.id);
   if (id === null) return res.status(400).json({ error: 'Invalid id' });
 
@@ -366,18 +357,16 @@ router.post('/model-versions/:id/rollback', mlRateLimiter, (req: Request, res: R
 
   const { to_version_id } = parsed.data;
 
-  const [current] = db
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, id))
-    .all();
+  const [current] = await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, id));
   if (!current) return res.status(404).json({ error: 'current model version not found' });
 
-  const [target] = db
-    .select()
-    .from(modelVersions)
-    .where(eq(modelVersions.versionId, to_version_id))
-    .all();
+  const [target] = await db
+      .select()
+      .from(modelVersions)
+      .where(eq(modelVersions.versionId, to_version_id));
   if (!target) return res.status(404).json({ error: 'rollback target version not found' });
 
   if (target.symbol !== current.symbol || target.timeframe !== current.timeframe) {
@@ -393,11 +382,10 @@ router.post('/model-versions/:id/rollback', mlRateLimiter, (req: Request, res: R
   // Find any active deployment for the current version. If none, just record
   // the new deployment for the target — the rollback is still meaningful (the
   // operator is selecting which version is "active").
-  const activeDeployments = db
-    .select()
-    .from(deployments)
-    .where(and(eq(deployments.versionId, id), eq(deployments.status, 'running')))
-    .all();
+  const activeDeployments = await db
+      .select()
+      .from(deployments)
+      .where(and(eq(deployments.versionId, id), eq(deployments.status, 'running')));
 
   const ts = new Date().toISOString();
 
@@ -406,25 +394,24 @@ router.post('/model-versions/:id/rollback', mlRateLimiter, (req: Request, res: R
     db.update(deployments)
       .set({ status: 'stopped', stoppedAt: ts, notes: `rolled back to v${to_version_id}` })
       .where(eq(deployments.deploymentId, dep.deploymentId))
-      .run();
+      .execute();
   }
 
   // Start a paper deployment for the target (rollback is conservative — never
   // jumps directly to live; promotion path through gates is required).
-  const [newDeployment] = db
-    .insert(deployments)
-    .values({
-      versionId: to_version_id,
-      mode: 'paper',
-      status: 'running',
-      symbol: target.symbol,
-      timeframe: target.timeframe,
-      startedAt: ts,
-      predictionsEmitted: 0,
-      notes: `rollback from v${id}`,
-    })
-    .returning()
-    .all();
+  const [newDeployment] = await db
+      .insert(deployments)
+      .values({
+        versionId: to_version_id,
+        mode: 'paper',
+        status: 'running',
+        symbol: target.symbol,
+        timeframe: target.timeframe,
+        startedAt: ts,
+        predictionsEmitted: 0,
+        notes: `rollback from v${id}`,
+      })
+      .returning();
 
   return res.json({
     rolledBackFrom: id,
@@ -435,3 +422,5 @@ router.post('/model-versions/:id/rollback', mlRateLimiter, (req: Request, res: R
 });
 
 export default router;
+
+

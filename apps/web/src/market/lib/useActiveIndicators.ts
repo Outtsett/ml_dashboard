@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Active Indicator State Management — manages the lifecycle of indicator
  * instances that the user has added to the chart.
  */
@@ -25,7 +25,7 @@ export interface ActiveIndicator {
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'active-indicators-v2';
+const STORAGE_KEY = 'active-indicators-v3';
 
 function loadActiveIndicators(): ActiveIndicator[] {
   try {

@@ -1,6 +1,9 @@
 {
-    "private":  true,
-    "name":  "@ml-dashboard/api",
-    "version":  "1.0.0",
-    "main":  "src/index.ts"
+    "private": true,
+    "name": "@ml-dashboard/api",
+    "version": "1.0.0",
+    "main": "src/index.ts",
+    "dependencies": {
+        "apache-arrow": "^21.2.0"
+    }
 }

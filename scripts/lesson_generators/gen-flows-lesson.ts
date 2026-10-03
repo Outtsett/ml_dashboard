@@ -1,4 +1,4 @@
-{
+export default {
   id: "gen-normalizing-flows",
   title: "Normalizing Flows for Distribution Modeling",
   description: "Master normalizing flows — a family of generative models that learn complex probability distributions through sequences of invertible transformations. Derive the change of variables formula, implement coupling layers (RealNVP) and autoregressive flows (MAF/IAF), understand the Glow architecture, and apply these models to capture fat-tailed forex return distributions for precise density estimation and risk quantification.",
@@ -675,3 +675,4 @@ print(f"(Gaussian kurtosis would be 3.0 — higher values indicate heavier tails
     }
   ]
 }
+

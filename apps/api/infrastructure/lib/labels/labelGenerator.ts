@@ -15,7 +15,7 @@
  */
 
 import { db } from '../../database/db';
-import { contrastivePairs } from '@shared/schema';
+import { contrastivePairs } from '@shared/pg_schema';
 import { type LabelEncoding } from '@shared/labels/contract';
 import { LABEL_SQL_GENERATORS, boundByWindow, wrapWithSampleBy, type LabelGeneratorConfig, type LabelGeneratorType } from './sqlLabelGenerators';
 import {
@@ -590,3 +590,4 @@ export function calculateLabelDistribution(results: Array<Record<string, unknown
   }
   return distribution;
 }
+

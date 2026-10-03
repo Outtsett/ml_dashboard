@@ -54,7 +54,7 @@ const DUCKDB_FILE = /["']([^"'\n]*\.duckdb)["']/g;
  *  until the first market-data query), so lineage does not depend on whether
  *  someone opened the chart first. */
 const SERVING_TABLE_FAMILY =
-  /^(?:bars|ohlcv|ohlcv_1h_v|symbols|ticks|candle_anatomy|candle_geometry_1m|ta_indicators_1m|(?:ohlcv|ohlcv_full|mnq_ohlcv|candle_anatomy)_[0-9]+[smhdw]|mnq_(?:labels|indicators_norm|zigzag|tbl|swing)_[a-z0-9_]+)$/;
+  /^(?:bars|ohlcv|ohlcv_1h_v|symbols|ticks|candle_anatomy|candle_geometry_1m|ta_indicators_1m|(?:ohlcv|ohlcv_full|mnq_ohlcv|candle_anatomy)_[0-9]+[smhdw]|mnq_(?:labels|indicators_norm|structural_pivots|tbl|microstructure)_[a-z0-9_]+)$/;
 
 function familyName(name: string): string {
   return name.endsWith("_") ? `${name}*` : name;

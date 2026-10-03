@@ -248,7 +248,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     // the last bar) and a left page (an end with no start: the chart asking
     // for what lies before its first bar) want the bars NEAREST the end; a
     // right page (a start with no end) wants the bars nearest the start.
-    const newestFirst = anchorMs !== null || (endMs != null && startMs == null);
+    const newestFirst = anchorMs !== null || startMs == null;
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
@@ -289,8 +289,9 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     clearTimeout(routeTimeout);
     if (res.headersSent) return; // route timeout already fired
 
+    const accept = (req.headers['accept'] || '') as string;
+
     // MessagePack binary response if client requests it (~50% smaller than JSON)
-    const accept = req.headers['accept'] || '';
     if (accept.includes('application/msgpack')) {
       const packed = msgpackEncode(data);
       res.setHeader('Content-Type', 'application/msgpack');
@@ -341,5 +342,32 @@ router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
   }
 });
 
+
+  /**
+   * GET /api/charts/lake-credentials
+   * Vends MinIO S3 credentials and endpoint for DuckDB-WASM edge compute.
+   * Local dashboard only.
+   */
+  router.get('/lake-credentials', async (_req, res) => {
+    try {
+      const { lakeCredentials } = require('../infrastructure/lake/credentials');
+      const { getServingLocation } = require('../infrastructure/database/lake/connection');
+      
+      const creds = lakeCredentials();
+      const loc = getServingLocation();
+      
+      res.json({
+        accessKey: creds.accessKey,
+        secretKey: creds.secretKey,
+        endpoint: loc.endpoint,
+        region: process.env.LAKE_REGION || 'us-east-1',
+        snapshot: loc.snapshot
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 export default router;
+
 

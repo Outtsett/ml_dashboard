@@ -1,18 +1,18 @@
-# Dashboard Data Architecture (Source of Truth)
+﻿# Dashboard Data Architecture (Source of Truth)
 
 **Attention Agents:** This document defines the *absolute source of truth* for how the dashboard retrieves, processes, and serves OHLCV (candlestick) data for Forex and Indices. 
 
 > [!WARNING] 
-> **QUESTDB IS DEPRECATED AND REMOVED.**
-> Do not attempt to query, configure, or establish connections to QuestDB. All time-series data architectures have been migrated to the DuckDB/Iceberg and PostgreSQL/TimescaleDB stack.
+> **TimescaleDB IS DEPRECATED AND REMOVED.**
+> Do not attempt to query, configure, or establish connections to TimescaleDB. All time-series data architectures have been migrated to the DuckDB/NATIVE_PARQUET_ONLY (Iceberg Deprecated) and PostgreSQL/TimescaleDB stack.
 
 ## 1. Historical Data (The Data Lake & Batch Layer)
 
 Historical candlestick data (OHLCV) for both Forex and Indices is served to the frontend via the REST endpoint `GET /api/market/charts/ohlcv` (implemented in `apps/api/market/charts.router.ts`). 
 
 ### How it works:
-* **Storage Location:** Massive historical datasets are stored as `.parquet` files. The primary local repository for these files is the `D:\ml_data` drive, organized in Iceberg/Hive partitioning format.
-* **Lake Engine:** The API mounts a local MinIO/S3-compatible data lake (`127.0.0.1:9100/derived/`).
+* **Storage Location:** Massive historical datasets are stored as `.parquet` files. The primary local repository for these files is the `D:\ml_data` drive, organized in NATIVE_PARQUET_ONLY (Iceberg Deprecated)/Hive partitioning format.
+* **Lake Engine:** The API mounts a local LOCAL_STORAGE_ONLY (MinIO Deprecated)/S3-compatible data lake (`127.0.0.1:9100/derived/`).
 * **In-Memory Query Engine:** The dashboard backend spins up an in-process **DuckDB** instance (`apps/api/infrastructure/database/lake/connection.ts`). DuckDB discovers the parquet files using glob patterns (`s3://${snapshot}/table=*/**/*.parquet`) and instantly creates derived relational views over the parquet data.
 * **Query Execution:** When the UI requests historical bars, the router calls `queryLakeFast()`, which pushes a SQL query down to DuckDB. DuckDB efficiently scans the `.parquet` files, handles timeframe downsampling/resampling via predefined timeframe views (e.g., `ohlcv_5m`), and returns the results to the client.
 
@@ -41,10 +41,18 @@ If you are an AI Agent tasked with debugging, extending, or answering questions 
 
 1. **Historical Data:**
    - Handled via `apps/api/market/charts.router.ts` using `queryLakeFast` (DuckDB).
-   - Data is stored in Iceberg/Parquet format.
-   - *Never* use QuestDB.
+   - Data is stored in NATIVE_PARQUET_ONLY (Iceberg Deprecated)/Parquet format.
+   - *Never* use TimescaleDB.
 2. **Real-time Live Data:**
    - Review `docs/live-data.md` for the complete architecture of the Live Hub.
    - The Hub runs on port `17192`.
    - Data sources: **OANDA** (Forex), **Yahoo Finance** (Delayed Indices).
    - The UI hooks into this via Server-Sent Events (`apps/web/src/live/stream.ts` and `apps/web/src/live/useLiveTail.ts`).
+
+## STRICT NON-DISTRIBUTED PIPELINE MANDATE
+As of Oct 2026, we have formally locked in a **Strict Vertical / Non-Distributed Architecture**.
+- **No MinIO/S3:** Read raw .parquet from D:\ml_data directly.
+- **No Iceberg:** Direct globbing/filesystem access.
+- **No QuestDB:** High-frequency ticks flow straight into TimescaleDB.
+- **Processing:** Polars LazyFrames & DuckDB (single-node, multi-threaded).
+- **ML Loading:** Zero-copy PyTorch pointers (	orch.from_numpy) out of Polars buffers, bypassing pandas.
