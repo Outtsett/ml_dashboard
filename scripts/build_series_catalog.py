@@ -70,6 +70,18 @@ CHART_EXCLUDED_OBJECTS = {
     ),
 }
 
+# Columns the chart does not draw, retired from the indicator list by name. The
+# column stays in the lake — it is a model feature — but it stops being offered as
+# a chart series, which also drops it from any saved selection and from the
+# Regression tab's variables.
+CHART_EXCLUDED_COLUMNS = {
+    "zone_strength": (
+        "Redundant on the chart: the support and resistance markers already label each "
+        "touch with its count ('support x3'), so this pane line repeated them as a step "
+        "function. The column remains in derived_zone_features for training."
+    ),
+}
+
 # Objects whose every column is computed from bars after the one it sits on.
 LABEL_OBJECTS = {"mnq_labels_1m", "mnq_labels_1m_new"}
 
@@ -570,6 +582,8 @@ def measure_object(
         unavailable = None
         if name in CHART_EXCLUDED_OBJECTS:
             unavailable = CHART_EXCLUDED_OBJECTS[name]
+        elif column in CHART_EXCLUDED_COLUMNS:
+            unavailable = CHART_EXCLUDED_COLUMNS[column]
         elif column in (timestamp_column,):
             unavailable = "This is the time axis itself."
         elif family == "reference" or shape == "text":

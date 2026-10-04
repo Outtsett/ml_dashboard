@@ -2776,7 +2776,8 @@
           "percentile50": 0.0,
           "percentile99": 80.0,
           "referenceLines": [],
-          "forwardLooking": false
+          "forwardLooking": false,
+          "unavailableReason": "Redundant on the chart: the support and resistance markers already label each touch with its count ('support x3'), so this pane line repeated them as a step function. The column remains in derived_zone_features for training."
         },
         {
           "id": "lake:derived_zone_features_1m:bandwidth_points",
@@ -3176,7 +3177,8 @@
           "percentile50": 0.0,
           "percentile99": 29.0,
           "referenceLines": [],
-          "forwardLooking": false
+          "forwardLooking": false,
+          "unavailableReason": "Redundant on the chart: the support and resistance markers already label each touch with its count ('support x3'), so this pane line repeated them as a step function. The column remains in derived_zone_features for training."
         },
         {
           "id": "lake:derived_zone_features_5m:bandwidth_points",

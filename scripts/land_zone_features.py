@@ -7,6 +7,9 @@ adjusted so the newest contract is unscaled), as a derived dataset the dashboard
 
 Columns follow the training spec: support_zone, resistance_zone, zone_strength, plus the zone prices,
 strengths, counts, bandwidth and pivot confirmations. One definition — the chart's — one dataset.
+``zone_strength`` lands with the rest but is not drawn: the chart retired it as an indicator
+(``CHART_EXCLUDED_COLUMNS`` in ``scripts/build_series_catalog.py``), because the support and
+resistance markers already label each touch with its count.
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shared import protocol, zones  # noqa: E402
 
 DATASET = "zone_features"   # one dataset per timeframe: zone_features_<timeframe>
-COLOURS = {"support": "#0072B2", "resistance": "#E69F00", "level": "#56B4E9"}
+COLOURS = {"support": "#0072B2", "resistance": "#E69F00"}
 
 
 def fetch_chart_bars(symbol: str, timeframe: str, start_ms: int, end_ms: int) -> pd.DataFrame:
@@ -89,7 +92,9 @@ def overlays_for_window(features: pd.DataFrame, context: dict, symbol: str) -> l
     last = window.iloc[-1]
     overlays.append(dashboard.line("zone_price_support", window["time"] * 1000, window["zone_price_support"], label="Support zone (nearest)", color=COLOURS["support"]))
     overlays.append(dashboard.line("zone_price_resistance", window["time"] * 1000, window["zone_price_resistance"], label="Resistance zone (nearest)", color=COLOURS["resistance"]))
-    overlays.append(dashboard.line("zone_strength", window["time"] * 1000, window["zone_strength"], label="Zone strength (touches of the support or resistance zone being touched)", color=COLOURS["level"], pane="pane"))
+    # No zone_strength line: the two marker sets above already label every touch with its
+    # count ("support x3"), so the pane line repeated them as a step function. The column
+    # still lands — it is a model feature — it is just not an indicator any more.
     protocol.emit_log(f"[overlays] window {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} .. {datetime.fromtimestamp(end, tz=timezone.utc):%Y-%m-%d}: "
                       f"{int(window['support_zone'].sum())} support touches, {int(window['resistance_zone'].sum())} resistance touches, "
                       f"bandwidth at the last bar {float(last['bandwidth_points']):.2f} points")
