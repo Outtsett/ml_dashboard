@@ -217,7 +217,6 @@ function TradeLabBody() {
   const handleToggleZigZag = useCallback(() => overlayToggles.setShowZigZag(v => !v), [overlayToggles]);
   const handleToggleStructure = useCallback(() => overlayToggles.setShowStructure((v: boolean) => !v), [overlayToggles]);
   const noopOpenMl = useCallback(() => { /* legacy hook — unused in Trade Lab */ }, []);
-  const noopTabChange = useCallback((_t: string) => { /* legacy — single-tab Trade Lab */ }, []);
 
   // ── Run-driven side effects ────────────────────────────────────────────
   // When a run is picked, point the dashboard symbol at the run's symbol.
@@ -296,8 +295,6 @@ function TradeLabBody() {
         showStructure={overlayToggles.showStructure}
         onToggleStructure={handleToggleStructure}
         isTrainingActive={isTrainingActive}
-        activeTab="price"
-        onTabChange={noopTabChange}
         onStartTraining={handleStartTraining}
         onStopTraining={handleStopTraining}
         isTrainingStarting={isTrainingStarting}

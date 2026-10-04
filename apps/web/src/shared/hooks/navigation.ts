@@ -49,6 +49,7 @@ import {
   Network,
   Newspaper,
   Radio,
+  Repeat,
   ScatterChart,
   Settings,
   TerminalSquare,
@@ -154,6 +155,12 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Model Lens",
         href: "/lens",
         description: "A model's out-of-sample record: predictions, trades, stability, attribution",
+      },
+      {
+        icon: Repeat,
+        label: "Model Cycle",
+        href: "/cycle",
+        description: "Walk forward through the bars one at a time, training and trading each fold as it goes",
       },
       {
         icon: NotebookPen,

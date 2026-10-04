@@ -25,8 +25,10 @@ import { minutesToApiKey, minutesToLabel } from "@/market/lib/timeframes";
 import { SERIES_FAMILY_LABELS } from "@shared/series/types";
 import type { CookCutoffRule, ResponseMode } from "@shared/regression/types";
 import { useRegressionBars, useRegressionColumns, useRegressionVariables } from "./data";
+import { chartWindowFrom, describeChartWindow, usePublishedChartContext } from "@/market/lib/useChartWindow";
 import { responseAxisLabel, selectLakeVariables, sortPanels, type PanelSettings, type PanelSort } from "./panels";
 import { useRegressionPanels } from "./usePanels";
+import type { TrainedModel } from "@/ml/lib/useTrainedModels";
 import { ScatterPanel } from "./ScatterPanel";
 import { DetailView } from "./DetailView";
 import { EncodingLegend } from "./EncodingLegend";
@@ -39,6 +41,8 @@ const SETTINGS_KEY = "price-regression-settings-v1";
 
 interface StoredSettings {
   barCount: number;
+  /** Fit the bars the Market chart is showing instead of a fixed count. */
+  followChartWindow: boolean;
   mode: ResponseMode;
   horizonBars: number;
   confidenceLevel: number;
@@ -58,6 +62,7 @@ interface StoredSettings {
 
 const DEFAULTS: StoredSettings = {
   barCount: 5000,
+  followChartWindow: true,
   mode: "level",
   horizonBars: 5,
   confidenceLevel: 0.95,
@@ -152,7 +157,14 @@ export default function RegressionPage() {
   const update = <K extends keyof StoredSettings>(key: K, value: StoredSettings[K]) =>
     setSettings((current) => ({ ...current, [key]: value }));
 
-  const barsQuery = useRegressionBars(symbol, timeframeApiKey, settings.barCount);
+  // The window the Market chart published, so "the same bars" means one thing
+  // on both surfaces. Falls back to the stored count when the chart has
+  // published nothing, which is what a cold first visit looks like.
+  const chartWindow = chartWindowFrom(usePublishedChartContext(), { min: 250, max: 20_000 });
+  const followingChart = settings.followChartWindow && chartWindow !== null;
+  const barCount = followingChart ? chartWindow.bars : settings.barCount;
+
+  const barsQuery = useRegressionBars(symbol, timeframeApiKey, barCount);
   const variablesQuery = useRegressionVariables(symbol, timeframeApiKey);
   const bars = barsQuery.data;
 
@@ -191,7 +203,7 @@ export default function RegressionPage() {
 
   const needle = filter.trim().toLowerCase();
 
-  const { data: models } = useQuery<any[]>({
+  const { data: models } = useQuery<TrainedModel[]>({
     queryKey: ["/api/training/models"],
     staleTime: 30_000,
   });
@@ -206,7 +218,16 @@ export default function RegressionPage() {
     const features = new Set<string>();
     const conf = activeModel.training_config;
     if (conf?.features && Array.isArray(conf.features)) {
-      conf.features.forEach((f: any) => features.add(typeof f === 'string' ? f : f.id));
+      conf.features.forEach((feature: unknown) => {
+        if (typeof feature === "string") {
+          features.add(feature);
+          return;
+        }
+        if (feature && typeof feature === "object" && "id" in feature) {
+          const id = (feature as { id: unknown }).id;
+          if (typeof id === "string") features.add(id);
+        }
+      });
     }
     return features;
   }, [activeModel]);
@@ -265,12 +286,28 @@ export default function RegressionPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Bars</span>
-            <Segmented
-              value={settings.barCount}
-              options={BAR_COUNTS.map((count) => ({ value: count, label: count.toLocaleString() }))}
-              onChange={(value) => update("barCount", value)}
-              ariaLabel="How many of the newest bars to fit"
+            <Check
+              checked={settings.followChartWindow}
+              onChange={(value) => update("followChartWindow", value)}
+              label="the chart's window"
+              title={
+                chartWindow
+                  ? describeChartWindow(chartWindow)
+                  : "No chart window published yet — open the Market chart, pan it, then come back"
+              }
             />
+            {followingChart ? (
+              <span className="font-mono tabular-nums text-foreground" data-testid="regression-bars-following">
+                {barCount.toLocaleString()} bars
+              </span>
+            ) : (
+              <Segmented
+                value={settings.barCount}
+                options={BAR_COUNTS.map((count) => ({ value: count, label: count.toLocaleString() }))}
+                onChange={(value) => update("barCount", value)}
+                ariaLabel="How many of the newest bars to fit"
+              />
+            )}
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Level</span>
             <Segmented
               value={settings.confidenceLevel}

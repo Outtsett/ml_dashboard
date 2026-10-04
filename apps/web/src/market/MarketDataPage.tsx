@@ -5,6 +5,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia, EmptyCont
 import { Button } from "@/shared/ui/button";
 import { TrendingUp, DollarSign, BarChart3, Clock, LineChart, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useIndicatorData } from "@/market/lib/useIndicatorData";
@@ -26,6 +27,9 @@ import { useChartOverlayData } from "./useChartOverlayData";
 import { type InstrumentInfo } from "@/market/types";
 import { minutesToLabel, minutesToApiKey } from "@/market/lib/timeframes";
 import { Toolbar } from "./Toolbar";
+import { TerminalTabs } from "@/system/components/TerminalTabs";
+import { MLWorkflowSidebar } from "@/system/components/MLWorkflowSidebar";
+import { MarketGridLayout } from "./components/MarketGridLayout";
 import { AnalyticsStrip } from "./AnalyticsStrip";
 import { LiveQuoteStrip } from "./LiveQuoteStrip";
 import { useLiveTail } from "@/live/useLiveTail";
@@ -53,7 +57,7 @@ export default function MarketData() {
   const { symbol, assetType, timeframeMinutes: timeframe } = dashboard;
   
   const [symbolOpen, setSymbolOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("price");
+  const [, navigate] = useLocation();
 
   // Memoized setters that update dashboard context
   const _setSymbol = useCallback((s: string) => {
@@ -72,22 +76,6 @@ export default function MarketData() {
     { label: symbol },
     { label: tfLabel, icon: Clock },
   ]);
-
-  // Global Keyboard Shortcuts for Tab Switching
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only trigger if not typing in an input/textarea
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      
-      switch (e.key) {
-        case "1": setActiveTab("price"); break;
-        case "2": setActiveTab("ml-studio"); break;
-        case "3": setActiveTab("terminal"); break;
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   // ── Instrument & symbol queries ──
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
@@ -275,7 +263,7 @@ export default function MarketData() {
     overlayToggles, regimeColorMap, regimeLegendInfo,
     selectedRegimes, toggleRegime, showAllRegimes,
     trainTestSplitTime, regimeQualityScore, matchedModelId,
-    srLevels, zigZagPts, structurePts,
+    zigZagPts, structurePts,
     trainingRevealRange,
   } = useChartOverlayData(chartData, symbol, tfLabel, {
     liveTimestamps: training.liveRegimeTimestamps,
@@ -410,7 +398,7 @@ export default function MarketData() {
   const handleToggleSR = useCallback(() => overlayToggles.setShowSR(v => !v), [overlayToggles]);
   const handleToggleZigZag = useCallback(() => overlayToggles.setShowZigZag(v => !v), [overlayToggles]);
   const handleToggleStructure = useCallback(() => overlayToggles.setShowStructure((v: boolean) => !v), [overlayToggles]);
-  const handleOpenMlPanel = useCallback(() => setActiveTab("ml-studio"), []);
+  const handleOpenMlPanel = useCallback(() => navigate("/ml-studio"), [navigate]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -451,7 +439,6 @@ export default function MarketData() {
         showStructure={overlayToggles.showStructure}
         onToggleStructure={handleToggleStructure}
         isTrainingActive={isTrainingActive}
-        activeTab={activeTab} onTabChange={setActiveTab}
         onStartTraining={handleStartTraining}
         onStopTraining={handleStopTraining}
         isTrainingStarting={isTrainingStarting}
@@ -632,8 +619,11 @@ export default function MarketData() {
         )}
 
         {displayData.length > 0 ? (
-          <div className="flex-1 min-h-0">
-            <IndicatorChartLayout
+          <MarketGridLayout
+            mlStudioElement={<MLWorkflowSidebar />}
+            terminalElement={<TerminalTabs />}
+            chartElement={
+              <IndicatorChartLayout
               onReloadBars={handleReloadBars}
               isReloadingBars={isReloadingBars}
               data={displayData}
@@ -660,7 +650,8 @@ export default function MarketData() {
               notebookMarkers={notebookOverlays.markers}
               notebookDrawings={notebookOverlays.drawings}
             />
-          </div>
+            }
+          />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
             <div className="relative mb-5">
@@ -678,5 +669,6 @@ export default function MarketData() {
     </div>
   );
 }
+
 
 

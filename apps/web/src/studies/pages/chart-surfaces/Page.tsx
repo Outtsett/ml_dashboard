@@ -26,9 +26,9 @@ import { AXIS, ControlBar, Finding, GRID, OKABE, Section, SegmentControl, Select
 import {
   CHANGES,
   CHANNELS,
-  DEAD_STATE,
-  DEAD_TAB_BAR,
   PUBLISHER,
+  REMAINING,
+  REMOVED,
   SOURCE,
   STUDIO_CHROME,
   SURFACES,
@@ -36,8 +36,16 @@ import {
   type Surface,
 } from "./data";
 
-const MODEL = { TODAY: "today", PROPOSED: "proposed" } as const;
+const MODEL = { NOW: "now", NEXT: "next" } as const;
 type Model = (typeof MODEL)[keyof typeof MODEL];
+
+const MODEL_OPTIONS: Array<{ value: Model; label: string }> = [
+  { value: MODEL.NOW, label: "now" },
+  { value: MODEL.NEXT, label: "with the tab strip" },
+];
+
+/** In "now", only the selected bar is published and unread by everything but the notebooks. */
+const UNPLUMBED: Record<Model, Channel[]> = { now: ["bar"], next: [] };
 
 const ANY = "any";
 
@@ -81,10 +89,10 @@ function Impact({ impact }: { impact: string }) {
   );
 }
 
-function Plumbing({ model, focus, showDead, onPick }: {
-  model: Model; focus: string; showDead: boolean; onPick: (id: string) => void;
+function Plumbing({ model, focus, showRemoved, onPick }: {
+  model: Model; focus: string; showRemoved: boolean; onPick: (id: string) => void;
 }) {
-  const plumbed = model === MODEL.PROPOSED;
+  const unplumbed = UNPLUMBED[model];
   const lit = (id: string) => focus === ANY || focus === id;
   return (
     <svg viewBox="0 0 980 470" className="w-full" role="img"
@@ -103,7 +111,7 @@ function Plumbing({ model, focus, showDead, onPick }: {
       </g>
 
       {CHANNELS.map((channel) => {
-        const dead = !plumbed && channel.id !== "pair";
+        const dead = unplumbed.includes(channel.id);
         const y = PIPE_Y[channel.id];
         return (
           <g key={channel.id}>
@@ -111,7 +119,7 @@ function Plumbing({ model, focus, showDead, onPick }: {
               strokeWidth={dead ? 1.2 : 2} strokeDasharray={dead ? "6 5" : undefined} opacity={dead ? 0.5 : 0.95} />
             <text x={PIPE_X1} y={y - 7} fontSize={9.5} textAnchor="end" fill={dead ? OKABE.grey : channel.color}>
               <tspan fontWeight={700}>{channel.glyph}</tspan>
-              {`  ${channel.label}${dead ? " — plumbed to nothing here" : ""}`}
+              {`  ${channel.label}${dead ? " — published, read by the notebooks only" : ""}`}
             </text>
           </g>
         );
@@ -129,7 +137,7 @@ function Plumbing({ model, focus, showDead, onPick }: {
             <title>{`${surface.label} (${surface.route}) — takes ${surface.channels.length} of 3 channels`}</title>
             {CHANNELS.map((channel) => {
               const taken = has(surface, channel.id);
-              if (!taken && !plumbed) return null;
+              if (!taken && unplumbed.includes(channel.id)) return null;
               return (
                 <line key={channel.id} x1={centre} y1={PIPE_Y[channel.id]} x2={centre} y2={BUCKET_Y - 2}
                   stroke={channel.color} strokeWidth={taken ? 2 : 1} strokeDasharray={taken ? undefined : "3 4"}
@@ -162,16 +170,16 @@ function Plumbing({ model, focus, showDead, onPick }: {
         );
       })}
 
-      {showDead && (
+      {showRemoved && (
         <g>
-          <rect x={SOURCE_X} y={BUCKET_Y + 6} width={SOURCE_W + 40} height={68} rx={7} fill="#140f0f"
-            stroke={OKABE.vermillion} strokeWidth={1.5} strokeDasharray="6 4" />
-          <text x={SOURCE_X + 12} y={BUCKET_Y + 26} fontSize={11} fontWeight={700} fill={OKABE.vermillion}>IntegratedTabs.tsx</text>
-          <text x={SOURCE_X + 12} y={BUCKET_Y + 42} fontSize={9.5} fill={OKABE.grey}>{DEAD_TAB_BAR.lines} lines, {DEAD_TAB_BAR.importers} importers</text>
-          <text x={SOURCE_X + 12} y={BUCKET_Y + 58} fontSize={9.5} fill={OKABE.vermillion}>writes tab state nothing reads</text>
+          <rect x={SOURCE_X} y={BUCKET_Y + 6} width={SOURCE_W + 40} height={68} rx={7} fill="#0f1412"
+            stroke={OKABE.green} strokeWidth={1.5} strokeDasharray="6 4" />
+          <text x={SOURCE_X + 12} y={BUCKET_Y + 26} fontSize={11} fontWeight={700} fill={OKABE.green}>IntegratedTabs.tsx</text>
+          <text x={SOURCE_X + 12} y={BUCKET_Y + 42} fontSize={9.5} fill={OKABE.grey}>deleted · {REMOVED.lines} lines, 0 importers</text>
+          <text x={SOURCE_X + 12} y={BUCKET_Y + 58} fontSize={9.5} fill={OKABE.green}>its tab state and its keys are gone</text>
           <line x1={SOURCE_X + SOURCE_W + 40} y1={BUCKET_Y + 40} x2={SOURCE_X + SOURCE_W + 66} y2={BUCKET_Y + 40}
-            stroke={OKABE.vermillion} strokeWidth={1.5} />
-          <text x={SOURCE_X + SOURCE_W + 70} y={BUCKET_Y + 44} fontSize={13} fill={OKABE.vermillion}>✕</text>
+            stroke={OKABE.green} strokeWidth={1.5} />
+          <text x={SOURCE_X + SOURCE_W + 70} y={BUCKET_Y + 44} fontSize={13} fill={OKABE.green}>✓</text>
         </g>
       )}
     </svg>
@@ -213,36 +221,31 @@ function ChannelChart({ surfaces }: { surfaces: Surface[] }) {
 }
 
 export default function ChartSurfaces() {
-  const [model, setModel] = useState<Model>(MODEL.TODAY);
+  const [model, setModel] = useState<Model>(MODEL.NOW);
   const [focus, setFocus] = useState<string>(ANY);
-  const [showDead, setShowDead] = useState(true);
+  const [showRemoved, setShowRemoved] = useState(true);
 
   const focused = SURFACES.find((surface) => surface.id === focus) ?? null;
-  const totals = CHANNELS.map((channel) => ({
-    channel,
-    count: SURFACES.filter((surface) => has(surface, channel.id)).length,
-  }));
-  const liveChannels = SURFACES.filter((surface) => surface.channels.length > 0).length;
 
   return (
     <div className="space-y-4">
       <Finding>
         <strong>Problem.</strong> The Market chart and the surfaces a reader thinks of as its other tabs
-        are eight separate routes with three different navigation idioms, and only one of them knows
-        what the chart is looking at. <strong>Context.</strong> The chart already publishes the
-        symbol, the timeframe, the visible window and the clicked bar; the tab strip that used to
-        hold these surfaces together was replaced by a three-pane grid and its state machine was
-        left behind. <strong>Objectives.</strong> Measure which surfaces receive which of the three
-        published channels, name what is dead, and order the changes that would make them tabs.
+        are seven separate routes with three different navigation idioms, and each of them used to
+        decide for itself which bars to show. <strong>Context.</strong> The chart publishes three
+        things — the symbol and timeframe, the bars on screen, and the bar last clicked — and the tab
+        strip that used to pass them along was replaced by a three-pane grid with its state machine
+        left behind. <strong>Objectives.</strong> Make the chart's window mean one thing on every
+        surface, remove what no longer had a target, and leave one decision to a person.
       </Finding>
 
-      <ControlBar onReset={() => { setModel(MODEL.TODAY); setFocus(ANY); setShowDead(true); }}>
+      <ControlBar onReset={() => { setModel(MODEL.NOW); setFocus(ANY); setShowRemoved(true); }}>
         <SegmentControl
           label="model"
           value={model}
+          options={MODEL_OPTIONS}
           onChange={setModel}
-          options={[{ value: MODEL.TODAY, label: "today" }, { value: MODEL.PROPOSED, label: "all three plumbed" }]}
-          hint="Today draws the window and the selected bar as pipes nothing is connected to. The other setting draws them reaching every surface."
+          hint="Now draws the selected bar as a pipe nothing but the notebooks is connected to. The other setting draws it reaching every surface, which is what the tab strip would buy."
         />
         <SelectControl
           label="surface"
@@ -251,29 +254,30 @@ export default function ChartSurfaces() {
           options={[{ value: ANY, label: "all surfaces" }, ...SURFACES.map((surface) => ({ value: surface.id, label: surface.label }))]}
           hint="Focus one surface to read what it follows, what it defines for itself, and where that was read."
         />
-        <SwitchControl label="show the dead tab bar" checked={showDead} onChange={setShowDead}
-          hint="IntegratedTabs.tsx: 225 lines, no importer anywhere in the repository." />
+        <SwitchControl label="show what was removed" checked={showRemoved} onChange={setShowRemoved}
+          hint={`${REMOVED.file}: ${REMOVED.lines} lines with no importer, deleted with its tab state.`} />
       </ControlBar>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="surfaces measured" value={String(SURFACES.length)} hint="Everything beside the chart that a reader could call a tab." />
-        <Stat label="take any channel" value={`${liveChannels} of ${SURFACES.length}`}
-          hint="Analytics, Regression, the Cycle tab and ML Studio all follow the symbol and timeframe. Only the notebooks read more." />
-        <Stat label="read the window or the bar" value={String(totals.filter((row) => row.channel.id !== "pair").reduce((sum, row) => sum + row.count, 0))}
-          tone={OKABE.orange} hint="Surfaces that know which bars the chart is showing, or which bar was clicked." />
-        <Stat label="dead lines left behind" value={String(DEAD_TAB_BAR.lines)} tone={OKABE.vermillion}
-          hint="IntegratedTabs.tsx plus the activeTab state three call sites still write to." />
+        <Stat label="follow the chart's window" value={String(SURFACES.filter((surface) => has(surface, "window")).length)}
+          tone={OKABE.orange}
+          hint="Analytics and Regression both default to the bars the chart is showing, converted to the bar count each route accepts." />
+        <Stat label="read the clicked bar" value={String(SURFACES.filter((surface) => has(surface, "bar")).length)}
+          tone={OKABE.purple} hint="The notebooks only. Plumbing it to the rest is what the tab strip would add." />
+        <Stat label="lines deleted" value={String(REMOVED.lines)} tone={OKABE.green}
+          hint="IntegratedTabs.tsx, plus the activeTab state and the keys that wrote it." />
       </div>
 
       <Section
         title="The chart's context, and who receives it"
         question={
-          model === MODEL.TODAY
-            ? "Today: three pipes leave the chart, and only the first is connected to anything. Dashed means published and unread."
-            : "With the window and the selected bar plumbed through: every surface is a view of the same bars and the same clicked bar."
+          model === MODEL.NOW
+            ? "Now: three pipes leave the chart. Two are connected; the selected bar reaches the notebooks only, drawn dashed because it is published and unread."
+            : "With the tab strip and the chart mounted underneath: every surface is a view of the same bars and the same clicked bar."
         }
       >
-        <Plumbing model={model} focus={focus} showDead={showDead} onPick={(id) => setFocus(id === ANY ? ANY : id)} />
+        <Plumbing model={model} focus={focus} showRemoved={showRemoved} onPick={(id) => setFocus(id === ANY ? ANY : id)} />
         <div className="mt-1 space-y-1">
           {CHANNELS.map((channel) => (
             <p key={channel.id} className="text-[11px] leading-snug text-neutral-400">
@@ -316,36 +320,38 @@ export default function ChartSurfaces() {
         <ChannelChart surfaces={SURFACES} />
       </Section>
 
-      <Section title="What is true today" question="Five facts read out of the code, each with the line it was read from.">
+      <Section title="What changed, and what is still open" question="Six changes landed on 2026-10-04; one is a decision about navigation that belongs to a person.">
         <div className="space-y-3">
           <div>
-            <p className="text-[12px] font-semibold text-neutral-100">1. The other tabs do not know what you were looking at.</p>
+            <p className="text-[12px] font-semibold text-neutral-100">1. Analytics and Regression now read the chart's window.</p>
             <Finding>
-              The chart publishes {PUBLISHER.what.toLowerCase()} {PUBLISHER.evidence.length} places,
-              {" "}but only notebooks subscribe. Analytics and Regression follow the symbol and the
-              timeframe and then choose their own bars, so the same words — MNQ, 1m — name two
-              different datasets depending on which surface is open.
+              One reader serves both — <code className="font-mono text-[11px]">useChartWindow.ts</code> — so
+              the two surfaces can no longer disagree about what MNQ 1m means.{" "}
+              {PUBLISHER.evidence.map((line) => (
+                <span key={line} className="mt-1 block font-mono text-[10.5px] leading-snug text-neutral-500">{line}</span>
+              ))}
             </Finding>
           </div>
           <div>
-            <p className="text-[12px] font-semibold text-neutral-100">2. The tab bar is gone; its keyboard shortcuts are not.</p>
+            <p className="text-[12px] font-semibold text-neutral-100">2. The tab bar and its state machine are gone.</p>
+            <Finding>{REMOVED.what} {REMOVED.givenARealTarget}</Finding>
+            <ul className="mt-1 space-y-0.5 border-l border-neutral-800 pl-3">
+              {REMOVED.alsoRemoved.map((line) => (
+                <li key={line} className="font-mono text-[10.5px] leading-snug text-neutral-400">{line}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-[12px] font-semibold text-neutral-100">3. Model Cycle has one home.</p>
             <Finding>
-              {DEAD_STATE.what}. Keys 1, 2 and 3 and the toolbar's ML button all set it;{" "}
-              <code className="font-mono text-[11px] text-neutral-300">Toolbar.tsx:89</code> destructures it
-              to <code className="font-mono text-[11px] text-neutral-300">_activeTab</code> and drops it.
+              The fifth Analytics tab is deleted along with its{" "}
+              <code className="font-mono text-[11px]">-mx-4 -mb-4</code> escape hatch, and{" "}
+              <code className="font-mono text-[11px]">/cycle</code> is now a sidebar entry, so the surface
+              did not lose its place in the navigation when the duplicate went.
             </Finding>
           </div>
           <div>
-            <p className="text-[12px] font-semibold text-neutral-100">3. Model Cycle exists twice, one of them as a tab.</p>
-            <Finding>
-              <code className="font-mono text-[11px] text-neutral-300">AnalyticsPage.tsx:179-181</code> pushes the
-              whole <code className="font-mono text-[11px]">CyclePage</code> into a TabsContent and pulls the
-              margins back with <code className="font-mono text-[11px]">-mx-4 -mb-4</code>.{" "}
-              <code className="font-mono text-[11px] text-neutral-300">/cycle</code> is the real route.
-            </Finding>
-          </div>
-          <div>
-            <p className="text-[12px] font-semibold text-neutral-100">4. Three navigations, so nothing reads as a tab.</p>
+            <p className="text-[12px] font-semibold text-neutral-100">4. Three navigations still describe the dashboard three ways.</p>
             <Finding>{STUDIO_CHROME.what}:</Finding>
             <ul className="mt-1 space-y-0.5 border-l border-neutral-800 pl-3">
               {STUDIO_CHROME.evidence.map((line) => (
@@ -354,23 +360,24 @@ export default function ChartSurfaces() {
             </ul>
           </div>
           <div>
-            <p className="text-[12px] font-semibold text-neutral-100">5. Every study but four answers 404.</p>
+            <p className="text-[12px] font-semibold text-neutral-100">5. The lake serving snapshot is down, which is why every study page errors.</p>
             <Finding>
-              <code className="font-mono text-[11px] text-neutral-300">scripts/build_study_index.mjs:16</code>{" "}
-              still writes the handler index to <code className="font-mono text-[11px]">src/server/studies/handlers/</code>,
-              a path from before the <code className="font-mono text-[11px]">apps/</code> split, so 4 of the 55
-              handlers on disk are registered. Measured just now: <code className="font-mono text-[11px]">GET /api/studies</code>{" "}
-              answers 500 and <code className="font-mono text-[11px]">/api/studies/indicator-study</code> answers 404,
-              which costs the index its “data ready” badges.
+              Measured just now: <code className="font-mono text-[11px]">GET /api/studies</code> answers 500
+              and the cause is not the handler index —{" "}
+              <code className="font-mono text-[11px]">connection.ts:336</code> reports{" "}
+              <em>Lake serving snapshot s3://derived/recipe=lake_snapshot_2026-09-09/ is empty or
+              unreachable</em>. All 55 handlers are registered now. The chart itself is unaffected:
+              <code className="font-mono text-[11px]"> /api/charts/ohlcv</code> answered 200 with 200 bars.
             </Finding>
           </div>
         </div>
       </Section>
 
-      <Section title="Ordered changes" question="Highest value first. The first two are the ones that make the rest possible.">
+      <Section title="The ordered changes" question="Six done, one open. The open one is a navigation decision, not a defect.">
         <ol className="space-y-2">
           {CHANGES.map((change) => (
-            <li key={change.order} className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2">
+            <li key={change.order}
+              className={`rounded-md border px-3 py-2 ${change.done ? "border-neutral-800 bg-neutral-900/40" : "border-[#E69F00]/40 bg-[#E69F00]/5"}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-[12px] font-semibold text-neutral-100">
                   <span className="mr-2 font-mono text-neutral-500">{change.order}.</span>
@@ -378,6 +385,15 @@ export default function ChartSurfaces() {
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="font-mono text-[10.5px] text-neutral-500">{change.size}</span>
+                  {change.done ? (
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[11px]" style={{ color: OKABE.green }}>
+                      <span aria-hidden="true">✓</span> done
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[11px]" style={{ color: OKABE.orange }}>
+                      <span aria-hidden="true">◐</span> open
+                    </span>
+                  )}
                   <Impact impact={change.impact} />
                 </span>
               </div>
@@ -386,9 +402,7 @@ export default function ChartSurfaces() {
           ))}
         </ol>
         <Finding>
-          The one line that ties them together: the chart already publishes everything the other
-          tabs need. They do not read it because the tab strip that would have passed it to them
-          was replaced, and nothing was rewired in its place.
+          <strong className="text-neutral-200">{REMAINING.title}.</strong> {REMAINING.why}
         </Finding>
       </Section>
     </div>

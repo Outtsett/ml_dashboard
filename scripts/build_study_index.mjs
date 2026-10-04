@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes src/server/studies/handlers/index.ts: one import per handler file in
+ * Writes apps/api/studies/handlers/index.ts: one import per handler file in
  * that directory, so adding a study never edits a shared file by hand.
  * Run after adding or removing a handler:  node scripts/build_study_index.mjs
  * `--check` exits 1 when the index is out of date (used by the registry test).
@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const directory = path.join(root, "src", "server", "studies", "handlers");
+const directory = path.join(root, "apps", "api", "studies", "handlers");
 const indexPath = path.join(directory, "index.ts");
 
 const files = readdirSync(directory)
@@ -45,7 +45,7 @@ try {
 
 if (process.argv.includes("--check")) {
   if (current.replace(/\r\n/g, "\n") !== next) {
-    console.error("src/server/studies/handlers/index.ts is out of date: run node scripts/build_study_index.mjs");
+    console.error("apps/api/studies/handlers/index.ts is out of date: run node scripts/build_study_index.mjs");
     process.exit(1);
   }
   console.log(`study index up to date (${files.length} handlers)`);

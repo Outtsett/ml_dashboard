@@ -41,9 +41,6 @@ interface ToolbarProps {
   onToggleZigZag: () => void;
   showStructure: boolean;
   onToggleStructure: () => void;
-  // Tab Control
-  activeTab: string;
-  onTabChange: (tab: string) => void;
   isTrainingActive: boolean;
   // Training triggers (shared with ML Studio via TrainingContext)
   onStartTraining: () => void;
@@ -64,7 +61,7 @@ export const MarketToolbar = memo(function MarketToolbar({
   onToggleVisibility, onClearAllIndicators,
   indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showStructure, onToggleStructure,
-  isTrainingActive, activeTab: _activeTab, onTabChange: _onTabChange,
+  isTrainingActive,
   onStartTraining, onStopTraining, isTrainingStarting,
   onOpenMlPanel,
   onResetScrollState: _onResetScrollState,

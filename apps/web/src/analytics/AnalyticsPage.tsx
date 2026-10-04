@@ -13,10 +13,11 @@
 
 import { useState } from "react";
 import { Compass } from "lucide-react";
-import { PageShell } from "@/backtest/components";
+import { PageShell } from "@/backtest/components/PageShell";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { useEntityStore } from "@/shared/contexts/EntityContext";
 import { minutesToApiKey, minutesToLabel } from "@/market/lib/timeframes";
+import { describeChartWindow, chartWindowFrom, usePublishedChartContext } from "@/market/lib/useChartWindow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { useAnalytics } from "./data";
 import { DescriptivePanel } from "./DescriptivePanel";
@@ -24,11 +25,15 @@ import { DiagnosticPanel } from "./DiagnosticPanel";
 import { PredictivePanel } from "./PredictivePanel";
 import { PrescriptivePanel } from "./PrescriptivePanel";
 import { Empty, fmtTime } from "./common";
-import CyclePage from "@/cycle/CyclePage";
 
 const BAR_WINDOWS = [5_000, 20_000, 50_000] as const;
 const HORIZONS = [3, 6, 12, 24, 48, 96] as const;
 const SUPPORTED = new Set(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
+/** The route's own floor and ceiling (analytics.router.ts Query.bars). */
+const BARS_MIN = 500;
+const BARS_MAX = 100_000;
+const FALLBACK_BARS = 20_000;
+const WINDOW_SOURCE = { CHART: "chart" } as const;
 
 // Each tab opens with its question and what the tab does to answer it.
 const LAYERS = [
@@ -40,27 +45,24 @@ const LAYERS = [
     question: "What will happen?",
     method: "Identify possible outcomes and the probability that they will happen.",
   },
-  {
+{
     value: "prescriptive",
     label: "Prescriptive analytics",
     question: "What should we do?",
     method: "Determine the best course of action given the outcome you want to achieve.",
   },
-  {
-    value: "models",
-    label: "Models & Cycles",
-    question: "How are the predictive models performing?",
-    method: "Fuse F1, recall, accuracy, prediction percentiles, and active model cycles.",
-  },
 ] as const;
 
 const TAB_KEY = "analytics-tab-v1";
 
+/** A remembered tab that no longer exists (the Models & Cycles tab moved to /cycle) is not a tab. */
 function loadTab(): string {
+  const fallback = "descriptive";
   try {
-    return window.localStorage.getItem(TAB_KEY) ?? "descriptive";
+    const stored = window.localStorage.getItem(TAB_KEY);
+    return stored && LAYERS.some((layer) => layer.value === stored) ? stored : fallback;
   } catch {
-    return "descriptive";
+    return fallback;
   }
 }
 
@@ -69,14 +71,21 @@ export default function AnalyticsPage() {
   const activeEntity = useEntityStore(s => s.activeEntity);
   const chartTimeframe = minutesToApiKey(timeframeMinutes);
   const timeframe = SUPPORTED.has(chartTimeframe) ? chartTimeframe : "5m";
-  const [bars, setBars] = useState<number>(20_000);
+const [bars, setBars] = useState<number>(20_000);
+  const [windowSource, setWindowSource] = useState<string>(WINDOW_SOURCE.CHART);
   const [horizon, setHorizon] = useState<number>(12);
   const [tab, setTab] = useState<string>(loadTab);
-  
+
+  // The window the Market chart was showing when this page was opened, taken
+  // from the context the chart publishes. Null until the chart has published.
+  const chartWindow = chartWindowFrom(usePublishedChartContext(), { min: BARS_MIN, max: BARS_MAX });
+  const followingChart = windowSource === WINDOW_SOURCE.CHART;
+  const effectiveBars = followingChart ? chartWindow?.bars ?? FALLBACK_BARS : bars;
+
   const query = useAnalytics({ 
     symbol, 
     timeframe, 
-    bars, 
+    bars: effectiveBars, 
     horizon, 
     entityType: activeEntity?.type, 
     entityId: activeEntity?.id 
@@ -97,7 +106,9 @@ export default function AnalyticsPage() {
     <PageShell
       title="Analytics"
       icon={Compass}
-      subtitle={`${symbol} · ${minutesToLabel(timeframeMinutes)}${timeframe !== chartTimeframe ? ` (read at ${timeframe})` : ""} · follows the Market chart${
+subtitle={`${symbol} · ${minutesToLabel(timeframeMinutes)}${timeframe !== chartTimeframe ? ` (read at ${timeframe})` : ""} · follows the Market chart · ${
+        followingChart ? describeChartWindow(chartWindow) : `${effectiveBars.toLocaleString()} newest bars, not the chart's window`
+      }${
         data ? ` · ${fmtTime(data.descriptive.firstBar)} to ${fmtTime(data.descriptive.lastBar)} ${data.assetClass === "futures" ? "Pacific" : "UTC"}` : ""
       }`}
     >
@@ -110,10 +121,19 @@ export default function AnalyticsPage() {
               </TabsTrigger>
             ))}
           </TabsList>
-          <div className="flex items-center gap-3 text-xs text-neutral-400">
+<div className="flex items-center gap-3 text-xs text-neutral-400">
             <label className="flex items-center gap-1.5">
               window
-              <select className={select} value={bars} onChange={(event) => setBars(Number(event.target.value))}>
+              <select
+                className={select}
+                value={windowSource}
+                onChange={(event) => {
+                  setWindowSource(event.target.value);
+                  if (event.target.value !== WINDOW_SOURCE.CHART) setBars(Number(event.target.value));
+                }}
+                title={followingChart ? describeChartWindow(chartWindow) : "A fixed number of the newest bars"}
+              >
+                <option value={WINDOW_SOURCE.CHART}>the chart's window{chartWindow ? ` (${chartWindow.bars.toLocaleString()} bars)` : ""}</option>
                 {BAR_WINDOWS.map((count) => (
                   <option key={count} value={count}>
                     last {count.toLocaleString()} bars
@@ -133,7 +153,6 @@ export default function AnalyticsPage() {
             </label>
           </div>
         </div>
-
         {(() => {
           const layer = LAYERS.find((entry) => entry.value === tab) ?? LAYERS[0];
           return (
@@ -145,7 +164,7 @@ export default function AnalyticsPage() {
           );
         })()}
 
-        {query.isLoading && <Empty>Reading {bars.toLocaleString()} bars, news and model runs for {symbol}…</Empty>}
+{query.isLoading && <Empty>Reading {effectiveBars.toLocaleString()} bars, news and model runs for {symbol}…</Empty>}
         {query.isError && <Empty>{(query.error as Error).message}</Empty>}
         {data && (
           <>
@@ -166,10 +185,8 @@ export default function AnalyticsPage() {
             </TabsContent>
           </>
         )}
-        <TabsContent value="models" className="mt-0 min-h-0 flex-1 outline-none data-[state=inactive]:hidden overflow-hidden flex flex-col -mx-4 -mb-4">
-          <CyclePage />
-        </TabsContent>
       </Tabs>
     </PageShell>
   );
 }
+
