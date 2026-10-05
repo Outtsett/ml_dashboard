@@ -29,7 +29,7 @@ import { XAITab } from "./XAITab";
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function MLWorkflowSidebar({
-  chartData,
+  chartData = [],
   symbol,
   isFutures: _isFutures,
   timeframe,

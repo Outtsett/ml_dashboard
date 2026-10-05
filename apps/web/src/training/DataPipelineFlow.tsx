@@ -114,7 +114,7 @@ export default function DataPipelineFlow({
         return (
           <div key={step.label} className="flex items-center shrink-0">
             <div
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 bg-card/40 backdrop-blur-sm transition-all
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 bg-card/40 backdrop-blur-sm transition-colors
                 ${step.borderColor} ${step.pulse ? 'animate-pulse' : ''}`}
             >
               <Icon className={`h-4 w-4 shrink-0 ${step.textColor}`} />

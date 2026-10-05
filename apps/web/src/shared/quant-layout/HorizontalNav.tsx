@@ -1,7 +1,7 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { BrainCircuit, Library, Database, BookMarked, Newspaper, BarChart3, Microscope, NotebookPen, Tags, Radio, Compass } from "lucide-react";
+import { Library, Database, BookMarked, BarChart3, Radio, Compass } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Assets", href: "/", icon: BarChart3 },

@@ -120,7 +120,7 @@ function LiveMetricCard({
   const baseline = typeof context?.baseline === 'number' ? context.baseline : null;
 
   return (
-    <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-md p-2.5 transition-all">
+    <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-md p-2.5 transition-colors">
       <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider truncate">
         {name.replace(/_/g, ' ')}
       </div>

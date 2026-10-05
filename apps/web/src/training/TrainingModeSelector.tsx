@@ -83,7 +83,7 @@ export default function TrainingModeSelector({
             disabled={disabled}
             onClick={() => onModeChange(m.key)}
             className={cn(
-              "relative rounded-lg bg-white/5 border p-4 text-left transition-all duration-200",
+              "relative rounded-lg bg-white/5 border p-4 text-left transition duration-200",
               "hover:bg-white/10 hover:scale-[1.02] active:scale-[0.98]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
               selected

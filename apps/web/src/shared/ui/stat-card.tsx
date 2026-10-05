@@ -97,7 +97,7 @@ export function StatCard({
 
   return (
     <div className={cn(
-      "glass rounded-xl p-4 border transition-all duration-300",
+      "glass rounded-xl p-4 border transition-colors duration-300",
       "bg-gradient-to-br",
       style.border,
       style.bg,

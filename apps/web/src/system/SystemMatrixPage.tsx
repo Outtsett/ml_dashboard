@@ -70,11 +70,12 @@ function CoreGrid({ cores }: { cores: number[] }) {
           <div key={i} className="aspect-square rounded-[2px] bg-white/[0.02] border border-white/[0.05] relative overflow-hidden group/core">
             <motion.div 
               animate={{ 
-                height: `${load}%`,
+                scaleY: Math.min(1, Math.max(0, load / 100)), // composited stand-in for height %
                 backgroundColor: load > 80 ? "#0072B2" : load > 50 ? "#f59e0b" : "#E69F00"
               }}
               transition={{ type: "spring", stiffness: 100, damping: 30 }}
-              className="absolute bottom-0 left-0 right-0 opacity-40"
+              style={{ originY: 1 }}
+              className="absolute inset-0 opacity-40"
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-[7px] font-mono font-bold opacity-0 group-hover/core:opacity-100 transition-opacity">{Math.round(load)}</span>
@@ -102,7 +103,7 @@ interface MatrixCardProps {
 
 function MatrixCard({ title, value, unit, icon: Icon, color, trend }: MatrixCardProps) {
   return (
-    <motion.div variants={fadeUp} className="glass rounded-2xl p-5 border border-white/[0.05] hover:border-white/[0.1] transition-all duration-300 group shadow-lg">
+    <motion.div variants={fadeUp} className="glass rounded-2xl p-5 border border-white/[0.05] hover:border-white/[0.1] transition-colors duration-300 group shadow-lg">
       <div className="flex items-start justify-between">
         <div className="p-2.5 rounded-xl bg-white/[0.03] group-hover:scale-110 transition-transform duration-200" style={{ color }}>
           <Icon className="h-5 w-5" />
@@ -284,9 +285,10 @@ export default function SystemMatrix() {
                 </div>
                 <div className="h-2 w-full bg-white/[0.03] rounded-full overflow-hidden">
                   <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${latestMem}%` }}
-                    className="h-full bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: Math.min(1, Math.max(0, latestMem / 100)) }} // composited stand-in for width %
+                    style={{ originX: 0 }}
+                    className="h-full w-full bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]"
                   />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">

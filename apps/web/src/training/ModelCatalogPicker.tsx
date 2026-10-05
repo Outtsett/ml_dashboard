@@ -131,7 +131,7 @@ const ModelCard = ({ id, entry, selected, disabled, onSelect }: ModelCardProps) 
       disabled={disabled}
       onClick={() => onSelect(id, entry)}
       className={cn(
-        "w-full rounded-lg bg-white/5 border p-3 text-left transition-all",
+        "w-full rounded-lg bg-white/5 border p-3 text-left transition",
         "hover:bg-white/[0.08] cursor-pointer",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",

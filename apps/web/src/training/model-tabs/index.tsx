@@ -67,7 +67,7 @@ export default function ModelTabs({ models, selectedModel, setSelectedModel, del
                       value={model.id}
                       className={`
                         relative rounded-none border-b-2 px-4 py-2.5 text-xs font-medium
-                        transition-all data-[state=active]:shadow-none
+                        transition-colors data-[state=active]:shadow-none
                         ${isActive
                           ? "border-primary text-foreground bg-white/4"
                           : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/2"
@@ -135,7 +135,7 @@ function EmptyModelPanel({
               onClick={() => setActiveSubTab(tab.id)}
               className={`
                 flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2
-                transition-all whitespace-nowrap
+                transition-colors whitespace-nowrap
                 ${isActive
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground/60 hover:text-muted-foreground"
@@ -215,7 +215,7 @@ function ModelPanel({
               onClick={() => setActiveSubTab(tab.id)}
               className={`
                 flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2
-                transition-all whitespace-nowrap
+                transition-colors whitespace-nowrap
                 ${isActive
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground/60 hover:text-muted-foreground"

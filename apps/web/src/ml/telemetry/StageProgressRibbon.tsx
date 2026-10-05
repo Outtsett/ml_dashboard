@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTrainingControl, useTrainingOverlays } from "@/training/lib/TrainingContext";
 import { usePrefersReducedMotion } from "@/shared/hooks/useReducedMotion";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import {
   estimateEtaSeconds,
   formatDuration,
@@ -62,11 +63,11 @@ export function StageProgressRibbon({ className = "" }: { className?: string }) 
         aria-valuemax={100}
         aria-label={`${phase || "Training"} progress`}
       >
-        <div
-          className={`h-full rounded-full bg-[hsl(var(--data-pos))] ${
-            reducedMotion ? "" : "transition-[width] motion-slow"
-          }`}
-          style={{ width: `${clamped}%` }}
+        {/* 500ms mirrors the former `motion-slow` token (--duration-slow). */}
+        <ProgressFill
+          value={clamped}
+          className="bg-[hsl(var(--data-pos))]"
+          durationMs={reducedMotion ? 0 : 500}
         />
       </div>
 

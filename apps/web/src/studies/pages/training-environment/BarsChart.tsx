@@ -46,7 +46,18 @@ export function BarsChart({ bars, height = 360 }: { bars: readonly BarRow[]; hei
     }
     candles.setData(candleData);
     volume.setData(volumeData);
-    chart.timeScale().fitContent();
+    const totalBars = candleData.length;
+    if (totalBars > 0) {
+      const visible = Math.min(250, totalBars);
+      const startCandle = candleData[totalBars - visible];
+      const endCandle = candleData[totalBars - 1];
+      if (startCandle && endCandle) {
+        chart.timeScale().setVisibleRange({ 
+          from: startCandle.time as number, 
+          to: endCandle.time as number 
+        });
+      }
+    }
 
     const onMove = (parameter: { time?: Time }) => setHover(parameter.time === undefined ? null : (byTime.get(Number(parameter.time)) ?? null));
     chart.subscribeCrosshairMove(onMove);

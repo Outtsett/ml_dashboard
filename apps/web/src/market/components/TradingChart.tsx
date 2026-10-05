@@ -4,7 +4,7 @@ import { logWarn } from "@/infrastructure/lib/error_logger";
 import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time, UTCTimestamp } from 'lightweight-charts';
 
-import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/components/chartConfig';
+import { futuresTickInfo, forexPrecision, getBaseSymbol, latestBarRange } from '@/market/components/chartConfig';
 import { useChartSetup } from '@/market/components/useChartSetup';
 import { useChartSeries } from '@/market/components/useChartSeries';
 import { useChartMarkers } from '@/market/components/useChartMarkers';
@@ -12,9 +12,11 @@ import { useChartZigZagOverlays } from '@/market/components/useChartPriceLines';
 import { useChartOverlays } from '@/market/components/useChartOverlays';
 import { snapToCandle } from '@/market/components/useSeriesMarkers';
 import { usePatternHover } from '@/market/components/usePatternHover';
+import { ChartHUD } from './ChartHUD';
+import { ChartContextMenu } from './ChartContextMenu';
 import { PatternHoverCard } from '@/market/components/PatternHoverCard';
 import { talibPatternDisplayName } from '@/market/lib/talibPatternCatalog';
-import { RefreshCw, Maximize2, ChevronsRight } from 'lucide-react';
+import { ChevronsRight } from 'lucide-react';
 import type { TradingChartHandle, TradingChartProps, PriceInfo } from "@/market/components/types";
 
 // Re-export public types for backward compatibility
@@ -56,11 +58,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   onBarClick,
   notebookMarkers,
   notebookDrawings,
+  extraMarkers,
+  onChartReady,
+  chrome,
 }, ref) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
 
-  // ── Symbol config ──────────────────────────────────────────────────────
+  // â”€â”€ Symbol config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const baseSymbol = getBaseSymbol(symbol);
   const tickInfo = futuresTickInfo[baseSymbol];
@@ -74,20 +79,21 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     ? (tickInfo?.tickSize ?? 0.01)
     : forex.minMove;
 
-  // ── Stable refs for crosshair / range-change callbacks ─────────────────
+  // â”€â”€ Stable refs for crosshair / range-change callbacks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
   onRangeChangeRef.current = onVisibleLogicalRangeChange;
 
 
 
-  // ── Chart lifecycle hooks ──────────────────────────────────────────────
+  // â”€â”€ Chart lifecycle hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const { chartRef, candleSeriesRef, volumeSeriesRef } = useChartSetup({
     containerRef: chartContainerRef,
     decimals, minMove, isFutures, tickInfo,
     setPriceInfo, onRangeChangeRef,
     showTimeAxis,
+    onChartReady,
   });
 
   const { processedData } = useChartSeries({
@@ -116,7 +122,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return () => { chart.unsubscribeCrosshairMove(handler); };
   }, [chartRef, isFutures, processedData.activeContractMap]);
 
-  // ── Trade-marker click hit-testing ─────────────────────────────────────
+  // â”€â”€ Trade-marker click hit-testing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //
   // The subscription binds once per chart instance. Everything the handler
   // reads lives in a ref, so prop churn (new markers, new callback identity)
@@ -154,7 +160,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       let best: { id: string; timeDelta: number; priceDelta: number } | null = null;
 
       for (const tm of markers) {
-        // Markers are rendered on the bar their timestamp falls in — hit-test
+        // Markers are rendered on the bar their timestamp falls in â€” hit-test
         // against that same aligned time, and allow a one-bar near-miss.
         const markerTime = snapToCandle(tm.timestamp, candleTimesRef.current, timeframeSec);
         if (markerTime === null) continue;
@@ -195,6 +201,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     labelMarkers, tradeMarkers, predictionMarkers,
     trainTestSplitTime,
     notebookMarkers,
+    extraMarkers,
   });
 
   // Levels, shaded zones and vertical lines a notebook drew on this chart, and the chart's own
@@ -207,7 +214,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     top: level.zoneTop,
     bottom: level.zoneBottom,
     color: level.type === 'support' ? '#0072B2' : '#D55E00',
-    label: `${level.type === 'support' ? 'Support' : 'Resistance'} zone · ${level.touches} touches`,
+    label: `${level.type === 'support' ? 'Support' : 'Resistance'} zone \u00b7 ${level.touches} touches`,
+    // Tagged on the price axis ("R 3x" / "S 5x"), so nothing is printed over the candles.
+    axisLabel: `${level.type === 'support' ? 'S' : 'R'} ${level.touches}x`,
     opacity: 0.15 + (level.strength * 0.4),
   })), [supportResistanceLevels, drawingTimes]);
   useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings, supportResistanceBands);
@@ -227,10 +236,34 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         if (count === 0) return;
         const current = timeScale.getVisibleLogicalRange();
         const width = current ? Math.max(20, current.to - current.from) : 200;
-        const rightOffset = Math.max(0, timeScale.options().rightOffset);
-        timeScale.setVisibleLogicalRange({ from: count - 1 - width + rightOffset, to: count - 1 + rightOffset });
+        timeScale.setVisibleLogicalRange(latestBarRange(count, width, Math.max(0, timeScale.options().rightOffset)));
       } else {
-        timeScale.setVisibleRange({ from: Math.floor(view.startMs / 1000) as UTCTimestamp, to: Math.floor(view.endMs / 1000) as UTCTimestamp });
+        let fromTime = Math.floor(view.startMs / 1000);
+        let toTime = Math.floor(view.endMs / 1000);
+        
+        const times = candleTimesRef.current;
+        if (times && times.length > 0) {
+          const firstTime = times[0]!; // guarded by times.length > 0
+          const lastTime = times[times.length - 1]!;
+          
+          // Reject completely out of bounds views
+          if (toTime < firstTime || fromTime > lastTime) return;
+          
+          if (fromTime < firstTime) fromTime = firstTime;
+          if (toTime > lastTime) toTime = lastTime;
+          
+          if (fromTime >= toTime) {
+            const visible = Math.min(250, times.length);
+            const start = times[times.length - visible];
+            const end = times[times.length - 1];
+            if (start !== undefined && end !== undefined) {
+              timeScale.setVisibleRange({ from: start as UTCTimestamp, to: end as UTCTimestamp });
+            }
+            return;
+          }
+        }
+        
+        timeScale.setVisibleRange({ from: fromTime as UTCTimestamp, to: toTime as UTCTimestamp });
       }
     } catch (err) {
       logWarn("TradingChart", "could not apply the chart view request", { error: String(err) });
@@ -282,7 +315,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return { up, down, flat, patternName: pattern ? talibPatternDisplayName(pattern) : null };
   }, [labelMarkers]);
 
-  // ── Report the visible span so label previews follow the viewport ──────
+  // â”€â”€ Report the visible span so label previews follow the viewport â”€â”€â”€â”€â”€â”€
   //
   // Without this the label overlay requests the whole loaded span. On a chart
   // holding months of bars the row cap then spreads markers so thinly that a
@@ -330,7 +363,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     decimals,
   });
 
-  // ── Imperative handle ──────────────────────────────────────────────────
+  // â”€â”€ Imperative handle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useImperativeHandle(ref, () => ({
     setVisibleLogicalRange: (range: LogicalRange) => {
@@ -341,7 +374,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     },
   }), []);
 
-  // ── HUD computed values ────────────────────────────────────────────────
+  // â”€â”€ HUD computed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const tickOrPipLabel = isFutures
     ? `Tick: ${tickInfo?.tickSize ?? 'N/A'} = $${tickInfo?.tickValue ?? 'N/A'}`
@@ -355,7 +388,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return `${fmt(first)} - ${fmt(last)}`;
   }, [processedData.candles]);
 
-  // ── Right-click menu ───────────────────────────────────────────────────
+  // â”€â”€ Right-click menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //
   // Owned here rather than delegated to Radix's ContextMenuTrigger. The trigger
   // did not open on this chart: the `contextmenu` event reaches the wrapper
@@ -391,7 +424,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     };
   }, [menuPoint]);
 
-  // ── JSX ────────────────────────────────────────────────────────────────
+  // â”€â”€ JSX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   // lightweight-charts paints to a canvas that swallows nothing, so a
   // right-click on the chart surface lands on this wrapper and Radix opens the
@@ -406,50 +439,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       />
 
       {menuPoint && (
-        <div
-          className="absolute z-50 min-w-[11rem] rounded-md border border-white/10 bg-popover/95 backdrop-blur-sm p-1 shadow-lg"
-          style={{ left: menuPoint.x, top: menuPoint.y }}
-          // The dismiss listener is a window pointerdown, so a press inside the
-          // menu must not reach it or the menu would close before the click.
-          onPointerDown={event => event.stopPropagation()}
-          role="menu"
-          data-testid="chart-context-menu"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            disabled={isReloadingBars}
-            onClick={() => { setMenuPoint(null); onReloadBars?.(); }}
-            data-testid="menu-reload-bars"
-            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06] disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 mr-2 ${isReloadingBars ? 'animate-spin' : ''}`}
-              aria-hidden="true"
-            />
-            {isReloadingBars ? 'Reloading bars' : 'Reload bars'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => { setMenuPoint(null); requestChartView({ target: "latest" }); }}
-            data-testid="menu-jump-latest"
-            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06]"
-          >
-            <ChevronsRight className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
-            Jump to most recent candle
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => { setMenuPoint(null); chartRef.current?.timeScale().fitContent(); }}
-            data-testid="menu-fit-content"
-            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06]"
-          >
-            <Maximize2 className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
-            Fit bars to view
-          </button>
-        </div>
+        <ChartContextMenu
+          menuPoint={menuPoint}
+          isReloadingBars={isReloadingBars}
+          onReloadBars={onReloadBars}
+          onJumpLatest={() => requestChartView({ target: 'latest' })}
+          onFitContent={() => chartRef.current?.timeScale().fitContent()}
+          onClose={() => setMenuPoint(null)}
+        />
       )}
 
       {/* Jump to the most recent candle: loads the newest window (the chart may be anchored on an
@@ -481,25 +478,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         </div>
       )}
 
-      {/* HUD overlay */}
-      <div className="absolute top-2 left-2 flex items-center gap-3 text-[11px] font-mono bg-black/50 backdrop-blur-md rounded-lg px-3.5 py-2 border-l-2 border-l-primary/60 border border-white/[0.06] shadow-lg">
-        <span className="text-primary font-bold text-xs tracking-wide">{symbol}</span>
-        {/* Active contract badge — shows which expiration is being charted at the crosshair */}
-        {isFutures && activeContract && activeContract !== symbol && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/90 border border-amber-500/20 font-semibold tracking-wide">
-            {activeContract}
-          </span>
-        )}
-        <span className="text-muted-foreground/70 text-[10px]">{tickOrPipLabel}</span>
-        {priceInfo && (
-          <>
-            <span className="text-[10px]"><span className="text-blue-400/80 font-medium">O</span> <span className="text-foreground/90">{priceInfo.open.toFixed(decimals)}</span></span>
-            <span className="text-[10px]"><span className="text-[hsl(var(--data-pos)/0.8)] font-medium">H</span> <span className="text-[hsl(var(--data-pos)/0.9)]">{priceInfo.high.toFixed(decimals)}</span></span>
-            <span className="text-[10px]"><span className="text-[hsl(var(--data-neg)/0.8)] font-medium">L</span> <span className="text-[hsl(var(--data-neg)/0.9)]">{priceInfo.low.toFixed(decimals)}</span></span>
-            <span className="text-[10px]"><span className="text-blue-400/80 font-medium">C</span> <span className="text-foreground/90">{priceInfo.close.toFixed(decimals)}</span></span>
-          </>
-        )}
-      </div>
+      <ChartHUD symbol={symbol} isFutures={isFutures} activeContract={activeContract} tickOrPipLabel={tickOrPipLabel} priceInfo={priceInfo} decimals={decimals} />
 
       {/* The pattern's own candles, shaded while its arrow is hovered. */}
       {patternHover?.band && (
@@ -530,12 +509,17 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         </div>
       )}
 
+      {/* Another source's overlay on THIS chart — the Model Cycle run's legend,
+          key, follow control and readout. Rendered last, so it sits above the
+          market HUD and the label legend rather than under them. */}
+      {chrome}
+
       {/* Bottom-right help */}
       <div className="absolute bottom-2 right-2 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-300 font-mono flex items-center gap-3">
         {dataDateRange && <span>{dataDateRange}</span>}
         <span className="flex items-center gap-1.5">
           <kbd className="px-1 py-0.5 rounded border border-white/10 bg-white/5 text-[8px]">scroll</kbd> zoom
-          <span className="text-muted-foreground/20 mx-0.5">·</span>
+          <span className="text-muted-foreground/20 mx-0.5">Â·</span>
           <kbd className="px-1 py-0.5 rounded border border-white/10 bg-white/5 text-[8px]">drag</kbd> pan
         </span>
       </div>
@@ -544,3 +528,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 });
 
 export default TradingChart;
+
+
+
+
+
+

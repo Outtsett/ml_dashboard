@@ -93,7 +93,7 @@ function ShapEvolutionInner() {
               <button
                 key={feat}
                 onClick={() => toggleFeature(feat)}
-                className={`text-[8px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+                className={`text-[8px] font-mono px-2 py-0.5 rounded-full border transition-colors ${
                   hidden
                     ? "border-white/5 text-muted-foreground/20 line-through"
                     : "border-white/15 bg-white/5"

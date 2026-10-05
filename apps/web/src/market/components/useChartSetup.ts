@@ -4,7 +4,7 @@ import {
   type CandlestickData, type Time, type LogicalRange,
 } from 'lightweight-charts';
 import {
-  createChartOptions, candleSeriesOptions, volumeSeriesOptions, volumeScaleMargins,
+  createChartOptions, candleSeriesOptions, volumeSeriesOptions, volumeScaleMargins, latestBarRange,
 } from './chartConfig';
 import type { PriceInfo } from "@/market/components/types";
 
@@ -19,6 +19,21 @@ interface ChartSetupOptions {
   setPriceInfo: React.Dispatch<React.SetStateAction<PriceInfo | null>>;
   onRangeChangeRef: React.MutableRefObject<((range: LogicalRange) => void) | undefined>;
   showTimeAxis: boolean;
+  /**
+   * Hands the finished chart to whoever draws onto it imperatively — the Model
+   * Cycle overlay, which attaches a primitive and a forecast line to these exact
+   * series. Called once per chart creation and again with `null` on teardown, so
+   * the owner can drop what it attached. Kept out of the effect's dependencies
+   * (read through a ref) because a new function identity must not rebuild the
+   * chart and throw away the user's zoom.
+   */
+  onChartReady?: ((target: ChartAttachTarget | null) => void) | undefined;
+}
+
+export interface ChartAttachTarget {
+  chart: IChartApi;
+  candleSeries: ISeriesApi<'Candlestick'>;
+  container: HTMLElement;
 }
 
 interface ChartSetupResult {
@@ -41,6 +56,7 @@ export function useChartSetup({
   decimals, minMove, isFutures, tickInfo,
   setPriceInfo, onRangeChangeRef,
   showTimeAxis,
+  onChartReady,
 }: ChartSetupOptions): ChartSetupResult {
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -49,6 +65,10 @@ export function useChartSetup({
   // Store setPriceInfo in a ref so the crosshair closure never goes stale
   const setPriceInfoRef = useRef(setPriceInfo);
   setPriceInfoRef.current = setPriceInfo;
+
+  // Same for the ready callback: read through a ref so the chart is built once.
+  const onChartReadyRef = useRef(onChartReady);
+  onChartReadyRef.current = onChartReady;
 
   // ── Create chart + series ──────────────────────────────────────────────
 
@@ -87,18 +107,50 @@ export function useChartSetup({
       if (range && onRangeChangeRef.current) onRangeChangeRef.current(range);
     });
 
-    // Resize
+    // Hand the finished chart over to any imperative owner (the Model Cycle
+    // overlay). The cleanup below hands it back as null, so nothing outlives the
+    // chart it attached to.
+    onChartReadyRef.current?.({ chart, candleSeries, container: containerRef.current });
+
+    // Size. The grid tile is absolutely positioned, so the chart can be created before it has a
+    // pixel size and its first observation is 0x0. Applying that 0 makes the time scale resolve the
+    // range against a zero-width pane, which widens the range until every bar clears minBarSpacing
+    // and survives the real resize as a full-history zoom-out — the newest candle ends up a sliver
+    // at the far right rather than pinned to the pane's right edge.
+    //
+    // So: never apply a zero size, and hold the re-frame until the pane is real AND the series
+    // holds bars. The previous one-shot flag was consumed the moment a real width arrived — a frame
+    // or two before the bars are fetched — so `data().length` was 0 and the re-frame never ran.
     const el = containerRef.current;
-    const resizeObserver = new ResizeObserver(() => {
-      if (el) {
-        chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+    let sized = el.clientWidth > 0 && el.clientHeight > 0;
+    let pendingReframe = !sized;
+    const applySize = () => {
+      if (!el) return;
+      const width = el.clientWidth;
+      const height = el.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      if (!sized) {
+        sized = true;
+        pendingReframe = true;
       }
-    });
+      chart.applyOptions({ width, height });
+      const total = candleSeries.data().length;
+      if (pendingReframe && total > 0) {
+        pendingReframe = false;
+        chart.timeScale().setVisibleLogicalRange(latestBarRange(total));
+      }
+    };
+    const resizeObserver = new ResizeObserver(applySize);
     resizeObserver.observe(el);
+    applySize();
 
     return () => {
       resizeObserver.disconnect();
+      onChartReadyRef.current?.(null);
       chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
     };
   }, [decimals, isFutures, tickInfo, minMove]);  
 
@@ -110,3 +162,5 @@ export function useChartSetup({
 
   return { chartRef, candleSeriesRef, volumeSeriesRef };
 }
+
+

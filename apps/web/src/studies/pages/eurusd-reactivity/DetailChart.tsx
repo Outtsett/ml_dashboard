@@ -76,7 +76,17 @@ export function DetailChart({
       const target = panes[index];
       if (target) createTextWatermark(target, { horzAlign: "left", vertAlign: "top", lines: [{ text: title, color: "rgba(255,255,255,0.5)", fontSize: 10 }] });
     }
-    chart.timeScale().fitContent();
+    const frameLatest = () => {
+      if (candles.length > 0) {
+        const visible = Math.min(250, candles.length);
+        const start = candles[candles.length - visible];
+        const end = candles[candles.length - 1];
+        if (start && end) {
+          chart.timeScale().setVisibleRange({ from: seconds(start.time), to: seconds(end.time) });
+        }
+      }
+    };
+    frameLatest();
     return () => chart.remove();
   }, [candles, logScale, showVolume, timeframe]);
 

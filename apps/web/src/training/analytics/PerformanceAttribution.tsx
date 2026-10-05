@@ -38,7 +38,7 @@ export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: Metr
             (metric.targetDirection === 'above' ? metric.currentValue < metric.target : metric.currentValue > metric.target);
 
           return (
-            <div key={metric.key} className={`group p-5 rounded-2xl border transition-all duration-500 ${isFailing ? 'border-[color-mix(in_srgb,hsl(var(--data-neg)/0.2)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-neg))_88%,black)]/[0.02]' : 'border-white/[0.05] bg-white/[0.01] hover:border-white/[0.1]'}`}>
+            <div key={metric.key} className={`group p-5 rounded-2xl border transition-colors duration-500 ${isFailing ? 'border-[color-mix(in_srgb,hsl(var(--data-neg)/0.2)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-neg))_88%,black)]/[0.02]' : 'border-white/[0.05] bg-white/[0.01] hover:border-white/[0.1]'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="space-y-1">
                   <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 font-mono italic">{metric.title}</div>

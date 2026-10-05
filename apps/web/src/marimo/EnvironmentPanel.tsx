@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/utils/utils";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { bytesLabel, durationLabel, startupProgress, whenLabel } from "./format";
 import type { GroupEntry } from "./types";
 
@@ -91,7 +92,7 @@ export function EnvironmentPanel({
                     aria-valuemax={100}
                     title={group.expectedStartupSeconds ? `Last start took ${durationLabel(group.expectedStartupSeconds)}` : "First start: no earlier timing to compare against"}
                   >
-                    <div className="h-full rounded bg-[#56B4E9] transition-[width] duration-200" style={{ width: `${progress * 100}%` }} />
+                    <ProgressFill value={progress * 100} className="bg-[#56B4E9]" durationMs={200} />
                   </div>
                   <p className="truncate font-mono text-[9.5px] text-muted-foreground" title={group.lastOutputLine}>
                     {group.lastOutputLine ?? "launching python…"}

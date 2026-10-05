@@ -427,11 +427,28 @@ export function registerSeriesTitle(column: string, title: string) {
 export function unregisterSeriesTitle(column: string) {
   seriesTitleMap.delete(column);
   histogramColumns.delete(column);
+  baselineColumns.delete(column);
   stepColumns.delete(column);
 }
 
 export function registerHistogramColumn(column: string) {
   histogramColumns.add(column);
+}
+
+/**
+ * A filled area measured against a base value rather than a bare line — equity
+ * net of costs, where the area between the curve and zero is the reading. Only
+ * a baseline series carries the fill; a line would hide the sign of the fill.
+ */
+const baselineColumns = new Set<string>();
+
+export function registerBaselineColumn(column: string) {
+  baselineColumns.add(column);
+}
+
+/** Whether the column draws as a filled area against zero (equity-style). */
+export function shouldRenderAsBaseline(column: string): boolean {
+  return baselineColumns.has(column);
 }
 
 /**

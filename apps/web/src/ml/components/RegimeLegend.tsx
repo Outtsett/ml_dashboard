@@ -33,7 +33,7 @@ export function RegimeLegend({ regimes, selectedRegimes, onToggleRegime, onShowA
           <button
             key={r.id}
             onClick={() => onToggleRegime(r.id)}
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] transition-all ${
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] transition-colors ${
               active
                 ? `${color.border} ${color.text} ${color.bg}`
                 : 'border-white/5 text-muted-foreground/30 bg-transparent'

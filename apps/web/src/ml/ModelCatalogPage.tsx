@@ -1,6 +1,15 @@
 ﻿import { useState, useMemo } from "react";
-import { Search, Layers, FileText, RefreshCw, Brain } from "lucide-react";
-import { useCatalogList, useCatalogStats, useRefreshCatalog, useCatalogDetail, useCatalogLifecycle, STAGE_FILTERS, LIFECYCLE_STAGES } from "@/ml/lib/useModelCatalog";
+import { useLocation } from "wouter";
+import { useEntityStore } from "@/shared/contexts/EntityContext";
+import { Search, Layers, RefreshCw, Brain } from "lucide-react";
+import { useCatalogList, useCatalogTaxonomy, useCatalogStats, useRefreshCatalog, useCatalogDetail, useCatalogLifecycle } from "@/ml/lib/useModelCatalog";
+import { LIFECYCLE_STAGES } from "@shared/catalogLifecycle";
+
+const STAGE_FILTERS = [
+  { id: "all", label: "All Models", minimumStage: null },
+  { id: "trainable", label: "Trainable", minimumStage: "untrained" },
+  { id: "trained", label: "Trained", minimumStage: "trained" }
+] as const;
 import { ModelDetailView } from "./ModelDetailView";
 import { categoryColor } from "./constants";
 import { Badge } from "@/shared/ui/badge";
@@ -16,11 +25,26 @@ export default function ModelCatalogPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const { activeEntity, setEntity } = useEntityStore();
+  const [, navigate] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const urlModelId = searchParams.get("model");
+  
+  const selectedModelId = (activeEntity?.type === "model" ? activeEntity.id : null) || urlModelId;
+
+  const setSelectedModelId = (id: string | null) => {
+    if (id) {
+      setEntity("model", id, id);
+      navigate("/models?model=" + encodeURIComponent(id));
+    } else {
+      setEntity(null, "", "");
+      navigate("/models");
+    }
+  };
   const [stageFilter, setStageFilter] = useState<StageFilter>("all");
 
   const { data: stats } = useCatalogStats();
-  const { data: taxonomy } = useCatalogList({ groupBy: "taxonomy" });
+  const { data: taxonomy } = useCatalogTaxonomy();
   const { data: catalog, isLoading, isError, error, refetch } = useCatalogList({
     category: selectedCategory,
     subcategory: selectedSubcategory,
@@ -139,3 +163,5 @@ export default function ModelCatalogPage() {
     </div>
   );
 }
+
+

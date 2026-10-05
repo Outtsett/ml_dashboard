@@ -90,7 +90,7 @@ function RegimeDistributionCell({ regimeStats }: { regimeStats: Diagnostics['reg
           <div
             key={rs.regime_id}
             style={{ width: `${rs.pct * 100}%`, backgroundColor: getRegimeColor(i).fill }}
-            className="h-full transition-all"
+            className="h-full" // no width transition: stacked segments would re-layout every frame
             title={`${rs.label}: ${(rs.pct * 100).toFixed(1)}%`}
           />
         ))}

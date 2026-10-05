@@ -7,6 +7,7 @@
 
 import { Flame } from "lucide-react";
 import type { RegimeLegendEntry } from "@/training/lib/useTrainingSync";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 
 interface TrainingSyncBannerProps {
   gibbsIter: number;
@@ -47,9 +48,10 @@ export function TrainingSyncBanner({
           <span className="text-muted-foreground">Iter</span>
           <span className="text-foreground">{gibbsIter}/{gibbsTotal}</span>
           <div className="w-14 h-1 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-linear-to-r from-orange-500 to-[hsl(var(--data-neg))] transition-all duration-300"
-              style={{ width: `${progress}%` }}
+            <ProgressFill
+              value={progress}
+              className="bg-linear-to-r from-orange-500 to-[hsl(var(--data-neg))]"
+              durationMs={300}
             />
           </div>
         </div>
@@ -80,10 +82,7 @@ export function TrainingSyncBanner({
             <span className="text-muted-foreground">Stability</span>
             <span className={stabilityColor}>{stabilityPct}%</span>
             <div className="w-10 h-1.5 rounded-full bg-white/10 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${stabilityBarColor}`}
-                style={{ width: `${stabilityPct}%` }}
-              />
+              <ProgressFill value={stabilityPct} className={stabilityBarColor} durationMs={500} />
             </div>
           </div>
         </>

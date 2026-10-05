@@ -1,7 +1,10 @@
 import type { NotebookDrawings, NotebookMarker } from "@/market/lib/useNotebookOverlays";
 import type { CandlestickData, LogicalRange, Time } from 'lightweight-charts';
+import type { ReactNode } from 'react';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import type { SupportResistanceLevel, ZigZagPoint } from '@/market/lib/chart_overlays';
+import type { ChartMarker } from "@/market/components/useSeriesMarkers";
+import type { ChartAttachTarget } from "@/market/components/useChartSetup";
 import type { TradeMarker, PredictionMarker } from '@/shared/contexts/UnifiedDashboardContext';
 import type { StitchedOHLCVBar } from '@shared/ohlcv';
 
@@ -82,6 +85,26 @@ export interface TradingChartProps {
   notebookMarkers?: NotebookMarker[];
   /** Levels, shaded zones and vertical lines a notebook drew (notebookDrawings.ts). */
   notebookDrawings?: NotebookDrawings;
+  /**
+   * Markers from another source on this chart, already in lightweight-charts
+   * shape and snapped to its bar times — the Model Cycle run's trades.
+   *
+   * A candle series carries ONE markers plugin, so a second `createSeriesMarkers`
+   * would replace every other marker rather than add to them; they join the
+   * merged set in `useChartMarkers` instead.
+   */
+  extraMarkers?: ChartMarker[];
+  /**
+   * Hands over the finished chart so a caller can draw imperatively on it — the
+   * Model Cycle run's fold bands, prediction glyphs and forecast line. Fired
+   * again with `null` when the chart is torn down.
+   */
+  onChartReady?: (target: ChartAttachTarget | null) => void;
+  /**
+   * Rendered inside the chart's own layer, above the candles and under the
+   * market HUD: the run's legend, key, follow control and readout.
+   */
+  chrome?: ReactNode;
 }
 
 // ── Internal hook types ────────────────────────────────────────────────────

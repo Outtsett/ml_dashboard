@@ -10,11 +10,13 @@
  */
 
 import { useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { MIN_BAR_SPACING_PX, DEFAULT_RIGHT_OFFSET } from './chartConfig';
 import {
   createChart,
   ColorType,
   type IChartApi,
   type Time,
+  BaselineSeries,
   LineSeries,
   HistogramSeries,
   LineType,
@@ -23,8 +25,10 @@ import {
   type SeriesType,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
-import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, shouldRenderAsStep, getSeriesTitle, getHistogramStyle } from "@/market/lib/indicator_panels";
+import { getPanelLabel, getReferenceLines, shouldRenderAsBaseline, shouldRenderAsHistogram, shouldRenderAsStep, getSeriesTitle, getHistogramStyle } from "@/market/lib/indicator_panels";
 import { getHistogramColors } from '@/market/lib/indicator_colors';
+import { CYCLE_COLORS } from '@/cycle/chartModel';
+import { withAlpha } from '@/cycle/chartModel';
 
 /** Deduplicate & sort series data by time (last-write-wins for dupes). Filters out invalid entries. */
 function dedupByTime<T extends { time: Time }>(arr: T[]): T[] {
@@ -48,19 +52,50 @@ interface SubchartPanelProps {
   indicators: IndicatorOverlay[];
   height: number;
   showTimeAxis?: boolean;
+  /**
+   * Whether the panel offers a close button. A run's `P(up)` and equity panes
+   * are not in the indicator selection, so a close button on them would remove
+   * nothing and leave the panel standing.
+   */
+  closable?: boolean;
   onClose: (columns: string[]) => void;
   onVisibleLogicalRangeChange?: (range: LogicalRange) => void;
 }
 
+/** A drawn point, or a gap where the series has no value for that bar. */
+type PanelPoint =
+  | { time: Time; value: number; color?: string }
+  | { time: Time };
+
+/**
+ * Whitespace for a non-finite value.
+ *
+ * A panel covers every bar of the chart, and a bar the producer had nothing for
+ * (a bar no model was tested on) is a real absence. lightweight-charts breaks a
+ * line at a whitespace point; passing the non-finite number through instead would
+ * draw a value the data never took, and zero would claim a measurement.
+ */
+function toPoints(raw: { time: Time; value: number; color?: string }[]): PanelPoint[] {
+  return raw.map((point) => (Number.isFinite(point.value) ? point : { time: point.time }));
+}
+
 const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
   function SubchartPanel(
-    { panelKey, indicators, height, showTimeAxis = false, onClose, onVisibleLogicalRangeChange },
+    { panelKey, indicators, height, showTimeAxis = false, closable = true, onClose, onVisibleLogicalRangeChange },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
      
     const seriesMapRef = useRef<Map<string, ISeriesApi<SeriesType>>>(new Map());
+    /**
+     * What each series already holds: its point count and its first and last
+     * time. An incoming set that extends exactly this is an APPEND, so only the
+     * new tail is pushed. A training run rewrites every panel ten times a second
+     * as bars arrive, and re-setting a whole panel's data each time is what made
+     * that cost scale with the bars already drawn.
+     */
+    const appliedRef = useRef<Map<string, { count: number; first: Time; last: Time }>>(new Map());
      
     const priceLinesAddedRef = useRef(false);
     const isSyncingRef = useRef(false);
@@ -127,11 +162,13 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
           timeVisible: true,
           secondsVisible: false,
           visible: showTimeAxis,
-          rightOffset: 5,
+          // The main chart's logical range is pushed verbatim into this pane, and
+          // lightweight-charts resolves it against THIS pane's rightOffset — so the offset has
+          // to match the main chart's or the two panes frame different windows from one range.
+          rightOffset: DEFAULT_RIGHT_OFFSET,
           barSpacing: 6,
-          minBarSpacing: 0.5,
-          enableConflation: true,
-          conflationThresholdFactor: 1.0,
+          minBarSpacing: MIN_BAR_SPACING_PX, // same floor as the main chart: synced ranges must agree
+          enableConflation: false,
         },
         handleScroll: {
           mouseWheel: true,
@@ -172,6 +209,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
       return () => {
         ro.disconnect();
         seriesMapRef.current.clear();
+        appliedRef.current.clear();
         priceLinesAddedRef.current = false;
         chart.remove();
         chartRef.current = null;
@@ -202,6 +240,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
             try { chart.removeSeries(s); } catch { /* already removed */ }
           }
           seriesMapRef.current.delete(key);
+          appliedRef.current.delete(key);
         }
       }
 
@@ -209,58 +248,83 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
       for (const indicator of indicators) {
         const existing = seriesMapRef.current.get(indicator.column);
         const isHisto = shouldRenderAsHistogram(indicator.column);
+        const isBaseline = shouldRenderAsBaseline(indicator.column);
 
         const buildData = () =>
-          dedupByTime(
-            isHisto
-              ? (() => {
-                  const histoStyle = getHistogramStyle(indicator.column);
-                  if (histoStyle === 'ao') {
-                    // Awesome Oscillator: orange when increasing, blue when
-                    // decreasing (Okabe-Ito; the bar's height already carries sign).
-                    return indicator.data.map((d, i) => ({
-                      time: d.time as Time,
-                      value: d.value,
-                      color: i > 0 && d.value > indicator.data[i - 1]!.value
-                        ? 'rgba(230, 159, 0, 0.75)'   // orange (increasing)
-                        : 'rgba(0, 114, 178, 0.75)',  // blue (decreasing)
-                    }));
-                  }
-                  if (histoStyle === 'squeeze') {
-                    // Squeeze momentum: 4-color intensity
-                    return indicator.data.map((d, i) => {
-                      const prev = i > 0 ? indicator.data[i - 1]!.value : 0;
-                      if (d.value >= 0) {
+          toPoints(
+            dedupByTime(
+              isHisto
+                ? (() => {
+                    const histoStyle = getHistogramStyle(indicator.column);
+                    if (histoStyle === 'ao') {
+                      // Awesome Oscillator: orange when increasing, blue when
+                      // decreasing (Okabe-Ito; the bar's height already carries sign).
+                      return indicator.data.map((d, i) => ({
+                        time: d.time as Time,
+                        value: d.value,
+                        color: i > 0 && d.value > indicator.data[i - 1]!.value
+                          ? 'rgba(230, 159, 0, 0.75)'   // orange (increasing)
+                          : 'rgba(0, 114, 178, 0.75)',  // blue (decreasing)
+                      }));
+                    }
+                    if (histoStyle === 'squeeze') {
+                      // Squeeze momentum: 4-color intensity
+                      return indicator.data.map((d, i) => {
+                        const prev = i > 0 ? indicator.data[i - 1]!.value : 0;
+                        if (d.value >= 0) {
+                          return {
+                            time: d.time as Time,
+                            value: d.value,
+                            color: d.value > prev
+                              ? 'rgba(230, 159, 0, 0.9)'    // strong orange (positive, strengthening)
+                              : 'rgba(230, 159, 0, 0.4)',   // faint orange (positive, fading)
+                          };
+                        }
                         return {
                           time: d.time as Time,
                           value: d.value,
-                          color: d.value > prev
-                            ? 'rgba(230, 159, 0, 0.9)'    // strong orange (positive, strengthening)
-                            : 'rgba(230, 159, 0, 0.4)',   // faint orange (positive, fading)
+                          color: d.value < prev
+                            ? 'rgba(0, 114, 178, 0.9)'    // strong blue (negative, strengthening)
+                            : 'rgba(0, 114, 178, 0.4)',   // faint blue (negative, fading)
                         };
-                      }
-                      return {
-                        time: d.time as Time,
-                        value: d.value,
-                        color: d.value < prev
-                          ? 'rgba(0, 114, 178, 0.9)'    // strong blue (negative, strengthening)
-                          : 'rgba(0, 114, 178, 0.4)',   // faint blue (negative, fading)
-                      };
-                    });
-                  }
-                  // Default: positive/negative coloring
-                  const { positive, negative } = getHistogramColors(indicator.color);
-                  return indicator.data.map(d => ({
-                    time: d.time as Time,
-                    value: d.value,
-                    color: d.value >= 0 ? positive : negative,
-                  }));
-                })()
-              : indicator.data.filter(d => d.time != null).map(d => ({ time: d.time as Time, value: d.value }))
+                      });
+                    }
+                    // Default: positive/negative coloring
+                    const { positive, negative } = getHistogramColors(indicator.color);
+                    return indicator.data.map(d => ({
+                      time: d.time as Time,
+                      value: d.value,
+                      color: d.value >= 0 ? positive : negative,
+                    }));
+                  })()
+                : indicator.data.filter(d => d.time != null).map(d => ({ time: d.time as Time, value: d.value }))
+            )
           );
 
+        const points = buildData();
+        const first = points[0]?.time;
+        const last = points[points.length - 1]?.time;
+
         if (existing) {
-          existing.setData(buildData());
+          const applied = appliedRef.current.get(indicator.column);
+          // An append: the same first bar, the previous last bar still last-but-one,
+          // and only new bars after it. Anything else (a recoloured bar, a gap
+          // filled in, a shorter set) is a reset.
+          const isAppend =
+            applied !== undefined &&
+            first !== undefined &&
+            last !== undefined &&
+            points.length > applied.count &&
+            first === applied.first &&
+            points[applied.count - 1]?.time === applied.last;
+
+          if (isAppend) {
+            for (let index = applied!.count; index < points.length; index += 1) {
+              existing.update(points[index]! as never);
+            }
+          } else {
+            existing.setData(points as never[]);
+          }
         } else {
           const seriesTitle = getSeriesTitle(indicator.column);
           const series = isHisto
@@ -271,24 +335,45 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
                 priceLineVisible: false,
                 title: seriesTitle,
               })
-            : chart.addSeries(LineSeries, {
-                color: indicator.color,
-                lineWidth: indicator.lineWidth as 1 | 2 | 3 | 4,
-                // A discrete state holds until it changes; interpolating between
-                // two states draws a value the data never took.
-                lineType: shouldRenderAsStep(indicator.column)
-                  ? LineType.WithSteps
-                  : LineType.Simple,
-                priceScaleId: 'right',
-                lastValueVisible: true,
-                priceLineVisible: false,
-                crosshairMarkerVisible: true,
-                crosshairMarkerRadius: 2,
-                title: seriesTitle,
-              });
+            : isBaseline
+              ? chart.addSeries(BaselineSeries, {
+                  baseValue: { type: 'price', price: 0 },
+                  // Orange above zero, blue below: the fill is the reading, so it
+                  // carries the sign and the line is only its edge.
+                  topLineColor: CYCLE_COLORS.up,
+                  topFillColor1: withAlpha(CYCLE_COLORS.up, 0.28),
+                  topFillColor2: withAlpha(CYCLE_COLORS.up, 0.04),
+                  bottomLineColor: CYCLE_COLORS.down,
+                  bottomFillColor1: withAlpha(CYCLE_COLORS.down, 0.04),
+                  bottomFillColor2: withAlpha(CYCLE_COLORS.down, 0.28),
+                  lineWidth: 2,
+                  priceScaleId: 'right',
+                  lastValueVisible: true,
+                  priceLineVisible: false,
+                  title: seriesTitle,
+                })
+              : chart.addSeries(LineSeries, {
+                  color: indicator.color,
+                  lineWidth: indicator.lineWidth as 1 | 2 | 3 | 4,
+                  // A discrete state holds until it changes; interpolating between
+                  // two states draws a value the data never took.
+                  lineType: shouldRenderAsStep(indicator.column)
+                    ? LineType.WithSteps
+                    : LineType.Simple,
+                  priceScaleId: 'right',
+                  lastValueVisible: true,
+                  priceLineVisible: false,
+                  crosshairMarkerVisible: true,
+                  crosshairMarkerRadius: 2,
+                  title: seriesTitle,
+                });
 
-          series.setData(buildData());
+          series.setData(points as never[]);
           seriesMapRef.current.set(indicator.column, series);
+        }
+
+        if (first !== undefined && last !== undefined) {
+          appliedRef.current.set(indicator.column, { count: points.length, first, last });
         }
       }
 
@@ -352,13 +437,15 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
         </div>
 
         {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-1 right-8 z-10 h-4 w-4 rounded-sm flex items-center justify-center text-muted-foreground/30 hover:text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)] transition-colors"
-          title="Remove indicator"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        {closable && (
+          <button
+            onClick={handleClose}
+            className="absolute top-1 right-8 z-10 h-4 w-4 rounded-sm flex items-center justify-center text-muted-foreground/30 hover:text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)] transition-colors"
+            title="Remove indicator"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
 
         {/* Chart container */}
         <div ref={containerRef} className="w-full h-full" />

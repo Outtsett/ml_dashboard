@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import * as duckdb from '@duckdb/duckdb-wasm';
 
 interface DuckDBContextValue {
@@ -18,13 +18,6 @@ export const useDuckDB = () => useContext(DuckDBContext);
 let globalDbPromise: Promise<duckdb.AsyncDuckDB> | null = null;
 
 async function initDuckDB(): Promise<duckdb.AsyncDuckDB> {
-  // Fetch S3 credentials securely from local API
-  const credRes = await fetch('/api/charts/lake-credentials');
-  if (!credRes.ok) {
-    throw new Error(`Failed to fetch lake credentials: ${credRes.status}`);
-  }
-  const creds = await credRes.json();
-
   // Select the appropriate bundles based on the browser's capabilities
   const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
   const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
@@ -41,26 +34,6 @@ async function initDuckDB(): Promise<duckdb.AsyncDuckDB> {
   // Initialize the database
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   URL.revokeObjectURL(worker_url);
-
-  const conn = await db.connect();
-  
-  // Create S3 secret in DuckDB-WASM
-  const isHttps = creds.endpoint.startsWith('https');
-  const host = creds.endpoint.replace(/^https?:\/\//, '');
-  
-  await conn.query(`
-    CREATE SECRET aistor_s3 (
-      TYPE S3,
-      KEY_ID '${creds.accessKey}',
-      SECRET '${creds.secretKey}',
-      ENDPOINT '${host}',
-      URL_STYLE 'path',
-      USE_SSL ${isHttps ? 'true' : 'false'},
-      REGION '${creds.region}'
-    );
-  `);
-  
-  await conn.close();
 
   return db;
 }

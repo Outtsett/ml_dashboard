@@ -51,7 +51,7 @@ export default function ConvergenceAnalytics({ diagnostics }: AnalyticsComponent
           <button
             key={s.key}
             onClick={() => toggleSeries(s.key)}
-            className={`text-[9px] px-2 py-0.5 rounded-full border transition-all ${
+            className={`text-[9px] px-2 py-0.5 rounded-full border transition-colors ${
               visible.has(s.key)
                 ? "border-white/20 bg-white/5"
                 : "border-white/5 text-muted-foreground/30"

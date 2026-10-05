@@ -64,7 +64,7 @@ export default function ModelComparisonSelector({
                 disabled={disabled}
                 className={`
                   w-full flex items-center gap-3 px-3 py-2 rounded-lg
-                  transition-all text-left
+                  transition text-left
                   ${isOn
                     ? 'bg-primary/10 border border-primary/20'
                     : disabled

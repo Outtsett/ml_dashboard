@@ -25,7 +25,7 @@ export const NavItemComponent = ({
       data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
       data-pending={pending || undefined}
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-md border-l-[3px] px-3 py-2 text-sm transition-all",
+        "group relative flex items-center gap-2.5 rounded-md border-l-[3px] px-3 py-2 text-sm transition-colors",
         pending
           ? "cursor-not-allowed border-transparent text-muted-foreground/40"
           : isActive
@@ -36,11 +36,11 @@ export const NavItemComponent = ({
     >
       <Icon
         className={cn(
-          "min-w-[1rem] shrink-0 transition-all",
+          // Fixed 1rem box; active enlargement via `scale` (composited) instead of animating h/w (1.125rem = 1rem × 1.125).
+          "h-4 w-4 min-w-[1rem] shrink-0 transition-[color,scale,filter]",
           isActive && !pending
-            ? "h-[1.125rem] w-[1.125rem] text-primary drop-shadow-[0_0_8px_hsla(210,100%,60%,0.5)]"
-            : "h-4 w-4",
-          !pending && "group-hover:scale-110",
+            ? "scale-[1.125] text-primary drop-shadow-[0_0_8px_hsla(210,100%,60%,0.5)]"
+            : !pending && "group-hover:scale-110",
         )}
       />
       {!collapsed && (

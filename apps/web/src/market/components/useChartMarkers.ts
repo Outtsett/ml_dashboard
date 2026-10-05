@@ -29,6 +29,15 @@ interface ChartMarkersOptions {
   trainTestSplitTime?: number;
   /** Markers a notebook drew (useNotebookOverlays), epoch ms. */
   notebookMarkers?: NotebookMarker[];
+  /**
+   * Markers from another source on this chart, already in lightweight-charts
+   * shape and already snapped to candle times — the Model Cycle run's trades.
+   *
+   * A candle series carries ONE markers plugin, so these cannot be set by a
+   * second `createSeriesMarkers` call: it would replace the merged set below.
+   * They arrive here instead and take their place in the same sorted array.
+   */
+  extraMarkers?: ChartMarker[];
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -48,6 +57,7 @@ export function useChartMarkers({
   predictionMarkers,
   trainTestSplitTime,
   notebookMarkers,
+  extraMarkers,
 }: ChartMarkersOptions): void {
   const timeframeSec = timeframe * 60;
   const candleTimes = useMemo(() => buildCandleTimes(processedCandles), [processedCandles]);
@@ -211,8 +221,9 @@ export function useChartMarkers({
       ...computedTradeMarkers,
       ...computedSplitMarkers,
       ...computedNotebookMarkers,
+      ...(extraMarkers ?? []),
     ].sort((a, b) => (a.time as number) - (b.time as number));
-  }, [computedLabelMarkers, computedPredictionMarkers, computedTradeMarkers, computedSplitMarkers, computedNotebookMarkers]);
+  }, [computedLabelMarkers, computedPredictionMarkers, computedTradeMarkers, computedSplitMarkers, computedNotebookMarkers, extraMarkers]);
 
   useSeriesMarkers(markersSeriesRef, candleSeriesRef, allMarkers);
 }

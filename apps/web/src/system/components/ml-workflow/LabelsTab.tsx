@@ -4,6 +4,7 @@
 
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Eye, Loader2, BarChart3 } from "lucide-react";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
@@ -99,7 +100,7 @@ export function LabelsTab({
             ] as const).map(({ label, count, pct, barClass, textClass }) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className={`h-full ${barClass} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  <ProgressFill value={Number(pct)} className={barClass} />
                 </div>
                 <span className={`${textClass} text-[9px] font-mono w-16 text-right`}>
                   {label} {count} ({pct}%)

@@ -2,6 +2,7 @@ import React from "react";
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
 import { Activity, Cpu, HardDrive } from "lucide-react";
 import { trendTone, trendToneClass, trendGlyph } from "@/shared/theme/dataColors";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 
 export function LiveTelemetryPanel() {
   const { metrics, isConnected } = useWebSocketMetrics();
@@ -64,10 +65,7 @@ export function LiveTelemetryPanel() {
             <span className="font-mono text-xs text-neutral-400">{metrics.progress ?? 0}%</span>
           </div>
           <div className="w-full bg-neutral-900 rounded-full h-1 overflow-hidden">
-            <div 
-              className="bg-(--color-accent) h-1 transition-all duration-300 ease-out"
-              style={{ width: `${metrics.progress ?? 0}%` }}
-            />
+            <ProgressFill value={metrics.progress ?? 0} className="bg-(--color-accent)" durationMs={300} />
           </div>
         </div>
       </div>

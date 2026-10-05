@@ -27,7 +27,7 @@ export function RadialGauge({
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 bg-white/[0.01] rounded-2xl relative overflow-hidden group transition-all duration-500">
+    <div className="flex flex-col items-center justify-center p-4 bg-white/[0.01] rounded-2xl relative overflow-hidden group transition-colors duration-500">
       <div className="w-full h-32 relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>

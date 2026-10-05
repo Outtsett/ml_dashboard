@@ -1,6 +1,7 @@
 import { useGpuMetrics } from "@/system/lib/useGpuMetrics";
 import { useSystemManifest } from "@/system/lib/useSystemManifest";
 import { Activity, Cpu, HardDrive } from "lucide-react";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 
 function statusColor(value: number, thresholds: [number, number] = [50, 80]): string {
   if (value < thresholds[0]) return "#E69F00"; // Emerald-500
@@ -38,7 +39,7 @@ function MiniGauge({ value, max, color, label }: {
             strokeDasharray={`${circumference * 0.5} ${circumference * 0.5}`}
             strokeDashoffset={offset}
             strokeLinecap="round"
-            className="transition-all duration-1000 ease-out"
+            className="transition-[stroke-dashoffset] duration-1000 ease-out motion-reduce:transition-none"
           />
         </svg>
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-center">        
@@ -108,7 +109,7 @@ export const SystemStats = ({ collapsed }: { collapsed: boolean }) => {
           <span className="text-[8px] font-mono font-bold">{diskFree}G</span>
         </div>
         <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-           <div className="h-full bg-amber-500/40 rounded-full transition-all duration-1000" style={{ width: `${diskPct}%` }} />
+          <ProgressFill value={diskPct} className="bg-amber-500/40" durationMs={1000} />
         </div>
       </div>
 

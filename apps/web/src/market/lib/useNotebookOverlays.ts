@@ -57,6 +57,9 @@ export interface NotebookBand {
   color: string;
   label: string;
   opacity?: number;
+  /** Short tag drawn on the price axis at the band's centre (e.g. "R 3x"). When set, the band's
+   *  in-pane text is suppressed so it never overlaps the candles. */
+  axisLabel?: string;
 }
 
 export interface NotebookDrawings {

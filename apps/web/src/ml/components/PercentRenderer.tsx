@@ -11,6 +11,7 @@ import type { RendererProps } from "@/ml/lib/diagnostics-schema";
 import { getMetricSeverity, SEVERITY_COLORS } from "@/ml/lib/diagnostics-schema";
 import { RendererShell, useShellProps } from './RendererShell';
 import { cn } from "@/shared/utils/utils";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 
 const FILL_GRADIENT: Record<string, string> = {
   great: 'from-[hsl(var(--data-pos))] to-[hsl(var(--data-pos))]',
@@ -67,13 +68,14 @@ export function PercentRenderer(props: RendererProps) {
         {/* Bar container */}
         <div className={cn('relative w-full rounded-sm overflow-hidden bg-zinc-800/60', barHeight)}>
           {/* Fill gradient */}
-          <div
+          <ProgressFill
+            value={percent}
             className={cn(
-              'absolute inset-y-0 left-0 rounded-sm bg-gradient-to-r transition-all duration-700 ease-out',
+              'absolute inset-0 bg-gradient-to-r',
               FILL_GRADIENT[severity],
               FILL_SHADOW[severity],
             )}
-            style={{ width: `${percent}%` }}
+            durationMs={700}
           />
 
           {/* Baseline marker */}

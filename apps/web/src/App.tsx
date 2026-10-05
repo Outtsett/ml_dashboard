@@ -1,15 +1,12 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "@/infrastructure/api/query_client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/shared/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
-import { AICopilot } from "@/shared/ai/AICopilot";
-import { ClaudePanel } from "@/claude/ClaudePanel";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
-import { ResizableSidePanel } from "@/shared/layout/ResizableSidePanel";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
 import { DuckDBProvider } from "@/shared/contexts/DuckDBContext";
@@ -24,7 +21,11 @@ import { prefetchCriticalData, registerComponentFactory } from "@/infrastructure
 import { useWebVitals } from "@/shared/hooks/useWebVitals";
 import { useGlobalShortcuts } from "@/shared/hooks/useGlobalShortcuts";
 import { useNativeMenu } from "@/shared/hooks/useNativeMenu";
-import { CommandPalette } from "@/shared/layout/CommandPalette";
+
+// Lazy load non-critical overlay components to reduce main thread blocking during LCP
+const AICopilot = lazy(() => import("@/shared/ai/AICopilot").then(m => ({ default: m.AICopilot })));
+const ClaudePanel = lazy(() => import("@/claude/ClaudePanel").then(m => ({ default: m.ClaudePanel })));
+const CommandPalette = lazy(() => import("@/shared/layout/CommandPalette").then(m => ({ default: m.CommandPalette })));
 
 function lazyRetry(
   factory: () => Promise<{ default: ComponentType }>,
@@ -61,9 +62,9 @@ registerComponentFactory("/news", NewsFactory);
 const RegressionFactory = () => import("@/market/regression/RegressionPage");
 const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
-const AnalyticsFactory = () => import("@/analytics/AnalyticsPage");
-const Analytics = lazyRetry(AnalyticsFactory, "Analytics");
-registerComponentFactory("/analytics", AnalyticsFactory);
+
+import Analytics from "@/analytics/AnalyticsPage";
+registerComponentFactory("/analytics", () => Promise.resolve({ default: Analytics }));
 
 
 // Portfolio Domain
@@ -154,75 +155,67 @@ registerComponentFactory("/feature-graph", FeatureGraphFactory);
 const EntityProfileFactory = () => import("@/entity/EntityProfilePage");
 const EntityProfile = lazyRetry(EntityProfileFactory, "EntityProfile");
 
+const DIKWPipelineFactory = () => import("@/inference/DIKWPipeline");
+const DIKWPipeline = lazyRetry(DIKWPipelineFactory, "DIKWPipeline");
+registerComponentFactory("/inference", DIKWPipelineFactory);
+
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
 function Router() {
-  const [location] = useLocation();
-  const isMarketData = location === "/";
-
   return (
     <Layout>
-      <div className="flex flex-row flex-1 w-full h-full overflow-hidden">
-        {/* Persistent Background Layer: The Global Chart.
-            min-w-0: a flex item will not shrink below its content by default,
-            and the chart canvas carries an explicit pixel width — without it,
-            widening the side panel pushed the panel off-screen instead of
-            narrowing the chart. */}
-        <div className="flex-1 min-w-0 relative z-0 bg-neutral-950">
-          <ErrorBoundary>
-            <Suspense fallback={<ChartSkeleton />}>
-              <MarketData />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
+      <div className="flex-1 w-full h-full overflow-hidden bg-neutral-950">
+        <Switch>
+          <Route path="/">
+            <ErrorBoundary>
+              <Suspense fallback={<ChartSkeleton />}>
+                <MarketData />
+              </Suspense>
+            </ErrorBoundary>
+          </Route>
 
-        {/* Foreground Overlay Layer */}
-        {!isMarketData && (
-          <ResizableSidePanel className="z-10 bg-neutral-950/90 backdrop-blur-2xl border-l border-white/5 shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-8 duration-300">
-            <Switch>
-              {/* Redirects */}
-              <Route path="/ml-hub"><Redirect to="/ml-studio" /></Route>
-              <Route path="/rl-console"><Redirect to="/ml-studio" /></Route>
-              <Route path="/risk"><Redirect to="/ml-studio" /></Route>
-              <Route path="/portfolio"><Redirect to="/ml-studio" /></Route>
-              <Route path="/watchlist"><Redirect to="/" /></Route>
-              
-              {/* Routes rendered in the side panel */}
-              <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
-              <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
-              <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
-<Route path="/feature-graph"><ErrorBoundary><Suspense fallback={<PageLoader />}><FeatureGraph /></Suspense></ErrorBoundary></Route>
-              <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
-              <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
-              <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
-              <Route path="/models"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
-              <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
-              <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
-              <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
-              <Route path="/terminals"><ErrorBoundary><Suspense fallback={<PageLoader />}><Terminals /></Suspense></ErrorBoundary></Route>
-              <Route path="/hardware"><ErrorBoundary><Suspense fallback={<PageLoader />}><Hardware /></Suspense></ErrorBoundary></Route>
-              <Route path="/lens"><ErrorBoundary><Suspense fallback={<PageLoader />}><Lens /></Suspense></ErrorBoundary></Route>
-              <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
-              <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
-              <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
-              <Route path="/studies"><ErrorBoundary><Suspense fallback={<PageLoader />}><Studies /></Suspense></ErrorBoundary></Route>
-              <Route path="/studies/:slug"><ErrorBoundary><Suspense fallback={<PageLoader />}><Study /></Suspense></ErrorBoundary></Route>
-              <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
-              <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
-              <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
-              <Route path="/entity/:type/:id"><ErrorBoundary><Suspense fallback={<PageLoader />}><EntityProfile /></Suspense></ErrorBoundary></Route>
+          {/* Redirects */}
+          <Route path="/ml-hub"><Redirect to="/ml-studio" /></Route>
+          <Route path="/rl-console"><Redirect to="/ml-studio" /></Route>
+          <Route path="/risk"><Redirect to="/ml-studio" /></Route>
+          <Route path="/portfolio"><Redirect to="/ml-studio" /></Route>
+          <Route path="/watchlist"><Redirect to="/" /></Route>
+          
+          {/* Main Domain Routes */}
+          <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
+          <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
+          <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
+          <Route path="/feature-graph"><ErrorBoundary><Suspense fallback={<PageLoader />}><FeatureGraph /></Suspense></ErrorBoundary></Route>
+          <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
+          <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
+          <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
+          <Route path="/models"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+          <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
+          <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
+          <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
+          <Route path="/terminals"><ErrorBoundary><Suspense fallback={<PageLoader />}><Terminals /></Suspense></ErrorBoundary></Route>
+          <Route path="/hardware"><ErrorBoundary><Suspense fallback={<PageLoader />}><Hardware /></Suspense></ErrorBoundary></Route>
+          <Route path="/lens"><ErrorBoundary><Suspense fallback={<PageLoader />}><Lens /></Suspense></ErrorBoundary></Route>
+          <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
+          <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
+          <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
+          <Route path="/studies"><ErrorBoundary><Suspense fallback={<PageLoader />}><Studies /></Suspense></ErrorBoundary></Route>
+          <Route path="/studies/:slug"><ErrorBoundary><Suspense fallback={<PageLoader />}><Study /></Suspense></ErrorBoundary></Route>
+          <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
+          <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
+          <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
+          <Route path="/inference"><ErrorBoundary><Suspense fallback={<PageLoader />}><DIKWPipeline /></Suspense></ErrorBoundary></Route>
+          <Route path="/entity/:type/:id"><ErrorBoundary><Suspense fallback={<PageLoader />}><EntityProfile /></Suspense></ErrorBoundary></Route>
 
-              {/* Catch-all */}
-              <Route>
-                <ErrorBoundary>
-                  <Suspense fallback={<PageLoader />}>
-                    <NotFound />
-                  </Suspense>
-                </ErrorBoundary>
-              </Route>
-            </Switch>
-          </ResizableSidePanel>
-        )}
+          {/* Catch-all */}
+          <Route>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <NotFound />
+              </Suspense>
+            </ErrorBoundary>
+          </Route>
+        </Switch>
       </div>
     </Layout>
   );
@@ -283,10 +276,12 @@ function App() {
             <BreadcrumbProvider>
               <Toaster />
               <SonnerToaster richColors position="bottom-right" />
-              <CommandPalette />
               <Router />
-              <AICopilot />
-              <ClaudePanel />
+              <Suspense fallback={null}>
+                <CommandPalette />
+                <AICopilot />
+                <ClaudePanel />
+              </Suspense>
             </BreadcrumbProvider>
           </TrainingProvider>
         </UnifiedDashboardProvider>

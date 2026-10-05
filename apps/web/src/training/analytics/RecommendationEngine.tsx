@@ -68,7 +68,7 @@ function RecommendationEngineInner({ diagnostics }: { diagnostics?: MetricsSnaps
           return (
             <div
               key={gate.metric}
-              className={`group flex items-start gap-3 rounded-xl border p-3 ${config.borderColor} ${config.bgColor} ${config.glow} hover:bg-white/[0.02] transition-all`}
+              className={`group flex items-start gap-3 rounded-xl border p-3 ${config.borderColor} ${config.bgColor} ${config.glow} hover:bg-white/[0.02] transition-colors`}
             >
               <div className={`mt-0.5 p-1.5 rounded-lg bg-white/5 border border-white/5 ${config.iconColor}`}>
                 <Icon className="w-4 h-4 shrink-0" />
