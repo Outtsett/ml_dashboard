@@ -221,7 +221,7 @@ export function useChartOverlays(
             lastValueVisible: false,
             priceLineVisible: false,
             crosshairMarkerVisible: false,
-            title: getSeriesTitle(overlay.column),
+            title: overlay.displayType === 'subchart' ? getSeriesTitle(overlay.column) : '',
           });
         } else {
           // Regular LineSeries for middle, signal, and all other lines
@@ -236,7 +236,7 @@ export function useChartOverlays(
             priceLineVisible: false,
             crosshairMarkerVisible: true,
             crosshairMarkerRadius: 3,
-            title: getSeriesTitle(overlay.column),
+            title: overlay.displayType === 'subchart' ? getSeriesTitle(overlay.column) : '',
           });
         }
 

@@ -117,8 +117,6 @@ interface ChartOverlayResult {
   regimeQualityScore: number | undefined;
   /** Matched saved model ID */
   matchedModelId: string | null;
-  /** Support/resistance levels */
-  srLevels: ReturnType<typeof computeSupportResistance>;
   /** microstructure points */
   zigZagPts: ReturnType<typeof computeZigZag>;
   /** Microstructure points */

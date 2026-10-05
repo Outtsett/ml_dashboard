@@ -1,12 +1,14 @@
-import { Router, type Request, type Response } from 'express';
+﻿import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { eq, or } from 'drizzle-orm';
 import { Logger } from '@nestjs/common';
-import { db } from '../infrastructure/database/db';
-import { derivedViews } from '../infrastructure/database/lake/derivedDatasets';
+import { db as sqliteDb } from '../infrastructure/database/sqlite';
+import {
+  derivedViews,
+} from '../infrastructure/database/lake';
 import {
   entityRelationships,
   datasets,
@@ -16,8 +18,9 @@ import {
   featureTransforms,
   wfvDefinitions,
   modelDriftMetrics,
-  systemComponents
-} from '@shared/pg_schema';
+  systemComponents,
+  strategies
+} from '@shared/schema';
 
 const logger = new Logger('EntitiesRouter');
 
@@ -37,7 +40,7 @@ interface ConfiguredCategory {
   description?: string;
 }
 
-/** Read the `categories` block — the parent table for features. */
+/** Read the `categories` block â€” the parent table for features. */
 function readConfiguredCategories(): Map<string, ConfiguredCategory> {
   const file = path.resolve(process.cwd(), 'packages', 'config', 'features.json');
   const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as {
@@ -57,9 +60,9 @@ function featureCategoryLabel(id: string | null | undefined): string {
 
 /**
  * `packages/config/features.json` is the single definition of every feature
- * (CLAUDE.md: "Config-driven features … is the single source of truth"). Read
+ * (CLAUDE.md: "Config-driven features â€¦ is the single source of truth"). Read
  * it per request rather than caching it, so a feature added while the server
- * runs shows up on the next read — the file is a few tens of kilobytes and the
+ * runs shows up on the next read â€” the file is a few tens of kilobytes and the
  * entity browser reads it once per page load.
  */
 function readConfiguredFeatures(): ConfiguredFeature[] {
@@ -90,7 +93,7 @@ export function createEntitiesRouter(): Router {
   /** List all entity relationships */
   router.get('/entities/relationships', async (req: Request, res: Response) => {
     try {
-      const records = await db.select().from(entityRelationships);
+      const records = await sqliteDb.select().from(entityRelationships);
       res.json(records);
     } catch (err) {
       logger.error('Error fetching relationships', err);
@@ -102,7 +105,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/relationships/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
+      const record = (await sqliteDb.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -115,7 +118,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/graph/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const records = await db
+const records = await sqliteDb
         .select()
         .from(entityRelationships)
         .where(or(
@@ -134,11 +137,11 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = RelationshipSchema.parse(req.body);
       const newId = genId();
-      await db.insert(entityRelationships).values({
+      await sqliteDb.insert(entityRelationships).values({
         id: newId,
         ...parsed
       });
-      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, newId)))[0];
+      const record = (await sqliteDb.select().from(entityRelationships).where(eq(entityRelationships.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating relationship', err);
@@ -151,8 +154,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = RelationshipSchema.parse(req.body);
-      await db.update(entityRelationships).set(parsed).where(eq(entityRelationships.id, id));
-      const record = (await db.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
+      await sqliteDb.update(entityRelationships).set(parsed).where(eq(entityRelationships.id, id));
+      const record = (await sqliteDb.select().from(entityRelationships).where(eq(entityRelationships.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -165,7 +168,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/relationships/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(entityRelationships).where(eq(entityRelationships.id, id));
+      await sqliteDb.delete(entityRelationships).where(eq(entityRelationships.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting relationship ${req.params.id}`, err);
@@ -182,7 +185,7 @@ export function createEntitiesRouter(): Router {
   });
 
   // ============================================================================
-  // datasets and features — read from their real definitions
+  // datasets and features â€” read from their real definitions
   // ============================================================================
   //
   // The SQLite `datasets` and `features` tables hold zero rows: nothing in the
@@ -199,7 +202,7 @@ export function createEntitiesRouter(): Router {
    *
    * Order matters: the first match wins, so the specific rules are tested before
    * the general ones. A name that matches nothing is `Other` rather than a
-   * guess, because a wrong category is worse than an honest unclassified one —
+   * guess, because a wrong category is worse than an honest unclassified one â€”
    * it hides the dataset in a group nobody thinks to look in.
    *
    * The groups are what the lake actually holds, not a taxonomy imposed on it:
@@ -267,7 +270,7 @@ export function createEntitiesRouter(): Router {
           source: 'lake' as const,
         };
       });
-      const authored = (await db.select().from(datasets)).map((row) => {
+      const authored = (await sqliteDb.select().from(datasets)).map((row) => {
         const category = datasetCategory(row.name);
         return {
           id: row.id,
@@ -291,7 +294,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/datasets/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(datasets).where(eq(datasets.id, id)))[0];
+      const record = (await sqliteDb.select().from(datasets).where(eq(datasets.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -305,8 +308,8 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = DatasetSchema.parse(req.body);
       const newId = genId();
-      await db.insert(datasets).values({ id: newId, ...parsed });
-      const record = (await db.select().from(datasets).where(eq(datasets.id, newId)))[0];
+      await sqliteDb.insert(datasets).values({ id: newId, ...parsed });
+      const record = (await sqliteDb.select().from(datasets).where(eq(datasets.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating dataset', err);
@@ -319,8 +322,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = DatasetSchema.parse(req.body);
-      await db.update(datasets).set(parsed).where(eq(datasets.id, id));
-      const record = (await db.select().from(datasets).where(eq(datasets.id, id)))[0];
+      await sqliteDb.update(datasets).set(parsed).where(eq(datasets.id, id));
+      const record = (await sqliteDb.select().from(datasets).where(eq(datasets.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -333,7 +336,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/datasets/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(datasets).where(eq(datasets.id, id));
+      await sqliteDb.delete(datasets).where(eq(datasets.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting dataset ${req.params.id}`, err);
@@ -354,7 +357,7 @@ export function createEntitiesRouter(): Router {
   /** List all dataset versions */
   router.get('/entities/dataset-versions', async (req: Request, res: Response) => {
     try {
-      const records = await db.select().from(datasetVersions);
+      const records = await sqliteDb.select().from(datasetVersions);
       res.json(records);
     } catch (err) {
       logger.error('Error fetching dataset versions', err);
@@ -366,7 +369,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/dataset-versions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
+      const record = (await sqliteDb.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -380,8 +383,8 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = DatasetVersionSchema.parse(req.body);
       const newId = genId();
-      await db.insert(datasetVersions).values({ id: newId, ...parsed });
-      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, newId)))[0];
+      await sqliteDb.insert(datasetVersions).values({ id: newId, ...parsed });
+      const record = (await sqliteDb.select().from(datasetVersions).where(eq(datasetVersions.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating dataset version', err);
@@ -394,8 +397,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = DatasetVersionSchema.parse(req.body);
-      await db.update(datasetVersions).set(parsed).where(eq(datasetVersions.id, id));
-      const record = (await db.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
+      await sqliteDb.update(datasetVersions).set(parsed).where(eq(datasetVersions.id, id));
+      const record = (await sqliteDb.select().from(datasetVersions).where(eq(datasetVersions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -408,7 +411,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/dataset-versions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(datasetVersions).where(eq(datasetVersions.id, id));
+      await sqliteDb.delete(datasetVersions).where(eq(datasetVersions.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting dataset version ${req.params.id}`, err);
@@ -524,8 +527,8 @@ export function createEntitiesRouter(): Router {
    */
   router.get('/entities/feature-graph', async (req: Request, res: Response) => {
     try {
-      const rows = await db.select().from(featureDependencies);
-      const transforms = await db.select().from(featureTransforms);
+      const rows = await sqliteDb.select().from(featureDependencies);
+      const transforms = await sqliteDb.select().from(featureTransforms);
 
       const wanted = typeof req.query.component === 'string' ? req.query.component : null;
       const wantedTransform = typeof req.query.transform === 'string' ? req.query.transform : null;
@@ -601,14 +604,14 @@ export function createEntitiesRouter(): Router {
         category: featureCategoryLabel(feature.category),
         categoryId: feature.category ?? 'other',
         // The type is the "kind of metric or calculation" a feature category is
-        // a parent of — it is its own axis, not a restatement of the category.
+        // a parent of â€” it is its own axis, not a restatement of the category.
         type: feature.type ?? null,
         params: feature.params ?? {},
         requires: feature.requires ?? [],
         description: feature.description,
         source: 'config' as const,
       }));
-      const authored = (await db.select().from(features)).map((row) => ({
+      const authored = (await sqliteDb.select().from(features)).map((row) => ({
         id: row.id,
         name: row.displayName ?? row.name,
         category: featureCategoryLabel(row.categoryId),
@@ -631,7 +634,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/features/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(features).where(eq(features.id, id)))[0];
+      const record = (await sqliteDb.select().from(features).where(eq(features.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -645,8 +648,8 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = FeatureSchema.parse(req.body);
       const newId = genId();
-      await db.insert(features).values({ id: newId, ...parsed });
-      const record = (await db.select().from(features).where(eq(features.id, newId)))[0];
+      await sqliteDb.insert(features).values({ id: newId, ...parsed });
+      const record = (await sqliteDb.select().from(features).where(eq(features.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating feature', err);
@@ -659,8 +662,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = FeatureSchema.parse(req.body);
-      await db.update(features).set(parsed).where(eq(features.id, id));
-      const record = (await db.select().from(features).where(eq(features.id, id)))[0];
+      await sqliteDb.update(features).set(parsed).where(eq(features.id, id));
+      const record = (await sqliteDb.select().from(features).where(eq(features.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -673,7 +676,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/features/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(features).where(eq(features.id, id));
+      await sqliteDb.delete(features).where(eq(features.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting feature ${req.params.id}`, err);
@@ -696,7 +699,7 @@ export function createEntitiesRouter(): Router {
   /** List all WFV definitions */
   router.get('/entities/wfv-definitions', async (req: Request, res: Response) => {
     try {
-      const records = await db.select().from(wfvDefinitions);
+      const records = await sqliteDb.select().from(wfvDefinitions);
       res.json(records);
     } catch (err) {
       logger.error('Error fetching WFV definitions', err);
@@ -708,7 +711,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/wfv-definitions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
+      const record = (await sqliteDb.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -722,7 +725,7 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = WfvDefinitionSchema.parse(req.body);
       const newId = genId();
-      await db.insert(wfvDefinitions).values({ 
+      await sqliteDb.insert(wfvDefinitions).values({ 
         id: newId, 
         ...parsed, 
         inSampleStart: new Date(parsed.inSampleStart),
@@ -730,7 +733,7 @@ export function createEntitiesRouter(): Router {
         outSampleStart: new Date(parsed.outSampleStart),
         outSampleEnd: new Date(parsed.outSampleEnd)
       });
-      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, newId)))[0];
+      const record = (await sqliteDb.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating WFV definition', err);
@@ -743,14 +746,14 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = WfvDefinitionSchema.parse(req.body);
-      await db.update(wfvDefinitions).set({
+      await sqliteDb.update(wfvDefinitions).set({
         ...parsed,
         inSampleStart: new Date(parsed.inSampleStart),
         inSampleEnd: new Date(parsed.inSampleEnd),
         outSampleStart: new Date(parsed.outSampleStart),
         outSampleEnd: new Date(parsed.outSampleEnd)
       }).where(eq(wfvDefinitions.id, id));
-      const record = (await db.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
+      const record = (await sqliteDb.select().from(wfvDefinitions).where(eq(wfvDefinitions.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -763,7 +766,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/wfv-definitions/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(wfvDefinitions).where(eq(wfvDefinitions.id, id));
+      await sqliteDb.delete(wfvDefinitions).where(eq(wfvDefinitions.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting WFV definition ${req.params.id}`, err);
@@ -785,7 +788,7 @@ export function createEntitiesRouter(): Router {
   /** List all model drift metrics */
   router.get('/entities/model-drift-metrics', async (req: Request, res: Response) => {
     try {
-      const records = await db.select().from(modelDriftMetrics);
+      const records = await sqliteDb.select().from(modelDriftMetrics);
       res.json(records);
     } catch (err) {
       logger.error('Error fetching model drift metrics', err);
@@ -797,7 +800,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/model-drift-metrics/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
+      const record = (await sqliteDb.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -811,8 +814,8 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = ModelDriftMetricSchema.parse(req.body);
       const newId = genId();
-      await db.insert(modelDriftMetrics).values({ id: newId, ...parsed });
-      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, newId)))[0];
+      await sqliteDb.insert(modelDriftMetrics).values({ id: newId, ...parsed });
+      const record = (await sqliteDb.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating model drift metric', err);
@@ -825,8 +828,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = ModelDriftMetricSchema.parse(req.body);
-      await db.update(modelDriftMetrics).set(parsed).where(eq(modelDriftMetrics.id, id));
-      const record = (await db.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
+      await sqliteDb.update(modelDriftMetrics).set(parsed).where(eq(modelDriftMetrics.id, id));
+      const record = (await sqliteDb.select().from(modelDriftMetrics).where(eq(modelDriftMetrics.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -839,7 +842,7 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/model-drift-metrics/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(modelDriftMetrics).where(eq(modelDriftMetrics.id, id));
+      await sqliteDb.delete(modelDriftMetrics).where(eq(modelDriftMetrics.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting model drift metric ${req.params.id}`, err);
@@ -860,7 +863,7 @@ export function createEntitiesRouter(): Router {
   /** List all system components */
   router.get('/entities/system-components', async (req: Request, res: Response) => {
     try {
-      const records = await db.select().from(systemComponents);
+      const records = await sqliteDb.select().from(systemComponents);
       res.json(records);
     } catch (err) {
       logger.error('Error fetching system components', err);
@@ -872,7 +875,7 @@ export function createEntitiesRouter(): Router {
   router.get('/entities/system-components/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
+      const record = (await sqliteDb.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -886,8 +889,8 @@ export function createEntitiesRouter(): Router {
     try {
       const parsed = SystemComponentSchema.parse(req.body);
       const newId = genId();
-      await db.insert(systemComponents).values({ id: newId, ...parsed });
-      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, newId)))[0];
+      await sqliteDb.insert(systemComponents).values({ id: newId, ...parsed });
+      const record = (await sqliteDb.select().from(systemComponents).where(eq(systemComponents.id, newId)))[0];
       res.status(201).json(record);
     } catch (err) {
       logger.error('Error creating system component', err);
@@ -900,8 +903,8 @@ export function createEntitiesRouter(): Router {
     try {
       const id = req.params.id as string;
       const parsed = SystemComponentSchema.parse(req.body);
-      await db.update(systemComponents).set(parsed).where(eq(systemComponents.id, id));
-      const record = (await db.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
+      await sqliteDb.update(systemComponents).set(parsed).where(eq(systemComponents.id, id));
+      const record = (await sqliteDb.select().from(systemComponents).where(eq(systemComponents.id, id)))[0];
       if (!record) return res.status(404).json({ error: 'Not found' });
       res.json(record);
     } catch (err) {
@@ -914,10 +917,35 @@ export function createEntitiesRouter(): Router {
   router.delete('/entities/system-components/:id', async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      await db.delete(systemComponents).where(eq(systemComponents.id, id));
+      await sqliteDb.delete(systemComponents).where(eq(systemComponents.id, id));
       res.status(204).send();
     } catch (err) {
       logger.error(`Error deleting system component ${req.params.id}`, err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+    // ============================================================================
+  // strategies
+  // ============================================================================
+  router.get('/entities/strategies', async (req: Request, res: Response) => {
+    try {
+      const records = await sqliteDb.select().from(strategies);
+      res.json(records);
+    } catch (err) {
+      logger.error('Error fetching strategies', err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  router.get('/entities/strategies/:id', async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const record = (await sqliteDb.select().from(strategies).where(eq(strategies.id, id)))[0];
+      if (!record) return res.status(404).json({ error: 'Not found' });
+      res.json(record);
+    } catch (err) {
+      logger.error('Error fetching strategy', err);
       res.status(500).json({ error: String(err) });
     }
   });
@@ -926,4 +954,6 @@ export function createEntitiesRouter(): Router {
 }
 
 export default createEntitiesRouter();
+
+
 

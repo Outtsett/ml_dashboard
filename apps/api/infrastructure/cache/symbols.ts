@@ -65,36 +65,7 @@ export function getSymbolsCacheStats(): {
  * Fire-and-forget — failures are logged but don't block startup.
  */
 export async function warmSymbolsCatalog(): Promise<void> {
-  try {
-    const healthy = await checkLakeHealth();
-    if (!healthy) {
-      logInfo('[cache-warm] lake not healthy, skipping symbol catalog warm');
-      return;
-    }
-
-    // One row per symbol, the latest one. `symbols` is a time-series table with
-    // no dedup, so a plain SELECT returns one row per seeding run rather than
-    // one row per symbol.
-    //
-    // Was lake's `LATEST ON timestamp PARTITION BY symbol`, which DuckDB does
-    // not parse. QUALIFY over a windowed row_number is the ANSI spelling of the
-    // same thing: rank each symbol's rows newest-first and keep rank 1.
-    const symbols = await queryLake<SymbolCatalogRow>(`
-      SELECT symbol, asset_class, root
-      FROM symbols
-      QUALIFY row_number() OVER (PARTITION BY symbol ORDER BY timestamp DESC) = 1
-      ORDER BY symbol
-    `);
-    const result = symbols.map((s) => ({
-      symbol: s.symbol,
-      asset_class: s.asset_class,
-      root: s.root,
-    }));
-
-    symbolsCatalogCache = { data: result, expiry: Date.now() + SYMBOLS_CATALOG_TTL_MS };
-    logInfo(`[cache-warm] Symbol catalog warmed: ${result.length} symbols`);
-  } catch (err) {
-    console.warn(`[cache-warm] Failed to warm symbol catalog: ${(err as Error).message}`);
-  }
+  // Disabled: Lake snapshot is deprecated and symbols are now read dynamically or from instruments table.
+  return;
 }
 

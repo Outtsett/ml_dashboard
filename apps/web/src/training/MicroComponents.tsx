@@ -5,6 +5,8 @@
  * Sparkline, PendingValue, FitGauge, MiniProgress, QualityScoreRing
  */
 
+import { ProgressFill } from "@/shared/ui/progress-fill";
+
 // ─── SVG Sparkline ───────────────────────────────────────────────────────────
 
 export function Sparkline({ data, strokeColor = 'hsl(260, 80%, 70%)', fillColor = 'hsla(260, 80%, 70%, 0.06)', className = '' }: {
@@ -62,8 +64,7 @@ export function MiniProgress({ value, max }: {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-      <div className="h-full bg-violet-500/60 rounded-full transition-all duration-500"
-        style={{ width: `${pct}%` }} />
+      <ProgressFill value={pct} className="bg-violet-500/60" durationMs={500} />
     </div>
   );
 }

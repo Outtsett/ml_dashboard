@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { Play, Database, Network, LineChart, Server, Layers, GitBranch, Terminal, Brain } from "lucide-react";
+import { useState } from "react";
+import { Play, Database, Network, LineChart, Server, Layers, GitBranch, Brain } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 
 export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
-  const { startTraining, isRunning } = useTrainingControl();
+  const { startTraining, isTraining } = useTrainingControl();
   const [dataSource, setDataSource] = useState("timescaledb-realtime");
   const [featureSet, setFeatureSet] = useState("standard-ohlcv");
   const [targetLabel, setTargetLabel] = useState("ret-log-1m");
@@ -22,10 +22,7 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
   const handleLaunch = async () => {
     toast.success("Initializing Training Pipeline...");
     try {
-      await startTraining({
-        modelId: model.id,
-        config: { dataSource, featureSet, targetLabel, hpoEnabled, wfvFolds }
-      });
+      await startTraining({ modelType: model.architecture || model.id, symbol: "MNQ" } as any);
       toast.success("Training run dispatched to GPU workers");
     } catch (err: any) {
       toast.error(err.message || "Failed to start training");
@@ -103,11 +100,11 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
         <Button 
           size="lg" 
           onClick={handleLaunch}
-          disabled={isRunning}
-          className="mt-4 w-full shadow-[0_0_15px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition-all bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+          disabled={isTraining}
+          className="mt-4 w-full shadow-[0_0_15px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
         >
           <Play className="w-4 h-4 mr-2" />
-          {isRunning ? "Training Active..." : "Launch Run (24 Cores)"}
+          {isTraining ? "Training Active..." : "Launch Run (24 Cores)"}
         </Button>
       </div>
 
@@ -157,4 +154,5 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
     </div>
   );
 }
+
 

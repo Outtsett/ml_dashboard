@@ -65,7 +65,7 @@ function TradeLabBody() {
   const training = useTrainingContext();
   const { models } = useRegimeModels(training.isTraining);
 
-  const { selectedRunId, setSelectedTradeId, setVisibleRange } = useTradeLab();
+  const { selectedRunId, setSelectedTradeId, visibleRange, setVisibleRange } = useTradeLab();
   const run = useTradeLabRun(selectedRunId);
   const equity = useEquityCurve(run.trades);
 

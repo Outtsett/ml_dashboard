@@ -27,6 +27,19 @@ export function minutesToApiKey(m: number): string {
   return TIMEFRAME_OPTIONS.find(t => t.minutes === m)?.apiKey ?? `${m}`;
 }
 
+/**
+ * API key → minutes (e.g. "5m" → 5). The inverse of `minutesToApiKey`, for the
+ * case where the timeframe arrives as a key from outside the toolbar — a Model
+ * Cycle plan, which names its own. A key with no match is assumed to be minutes
+ * already, so an unusual value passes through rather than becoming NaN.
+ */
+export function apiKeyToMinutes(key: string): number {
+  const match = TIMEFRAME_OPTIONS.find(t => t.apiKey === key);
+  if (match) return match.minutes;
+  const parsed = Number.parseInt(key, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 /** Build a Record<minutes, label> map — useful for Select/dropdown UIs. */
 export const TF_LABELS: Record<number, string> = Object.fromEntries(
   TIMEFRAME_OPTIONS.map(t => [t.minutes, t.label]),

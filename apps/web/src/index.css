@@ -83,9 +83,10 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  /* "* Fallback" = local font rescaled to the web font's box (index.html) — swap causes no reflow. */
+  --font-sans: 'Inter', 'Inter Fallback', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
+  --font-mono: 'JetBrains Mono', 'JetBrains Mono Fallback', 'SF Mono', Consolas, monospace;
 
   /* Sharp, professional radii */
   --radius-sm: 2px;
@@ -385,7 +386,7 @@
   }
 
   .data-cell {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.8125rem;
     letter-spacing: -0.01em;
     font-feature-settings: 'tnum' 1;

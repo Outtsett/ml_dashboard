@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { CandlestickSeries, HistogramSeries, createChart, type Time } from "lightweight-charts";
+import { CandlestickSeries, HistogramSeries, createChart, type Time, type UTCTimestamp } from "lightweight-charts";
 import { CANDLE_DOWN_COLOR, CANDLE_UP_COLOR, VOLUME_DOWN_FILL, VOLUME_UP_FILL, candleSeriesOptions, createChartOptions } from "@/market/components/chartConfig";
 import { ControlBar, Finding, Section, SegmentControl, SliderControl, StudyNotes, StudyState, fmt, fmtInt, fmtTime, useStudyControls } from "@/studies/kit";
 import type { CandleColumns, PriceBody } from "@shared/studies/mnq-eda-30m";
@@ -39,7 +39,17 @@ function CandleChart({ candles, height }: { candles: CandleColumns; height: numb
     });
     price.setData(candleData);
     volume.setData(volumeData);
-    chart.timeScale().fitContent();
+    const frameLatest = () => {
+      if (candleData.length > 0) {
+        const visible = Math.min(250, candleData.length);
+        const start = candleData[candleData.length - visible];
+        const end = candleData[candleData.length - 1];
+        if (start && end) {
+          chart.timeScale().setVisibleRange({ from: start.time as UTCTimestamp, to: end.time as UTCTimestamp });
+        }
+      }
+    };
+    frameLatest();
 
     const onMove = (param: { time?: Time }) => setHover(param.time === undefined ? null : (indexByTime.get(param.time as number) ?? null));
     chart.subscribeCrosshairMove(onMove);

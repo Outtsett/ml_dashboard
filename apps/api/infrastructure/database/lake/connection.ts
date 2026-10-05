@@ -36,7 +36,6 @@
 
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import crypto from "node:crypto";
-import type pg from "pg";
 import { z } from "zod";
 import { logInfo } from "../../lib/log";
 import { lakeCredentials } from "../../lake/credentials";

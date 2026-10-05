@@ -13,10 +13,11 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
 import {
-  PanelLeftClose, PanelLeftOpen, BrainCircuit, Search,
+  PanelLeftClose, BrainCircuit, Search,
   FlaskConical, Database, Sparkles, Target, ChevronDown, ChevronRight, Folder, GitMerge
 } from "lucide-react";
 import { useEntityStore, type EntityType } from "@/shared/contexts/EntityContext";
+
 import {
   useEntityModels, useEntityStudies, useEntityDatasets,
   useEntityFeatures, useEntityStrategies, useModelVersions, type ModelVersionEntity
@@ -74,7 +75,21 @@ function groupModels(
 export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
   const [, navigate] = useLocation();
   const { setEntity, activeEntity } = useEntityStore();
+  
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSelectEntity = (type: EntityType, id: string, name: string) => {
+    setEntity(type, id, name);
+    let path = "";
+    if (type === "model") path = `/models?model=${encodeURIComponent(id)}`;
+    else if (type === "study") path = `/studies/${encodeURIComponent(id)}`;
+    else if (type === "dataset") path = `/databases?dataset=${encodeURIComponent(id)}`;
+    else if (type === "feature") path = `/databases?feature=${encodeURIComponent(id)}`;
+    else path = `/entity/${type}/${encodeURIComponent(id)}`;
+
+    
+    navigate(path);
+  };
 
   const { data: models = [] } = useEntityModels();
   const { data: studies = [] } = useEntityStudies();
@@ -158,22 +173,41 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
     { id: "strategy" as EntityType, title: "Strategies", icon: Target, items: filteredStrategies.map(s => ({ id: s.id, name: s.name })) },
   ];
 
+  const [location] = useLocation();
+  const showModels = location.startsWith("/models");
+  const showStudies = location.startsWith("/analytics") || location.startsWith("/studies");
+  const showData = location.startsWith("/databases");
+  
+  const activeFlatSections = flatSections.filter(section => {
+    if (showStudies && (section.id === "study" || section.id === "strategy")) return true;
+    if (showData && (section.id === "dataset" || section.id === "feature")) return true;
+    return false;
+  });
+
+  // Routes with no entity tree (e.g. the chart) get the full canvas instead of an empty 288px panel.
+  const hasContext = showModels || showStudies || showData;
+  if (collapsed || !hasContext) return null;
+
   return (
-    <div className={cn(
-      "h-full shrink-0 bg-neutral-950 border-r border-neutral-800 flex flex-col transition-all duration-300 overflow-hidden",
-      collapsed ? "w-12" : "w-72"
-    )}>
+    // Width is never animated: animating `width` re-lays-out the canvas (and resizes the chart)
+    // on every frame — the non-composited shift Lighthouse flagged. The panel snaps to w-72 in a
+    // single layout pass; only its content slides/fades in, via transform + opacity (composited).
+    <div className="h-full w-72 shrink-0 bg-neutral-950 border-r border-neutral-800 flex flex-col overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 animate-in fade-in slide-in-from-left-2 duration-150 motion-reduce:animate-none">
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-neutral-800 shrink-0">
-        {!collapsed && <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase">Entities</span>}
+        <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase">
+          {showModels ? "Model Registry" : showStudies ? "Experiments" : "Data"}
+        </span>
         {onToggle && (
           <button
             type="button"
             onClick={onToggle}
             data-testid="nav-toggle"
+            title="Hide sidebar (Ctrl+B)"
             className="text-neutral-500 hover:text-neutral-200 transition-colors"
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -198,7 +232,7 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-1 p-2 scrollbar-thin">
 
         {/* ── Models Section (grouped by category → subcategory) ── */}
-        {!collapsed && (
+        {showModels && (
           <div className="flex flex-col">
             <button
               onClick={() => toggle("model")}
@@ -300,7 +334,7 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
                                             )}
                                             <button
                                               onClick={() => {
-                                                setEntity("model", model.id, model.name); navigate("/models?model=" + encodeURIComponent(model.id));
+                                                handleSelectEntity("model", model.id, model.name);
                                                 if (hasVersions && !isModelExpanded) toggle(modelKey);
                                               }}
                                               className="flex-1 flex items-center gap-1.5 py-1 outline-none text-left min-w-0"
@@ -327,7 +361,7 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
                                                 return (
                                                   <button
                                                     key={v.versionId}
-                                                    onClick={() => setEntity("model", v.runnerKey, `${model.name} (${vName})`)}
+                                                    onClick={() => handleSelectEntity("model", v.runnerKey, `${model.name} (${vName})`)}
                                                     className={cn(
                                                       "flex items-center gap-1.5 px-2 py-0.5 rounded text-left transition-colors outline-none",
                                                       isVersionActive
@@ -362,19 +396,9 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
         )}
 
         {/* ── Flat entity sections (Studies, Datasets, Features, Strategies) ── */}
-        {flatSections.map((section) => {
+        {activeFlatSections.map((section) => {
           const isExpanded = expanded[section.id] ?? false;
           const hasItems = section.items.length > 0;
-
-          if (collapsed) {
-            return (
-              <div key={section.id} className="flex flex-col items-center py-2 gap-1">
-                <div title={section.title} className="text-neutral-500">
-                  <section.icon className="h-5 w-5" />
-                </div>
-              </div>
-            );
-          }
 
           if (q && !hasItems) return null;
 
@@ -401,11 +425,14 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
                   {section.items.map((item) => {
                     // A category entry carries `entries`; a flat entity does not.
                     const isGroup = 'entries' in item;
+                    const entries: { id: string; name: string }[] = isGroup
+                      ? ((item as { entries?: { id: string; name: string }[] }).entries ?? [])
+                      : [];
                     const isActive = !isGroup && activeEntity?.type === section.id && activeEntity?.id === item.id;
                     return (
                       <div key={item.id} className="flex flex-col">
                         <button
-                          onClick={() => !isGroup && setEntity(section.id, item.id, item.name)}
+                          onClick={() => !isGroup && handleSelectEntity(section.id, item.id, item.name)}
                           className={cn(
                             "flex items-center px-2 py-1.5 rounded text-left transition-colors whitespace-nowrap outline-none",
                             isGroup ? "cursor-default" : "",
@@ -413,25 +440,25 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
                               ? "bg-blue-500/10 text-blue-400 font-medium"
                               : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50"
                           )}
-                          title={isGroup ? `${item.name} (${item.entries!.length})` : item.name}
+                          title={isGroup ? `${item.name} (${entries.length})` : item.name}
                         >
                           <span className={cn("text-xs truncate", isGroup && "text-neutral-500 uppercase tracking-wide")}>
                             {item.name}
                           </span>
                           {isGroup && (
                             <span className="ml-auto pl-2 text-[10px] font-mono text-neutral-600">
-                              {item.entries!.length}
+                              {entries.length}
                             </span>
                           )}
                         </button>
                         {isGroup && (
                           <div className="flex flex-col gap-0.5 ml-2 border-l border-neutral-800/40 pl-2">
-                            {item.entries!.map((entry) => {
+                            {entries.map((entry) => {
                               const entryActive = activeEntity?.type === section.id && activeEntity?.id === entry.id;
                               return (
                                 <button
                                   key={entry.id}
-                                  onClick={() => setEntity(section.id, entry.id, entry.name)}
+                                  onClick={() => handleSelectEntity(section.id, entry.id, entry.name)}
                                   className={cn(
                                     "flex items-center px-2 py-1 rounded text-left transition-colors whitespace-nowrap outline-none",
                                     entryActive
@@ -454,15 +481,7 @@ export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boole
             </div>
           );
         })}
-
-        {/* Collapsed: show model icons only */}
-        {collapsed && (
-          <div className="flex flex-col items-center py-2 gap-1">
-            <div title="Models" className="text-neutral-500 mb-1">
-              <BrainCircuit className="h-5 w-5" />
-            </div>
-          </div>
-        )}
+      </div>
       </div>
     </div>
   );

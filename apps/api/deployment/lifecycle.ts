@@ -23,8 +23,8 @@
  */
 
 import { eq } from 'drizzle-orm';
-import { db } from '../infrastructure/database/db';
-import { deployments, modelVersions } from '@shared/pg_schema';
+import { db as sqliteDb } from '../infrastructure/database/sqlite';
+import { deployments, modelVersions } from '@shared/schema';
 import { queryLakeFast } from '../infrastructure/database/lake/connection';
 import { getBaseTableForType, detectInstrumentType } from '../infrastructure/database/lake/marketData';
 import { getMLBridgeClient, type MLBridgeClient } from './mlbridgeClient';
@@ -98,7 +98,7 @@ export async function startLiveDeployment(
     return;
   }
 
-  const [row] = await db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
+const [row] = await sqliteDb.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
   if (!row) {
     throw new Error(`deployment ${deploymentId} not found`);
   }
@@ -207,7 +207,7 @@ async function runLoop(
 
       // Record last_error so the UI surfaces the failure even before circuit-trip.
       try {
-        db.update(deployments)
+sqliteDb.update(deployments)
           .set({ lastError: errMsg })
           .where(eq(deployments.deploymentId, deploymentId))
           .execute();
@@ -234,7 +234,7 @@ async function tick(
   // Reload latest row each tick so external pause/stop transitions take
   // effect at the next iteration (belt-and-suspenders against AbortController
   // being missed — e.g. /pause sets status without aborting).
-  const [row] = await db.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
+  const [row] = await sqliteDb.select().from(deployments).where(eq(deployments.deploymentId, deploymentId));
   if (!row || row.status !== 'running') {
     state.abort.abort();
     return;
@@ -298,8 +298,8 @@ async function tick(
   }
 
   // SQLite — small writes, WAL-buffered, fine to do per tick.
-  db.update(deployments)
-    .set({
+sqliteDb.update(deployments)
+      .set({
       predictionsEmitted: state.predictionsEmitted,
       paperPnl: paperPnlTotal,
       lastPredictionAt: tsIso,
@@ -381,7 +381,7 @@ async function tripCircuitBreaker(deploymentId: number, error: string): Promise<
   liveLoops.delete(deploymentId);
   const failedAt = new Date().toISOString();
   try {
-    db.update(deployments)
+    sqliteDb.update(deployments)
       .set({ status: 'failed', stoppedAt: failedAt, lastError: error })
       .where(eq(deployments.deploymentId, deploymentId))
       .execute();

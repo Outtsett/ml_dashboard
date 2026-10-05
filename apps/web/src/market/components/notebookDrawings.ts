@@ -19,6 +19,7 @@ import {
   type IPrimitivePaneView,
   type ISeriesApi,
   type ISeriesPrimitive,
+  type ISeriesPrimitiveAxisView,
   type Logical,
   type PrimitivePaneViewZOrder,
   type SeriesAttachedParameter,
@@ -54,6 +55,9 @@ export function zoneBarSpan(times: readonly number[], startMs: number, endMs: nu
   const last = Math.max(first, barIndexAtOrBefore(times, endSeconds));
   return { first, last };
 }
+
+/** Thinnest a price band may render. Below this a zone reads as a flat price line, not a region. */
+const MIN_BAND_HEIGHT_PX = 4;
 
 function translucent(colour: string, alpha: number): string {
   const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(colour);
@@ -113,17 +117,24 @@ class DrawingsRenderer implements IPrimitivePaneRenderer {
     const top = series.priceToCoordinate(band.top);
     const bottom = series.priceToCoordinate(band.bottom);
     if (left === null || right === null || top === null || bottom === null) return;
-    const y = Math.min(top, bottom);
-    const h = Math.max(1, Math.abs(bottom - top));
-    
+    // A tight zone (top ≈ bottom) used to collapse to a 1px stroke that read as a flat price line
+    // spanning weeks. Grow it symmetrically about its centre to a minimum readable thickness.
+    const rawHeight = Math.abs(bottom - top);
+    const h = Math.max(MIN_BAND_HEIGHT_PX, rawHeight);
+    const y = (top + bottom) / 2 - h / 2;
+
     const fillAlpha = band.opacity ?? 0.22;
-    const strokeAlpha = band.opacity !== undefined ? Math.min(1, band.opacity + 0.48) : 0.7;
-    
     context.fillStyle = translucent(band.color, fillAlpha);
     context.fillRect(left - half, y, right - left + 2 * half, h);
-    context.strokeStyle = translucent(band.color, strokeAlpha);
-    context.lineWidth = 1;
-    context.strokeRect(left - half + 0.5, y + 0.5, right - left + 2 * half - 1, h - 1);
+    // Edge strokes only when the zone has real height; on a degenerate zone they re-create the line.
+    if (rawHeight >= MIN_BAND_HEIGHT_PX) {
+      const strokeAlpha = band.opacity !== undefined ? Math.min(1, band.opacity + 0.3) : 0.5;
+      context.strokeStyle = translucent(band.color, strokeAlpha);
+      context.lineWidth = 1;
+      context.strokeRect(left - half + 0.5, y + 0.5, right - left + 2 * half - 1, h - 1);
+    }
+    // Axis-labelled bands carry their tag on the price scale (BandAxisView) — never over candles.
+    if (band.axisLabel) return;
     context.fillStyle = band.color;
     context.font = "10px ui-sans-serif, system-ui, sans-serif";
     context.fillText(band.label, left - half + 3, y - 3 < 10 ? y + h + 11 : y - 3);
@@ -161,6 +172,20 @@ class DrawingsPaneView implements IPrimitivePaneView {
   }
 }
 
+/**
+ * A band's tag on the right price scale, at the band's centre price. This is where S/R zones are
+ * labelled — the axis is the one strip of the chart that never holds candles.
+ */
+class BandAxisView implements ISeriesPrimitiveAxisView {
+  public constructor(private readonly y: number, private readonly label: string, private readonly colour: string) {}
+  public coordinate(): number { return this.y; }
+  public text(): string { return this.label; }
+  public textColor(): string { return "#ffffff"; }
+  public backColor(): string { return this.colour; }
+  public visible(): boolean { return true; }
+  public tickVisible(): boolean { return false; }
+}
+
 export class NotebookDrawingsPrimitive implements ISeriesPrimitive<Time> {
   public chart: IChartApi | null = null;
   public series: ISeriesApi<SeriesType> | null = null;
@@ -169,6 +194,7 @@ export class NotebookDrawingsPrimitive implements ISeriesPrimitive<Time> {
   public verticalLines: NotebookVerticalLine[] = [];
   public bands: NotebookBand[] = [];
   private requestUpdate: (() => void) | null = null;
+  private axisViews: ISeriesPrimitiveAxisView[] = [];
   private readonly views: readonly IPrimitivePaneView[] = [new DrawingsPaneView(this, "behind"), new DrawingsPaneView(this, "front")];
 
   public attached(param: SeriesAttachedParameter<Time>): void {
@@ -195,8 +221,22 @@ export class NotebookDrawingsPrimitive implements ISeriesPrimitive<Time> {
     return this.views;
   }
 
+  public priceAxisViews(): readonly ISeriesPrimitiveAxisView[] {
+    return this.axisViews;
+  }
+
   public updateAllViews(): void {
-    // Coordinates are read at draw time.
+    // Pane coordinates are read at draw time; axis tags are positioned here, once per frame.
+    const series = this.series;
+    if (!series) { this.axisViews = []; return; }
+    const views: ISeriesPrimitiveAxisView[] = [];
+    for (const band of this.bands) {
+      if (!band.axisLabel) continue;
+      const y = series.priceToCoordinate((band.top + band.bottom) / 2);
+      if (y === null) continue; // centre is off the visible price range
+      views.push(new BandAxisView(y, band.axisLabel, band.color));
+    }
+    this.axisViews = views;
   }
 }
 

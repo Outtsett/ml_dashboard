@@ -25,7 +25,8 @@ import { useMLTrades } from "@/ml/lib/useMLData";
 import { useChartOHLCV } from "@/market/lib/useChartOHLCV";
 import { useChartOverlayData } from "./useChartOverlayData";
 import { type InstrumentInfo } from "@/market/types";
-import { minutesToLabel, minutesToApiKey } from "@/market/lib/timeframes";
+import { minutesToLabel, minutesToApiKey, apiKeyToMinutes } from "@/market/lib/timeframes";
+import { isFuturesSymbol } from "@/market/components/chartConfig";
 import { Toolbar } from "./Toolbar";
 import { TerminalTabs } from "@/system/components/TerminalTabs";
 import { MLWorkflowSidebar } from "@/system/components/MLWorkflowSidebar";
@@ -34,12 +35,22 @@ import { AnalyticsStrip } from "./AnalyticsStrip";
 import { LiveQuoteStrip } from "./LiveQuoteStrip";
 import { useLiveTail } from "@/live/useLiveTail";
 import { TrainingStatusStrip } from "@/training/market-data/TrainingStatusStrip";
-import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
+import IndicatorChartLayout, { type ExtraChartPanel } from "@/market/components/IndicatorChartLayout";
 import { ReplayControls } from "@/market/components/ReplayControls";
 import { RegimeLegend } from "@/ml/components/RegimeLegend";
 import { TrainingSyncBanner } from "@/training/TrainingSyncBanner";
+import { RunChartChrome } from "@/cycle/RunChartChrome";
+import { useRunChartData } from "@/cycle/useRunChartData";
+import { useRunOverlay } from "@/cycle/useRunOverlay";
+import type { ChartAttachTarget } from "@/market/components/useChartSetup";
+import type { RunOverlayTarget } from "@/cycle/useRunOverlay";
 import { useCycleStore } from "@/cycle/store";
-import { CycleChartArea } from "@/cycle/CycleChart";
+
+/** Stable identity so the grid tile does not re-render the ML sidebar on every page render. */
+const NOOP_LABEL_MARKERS = (): void => {};
+
+/** No label markers while a run covers the chart — see where they are passed. */
+const NO_LABEL_MARKERS: never[] = [];
 
 export default function MarketData() {
   const dashboard = useDashboard();
@@ -50,8 +61,28 @@ export default function MarketData() {
   // never changes and an effect that writes an overlay cannot re-trigger itself.
   const { setPredictionMarkers, setHighlightRange } = useChartOverlayContext();
   const { models } = useRegimeModels(training.isTraining);
-  // A Model Cycle run on screen replaces the market chart (which unmounts) until "Back to market chart".
-  const cycleChartShown = useCycleStore((state) => state.modelId !== null && state.showOnChart);
+
+  // ── Model Cycle run, drawn on this chart ──
+  //
+  // The run used to REPLACE the chart, which unmounted it and took every derived
+  // layer with it. It is now a source of bars, panels, markers and marks on the
+  // one market chart: the run's own bars become the candles, so its forecasts
+  // land on the bars the model read and every indicator is computed on those
+  // same bars.
+  const run = useRunChartData();
+  const runPlan = useCycleStore((state) => state.plan);
+
+  // The overlay attaches imperatively to the chart the layout builds, so the
+  // page bridges: `useRunOverlay` hands over an attach function, the chart
+  // hands over the chart, and this calls one with the other.
+  const attachRunOverlayRef = useRef<((target: RunOverlayTarget | null) => void) | null>(null);
+  const registerRunOverlay = useCallback((attach: (target: RunOverlayTarget | null) => void) => {
+    attachRunOverlayRef.current = attach;
+  }, []);
+  const runHover = useRunOverlay({ onChartReady: registerRunOverlay });
+  const onRunChartReady = useCallback((target: ChartAttachTarget | null) => {
+    attachRunOverlayRef.current?.(target);
+  }, []);
 
   // Use dashboard context state directly to avoid redundant local state sync
   const { symbol, assetType, timeframeMinutes: timeframe } = dashboard;
@@ -142,6 +173,30 @@ export default function MarketData() {
     }
   }, [queryClient, dashboard, symbol, futuresSymbols, forexSymbols, resetScrollState]);
 
+  // ── What the candles are ──
+  //
+  // A run's own bars while it is shown, otherwise the market's. Every derived
+  // layer below reads this instead of `chartData`, so the 151 indicators,
+  // support/resistance and the chart's own overlays are computed on the bars
+  // actually on screen — the run's bars are roll-adjusted, and mixing the two
+  // price spaces on one chart would draw every level in the wrong place.
+  const drawnSource = run.bars ?? chartData;
+
+  // A run declares its own instrument, which need not be the toolbar's. Price
+  // formatting (tick size, decimals), the lake-column overlays and the context
+  // published to every other surface must describe the bars being drawn.
+  const chartSymbol = run.active && runPlan ? runPlan.symbol : symbol;
+  const chartTimeframeMinutes = run.active && runPlan ? apiKeyToMinutes(runPlan.timeframe) : timeframe;
+  const chartIsFutures = run.active && runPlan ? isFuturesSymbol(chartSymbol) : isFutures;
+
+  // The run's two panels, each its own panel so `P(up)` and equity get their own
+  // price scale. `closable: false` — they close with the run, not with the
+  // user's indicator selection, which does not know them.
+  const runPanels = useMemo<ExtraChartPanel[]>(
+    () => run.panels.map((indicator) => ({ key: indicator.column, indicators: [indicator], closable: false })),
+    [run.panels],
+  );
+
   // ── Active indicators (new professional system) ──
   const {
     indicators: activeIndicators,
@@ -151,7 +206,7 @@ export default function MarketData() {
     toggleVisibility,
     clearAll: clearAllIndicators,
     overlays: indicatorOverlays,
-  } = useActiveIndicators(chartData);
+  } = useActiveIndicators(drawnSource);
 
   // ── CDL Patterns (computed client-side from OHLCV data) ──
   // Candlestick patterns are label generators now, chosen one at a time from
@@ -171,9 +226,9 @@ export default function MarketData() {
   useEffect(() => () => { if (visibleRangeTimer.current) clearTimeout(visibleRangeTimer.current); }, []);
   // ── Lake columns as chart series (fetched, not computed) ──
   const lakeSeries = useLakeSeries({
-    symbol,
-    timeframe: minutesToApiKey(timeframe),
-    bars: chartData,
+    symbol: chartSymbol,
+    timeframe: minutesToApiKey(chartTimeframeMinutes),
+    bars: drawnSource,
     visibleRange,
   });
 
@@ -225,17 +280,25 @@ export default function MarketData() {
   const liveTail = useLiveTail(symbol, timeframe, lastChartTimestamp);
   const chartWithLive = liveTail.bars.length > 0 ? [...chartData, ...liveTail.bars] : chartData;
 
-  const displayData = replay.active ? replay.snapshot.visibleBars : chartWithLive;
+  // A local replay of the market's own bars outranks a run's bars: it is the user
+  // stepping through that series by hand. Otherwise the chart draws the run's
+  // bars, or the market's with its live tail — which was this line before the run
+  // became a source of bars.
+  const displayData = replay.active ? replay.snapshot.visibleBars : (run.bars ?? chartWithLive);
 
   // What the chart shows, published to the notebooks beside it
   // (chartContextBridge.ts): symbol, timeframe, the visible range and the bar
-  // last clicked, which a following notebook takes as its focus.
+  // last clicked, which a following notebook takes as its focus. While a run is
+  // drawn this is the run's own instrument and bars — the alternative was a
+  // context claiming MNQ 1m while the chart showed a 5m walk-forward test set.
   const [selectedBarMs, setSelectedBarMs] = useState<number | null>(null);
-  useEffect(() => setSelectedBarMs(null), [symbol, timeframe]);
+  useEffect(() => setSelectedBarMs(null), [chartSymbol, chartTimeframeMinutes]);
   useChartContextPublisher({
-    symbol,
-    timeframe: minutesToApiKey(timeframe),
-    assetClass: assetType === 'forex' ? 'forex' : 'futures',
+    symbol: chartSymbol,
+    timeframe: minutesToApiKey(chartTimeframeMinutes),
+    assetClass: run.active && runPlan
+      ? (chartIsFutures ? 'futures' : 'forex')
+      : assetType === 'forex' ? 'forex' : 'futures',
     visibleRange,
     selectedMs: selectedBarMs,
     firstBarMs: displayData.length > 0 ? displayData[0]!.timestamp : null,
@@ -265,7 +328,7 @@ export default function MarketData() {
     trainTestSplitTime, regimeQualityScore, matchedModelId,
     zigZagPts, structurePts,
     trainingRevealRange,
-  } = useChartOverlayData(chartData, symbol, tfLabel, {
+  } = useChartOverlayData(drawnSource, chartSymbol, minutesToLabel(chartTimeframeMinutes), {
     liveTimestamps: training.liveRegimeTimestamps,
     liveAssignments: training.liveRegimeAssignments,
     isTraining: training.isTraining,
@@ -450,9 +513,7 @@ export default function MarketData() {
       {isTrainingActive && <TrainingStatusStrip />}
 
       {/* Analytics Strip */}
-      {cycleChartShown ? (
-        <CycleChartArea />
-      ) : !isFetching && chartData.length === 0 ? (
+      {!isFetching && chartData.length === 0 && run.bars === null ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 min-h-0 flex items-center justify-center">
           <Empty>
             <EmptyHeader>
@@ -494,16 +555,19 @@ export default function MarketData() {
       <>
       {/* Forming-bar quote. Self-hides until a frame arrives, and badges
           itself as Replay whenever the stream is stored bars rather than a
-          live feed � which, since 2026-07-27, it always is. */}
-      <LiveQuoteStrip
-        className="mb-2"
-        symbol={symbol}
-        timeframeApiKey={minutesToApiKey(timeframe)}
-        tail={{ shown: liveTail.bars.length, waiting: liveTail.atNewest ? 0 : liveTail.minuteBars, onShow: () => void handleReloadBars(), gap: liveTail.gap }}
-      />
+          live feed — which, since 2026-07-27, it always is. Hidden while a run
+          is drawn: it reports on the live bar the chart is not showing. */}
+      {!run.active && (
+        <LiveQuoteStrip
+          className="mb-2"
+          symbol={symbol}
+          timeframeApiKey={minutesToApiKey(timeframe)}
+          tail={{ shown: liveTail.bars.length, waiting: liveTail.atNewest ? 0 : liveTail.minuteBars, onShow: () => void handleReloadBars(), gap: liveTail.gap }}
+        />
+      )}
       <AnalyticsStrip
         symbol={symbol}
-        displayDataLength={displayData.length}
+        displayDataLength={run.active ? chartData.length : displayData.length}
         chartDataLength={chartData.length}
         onReloadBars={handleReloadBars}
         isReloadingBars={isReloadingBars}
@@ -620,24 +684,40 @@ export default function MarketData() {
 
         {displayData.length > 0 ? (
           <MarketGridLayout
-            mlStudioElement={<MLWorkflowSidebar />}
+            mlStudioElement={
+              <MLWorkflowSidebar
+                chartData={displayData}
+                symbol={chartSymbol}
+                isFutures={chartIsFutures}
+                timeframe={chartTimeframeMinutes}
+                // Chart label markers are owned by useLabelOverlay (selectedLabelGenerator);
+                // the sidebar's own preview markers are not painted on the main chart.
+                onLabelMarkersChange={NOOP_LABEL_MARKERS}
+              />
+            }
             terminalElement={<TerminalTabs />}
             chartElement={
               <IndicatorChartLayout
               onReloadBars={handleReloadBars}
               isReloadingBars={isReloadingBars}
               data={displayData}
-              symbol={symbol}
-              isFutures={isFutures}
-              timeframe={timeframe}
+              symbol={chartSymbol}
+              isFutures={chartIsFutures}
+              timeframe={chartTimeframeMinutes}
               isReplayActive={replay.active}
-              onLoadMore={!replay.active && useInfiniteScroll ? handleLoadMore : undefined}
-              onPrefetch={!replay.active && useInfiniteScroll ? triggerPrefetch : undefined}
+              // Infinite scroll belongs to the market's own series. A run's bars
+              // are the whole test walk already, and asking the lake for more of
+              // them would append bars the model never read.
+              onLoadMore={!replay.active && !run.active && useInfiniteScroll ? handleLoadMore : undefined}
+              onPrefetch={!replay.active && !run.active && useInfiniteScroll ? triggerPrefetch : undefined}
               onVisibleTimeRangeChange={handleVisibleRangeChange}
               isLoadingMore={isLoadingMore}
-              hasMoreLeft={!replay.active && hasMoreLeft}
-              hasMoreRight={!replay.active && hasMoreRight}
-              labelMarkers={labelMarkers}
+              hasMoreLeft={!replay.active && !run.active && hasMoreLeft}
+              hasMoreRight={!replay.active && !run.active && hasMoreRight}
+              // A landed label set is keyed to the market series it was generated
+              // from; its markers would point at bars the chart is no longer
+              // showing, so they step aside for the run's own glyphs.
+              labelMarkers={run.active ? NO_LABEL_MARKERS : labelMarkers}
               indicatorOverlays={allOverlays}
               onRemoveIndicators={handleRemoveIndicators}
               zigZagPoints={zigZagPts}
@@ -649,6 +729,11 @@ export default function MarketData() {
               onBarClick={setSelectedBarMs}
               notebookMarkers={notebookOverlays.markers}
               notebookDrawings={notebookOverlays.drawings}
+              // ── The Model Cycle run, on this chart ──
+              extraPanels={runPanels}
+              extraMarkers={run.markers}
+              onChartReady={onRunChartReady}
+              chrome={<RunChartChrome hover={runHover} />}
             />
             }
           />

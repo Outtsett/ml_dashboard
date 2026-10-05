@@ -29,6 +29,9 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import { db } from "../infrastructure/database/sqlite";
+import { trainingTelemetry, insertTrainingTelemetrySchema } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { CACHE_SEMI } from "../infrastructure/cache/headers";
 import { getNestApp } from "../infrastructure/lib/nest-context";
 import { mlRateLimiter } from "../infrastructure/lib/rateLimiter";
@@ -960,6 +963,32 @@ router.get("/training/visualizations/:category", CACHE_SEMI, (req: Request, res:
     }
 
     res.json({ universal, components: groupComponents, conditional });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+
+// ─── Telemetry routes ──────────────────────────────────────────────────────────
+
+router.post("/training/telemetry", async (req: Request, res: Response) => {
+  try {
+    const parseResult = insertTrainingTelemetrySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: parseResult.error.issues.map(i => i.message).join(", ") });
+    }
+    await db.insert(trainingTelemetry).values(parseResult.data);
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/training/telemetry/:run_id", async (req: Request, res: Response) => {
+  try {
+    const runId = String(req.params.run_id);
+    const telemetry = await db.select().from(trainingTelemetry).where(eq(trainingTelemetry.runId, runId)).orderBy(trainingTelemetry.epoch);
+    res.json(telemetry);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

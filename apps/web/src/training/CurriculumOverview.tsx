@@ -259,9 +259,11 @@ export function CurriculumOverview({
           <AnimatePresence>
             {bookmarksOpen && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                // scaleY + opacity reveal stays on the compositor (height:auto tweening forces per-frame layout)
+                initial={{ scaleY: 0.95, opacity: 0 }}
+                animate={{ scaleY: 1, opacity: 1 }}
+                exit={{ scaleY: 0.95, opacity: 0 }}
+                style={{ originY: 0 }}
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
@@ -401,7 +403,7 @@ export function CurriculumOverview({
                   >
                     <Card
                       onClick={() => onSelectPath(path.id)}
-                      className={`cursor-pointer border-border/30 bg-card/60 transition-all duration-200 ${colors.card}`}
+                      className={`cursor-pointer border-border/30 bg-card/60 transition-[border-color,box-shadow] duration-200 ${colors.card}`}
                     >
                       <CardContent className="p-5 space-y-4">
                         {/* Header */}

@@ -24,7 +24,23 @@ import type { TradingChartHandle, TradingChartProps } from '@/market/components/
 import SubchartPanel from '@/market/components/SubchartPanel';
 import type { SubchartPanelHandle } from '@/market/components/SubchartPanel';
 import { groupSubchartIndicators } from "@/market/lib/indicator_panels";
+import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import type { LogicalRange } from 'lightweight-charts';
+
+/**
+ * A panel the chart's owner supplies rather than one the user's indicator
+ * selection made — the Model Cycle run's `P(up)` and equity.
+ *
+ * They are panels here, not a second chart: same instance type, same range sync,
+ * same scroll area, so the run's numbers line up with the indicators and can be
+ * closed only by the source that owns them.
+ */
+export interface ExtraChartPanel {
+  key: string;
+  indicators: IndicatorOverlay[];
+  /** False for a panel that closes with its run rather than with the user's selection. */
+  closable?: boolean;
+}
 
 interface IndicatorChartLayoutProps extends Omit<TradingChartProps, 'onVisibleLogicalRangeChange' | 'showTimeAxis'> {
   /** Callback to remove indicator columns from the selection (e.g., when closing a panel). */
@@ -35,9 +51,17 @@ interface IndicatorChartLayoutProps extends Omit<TradingChartProps, 'onVisibleLo
    * so consumers observe the range through this prop instead.
    */
   onMainRangeChange?: (range: LogicalRange) => void;
+  /** Panels supplied by the owner, rendered above the user's own. */
+  extraPanels?: ExtraChartPanel[];
 }
 
 const BASE_PANEL_HEIGHT = 120;
+
+interface RenderedPanel {
+  key: string;
+  indicators: IndicatorOverlay[];
+  closable: boolean;
+}
 
 export default function IndicatorChartLayout({
   indicatorOverlays = [],
@@ -45,6 +69,7 @@ export default function IndicatorChartLayout({
   onMainRangeChange,
   isReplayActive,
   regimeColorMap,
+  extraPanels,
   ...chartProps
 }: IndicatorChartLayoutProps) {
   const mainChartRef = useRef<TradingChartHandle>(null);
@@ -62,13 +87,27 @@ export default function IndicatorChartLayout({
     [indicatorOverlays],
   );
 
+  // One list to render: the owner's panels (the run's, which read with the
+  // candles) then the user's own indicators.
+  const panels = useMemo<RenderedPanel[]>(
+    () => [
+      ...(extraPanels ?? []).map((panel) => ({
+        key: panel.key,
+        indicators: panel.indicators,
+        closable: panel.closable !== false,
+      })),
+      ...subchartPanels.map(([key, indicators]) => ({ key, indicators, closable: true })),
+    ],
+    [extraPanels, subchartPanels],
+  );
+
   // Dynamic height: shrink panels when there are many, minimum 100px
   const panelHeight = useMemo(() => {
-    const count = subchartPanels.length;
+    const count = panels.length;
     if (count <= 3) return BASE_PANEL_HEIGHT;
     // Cap total subchart area at ~400px, but never go below 100px per panel
     return Math.max(100, Math.floor(400 / count));
-  }, [subchartPanels.length]);
+  }, [panels.length]);
 
   // ---------- Time-axis sync ----------
 
@@ -156,25 +195,26 @@ export default function IndicatorChartLayout({
           {...chartProps}
           indicatorOverlays={overlayIndicators}
           onVisibleLogicalRangeChange={handleMainRangeChange}
-          showTimeAxis={subchartPanels.length === 0}
+          showTimeAxis={panels.length === 0}
           isReplayActive={isReplayActive}
           regimeColorMap={regimeColorMap}
         />
       </div>
 
       {/* Subchart panels — each gets its own chart instance, scrollable when many */}
-      {subchartPanels.length > 0 && (
+      {panels.length > 0 && (
         <div className="overflow-y-auto shrink-0" style={{ maxHeight: '50vh' }}>
-          {subchartPanels.map(([key, indicators], idx) => (
+          {panels.map((panel, idx) => (
             <SubchartPanel
-              key={key}
-              ref={getSubchartRef(key)}
-              panelKey={key}
-              indicators={indicators}
+              key={panel.key}
+              ref={getSubchartRef(panel.key)}
+              panelKey={panel.key}
+              indicators={panel.indicators}
               height={panelHeight}
-              showTimeAxis={idx === subchartPanels.length - 1}
+              showTimeAxis={idx === panels.length - 1}
+              closable={panel.closable}
               onClose={handlePanelClose}
-              onVisibleLogicalRangeChange={(range) => handleSubchartRangeChange(key, range)}
+              onVisibleLogicalRangeChange={(range) => handleSubchartRangeChange(panel.key, range)}
             />
           ))}
         </div>

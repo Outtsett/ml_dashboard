@@ -5,7 +5,7 @@
  * copy-pasted across charts.ts, databases.ts, indicators.ts, etc.
  */
 
-import type { OHLCVBar, LakeOHLCVRow } from "@shared/ohlcv";
+import type { OHLCVBar, lakeOHLCVRow } from "@shared/ohlcv";
 
 // ─── Timestamp normalization ────────────────────────────────
 
@@ -49,7 +49,7 @@ export function parseTimestampParam(v: string | undefined): number | undefined {
  * Normalize a raw lake OHLCV row → standard OHLCVBar.
  * Strips `symbol`, coerces Date timestamps, ensures Number types.
  */
-export function normalizelakeRow(row: LakeOHLCVRow): OHLCVBar {
+export function normalizelakeRow(row: lakeOHLCVRow): OHLCVBar {
   return {
     timestamp: normalizeTimestamp(row.timestamp),
     open: Number(row.open),

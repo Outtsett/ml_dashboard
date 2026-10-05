@@ -16,10 +16,34 @@
     <meta name="twitter:image" content="/logo.png" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Fonts: Space Grotesk for Display, Inter for UI, JetBrains Mono for Data -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!--
+      Fonts: self-hosted latin variable WOFF2 (public/fonts, OFL-1.1, @fontsource-variable 5.3.0).
+      - Preload: the two faces on the first paint (UI text + numeric data) start downloading with the
+        HTML instead of after a third-party stylesheet round-trip. Same-origin, so no preconnect.
+      - "* Fallback" faces: local Arial / Consolas rescaled with size-adjust + ascent/descent overrides
+        so the fallback occupies the same box as the web font; the swap repaints glyphs but moves no
+        layout (CLS from font swap -> ~0). Overrides derived from the font tables, not estimated.
+      - Declared inline so faces are known before the JS/CSS bundle evaluates.
+    -->
+    <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face { font-family: 'Inter'; font-style: normal; font-weight: 100 900; font-display: swap;
+        src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2-variations'), url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 100 800; font-display: swap;
+        src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations'), url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 300 700; font-display: swap;
+        src: url('/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2-variations'), url('/fonts/space-grotesk-latin-wght-normal.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+      @font-face { font-family: 'Inter Fallback'; src: local('Arial');
+        size-adjust: 107.48%; ascent-override: 90.13%; descent-override: 22.44%; line-gap-override: 0%; }
+      @font-face { font-family: 'JetBrains Mono Fallback'; src: local('Consolas');
+        size-adjust: 109.13%; ascent-override: 93.47%; descent-override: 27.49%; line-gap-override: 0%; }
+      @font-face { font-family: 'Space Grotesk Fallback'; src: local('Arial');
+        size-adjust: 111.34%; ascent-override: 88.38%; descent-override: 26.23%; line-gap-override: 0%; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -32,7 +32,9 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-RULES_PATH = Path(__file__).resolve().parents[3] / "config" / "cycle_rules.json"
+from cycle.paths import CONFIG_ROOT
+
+RULES_PATH = CONFIG_ROOT / "cycle_rules.json"
 OPERATORS = ("<", "<=", ">", ">=")
 SUGGESTIONS = ("up", "down", "none")
 SOURCES = ("feature", "indicator")

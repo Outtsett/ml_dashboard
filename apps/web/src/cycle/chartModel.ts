@@ -800,6 +800,38 @@ export function rangesDiffer(a: LogicalSpan | null, b: LogicalSpan): boolean {
   return Math.abs(a.from - b.from) > 0.1 || Math.abs(a.to - b.to) > 0.1;
 }
 
+// ─── What the chart is actually holding ──────────────────────────────────────
+
+/** What a series holds: how many bars, and its first and last bar's time (epoch seconds). */
+export interface DrawnShape {
+  count: number;
+  first: number | null;
+  last: number | null;
+}
+
+/**
+ * How many of the RUN's bars the chart is actually holding.
+ *
+ * The market chart is already on screen when a run's bars land, and it applies
+ * the new `data` prop on its own animation frame — one store notification after
+ * the store knew, and one pass of the overlay before the candles are really
+ * there. Reading the market series' length as "the run's bars drawn" spends the
+ * one framing pass on the wrong series, and no later pass repeats it, because by
+ * then the drawn count already matches the store: the view stays parked on the
+ * market's own newest bar while the run's bars are off to its left.
+ *
+ * The run's series is identified by its FIRST bar (the market's window starts
+ * elsewhere), and its last bar must be the one its count implies, so a chart
+ * trailing the store by a batch reports exactly what it holds.
+ */
+export function drawnRunBars(drawn: DrawnShape | null, timestamps: readonly number[]): number {
+  if (!drawn || drawn.count <= 0 || timestamps.length === 0) return 0;
+  if (drawn.first !== timestamps[0]) return 0;
+  const count = Math.min(drawn.count, timestamps.length);
+  if (count <= 0 || drawn.last !== timestamps[count - 1]) return 0;
+  return count;
+}
+
 // ─── Crosshair readout ──────────────────────────────────────────────────────
 
 export interface BarReadout {

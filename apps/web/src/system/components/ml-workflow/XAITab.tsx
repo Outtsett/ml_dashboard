@@ -3,6 +3,7 @@
  */
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { Crosshair } from "lucide-react";
 import type { XAITabProps } from "@/system/components/ml-workflow/types";
 
@@ -45,9 +46,9 @@ export function XAITab({ xaiMethod, setXaiMethod, xaiResult, activeModelName }: 
                 <div key={i} className="flex items-center gap-2">
                   <span className="text-[9px] text-muted-foreground w-20 truncate" title={f.name}>{f.name}</span>
                   <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${f.importance >= 0 ? 'bg-cyan-500' : 'bg-[hsl(var(--data-neg))]'}`}
-                      style={{ width: `${pct}%` }}
+                    <ProgressFill
+                      value={pct}
+                      className={f.importance >= 0 ? 'bg-cyan-500' : 'bg-[hsl(var(--data-neg))]'}
                     />
                   </div>
                   <span className="text-[9px] font-mono text-foreground w-10 text-right">

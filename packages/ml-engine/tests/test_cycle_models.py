@@ -252,7 +252,7 @@ def test_tree_run_never_imports_torch():
     import sys
     from pathlib import Path
 
-    source_root = Path(__file__).resolve().parents[1] / "src" / "ml"
+    source_root = Path(__file__).resolve().parents[1] / "src"
     script = (
         "import sys, numpy as np\n"
         "from cycle.models import build_adapter\n"
@@ -872,7 +872,7 @@ def test_building_a_legacy_family_imports_no_new_adapter_module():
     import subprocess
     import sys
 
-    source_root = Path(__file__).resolve().parents[1] / "src" / "ml"
+    source_root = Path(__file__).resolve().parents[1] / "src"
     script = (
         "import sys\n"
         "from cycle.models import build_adapter\n"

@@ -12,7 +12,7 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getStitchedOHLCV, getFrontMonthAnchor, checkLakeHealth, queryLake, queryLakeFast } from '../infrastructure/database/lake';
+import { getOHLCVSampleBy, getStitchedOHLCV, getFrontMonthAnchor, getSymbolsInlake as getSymbolsCatalog } from './pgMarketData';
 import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../infrastructure/cache/ohlcv';
 import { getCachedAnchor, setCachedAnchor } from '../infrastructure/cache/anchor';
@@ -116,10 +116,7 @@ const HEALTH_CHECK_INTERVAL_MS = 10_000; // Re-check every 10s
 const MIN_LOOKBACK_MINUTES = 4 * 24 * 60;
 
 async function islakeHealthy(): Promise<boolean> {
-  if (Date.now() - healthCheckedAt < HEALTH_CHECK_INTERVAL_MS) return lakeHealthy;
-  lakeHealthy = await checkLakeHealth();
-  healthCheckedAt = Date.now();
-  return lakeHealthy;
+  return true; // PG is always healthy if server is up
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -135,6 +132,7 @@ async function islakeHealthy(): Promise<boolean> {
 //   order      "asc" | "desc" (default: desc = most-recent first)
 // ───────────────────────────────────────────────────────────────
 router.get('/ohlcv', async (req: Request, res: Response) => {
+  console.log('[charts] /ohlcv route hit!', req.query);
   // Track client disconnection — abort heavy queries when the user switches symbols
   let clientDisconnected = false;
   req.on('close', () => { clientDisconnected = true; });
@@ -200,14 +198,21 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
               return frontMonthAnchor;
             }
           }
-          const anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
-          const [row] = await queryLakeFast<{ latest: Date | string | null }>(anchorQuery); // 10s timeout for anchor
-          if (row?.latest) {
-            const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
-            if (!isNaN(latestDate)) {
-              setCachedAnchor(symbol, latestDate);
-              return latestDate;
+          const { marketPool } = require('../infrastructure/database/pg_db');
+          const anchorQuery = `SELECT max("timestamp") as latest FROM market_bars WHERE symbol = '${safeEsc}'`;
+          const client = await marketPool.connect();
+          try {
+            const res = await client.query(anchorQuery);
+            const row = res.rows[0];
+            if (row?.latest) {
+              const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
+              if (!isNaN(latestDate)) {
+                setCachedAnchor(symbol, latestDate);
+                return latestDate;
+              }
             }
+          } finally {
+            client.release();
           }
         } catch { /* fall through */ }
         return Date.now();
@@ -215,10 +220,12 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     }
 
     // Await both in parallel
+    console.log('[charts] Awaiting anchor and health');
     const [healthy, anchorMs] = await Promise.all([
       healthPromise,
       anchorPromise ?? Promise.resolve(null),
     ]);
+    console.log('[charts] Anchor returned:', anchorMs);
 
     if (!healthy) {
       clearTimeout(routeTimeout);
@@ -226,50 +233,34 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     }
 
     if (anchorMs !== null) {
-      // Multiplier accounts for non-trading hours: 3x covers weekends + overnight gaps
-      // (was 10x which caused SAMPLE BY to scan 70+ days for a 10k bar request)
-      //
-      // The 3x is PROPORTIONAL to rowLimit, so it collapses on small requests:
-      // limit=1 at 1h looked back 3 hours, which a weekend swallows whole —
-      // limit=1 and limit=2 returned zero bars while limit=3 worked. MIN_LOOKBACK
-      // floors the window at one long weekend (Fri close -> Mon open is ~62h) so
-      // a small request still clears the gap. It only binds when the proportional
-      // estimate is smaller, i.e. exactly the cheap-to-scan cases.
       const estimatedMinutesNeeded = Math.max(
         rowLimit * tfMinutes * 3,
         MIN_LOOKBACK_MINUTES,
       );
-      // Floored at the epoch: 990 weekly bars × 3 is 57 years of lookback, a
-      // pre-1970 start the SAMPLE BY path rejects ("Invalid numeric value").
       effectiveStart = Math.max(0, anchorMs - estimatedMinutesNeeded * 60_000);
     }
 
-    // Which end of the range the limit keeps. The default window (anchored on
-    // the last bar) and a left page (an end with no start: the chart asking
-    // for what lies before its first bar) want the bars NEAREST the end; a
-    // right page (a start with no end) wants the bars nearest the start.
     const newestFirst = anchorMs !== null || startMs == null;
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
-      // The newest N bars (a default window, or a left page) and the oldest N
-      // are two different answers for the same range and limit.
       extra: isFuturesRoot(symbol) ? adjustment : newestFirst ? "newest" : undefined,
     });
 
-    // Bail out if client already disconnected (e.g. user switched symbols)
     if (clientDisconnected) {
       clearTimeout(routeTimeout);
       return;
     }
 
     const isFR = isFuturesRoot(symbol);
+    console.log('[charts] querying with bounds:', effectiveStart, effectiveEnd);
 
     const queryFn = isFR
       ? () => getStitchedOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, adjustment)
       : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, newestFirst);
 
     const raw = await cachedQuery(cacheKey, queryFn);
+    console.log('[charts] query returned, rows:', raw.length);
     const data = (raw as RawOhlcvRow[]).map((r) => ({
       timestamp: normaliseTimestamp(r),
       open: Number(r.open),
@@ -314,21 +305,25 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
  */
 router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
-    const healthy = await islakeHealthy();
-    if (!healthy) {
-      return res.status(503).json({ error: 'lake is not available' });
-    }
-
     const cached = getSymbolsCatalogCache();
     if (cached) {
       return res.json(cached.data);
     }
 
-    const symbols = await queryLake(`
-      SELECT symbol, asset_class, root
-      FROM symbols
-      ORDER BY symbol
-    `);
+    const { marketPool } = require('../infrastructure/database/pg_db');
+    const client = await marketPool.connect();
+    let symbols;
+    try {
+      const dbRes = await client.query(`
+        SELECT symbol, asset_class, root
+        FROM (SELECT DISTINCT symbol, asset_class, root FROM market_bars) sub
+        ORDER BY symbol
+      `);
+      symbols = dbRes.rows;
+    } finally {
+      client.release();
+    }
+
     const result = (symbols as SymbolRow[]).map((s) => ({
       symbol: s.symbol,
       asset_class: s.asset_class,

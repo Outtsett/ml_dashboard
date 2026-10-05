@@ -37,8 +37,9 @@ from cycle import catalog
 from cycle.bridges import parameter_names
 
 TESTS = Path(__file__).resolve().parent
-REPOSITORY = TESTS.parent
-ADAPTERS_EXTRA = REPOSITORY / "src" / "ml" / "cycle" / "adapters_extra"
+# packages/ml-engine, with `packages/` beside it and the repository root above that.
+ENGINE = TESTS.parent
+ADAPTERS_EXTRA = ENGINE / "src" / "cycle" / "adapters_extra"
 
 
 def declared_keys(path: Path) -> set[str]:
@@ -81,7 +82,7 @@ def imports_torch(module: str, *paths: str) -> bool:
     """Whether importing ``module`` in a fresh interpreter loads torch."""
     code = f"import importlib, sys; importlib.import_module({module!r}); print('torch' in sys.modules)"
     environment = dict(os.environ)
-    search = [*paths, str(REPOSITORY / "src" / "ml"), str(REPOSITORY / "src"), str(REPOSITORY)]
+    search = [*paths, str(ENGINE / "src"), str(ENGINE.parent)]
     environment["PYTHONPATH"] = os.pathsep.join(search + [environment.get("PYTHONPATH", "")])
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=environment, timeout=300)
     assert result.returncode == 0, f"importing {module} failed: {result.stderr[-2000:]}"
@@ -155,7 +156,7 @@ def _typescript_enum(text: str, field: str) -> set[str]:
 
 
 def test_the_typescript_schema_widens_the_same_three_enums():
-    text = (REPOSITORY / "src" / "shared" / "cycle" / "models.ts").read_text(encoding="utf-8")
+    text = (ENGINE.parent / "shared" / "src" / "cycle" / "models.ts").read_text(encoding="utf-8")
     assert _typescript_enum(text, "implementation") == set(catalog.IMPLEMENTATIONS)
     assert _typescript_enum(text, "adapter") == set(catalog.ADAPTERS)
     assert _typescript_enum(text, "network") == set(catalog.NETWORKS)

@@ -110,7 +110,7 @@ export default function RegimeDiscoveryViz({
 
                 {/* Proportional block */}
                 <div
-                  className={`w-full rounded-lg border transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-0.5 ${color.bg} ${color.border}`}
+                  className={`w-full rounded-lg border transition-transform hover:scale-[1.02] flex flex-col items-center justify-center gap-0.5 ${color.bg} ${color.border}`}
                   style={{ height: `${heightPct}%`, minHeight: 48 }}
                 >
                   <div className={`text-sm font-mono font-bold ${color.text}`}>

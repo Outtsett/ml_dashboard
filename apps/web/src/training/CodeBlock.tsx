@@ -216,9 +216,11 @@ export function CodeBlock({
       <AnimatePresence>
         {terminalOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            // scaleY + opacity reveal stays on the compositor (height:auto tweening forces per-frame layout)
+            initial={{ scaleY: 0.95, opacity: 0 }}
+            animate={{ scaleY: 1, opacity: 1 }}
+            exit={{ scaleY: 0.95, opacity: 0 }}
+            style={{ originY: 0 }}
             transition={{ duration: 0.25, ease: "easeInOut" }}
             className="border-t border-border/30 bg-[hsl(220,15%,4%)] overflow-hidden"
           >

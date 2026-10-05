@@ -7,6 +7,7 @@ import { Fragment } from "react";
 import { ArrowRight, CheckCircle2, CircleDashed, Loader2, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/shared/utils/utils";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { useCycleStore } from "@/cycle/store";
 import type { CycleCursor } from "@shared/cycle/schema";
 
@@ -188,10 +189,7 @@ export function PhaseStrip() {
       )}
 
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
-        <div
-          className="h-full rounded-full bg-[#E69F00] transition-[width]"
-          style={{ width: `${Math.round((cursor?.overallFraction ?? 0) * 100)}%` }}
-        />
+        <ProgressFill value={Math.round((cursor?.overallFraction ?? 0) * 100)} className="bg-[#E69F00]" />
       </div>
     </div>
   );

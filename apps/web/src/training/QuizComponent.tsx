@@ -184,7 +184,7 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
                 onClick={() => handleSelect(opt.id)}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
-                className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-all ${optionStyle}`}
+                className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors ${optionStyle}`}
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -214,9 +214,11 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
         <AnimatePresence>
           {answered && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
+              // scaleY + opacity reveal stays on the compositor (height:auto tweening forces per-frame layout)
+              initial={{ opacity: 0, scaleY: 0.95 }}
+              animate={{ opacity: 1, scaleY: 1 }}
+              exit={{ opacity: 0, scaleY: 0.95 }}
+              style={{ originY: 0 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
               <div

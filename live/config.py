@@ -1,4 +1,4 @@
-"""packages/config/live.json, and the credentials the hub needs, read by name."""
+﻿"""packages/config/live.json, and the credentials the hub needs, read by name."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-CONFIG_PATH = REPO / "src" / "config" / "live.json"
+CONFIG_PATH = REPO / "packages" / "config" / "live.json"
 
 
 def load() -> dict:
@@ -15,7 +15,7 @@ def load() -> dict:
 
 
 def secret(name: str) -> str | None:
-    """An environment variable by name — the process's own first, then the
+    """An environment variable by name â€” the process's own first, then the
     Windows user environment, where dotfiles/apply.ps1 puts every credential.
     The second matters: a dashboard started before a key was added passes this
     process an environment without it."""
@@ -36,3 +36,4 @@ def spool_dir(config: dict) -> Path:
     path = REPO / config.get("spoolDir", "data/live/spool")
     path.mkdir(parents=True, exist_ok=True)
     return path
+

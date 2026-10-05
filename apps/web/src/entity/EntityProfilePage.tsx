@@ -19,6 +19,9 @@ import {
   MessageSquare,
   ScatterChart
 } from "lucide-react";
+import { KronosAnalyticsTab } from "./analytics/KronosAnalyticsTab";
+import { FinbertAnalyticsTab } from "./analytics/FinbertAnalyticsTab";
+import { HmmAnalyticsTab } from "./analytics/HmmAnalyticsTab";
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import RegressionPage from "@/market/regression/RegressionPage";
 
@@ -58,6 +61,15 @@ export default function EntityProfilePage() {
     addAnnotation(annotationText);
     setAnnotationText("");
   };
+
+  // Determine specific model architecture
+  let modelArch = "Generic";
+  if (type === 'model') {
+    const searchStr = (profile?.name + " " + id + " " + JSON.stringify(profile?.tags || [])).toLowerCase();
+    if (searchStr.includes("kronos")) modelArch = "Kronos";
+    else if (searchStr.includes("finbert") || searchStr.includes("bert")) modelArch = "FinBERT";
+    else if (searchStr.includes("hmm") || searchStr.includes("markov")) modelArch = "HMM";
+  }
 
   return (
     <div className="flex flex-col h-full bg-neutral-950 overflow-hidden text-neutral-200">
@@ -212,6 +224,21 @@ export default function EntityProfilePage() {
               <Tabs.Content value="metrics" className="h-full focus:outline-none">
                 <EntityMetrics metrics={metrics || []} />
               </Tabs.Content>
+              {modelArch === 'Kronos' && (
+                <Tabs.Content value="kronos" className="h-full focus:outline-none">
+                  <KronosAnalyticsTab profileId={id} />
+                </Tabs.Content>
+              )}
+              {modelArch === 'FinBERT' && (
+                <Tabs.Content value="finbert" className="h-full focus:outline-none">
+                  <FinbertAnalyticsTab profileId={id} />
+                </Tabs.Content>
+              )}
+              {modelArch === 'HMM' && (
+                <Tabs.Content value="hmm" className="h-full focus:outline-none">
+                  <HmmAnalyticsTab profileId={id} />
+                </Tabs.Content>
+              )}
               <Tabs.Content value="regression" className="h-full focus:outline-none flex flex-col">
                 <RegressionPage />
               </Tabs.Content>
@@ -315,3 +342,4 @@ export default function EntityProfilePage() {
     </div>
   );
 }
+

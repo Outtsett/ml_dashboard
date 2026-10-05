@@ -82,7 +82,7 @@ export function TradesTab({ trades, isPending }: TradesTabProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 rounded-md opacity-0 group-hover:opacity-100 hover:bg-primary/20 text-primary transition-all"
+                      className="h-6 w-6 rounded-md opacity-0 group-hover:opacity-100 hover:bg-primary/20 text-primary transition-[opacity,background-color]"
                       onClick={() => handleLocateTrade(trade)}
                       title="Show on Chart"
                     >

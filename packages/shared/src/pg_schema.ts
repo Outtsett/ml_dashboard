@@ -1,5 +1,5 @@
 import { sql, type InferSelectModel, type InferInsertModel } from "drizzle-orm";
-import { pgTable, text, integer, doublePrecision, index, uniqueIndex, type AnyPgColumn, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, doublePrecision, index, uniqueIndex, type AnyPgColumn, serial, timestamp, boolean, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import crypto from "crypto";
@@ -465,8 +465,8 @@ export const generatedLabels = pgTable("generated_labels", {
   negativeCount: integer("negative_count"),
   neutralCount: integer("neutral_count"),
   labelDistribution: text("label_distribution"), // JSON
-  dataStartTimestamp: integer("data_start_timestamp"), // epoch ms
-  dataEndTimestamp: integer("data_end_timestamp"), // epoch ms
+  dataStartTimestamp: bigint("data_start_timestamp", { mode: 'number' }), // epoch ms
+  dataEndTimestamp: bigint("data_end_timestamp", { mode: 'number' }), // epoch ms
   parquetPath: text("parquet_path"),
   status: text("status").notNull().default("pending"),
   errorMessage: text("error_message"),

@@ -6,6 +6,9 @@ import {
   CANDLE_DOWN_COLOR,
   VOLUME_UP_FILL,
   VOLUME_DOWN_FILL,
+  latestBarRange,
+  DEFAULT_VISIBLE_BARS,
+  DEFAULT_RIGHT_OFFSET,
 } from './chartConfig';
 import type { CandleAnatomy, OhlcvData, ProcessedChartData } from "@/market/components/types";
 
@@ -68,6 +71,44 @@ export function useChartSeries({
   const loadMoreDirectionRef = useRef<'left' | 'right'>('left');
   const hasScrolledToRegimeStartRef = useRef(false);
   const LOAD_MORE_COOLDOWN_MS = 500;
+
+  /**
+   * What the series already hold: point count and first/last time, per series.
+   *
+   * The two are separate because the volume series can be shorter than the candle
+   * series — a bar with no volume contributes no volume point — so an index into
+   * one is not an index into the other.
+   *
+   * This is what lets an arriving set be recognised as an APPEND and pushed as
+   * only its new tail. A live bar every few seconds and a Model Cycle run
+   * streaming hundreds of bars a second both rewrite the whole array on every
+   * batch; re-setting tens of thousands of points at that rate is what made the
+   * cost scale with the bars already drawn.
+   */
+  type AppliedShape = { count: number; first: number; last: number };
+  const appliedCandlesRef = useRef<AppliedShape | null>(null);
+  const appliedVolumesRef = useRef<AppliedShape | null>(null);
+
+  /** True when `next` is `previous` plus new points at the end, and nothing before them moved. */
+  const extendsApplied = (
+    next: readonly { time: Time }[],
+    applied: AppliedShape | null,
+  ): boolean => {
+    if (!applied || applied.count === 0) return false;
+    if (next.length <= applied.count) return false;
+    const first = next[0]!.time as number;
+    const last = next[next.length - 1]!.time as number;
+    if (first !== applied.first) return false;
+    if ((next[applied.count - 1]!.time as number) !== applied.last) return false;
+    return Number.isFinite(first) && Number.isFinite(last);
+  };
+
+  const shapeOf = (points: readonly { time: Time }[]): AppliedShape | null => {
+    const first = points[0]?.time as number | undefined;
+    const last = points[points.length - 1]?.time as number | undefined;
+    if (first === undefined || last === undefined) return null;
+    return { count: points.length, first, last };
+  };
 
   // Stable-ref bridges for values read inside effects / callbacks
   const isLoadingMoreRef = useRef(isLoadingMore);
@@ -323,32 +364,58 @@ export function useChartSeries({
       oldLogicalRange = timeScale.getVisibleLogicalRange();
       const oldTotalBars = prevDataLengthRef.current;
       if (oldLogicalRange && oldTotalBars > 0) {
-        // If within 5 bars of the end, or actively pulled into the future margin
-        wasAtRightEdge = oldLogicalRange.to >= oldTotalBars - 5 || timeScale.options().rightOffset < 0;
+        // "At the right edge" means the pane's right edge IS the newest candle plus its right
+        // offset. The old test was `to >= oldTotalBars - 5 || rightOffset < 0`; the second clause
+        // could never be true (the offset is positive), and the first let a view parked exactly on
+        // the newest bar fall outside the threshold and stop following new bars.
+        const rightOffset = timeScale.options().rightOffset ?? DEFAULT_RIGHT_OFFSET;
+        wasAtRightEdge = oldLogicalRange.to >= oldTotalBars - 1 + rightOffset - 5;
       }
     }
 
-    candleSeriesRef.current.setData(processedData.candles);
-    volumeSeriesRef.current.setData(processedData.volumes);
+    // An arriving set that only grew is an append: push the new tail and leave the
+    // history alone. Anything else — a different instrument, a shorter set, a bar
+    // recoloured by a regime map that arrived late — is a reset.
+    const candleAppend = extendsApplied(processedData.candles, appliedCandlesRef.current);
+    if (candleAppend) {
+      const from = appliedCandlesRef.current!.count;
+      for (let index = from; index < processedData.candles.length; index += 1) {
+        candleSeriesRef.current.update(processedData.candles[index]!);
+      }
+    } else {
+      candleSeriesRef.current.setData(processedData.candles);
+    }
+    appliedCandlesRef.current = shapeOf(processedData.candles);
+
+    const volumeAppend = extendsApplied(processedData.volumes, appliedVolumesRef.current);
+    if (volumeAppend) {
+      const from = appliedVolumesRef.current!.count;
+      for (let index = from; index < processedData.volumes.length; index += 1) {
+        volumeSeriesRef.current.update(processedData.volumes[index]!);
+      }
+    } else {
+      volumeSeriesRef.current.setData(processedData.volumes);
+    }
+    appliedVolumesRef.current = shapeOf(processedData.volumes);
 
     if (chartRef.current && processedData.candles.length > 0 && (isInitialLoadRef.current || symbolChanged || timeframeChanged)) {
       const totalBars = processedData.candles.length;
-      const visibleBars = Math.min(250, totalBars);
-      const startIdx = Math.max(0, totalBars - visibleBars);
-      chartRef.current.timeScale().setVisibleLogicalRange({ from: startIdx, to: totalBars });
+      requestAnimationFrame(() => {
+        chartRef.current?.timeScale().setVisibleLogicalRange(latestBarRange(totalBars));
+      });
       isInitialLoadRef.current = false;
     } else if (chartRef.current && isReplayActive) {
       const totalBars = processedData.candles.length;
       const windowSize = Math.min(150, totalBars);
-      chartRef.current.timeScale().setVisibleLogicalRange({
-        from: totalBars - windowSize, to: totalBars + 5,
-      });
+      chartRef.current.timeScale().setVisibleLogicalRange(latestBarRange(totalBars, windowSize));
     } else if (chartRef.current && wasAtRightEdge && oldLogicalRange) {
       // Data size changed massively (e.g. cache -> network). User was looking at the latest data.
       // Keep them looking at the latest data in the new array.
       const totalBars = processedData.candles.length;
       const width = Math.max(10, oldLogicalRange.to - oldLogicalRange.from);
-      chartRef.current.timeScale().setVisibleLogicalRange({ from: totalBars - width, to: totalBars });
+      requestAnimationFrame(() => {
+        chartRef.current?.timeScale().setVisibleLogicalRange(latestBarRange(totalBars, width));
+      });
     }
 
     // Always keep track of the length we just rendered for the next update check
@@ -371,9 +438,7 @@ export function useChartSeries({
     ) {
       hasScrolledToRegimeStartRef.current = true;
       const totalBars = processedData.candles.length;
-      const visibleBars = Math.min(250, totalBars);
-      const startIdx = Math.max(0, totalBars - visibleBars);
-      chartRef.current.timeScale().setVisibleLogicalRange({ from: startIdx, to: totalBars });
+      chartRef.current.timeScale().setVisibleLogicalRange(latestBarRange(totalBars, DEFAULT_VISIBLE_BARS));
     }
   }, [regimeColorMap, processedData, chartRef]);
 
@@ -386,3 +451,14 @@ export function useChartSeries({
 
   return { processedData };
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -16,13 +16,16 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src" / "ml"))
+sys.path.insert(0, str(ROOT / "src"))
 
 from cycle import catalog  # noqa: E402
 
-REGISTRY = ROOT / "src" / "config" / "cycle_models"
-INVALID = ROOT / "tests" / "fixtures" / "cycle_models_invalid"
-LEGACY_FIXTURE = ROOT / "tests" / "fixtures" / "cycle_runners_legacy.json"
+# `config/` is a sibling of the engine package: packages/config, not ml-engine/config.
+CONFIG = ROOT.parent / "config"
+REPOSITORY = ROOT.parent.parent
+REGISTRY = CONFIG / "cycle_models"
+INVALID = REPOSITORY / "tests" / "fixtures" / "cycle_models_invalid"
+LEGACY_FIXTURE = REPOSITORY / "tests" / "fixtures" / "cycle_runners_legacy.json"
 LEGACY_KEYS = ("logistic_regression", "random_forest", "xgboost", "lightgbm", "multilayer_perceptron", "lstm",
                "temporal_convolution_network", "transformer_encoder")
 
@@ -79,7 +82,7 @@ def test_importing_the_registry_does_not_import_numpy():
     # main.py reads the registry before numpy to decide whether torch goes first.
     code = (
         "import sys; sys.path.insert(0, r'%s'); import cycle.catalog as c; c.registry(); "
-        "print('numpy' in sys.modules, 'torch' in sys.modules)" % (ROOT / "src" / "ml")
+        "print('numpy' in sys.modules, 'torch' in sys.modules)" % (ROOT / "src")
     )
     output = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.split()
     assert output == ["False", "False"]

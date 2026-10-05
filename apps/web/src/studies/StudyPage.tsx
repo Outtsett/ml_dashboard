@@ -83,11 +83,42 @@ export default function StudyPage() {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <ErrorBoundary>
+        <div className="mt-4 flex flex-col gap-6">
+          <section className="bg-neutral-900/50 p-4 border border-white/10 rounded-md">
+            <h2 className="text-lg font-bold text-white mb-2">Introduction</h2>
+            <div className="text-sm text-neutral-400">
+              <p><strong>Problem Statement:</strong> What question or issue does this study address?</p>
+              <p><strong>Context:</strong> Background information and current state.</p>
+              <p><strong>Objectives:</strong> The specific goals of this analysis.</p>
+            </div>
+          </section>
+          
+          <section className="bg-neutral-900/50 p-4 border border-white/10 rounded-md">
+            <h2 className="text-lg font-bold text-white mb-2">Body</h2>
+            <div className="text-sm text-neutral-400">
+              <p><strong>Data:</strong> Source, range, row counts, and known limitations.</p>
+              <p><strong>Analysis:</strong> Methods, parameters, and validation steps.</p>
+              <p><strong>Key Findings:</strong> Visualizations and data points proving the insights.</p>
+            </div>
+          </section>
+          
+          <section className="bg-neutral-900/50 p-4 border border-white/10 rounded-md">
+            <h2 className="text-lg font-bold text-white mb-2">Conclusions</h2>
+            <div className="text-sm text-neutral-400">
+              <p><strong>Insights:</strong> The central message restated with evidence.</p>
+              <p><strong>Recommendations:</strong> Concrete, ordered next steps and actions.</p>
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-8 border-t border-white/10 pt-8">
           <Suspense fallback={<PageLoader />}>
             <Page />
           </Suspense>
+        </div>
         </ErrorBoundary>
       </div>
     </div>
   );
 }
+

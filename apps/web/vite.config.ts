@@ -73,6 +73,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    include: ["lucide-react", "recharts", "framer-motion", "apache-arrow", "drizzle-orm"],
     exclude: ["@monaco-editor/react", "monaco-editor"],
   },
   server: {

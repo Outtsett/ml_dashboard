@@ -134,7 +134,7 @@ function ModelCard({
   return (
     <Card
       onClick={onClick}
-      className="cursor-pointer hover:border-primary/40 transition-all duration-150 hover:shadow-md hover:shadow-primary/5 group"
+      className="cursor-pointer hover:border-primary/40 transition duration-150 hover:shadow-md hover:shadow-primary/5 group"
     >
       <CardHeader className="pb-2 space-y-1">
         <div className="flex items-start justify-between gap-2">

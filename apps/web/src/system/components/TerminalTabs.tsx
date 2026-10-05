@@ -177,8 +177,9 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
 
   if (!visible) return null;
 
+  // No transition on the root: zen mode swaps fixed/relative positioning, a layout change that cannot be composited.
   return (
-    <div className={`h-full w-full flex flex-col transition-all duration-500 ${isZenMode ? "fixed inset-0 z-50 p-0 m-0" : "relative"}`}>
+    <div className={`h-full w-full flex flex-col ${isZenMode ? "fixed inset-0 z-50 p-0 m-0" : "relative"}`}>
       {/* Tab bar */}
       <div className="flex items-center border-b border-white/[0.06] shrink-0 bg-black/20 overflow-x-auto">
         {tabs.map((tab) => {
@@ -247,7 +248,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
                                 {/* Zen Mode Toggle */}
         <button
           onClick={() => setIsZenMode(!isZenMode)}
-          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isZenMode ? "text-amber-400 bg-amber-500/10 scale-110" : "bg-transparent text-muted-foreground/40 hover:text-amber-400/70 hover:bg-white/[0.04]"}`}
+          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-[color,background-color,scale] duration-300 rounded-sm mx-0.5 ${isZenMode ? "text-amber-400 bg-amber-500/10 scale-110" : "bg-transparent text-muted-foreground/40 hover:text-amber-400/70 hover:bg-white/[0.04]"}`}
           title={isZenMode ? "Exit Zen Mode (Esc)" : "Enter Zen Mode (Immersive)"}
         >
           {isZenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
@@ -256,7 +257,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         {/* Layout Toggle */}
         <button
           onClick={() => setIsGridLayout(!isGridLayout)}
-          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isGridLayout ? "text-[hsl(var(--data-pos))] bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)]" : "bg-transparent text-muted-foreground/40 hover:text-[hsl(var(--data-pos)/0.7)] hover:bg-white/[0.04]"}`}
+          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-colors duration-300 rounded-sm mx-0.5 ${isGridLayout ? "text-[hsl(var(--data-pos))] bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)]" : "bg-transparent text-muted-foreground/40 hover:text-[hsl(var(--data-pos)/0.7)] hover:bg-white/[0.04]"}`}
           title={isGridLayout ? "Switch to Tab View" : "Switch to Grid View"}
         >
           {isGridLayout ? <Sparkles className="w-3.5 h-3.5 animate-pulse" /> : <LayoutGrid className="w-3.5 h-3.5" />}

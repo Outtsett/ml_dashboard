@@ -1765,3 +1765,24 @@ export const runMetricsFinal = sqliteTable("run_metrics_final", {
   maxDrawdown: real("max_drawdown").notNull(),
 });
 
+
+// ============================================================
+// TRAINING TELEMETRY
+// ============================================================
+export const trainingTelemetry = sqliteTable("training_telemetry", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull(),
+  epoch: integer("epoch").notNull(),
+  loss: real("loss").notNull(),
+  nll: real("nll"),
+  rmse: real("rmse"),
+  vram: real("vram"),
+  timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  runIdIdx: index("training_telemetry_run_id_idx").on(table.runId),
+  runEpochIdx: uniqueIndex("training_telemetry_run_epoch_idx").on(table.runId, table.epoch),
+}));
+
+export const insertTrainingTelemetrySchema = createInsertSchema(trainingTelemetry).omit({ id: true, timestamp: true });
+export type InsertTrainingTelemetry = z.infer<typeof insertTrainingTelemetrySchema>;
+export type TrainingTelemetry = InferSelectModel<typeof trainingTelemetry>;

@@ -1,5 +1,5 @@
 import { db } from "../apps/api/infrastructure/database/db";
-import { mlModels } from "../packages/shared/src/schema";
+import { mlModels } from "../packages/shared/src/pg_schema";
 
 const ARCHITECTURES = [
   "TCN-Transformer", "Sticky-HDP-HMM", "Dilated-TCN", "Quantum-Variational", 

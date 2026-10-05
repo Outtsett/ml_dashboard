@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Play, Square, Loader2, ChevronUp, Settings2 } from "lucide-react";
 import { cn } from "@/shared/utils/utils";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import HyperparameterForm from "./HyperparameterForm";
 import { useTrainingConfig } from "@/training/lib/useTrainingConfig";
 import type {
@@ -422,7 +423,7 @@ function ActionCard({
         disabled={isPending || disabled}
         className={cn(
           "flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-1.5",
-          "text-sm font-medium transition-all",
+          "text-sm font-medium transition-colors",
           isTraining
             ? "bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.3)] border border-[hsl(var(--data-neg)/0.3)]"
             : isPending || disabled
@@ -452,9 +453,10 @@ function ActionCard({
       {(isTraining || isPending) && (
         <div className="flex flex-col gap-1">
           <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary transition-all duration-500"
-              style={{ width: `${Math.min(progress, 100)}%` }}
+            <ProgressFill
+              value={progress}
+              className="bg-gradient-to-r from-primary/60 to-primary"
+              durationMs={500}
             />
           </div>
           {elapsedSec > 0 && (
@@ -541,9 +543,11 @@ export default function ConfigStrip({
         {drawerOpen && (
           <motion.div
             key="hp-drawer"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            // scaleY + opacity reveal stays on the compositor (height:auto tweening forces per-frame layout)
+            initial={{ scaleY: 0.95, opacity: 0 }}
+            animate={{ scaleY: 1, opacity: 1 }}
+            exit={{ scaleY: 0.95, opacity: 0 }}
+            style={{ originY: 0 }}
             transition={{ duration: 0.22, ease: "easeInOut" }}
             className="overflow-hidden"
           >

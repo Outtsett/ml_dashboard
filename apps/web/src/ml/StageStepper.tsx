@@ -62,7 +62,7 @@ export function StageStepper() {
         // inactive by ring opacity alone, which is close to invisible at a
         // glance across six adjacent chips.
         const buttonClasses = [
-          "group flex items-center gap-2 pl-3 pr-3 py-2 rounded-lg border shrink-0 transition-all motion-quick",
+          "group flex items-center gap-2 pl-3 pr-3 py-2 rounded-lg border shrink-0 transition motion-quick",
           active
             ? "stage-active"
             : disabled

@@ -83,7 +83,7 @@ export function PipelineOverview({ phaseStatuses, onSelectPhase }: PipelineOverv
               <button
                 onClick={() => onSelectPhase(phase.id)}
                 className={cn(
-                  "w-full text-left border rounded-lg p-4 bg-gradient-to-r transition-all",
+                  "w-full text-left border rounded-lg p-4 bg-gradient-to-r transition",
                   "hover:shadow-md hover:shadow-black/20 hover:scale-[1.005]",
                   PHASE_COLORS[phase.id]
                 )}

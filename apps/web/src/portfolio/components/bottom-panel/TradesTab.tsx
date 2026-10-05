@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import { ScrollArea } from "@/shared/ui/scroll-area";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import {
   TrendingUp, TrendingDown, Activity, Zap, Target, BarChart3,
 } from "lucide-react";
@@ -101,9 +102,9 @@ export function TradesTab({ trades, tradeMetrics }: TradesTabProps) {
                   <span className="text-muted-foreground">{tradeMetrics.winners}</span>
                 </div>
                 <div className="h-2 bg-black/40 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-linear-to-r from-[hsl(var(--data-pos))] to-[hsl(var(--data-pos))] rounded-full transition-all"
-                    style={{ width: `${tradeMetrics.totalTrades > 0 ? (tradeMetrics.winners / tradeMetrics.totalTrades) * 100 : 0}%` }}
+                  <ProgressFill
+                    value={tradeMetrics.totalTrades > 0 ? (tradeMetrics.winners / tradeMetrics.totalTrades) * 100 : 0}
+                    className="bg-linear-to-r from-[hsl(var(--data-pos))] to-[hsl(var(--data-pos))]"
                   />
                 </div>
               </div>
@@ -113,9 +114,9 @@ export function TradesTab({ trades, tradeMetrics }: TradesTabProps) {
                   <span className="text-muted-foreground">{tradeMetrics.losers}</span>
                 </div>
                 <div className="h-2 bg-black/40 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-linear-to-r from-[hsl(var(--data-neg))] to-[hsl(var(--data-neg))] rounded-full transition-all"
-                    style={{ width: `${tradeMetrics.totalTrades > 0 ? (tradeMetrics.losers / tradeMetrics.totalTrades) * 100 : 0}%` }}
+                  <ProgressFill
+                    value={tradeMetrics.totalTrades > 0 ? (tradeMetrics.losers / tradeMetrics.totalTrades) * 100 : 0}
+                    className="bg-linear-to-r from-[hsl(var(--data-neg))] to-[hsl(var(--data-neg))]"
                   />
                 </div>
               </div>

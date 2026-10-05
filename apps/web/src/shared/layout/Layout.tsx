@@ -1,7 +1,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { TopBar } from "../quant-layout/TopBar";
 import { LeftSidebar } from "../quant-layout/LeftSidebar";
-import { HorizontalNav } from "../quant-layout/HorizontalNav";
+import { ActivityBar } from "../quant-layout/ActivityBar";
+import { BottomDock } from "../quant-layout/BottomDock";
+
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
 
@@ -49,23 +51,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 1. Top Navigation Bar */}
       <TopBar />
-      <HorizontalNav />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 2. Left Sidebar Navigation */}
+        {/* 2. Global Activity Bar */}
+        <ActivityBar sidebarOpen={!collapsed} onToggleSidebar={toggleNav} />
+
+        {/* 3. Contextual Sidebar Navigation */}
         <LeftSidebar collapsed={collapsed} onToggle={toggleNav} />
 
-        {/* 3. Main Canvas */}
-        <main className="flex-1 min-w-0 bg-neutral-950 flex flex-col overflow-hidden relative">
-          <ErrorBoundary>
-            <Suspense fallback={<PageLoader />}>
-              <div className="flex-1 flex flex-col overflow-hidden relative">
-                {children}
-              </div>
-            </Suspense>
-          </ErrorBoundary>
-
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* 4. Main Canvas */}
+          <main className="flex-1 bg-neutral-950 flex flex-col overflow-hidden relative">
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <div className="flex-1 flex flex-col overflow-hidden relative">
+                  {children}
+                </div>
+              </Suspense>
+            </ErrorBoundary>
+          </main>
+          
+          <BottomDock />
+        </div>
       </div>
     </div>
   );

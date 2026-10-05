@@ -2,6 +2,7 @@ import { useTrainingControl } from "@/training/lib/TrainingContext";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
 import { useTrainingMetrics } from "@/shared/contexts/TrainingMetricsCtx";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/shared/ui/tooltip";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { useLocation } from "wouter";
 import { ArrowRight } from "lucide-react";
 
@@ -59,9 +60,10 @@ export function TrainingStatusStrip() {
           <span className="text-foreground/90 font-semibold">{iteration}</span>/{total} <span className="text-muted-foreground/60">({phase})</span>
         </span>
         <div className="w-20 h-2 rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[hsl(var(--data-pos))] transition-all duration-300 shadow-[0_0_8px_rgba(34,211,238,0.3)]"
-            style={{ width: `${Math.min(pct, 100)}%` }}
+          <ProgressFill
+            value={pct}
+            className="bg-gradient-to-r from-blue-500 via-cyan-400 to-[hsl(var(--data-pos))] shadow-[0_0_8px_rgba(34,211,238,0.3)]"
+            durationMs={300}
           />
         </div>
       </div>

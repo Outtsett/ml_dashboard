@@ -52,7 +52,7 @@ function ExperimentChip({ experiment, selected, onToggle }: ExperimentChipProps)
       type="button"
       onClick={onToggle}
       className={cn(
-        "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all",
+        "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition",
         "focus:outline-none focus:ring-2 focus:ring-primary/40",
         selected
           ? "border-primary bg-primary/15 text-foreground shadow-sm shadow-primary/20"

@@ -115,12 +115,22 @@ export function CandlePanel({ candles, showMacdMarkers, showCrossover, fastLabel
     const indexByTime = new Map<number, number>(times.map((time, i) => [time, i]));
     const onMove = (param: { time?: Time }) => setHover(param.time === undefined ? null : (indexByTime.get(Number(param.time)) ?? null));
     chart.subscribeCrosshairMove(onMove);
-    chart.timeScale().fitContent();
+    const frameLatest = () => {
+      if (times.length > 0) {
+        const visible = Math.min(250, times.length);
+        const start = times[times.length - visible];
+        const end = times[times.length - 1];
+        if (start !== undefined && end !== undefined) {
+          chart.timeScale().setVisibleRange({ from: seconds(start as number), to: seconds(end as number) });
+        }
+      }
+    };
+    frameLatest();
     let fitted = element.clientWidth > 0;
     const sizeWatch = new ResizeObserver(() => {
       if (!fitted && element.clientWidth > 0) {
         fitted = true;
-        chart.timeScale().fitContent();
+        frameLatest();
       }
     });
     sizeWatch.observe(element);

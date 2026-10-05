@@ -25,7 +25,7 @@ import {
   getStitchedOHLCV,
   queryLake,
   queryLakeFast,
-} from "../infrastructure/database/lake";
+} from "../market/pgMarketData";
 import { normalizeTimestamp } from "../infrastructure/lib/normalize";
 import { isFuturesRoot } from "../infrastructure/lib/futures";
 import type {

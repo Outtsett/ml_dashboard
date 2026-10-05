@@ -50,9 +50,13 @@ from .protocol import emit_log
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# This file is <repo>/packages/ml-engine/src/core/shared/feature_cache.py, so
+# parents[3] is ml-engine, parents[4] is packages and parents[5] is the repo root.
+# `config/` is a SIBLING of the engine package: packages/config, not src/config.
+_PACKAGES_ROOT = Path(__file__).resolve().parents[4]
+_PROJECT_ROOT = Path(__file__).resolve().parents[5]
 _CACHE_DIR = _PROJECT_ROOT / "data" / ".cache"
-_FEATURES_JSON = _PROJECT_ROOT / "src" / "config" / "features.json"
+_FEATURES_JSON = _PACKAGES_ROOT / "config" / "features.json"
 
 
 def _ensure_cache_dir() -> None:

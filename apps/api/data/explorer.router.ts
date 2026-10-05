@@ -1,18 +1,8 @@
-/**
- * Explorer Routes — Drizzle (SQLite) and lake direct querying
- *
- * Routes:
- *   GET  /api/databases/tables
- *   GET  /api/databases/lake/stats
- *   POST /api/databases/query
- *   POST /api/databases/lake/init
- */
-
 import { Router, Request, Response } from 'express';
 import * as path from 'path';
 import { getString } from '../infrastructure/lib/routeHelpers';
 import { logInfo } from '../infrastructure/lib/log';
-import { dbReadOnly } from '../infrastructure/database/db';
+import { db as sqliteDb } from '../infrastructure/database/sqlite';
 import { sql as drizzleSql } from 'drizzle-orm';
 import { queryRateLimiter } from '../infrastructure/lib/rateLimiter';
 
@@ -50,9 +40,9 @@ const lake_QUERY_TIMEOUT_MS = 15_000;
  * Institutional Table Inventory: Returns all tables across both engines.
  */
 router.get('/tables', queryRateLimiter, async (_req: Request, res: Response) => {
-  try {
+try {
     // 1. Fetch SQLite tables (Drizzle)
-    const sqliteTables = await dbReadOnly.all<{ name: string }>(
+    const sqliteTables = await sqliteDb.all<{ name: string }>(
       drizzleSql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
     );
 
@@ -105,7 +95,7 @@ router.get('/tables/:name/schema', async (req: Request, res: Response) => {
     const source = req.query.source as 'sqlite' | 'lake';
 
     if (source === 'sqlite') {
-      const rows = await dbReadOnly.all(drizzleSql.raw(`PRAGMA table_info(${tableName})`));
+      const rows = await sqliteDb.all(drizzleSql.raw(`PRAGMA table_info(${tableName})`));
       return res.json(rows);
     } else {
       const { queryLake } = await import('../infrastructure/database/lake');
@@ -129,7 +119,7 @@ router.get('/tables/:name/schema', async (req: Request, res: Response) => {
  */
 router.get('/sqlite/stats', async (_req: Request, res: Response) => {
   try {
-    const sqliteTables = await dbReadOnly.all<{ name: string }>(
+const sqliteTables = await sqliteDb.all<{ name: string }>(
       drizzleSql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
     );
     
@@ -137,7 +127,7 @@ router.get('/sqlite/stats', async (_req: Request, res: Response) => {
     let totalRecords = 0;
     
     for (const t of sqliteTables) {
-      const result = await dbReadOnly.all<{ count: number }>(drizzleSql.raw(`SELECT count(*) as count FROM ${t.name}`));
+      const result = await sqliteDb.all<{ count: number }>(drizzleSql.raw(`SELECT count(*) as count FROM ${t.name}`));
       const count = result?.[0]?.count || 0;
       tableDetails.push({
         name: t.name,
@@ -233,8 +223,8 @@ router.post('/query', queryRateLimiter, async (req: Request, res: Response) => {
       });
     }
 
-    if (source === 'sqlite') {
-      const rows = await dbReadOnly.all(drizzleSql.raw(`${cleanSql} LIMIT ${rowLimit}`));
+if (source === 'sqlite') {
+      const rows = await sqliteDb.all(drizzleSql.raw(`${cleanSql} LIMIT ${rowLimit}`));
       res.json({ rows });
     } else {
       const { queryLake } = await import('../infrastructure/database/lake');
@@ -260,8 +250,8 @@ router.get('/tables/:name/preview', async (req: Request, res: Response) => {
     validateSafeName(tableName, 'table');
     const source = req.query.source as 'sqlite' | 'lake';
 
-    if (source === 'sqlite') {
-      const rows = await dbReadOnly.all(drizzleSql.raw(`SELECT * FROM ${tableName} LIMIT 50`));
+if (source === 'sqlite') {
+      const rows = await sqliteDb.all(drizzleSql.raw(`SELECT * FROM ${tableName} LIMIT 50`));
       res.json(rows);
     } else {
       const { queryLake } = await import('../infrastructure/database/lake');

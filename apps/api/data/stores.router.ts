@@ -25,7 +25,7 @@ import { z } from "zod";
 import { Logger } from "@nestjs/common";
 import { sql as drizzleSql } from "drizzle-orm";
 import { LRUCache } from "lru-cache";
-import { dbReadOnly } from "../infrastructure/database/db";
+import { db as sqliteDb } from "../infrastructure/database/sqlite";
 import {
   fetchIcebergTable,
   listIcebergTables,
@@ -88,7 +88,7 @@ async function lakeObjects(): Promise<Array<{ name: string; kind: string }>> {
 }
 
 async function sqliteObjects(): Promise<Array<{ name: string; kind: string }>> {
-  const rows = await dbReadOnly.all<{ name: string }>(
+  const rows = await sqliteDb.all<{ name: string }>(
     drizzleSql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`,
   );
   return rows.map((r) => ({ name: r.name, kind: "table" }));
@@ -107,7 +107,7 @@ async function lakeColumns(name: string): Promise<ColumnInfo[]> {
 }
 
 async function sqliteColumns(name: string): Promise<ColumnInfo[]> {
-  const rows = await dbReadOnly.all<{ name: string; type: string }>(
+  const rows = await sqliteDb.all<{ name: string; type: string }>(
     drizzleSql.raw(`PRAGMA table_info(${quote(name)})`),
   );
   return rows.map((r) => ({
@@ -171,7 +171,7 @@ router.get("/stores/overview", queryRateLimiter, async (_req: Request, res: Resp
     const sqliteCounts = await Promise.all(
       sqliteTables.map(async (table) => {
         try {
-          const [row] = await dbReadOnly.all<{ n: number }>(
+const [row] = await sqliteDb.all<{ n: number }>(
             drizzleSql.raw(`SELECT count(*) AS n FROM ${quote(table.name)}`),
           );
           return { ...table, rowCount: Number(row?.n ?? 0) };
@@ -297,7 +297,7 @@ router.get("/stores/objects/:store/:name", queryRateLimiter, async (req: Request
     let rowCount: number | null = null;
     let rowCountIsEstimate = false;
     if (store.data === "sqlite") {
-      const [row] = await dbReadOnly.all<{ n: number }>(
+      const [row] = await sqliteDb.all<{ n: number }>(
         drizzleSql.raw(`SELECT count(*) AS n FROM ${quote(name.data)}`),
       );
       rowCount = Number(row?.n ?? 0);
@@ -352,7 +352,7 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
 
     const rows =
       store.data === "sqlite"
-        ? await dbReadOnly.all(drizzleSql.raw(statement))
+        ? await sqliteDb.all(drizzleSql.raw(statement))
         : await queryLake<Record<string, unknown>>(statement);
 
     let matchedRowCount: number | null = null;
@@ -360,7 +360,7 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
       const countStatement = `SELECT count(*) AS n FROM ${quote(name.data)} ${where}`;
       const counted =
         store.data === "sqlite"
-          ? await dbReadOnly.all<{ n: number }>(drizzleSql.raw(countStatement))
+          ? await sqliteDb.all<{ n: number }>(drizzleSql.raw(countStatement))
           : await queryLake<{ n: number | bigint }>(countStatement);
       matchedRowCount = Number(counted[0]?.n ?? 0);
     }

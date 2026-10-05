@@ -357,7 +357,7 @@ export function LabelsStage() {
                 dispatch({ type: "setLabelStrategy", strategy: s.id, params: s.defaults })
               }
               className={[
-                "text-left p-4 rounded-xl border transition-all",
+                "text-left p-4 rounded-xl border transition",
                 active
                   ? "bg-primary/10 border-primary/40 shadow-[0_0_0_1px_rgba(99,102,241,0.15)]"
                   : "bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/15",

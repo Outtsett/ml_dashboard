@@ -23,26 +23,9 @@ machine holds no such credential regardless. The lake living on one drive is
 not a backup of itself. Off-drive replication of `E:\lake` is the live concern
 this runbook covers, and it is the thing to check first when auditing DR.
 
-## History
+## Frozen pre-lake tables
 
-Until 2026-09-10 this repo read market data from a local QuestDB instance, and
-this runbook described a nightly per-partition parquet export to `D:\` (Windows
-Scheduled Task `QuestDB_Daily_Backup`), added 2026-07-13 to close AUD-014 /
-AUD-015 from the 2026-07-12 data-infrastructure audit.
-
-That instance was emptied and retired on 2026-09-10. All 41 objects were
-dropped, each one first copied to parquet in the lake and row-count verified
-(39/39 exact). It now holds zero tables and nothing reads or writes it. The
-scheduled task is no longer registered — verified absent on 2026-09-10.
-
-## Restore path, if the retired instance is ever needed
-
-Both halves survive and are sufficient to reconstruct it:
-
-| Piece | Location |
-|---|---|
-| Schema (DDL for all 41 objects) | `s3://meta/questdb_schema/questdb_schema_latest.sql` |
-| Row data | `s3://derived/recipe=questdb_full_2026-09-09/` (parquet) |
-
-The same parquet is what DuckDB serves today, so a restore is only necessary to
-recreate the old *engine*, never to recover the *data*.
+The 41 market-data objects that were served from a separate database until
+2026-09-10 are frozen parquet at `s3://derived/recipe=questdb_full_2026-09-09/`
+(row-count verified 39/39 exact), which is what DuckDB serves today. Their DDL
+is `s3://meta/questdb_schema/questdb_schema_latest.sql`.

@@ -80,14 +80,24 @@ export function HorizonStrip({ bars, rows = DIRECTION_HORIZONS, height = 480 }: 
 
     const saved = savedRange.current;
     const restore = saved && saved.bars === bars && saved.range ? saved.range : null;
+    const frameLatest = () => {
+      if (times.length > 0) {
+        const visible = Math.min(250, times.length);
+        const start = times[times.length - visible];
+        const end = times[times.length - 1];
+        if (start !== undefined && end !== undefined) {
+          chart.timeScale().setVisibleRange({ from: seconds(start as number), to: seconds(end as number) });
+        }
+      }
+    };
     if (restore) chart.timeScale().setVisibleLogicalRange(restore);
-    else chart.timeScale().fitContent();
+    else frameLatest();
     // The container can still be unmeasured when the chart is made: fit once when it first has a width.
     let fitted = restore !== null || element.clientWidth > 0;
     const sizeWatch = new ResizeObserver(() => {
       if (!fitted && element.clientWidth > 0) {
         fitted = true;
-        chart.timeScale().fitContent();
+        frameLatest();
       }
     });
     sizeWatch.observe(element);

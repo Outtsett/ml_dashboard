@@ -5,7 +5,43 @@ import { ColorType, type Time } from 'lightweight-charts';
 // Tick size, tick value and price decimals per futures root, derived from
 // `packages/config/contract_specifications.json` (AMP Futures, cross-checked against CME Group).
 // Kept exported from here so the chart modules keep their import.
-export { futuresTickInfo } from '@shared/instruments';
+import { futuresTickInfo } from '@shared/instruments';
+export { futuresTickInfo };
+
+// ── Viewport ───────────────────────────────────────────────────────────────
+
+/** Densest legible candle spacing; caps zoom-out (≈ pane width in bars). */
+export const MIN_BAR_SPACING_PX = 1;
+/** Bars framed on first load / symbol or timeframe change. */
+export const DEFAULT_VISIBLE_BARS = 250;
+/**
+ * Empty bar-widths kept to the right of the newest candle. This is what "pinned
+ * to the most recent candle" means, so it is the anchor every re-frame reads
+ * instead of each site inventing its own.
+ */
+export const DEFAULT_RIGHT_OFFSET = 8;
+
+/**
+ * The ONE definition of "show the most recent bars, ending at the newest candle".
+ *
+ * `to` is the right edge of the pane in logical space; the newest candle is
+ * `rightOffset` bars inside it, so the range is right-aligned rather than
+ * flush. Every site that frames the latest bars goes through this, because the
+ * five hand-rolled versions disagreed with each other by a bar and with the
+ * subchart's own right offset by three.
+ *
+ * @param totalBars Bar count held by the series; the newest index is `totalBars - 1`.
+ * @param visibleBars Bars the range should span end to end.
+ */
+export function latestBarRange(
+  totalBars: number,
+  visibleBars: number = DEFAULT_VISIBLE_BARS,
+  rightOffset: number = DEFAULT_RIGHT_OFFSET,
+    ): { from: number; to: number } {
+  const newest = Math.max(0, totalBars - 1);
+  const to = newest + rightOffset;
+  return { from: Math.max(-rightOffset, to - Math.max(1, visibleBars)), to };
+}
 
 export const forexPipInfo: Record<string, { pipLocation: number; pipValue: number; decimals: number }> = {
   EURUSD: { pipLocation: 4, pipValue: 0.0001, decimals: 5 },
@@ -43,6 +79,18 @@ export function forexPrecision(symbol: string): { decimals: number; minMove: num
 /** Strip futures contract suffix (e.g. "MNQH25" → "MNQ", "ESZ2024" → "ES") */
 export function getBaseSymbol(symbol: string): string {
   return symbol.replace(/[A-Z]\d{1,2}$/, '').replace(/\d{4}$/, '');
+}
+
+/**
+ * Is this symbol a futures root? The tick registry is the answer — a root it
+ * holds is priced in ticks, anything else is a forex pair or an equity.
+ *
+ * Needed where the symbol does not come from the toolbar's asset-type
+ * selection: a Model Cycle plan names its own instrument, and its prices must be
+ * formatted as ticks whether or not the toolbar is currently on futures.
+ */
+export function isFuturesSymbol(symbol: string): boolean {
+  return futuresTickInfo[getBaseSymbol(symbol.toUpperCase())] !== undefined;
 }
 
 // ── Regime colors ──────────────────────────────────────────────────────────
@@ -104,14 +152,16 @@ export function createChartOptions() {
       borderColor: 'rgba(139, 92, 246, 0.2)',
       timeVisible: true,
       secondsVisible: false,
-      rightOffset: 8,
+      rightOffset: DEFAULT_RIGHT_OFFSET,
       barSpacing: 7,
-      minBarSpacing: 0.5,
+      // 1px per bar is the densest a candle stays legible. 0.5px + conflation let a 1m chart
+      // zoom out to all 50k loaded bars (~2 months), merging candles into an unreadable smear.
+      // Wider context belongs on a higher timeframe, not a compressed 1m one.
+      minBarSpacing: MIN_BAR_SPACING_PX,
       fixLeftEdge: false,
       fixRightEdge: false,
       lockVisibleTimeRangeOnResize: false,
-      enableConflation: true,
-      conflationThresholdFactor: 1.0,
+      enableConflation: false,
     },
     handleScroll: {
       mouseWheel: true,

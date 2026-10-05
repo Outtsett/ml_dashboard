@@ -79,7 +79,17 @@ export function WindowChart({ bars, height = 620, onHover }: { bars: readonly Wi
       const target = panes[index];
       if (target) createTextWatermark(target, { horzAlign: "left", vertAlign: "top", lines: [{ text: title, color: "rgba(255,255,255,0.55)", fontSize: 10 }] });
     });
-    chart.timeScale().fitContent();
+    const frameLatest = () => {
+      if (bars.length > 0) {
+        const visible = Math.min(250, bars.length);
+        const start = bars[bars.length - visible];
+        const end = bars[bars.length - 1];
+        if (start && end) {
+          chart.timeScale().setVisibleRange({ from: seconds(start.timestamp), to: seconds(end.timestamp) });
+        }
+      }
+    };
+    frameLatest();
     chart.subscribeCrosshairMove((parameter) => {
       hoverRef.current?.(parameter.time === undefined ? null : (indexOf.get(Number(parameter.time)) ?? null));
     });

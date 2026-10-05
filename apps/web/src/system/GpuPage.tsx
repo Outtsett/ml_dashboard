@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { Cpu, Thermometer, Zap, MemoryStick, Monitor, Activity, Gauge } from "lucide-react";
 import { cn } from "@/shared/utils/utils";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 
 // ── Animation variants ───────────────────────────────────────
 
@@ -79,7 +80,7 @@ function RadialGauge({ value, max, label, unit, color, size = 140, icon: Icon }:
             strokeDasharray={`${circumference * 0.75} ${circumference * 0.25}`}
             strokeDashoffset={offset}
             strokeLinecap="round"
-            className="transition-all duration-700 ease-out"
+            className="transition-[stroke-dashoffset,stroke] duration-700 ease-out"
             style={{
               filter: `drop-shadow(0 0 6px ${color}60)`,
             }}
@@ -120,10 +121,11 @@ function VramBar({ usedMB, totalMB, pct }: { usedMB: number; totalMB: number; pc
       {/* Main bar */}
       <div className="relative h-6 rounded-md overflow-hidden" style={{ background: "hsl(220, 15%, 10%)" }}>
         {/* Gradient fill */}
-        <div
-          className="absolute inset-y-0 left-0 rounded-md transition-all duration-700 ease-out"
+        <ProgressFill
+          value={pct}
+          className="absolute inset-0"
+          durationMs={700}
           style={{
-            width: `${Math.min(pct, 100)}%`,
             background: `linear-gradient(90deg, ${color}40, ${color}cc)`,
             boxShadow: `0 0 20px -2px ${color}40`,
           }}

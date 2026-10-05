@@ -52,7 +52,7 @@ export function AICopilot() {
       {!isOpen && (
         <Button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg border border-primary/50 bg-background hover:bg-muted p-0 flex items-center justify-center z-50 transition-all duration-300"
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg border border-primary/50 bg-background hover:bg-muted p-0 flex items-center justify-center z-50 transition-colors duration-300"
           title="Open AI Copilot"
         >
           <Bot className="h-6 w-6 text-primary" />

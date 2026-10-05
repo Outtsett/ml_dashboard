@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/shared/ui/tooltip";
+import { ProgressFill } from "@/shared/ui/progress-fill";
 import { ShieldCheck, ShieldAlert, ShieldX, Activity, Info, type LucideIcon } from "lucide-react";
 import { metricNumber, type MetricsBag, type MetricsSnapshot, type QualityGate } from "@/training/lib/types";
 
@@ -95,7 +96,7 @@ function QualityGatePanelInner({ diagnostics }: { diagnostics?: MetricsSnapshot 
         const bg = STATUS_BG[gate.status] || "bg-white/[0.02]";
 
         const content = (
-          <div className={`group flex items-center justify-between p-4 rounded-2xl border border-white/[0.06] ${bg} hover:bg-white/[0.04] transition-all cursor-default relative overflow-hidden`}>
+          <div className={`group flex items-center justify-between p-4 rounded-2xl border border-white/[0.06] ${bg} hover:bg-white/[0.04] transition-colors cursor-default relative overflow-hidden`}>
             <div className="flex items-center gap-4 relative z-10">
               <div className="relative">
                 <Icon className="w-5 h-5 shrink-0" style={{ color }} />
@@ -116,10 +117,10 @@ function QualityGatePanelInner({ diagnostics }: { diagnostics?: MetricsSnapshot 
                  {gate.status.toUpperCase()}
                </span>
                <div className="w-20 h-1 bg-white/5 rounded-full overflow-hidden shadow-inner">
-                  <div 
-                    className="h-full rounded-full transition-all duration-1000" 
+                  <ProgressFill
+                    value={gate.status === 'pass' ? 100 : gate.status === 'warn' ? 60 : 30}
+                    durationMs={1000}
                     style={{ 
-                      width: gate.status === 'pass' ? '100%' : gate.status === 'warn' ? '60%' : '30%',
                       backgroundColor: color,
                       boxShadow: `0 0 8px ${color}`
                     }} 

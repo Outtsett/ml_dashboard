@@ -25,7 +25,7 @@ import pytest
 from cycle import catalog
 from shared import protocol
 
-MAIN_PATH = Path(__file__).resolve().parents[1] / "src" / "ml" / "cycle" / "main.py"
+MAIN_PATH = Path(__file__).resolve().parents[1] / "src" / "cycle" / "main.py"
 
 # The flag types and defaults main.py's hand-written table gave the eight
 # families before the registry (FAMILY_DEFAULTS at 251c9e3).

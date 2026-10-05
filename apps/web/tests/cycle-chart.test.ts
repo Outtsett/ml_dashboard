@@ -38,6 +38,7 @@ import {
   candlePointAt,
   CONTEXT_ALPHA,
   CYCLE_COLORS,
+  drawnRunBars,
   followSpanRange,
   followTestRange,
   followWidth,
@@ -455,6 +456,26 @@ describe("follow ranges and readout", () => {
     expect(tickDecimals(0.25)).toBe(2);
     expect(tickDecimals(1)).toBe(0);
     expect(tickDecimals(0.0001)).toBe(4);
+  });
+});
+
+describe("what the chart is holding", () => {
+  it("reads the market's own bars as none of the run's", () => {
+    const run = Array.from({ length: 300 }, (_, i) => barTime(i));
+    // The market chart, still showing 25,000 of its own bars, parked on its newest.
+    const market = { count: 25_000, first: barTime(-5_000), last: barTime(19_999) };
+    expect(drawnRunBars(market, run)).toBe(0);
+    expect(drawnRunBars(null, run)).toBe(0);
+    expect(drawnRunBars({ count: 0, first: null, last: null }, run)).toBe(0);
+  });
+
+  it("counts the run's bars once the chart holds them, and a chart one batch behind", () => {
+    const run = Array.from({ length: 300 }, (_, i) => barTime(i));
+    expect(drawnRunBars({ count: 300, first: barTime(0), last: barTime(299) }, run)).toBe(300);
+    // Applied on the chart's own frame, so a pass can see 240 of the store's 300.
+    expect(drawnRunBars({ count: 240, first: barTime(0), last: barTime(239) }, run)).toBe(240);
+    // A count whose last bar is not the one it implies is not this run's series.
+    expect(drawnRunBars({ count: 240, first: barTime(0), last: barTime(299) }, run)).toBe(0);
   });
 });
 

@@ -123,7 +123,7 @@ export function RendererShell({
           data-metric={metricKey}
           style={groupColor ? { borderColor: groupColor } : undefined}
           className={cn(
-            'glass-elevated gradient-accent-top rounded-lg overflow-hidden transition-all duration-300',
+            'glass-elevated gradient-accent-top rounded-lg overflow-hidden transition duration-300',
             'border',
             awaitingData ? 'border-zinc-800/60 opacity-80' : groupColor ? '' : BORDER_TINT[severity],
             awaitingData ? '' : GLOW_TINT[severity],

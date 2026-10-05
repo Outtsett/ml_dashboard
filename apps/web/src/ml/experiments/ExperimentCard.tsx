@@ -62,7 +62,7 @@ export function ExperimentCard({ entry, selected = false, onToggle }: Experiment
           type="button"
           onClick={() => onToggle?.(experiment.id)}
           aria-pressed={selected}
-          className={`flex flex-col gap-2 p-3 rounded-lg text-left w-full transition-all motion-quick ${
+          className={`flex flex-col gap-2 p-3 rounded-lg text-left w-full transition motion-quick ${
             selected ? "stage-active" : "surface-interactive"
           }`}
         >

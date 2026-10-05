@@ -420,9 +420,11 @@ export function LessonViewer({
         <AnimatePresence>
           {showNotes && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
+              // scaleY + opacity reveal stays on the compositor (height:auto tweening forces per-frame layout)
+              initial={{ scaleY: 0.95, opacity: 0 }}
+              animate={{ scaleY: 1, opacity: 1 }}
+              exit={{ scaleY: 0.95, opacity: 0 }}
+              style={{ originY: 0 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >

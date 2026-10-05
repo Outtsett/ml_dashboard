@@ -76,7 +76,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: M
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         
         {/* Loss Convergence */}
-        <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.03] transition-all">
+        <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.03] transition-colors">
           <div className="flex items-center justify-between mb-6 relative z-10">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-primary/60" />
@@ -113,7 +113,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: M
         </div>
 
         {/* Head Calibration Curve */}
-        <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.03] transition-all">
+        <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.03] transition-colors">
           <div className="flex items-center justify-between mb-6 relative z-10">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-amber-400/60" />

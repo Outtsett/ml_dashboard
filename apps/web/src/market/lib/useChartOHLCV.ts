@@ -54,15 +54,26 @@ async function fetchAndCachePage(url: string, signal?: AbortSignal): Promise<Ohl
       const length = table.numRows;
       
       data = new Array(length);
-      for (let i = 0; i < length; i++) {
-        data[i] = {
-          timestamp: ts[i],
-          open: open[i],
-          high: high[i],
-          low: low[i],
-          close: close[i],
-          volume: volume[i]
-        } as OhlcvData;
+      
+      // Task breaking: yield to main thread every 10,000 rows to prevent blocking LCP
+      const CHUNK_SIZE = 10000;
+      for (let i = 0; i < length; i += CHUNK_SIZE) {
+        const end = Math.min(i + CHUNK_SIZE, length);
+        for (let j = i; j < end; j++) {
+          data[j] = {
+            timestamp: ts[j],
+            open: open[j],
+            high: high[j],
+            low: low[j],
+            close: close[j],
+            volume: volume[j]
+          } as OhlcvData;
+        }
+        
+        // Yield to the event loop to allow paints and other interactions
+        if (end < length) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
       }
     } else if (contentType.includes('application/msgpack')) {
       // (Optional) We could import msgpack here, but the server will return Arrow now.
