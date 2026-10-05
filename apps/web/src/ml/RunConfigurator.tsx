@@ -101,7 +101,7 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
           size="lg" 
           onClick={handleLaunch}
           disabled={isTraining}
-          className="mt-4 w-full shadow-[0_0_15px_rgba(var(--primary),0.2)] hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] transition bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+          className="mt-4 w-full shadow-[0_0_15px_rgba(230,159,0,0.2)] hover:shadow-[0_0_25px_rgba(230,159,0,0.4)] transition bg-[#E69F00] hover:bg-[#E69F00]/90 text-black font-bold"
         >
           <Play className="w-4 h-4 mr-2" />
           {isTraining ? "Training Active..." : "Launch Run (24 Cores)"}
@@ -114,7 +114,7 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
           <span className="text-xs font-mono text-muted-foreground flex items-center gap-2">
             <GitBranch className="w-3.5 h-3.5" /> Pipeline Topology DAG
           </span>
-          <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-900/50">Probabilistic Heads Enabled</Badge>
+          <Badge variant="outline" className="text-[10px] text-[#E69F00] border-[#E69F00]/30">Probabilistic Heads Enabled</Badge>
         </div>
         
         {/* Mock DAG Node Canvas */}
@@ -136,9 +136,9 @@ export function RunConfigurator({ model }: { model: CatalogModelDetail }) {
             <p className="text-[10px] text-muted-foreground mt-1">Vectorized Polars LazyFrame</p>
           </Card>
           
-          <Card className="w-64 p-3 bg-neutral-900 border-emerald-900/50 shadow-lg text-center relative">
-            <div className="absolute -top-2 -right-2 bg-emerald-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded">Target</div>
-            <LineChart className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
+          <Card className="w-64 p-3 bg-neutral-900 border-[#E69F00]/30 shadow-lg text-center relative">
+            <div className="absolute -top-2 -right-2 bg-[#E69F00] text-black text-[9px] font-bold px-1.5 py-0.5 rounded">Target</div>
+            <LineChart className="w-5 h-5 mx-auto mb-2 text-[#E69F00]" />
             <h4 className="text-xs font-semibold">{targetLabel.toUpperCase()}</h4>
             <p className="text-[10px] text-muted-foreground mt-1">Gaussian NLL Probabilistic</p>
           </Card>

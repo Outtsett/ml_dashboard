@@ -29,8 +29,8 @@ export function KronosAnalyticsTab({ profileId }: { profileId: string }) {
               <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
               <Area type="monotone" dataKey="upperBound" stroke="none" fill="#f59e0b" fillOpacity={0.1} />
               <Area type="monotone" dataKey="lowerBound" stroke="none" fill="#f59e0b" fillOpacity={0.1} />
-              <Area type="monotone" dataKey="actual" stroke="#10b981" fill="none" strokeWidth={2} />
-              <Area type="monotone" dataKey="forecast" stroke="#f59e0b" fill="none" strokeWidth={2} strokeDasharray="5 5" />
+              <Area type="monotone" dataKey="actual" stroke="#E69F00" fill="none" strokeWidth={2} />
+              <Area type="monotone" dataKey="forecast" stroke="#0072B2" fill="none" strokeWidth={2} strokeDasharray="5 5" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -38,7 +38,7 @@ export function KronosAnalyticsTab({ profileId }: { profileId: string }) {
       <div className="grid grid-cols-2 gap-6">
         <Card className="p-6 bg-neutral-900 border-neutral-800">
           <h3 className="text-sm font-medium text-neutral-400 mb-2">Hierarchical Tokens</h3>
-          <p className="text-3xl font-mono text-emerald-400">12.4M</p>
+          <p className="text-3xl font-mono text-[#E69F00]">12.4M</p>
           <p className="text-xs text-neutral-500 mt-1">Total OHLCVA tokens mapped to local state space.</p>
         </Card>
         <Card className="p-6 bg-neutral-900 border-neutral-800">

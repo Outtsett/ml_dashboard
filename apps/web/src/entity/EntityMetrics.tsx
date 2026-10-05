@@ -22,7 +22,8 @@ export function EntityMetrics({ metrics }: EntityMetricsProps) {
     new Set(metrics.flatMap((m) => Object.keys(m).filter((k) => k !== "timestamp")))
   );
 
-  const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
+  // Okabe-Ito palette (no red/green)
+  const colors = ["#E69F00", "#0072B2", "#56B4E9", "#CC79A7", "#009E73"];
 
   return (
     <div className="h-[400px] w-full border border-neutral-800 rounded-lg bg-neutral-900/50 p-4">

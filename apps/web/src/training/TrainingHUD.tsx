@@ -13,11 +13,11 @@ export function TrainingHUD() {
     return () => disconnect();
   }, [connect, disconnect]);
 
-  // Institutional Palette:
-  // Emerald-500: #10b981
-  // Blue-500: #3b82f6
-  // Amber-500: #f59e0b
-  // Red-500: #ef4444
+  // Okabe-Ito Palette:
+  // Up/Positive: #E69F00
+  // Down/Negative: #0072B2
+  // Sky Blue: #56B4E9
+  // Amber/Warn: #f59e0b
 
   return (
     <div className="absolute top-4 right-4 flex flex-col gap-4 text-xs font-mono w-[420px] pointer-events-none z-10">
@@ -27,7 +27,7 @@ export function TrainingHUD() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white/80 font-semibold tracking-widest uppercase text-[10px]">Gaussian NLL vs Variance</h3>
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#10b981]' : 'bg-[#ef4444]'}`} />
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#E69F00]' : 'bg-[#0072B2]'}`} />
             <span className="text-white/40 text-[9px] font-bold">{isConnected ? 'LIVE' : 'OFFLINE'}</span>
           </div>
         </div>
@@ -45,8 +45,8 @@ export function TrainingHUD() {
                 labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}
               />
               <Legend wrapperStyle={{ fontSize: 10, opacity: 0.7, paddingTop: '10px' }} iconType="circle" iconSize={6} />
-              <Line yAxisId="left" type="monotone" dataKey="nll" stroke="#3b82f6" name="NLL" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line yAxisId="right" type="monotone" dataKey="variance" stroke="#f59e0b" name="Variance" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="left" type="monotone" dataKey="nll" stroke="#0072B2" name="NLL" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="right" type="monotone" dataKey="variance" stroke="#E69F00" name="Variance" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -65,10 +65,10 @@ export function TrainingHUD() {
               <RechartsTooltip 
                 contentStyle={{ backgroundColor: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                 cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                itemStyle={{ fontSize: 11, color: '#10b981', fontWeight: 500 }}
+                itemStyle={{ fontSize: 11, color: '#E69F00', fontWeight: 500 }}
                 labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}
               />
-              <Bar dataKey="rmse" fill="#10b981" name="RMSE" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="rmse" fill="#E69F00" name="RMSE" radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

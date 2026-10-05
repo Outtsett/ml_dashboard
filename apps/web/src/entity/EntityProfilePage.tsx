@@ -19,9 +19,7 @@ import {
   MessageSquare,
   ScatterChart
 } from "lucide-react";
-import { KronosAnalyticsTab } from "./analytics/KronosAnalyticsTab";
-import { FinbertAnalyticsTab } from "./analytics/FinbertAnalyticsTab";
-import { HmmAnalyticsTab } from "./analytics/HmmAnalyticsTab";
+import { ModelFamilyAnalytics } from "@/ml/analytics/ModelFamilyAnalytics";
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import RegressionPage from "@/market/regression/RegressionPage";
 
@@ -61,23 +59,13 @@ export default function EntityProfilePage() {
     addAnnotation(annotationText);
     setAnnotationText("");
   };
-
-  // Determine specific model architecture
-  let modelArch = "Generic";
-  if (type === 'model') {
-    const searchStr = (profile?.name + " " + id + " " + JSON.stringify(profile?.tags || [])).toLowerCase();
-    if (searchStr.includes("kronos")) modelArch = "Kronos";
-    else if (searchStr.includes("finbert") || searchStr.includes("bert")) modelArch = "FinBERT";
-    else if (searchStr.includes("hmm") || searchStr.includes("markov")) modelArch = "HMM";
-  }
-
   return (
     <div className="flex flex-col h-full bg-neutral-950 overflow-hidden text-neutral-200">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-neutral-800 bg-neutral-900/40 shrink-0">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-emerald-500 border-emerald-500/30 uppercase tracking-wider">
+            <Badge variant="outline" className="text-[#E69F00] border-[#E69F00]/30 uppercase tracking-wider">
               {type}
             </Badge>
             <h1 className="text-2xl font-bold text-white tracking-tight">
@@ -98,7 +86,7 @@ export default function EntityProfilePage() {
           <Button 
             variant={isActive ? "secondary" : "default"}
             onClick={handleSetTarget}
-            className={isActive ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-blue-600 hover:bg-blue-700 text-white"}
+            className={isActive ? "bg-[#E69F00]/20 text-[#E69F00] hover:bg-[#E69F00]/30" : "bg-[#0072B2] hover:bg-[#0072B2]/80 text-white"}
           >
             {isActive ? "Active Entity" : "Set as Active"}
           </Button>
@@ -111,7 +99,7 @@ export default function EntityProfilePage() {
           <Tabs.List className="flex gap-6 h-12 items-center">
             <Tabs.Trigger 
               value="overview" 
-              className="h-full flex items-center gap-2 px-1 text-sm font-medium text-neutral-400 hover:text-neutral-200 data-[state=active]:text-emerald-400 data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 transition-colors"
+              className="h-full flex items-center gap-2 px-1 text-sm font-medium text-neutral-400 hover:text-neutral-200 data-[state=active]:text-[#E69F00] data-[state=active]:border-b-2 data-[state=active]:border-[#E69F00] transition-colors"
             >
               <Info className="h-4 w-4" />
               Overview
@@ -128,6 +116,13 @@ export default function EntityProfilePage() {
 
             {type === 'model' && (
               <>
+                <Tabs.Trigger 
+                  value="analytics" 
+                  className="h-full flex items-center gap-2 px-1 text-sm font-medium text-neutral-400 hover:text-neutral-200 data-[state=active]:text-emerald-400 data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 transition-colors"
+                >
+                  <Activity className="h-4 w-4" />
+                  Model Analytics
+                </Tabs.Trigger>
                 <Tabs.Trigger 
                   value="metrics" 
                   className="h-full flex items-center gap-2 px-1 text-sm font-medium text-neutral-400 hover:text-neutral-200 data-[state=active]:text-amber-400 data-[state=active]:border-b-2 data-[state=active]:border-amber-500 transition-colors"
@@ -203,7 +198,7 @@ export default function EntityProfilePage() {
                         .map(([k, v]) => (
                           <div key={k} className="flex justify-between items-center pb-2 border-b border-neutral-800 last:border-0 last:pb-0">
                             <span className="text-sm text-neutral-400 capitalize">{k.replace(/_/g, ' ')}</span>
-                            <span className="text-sm font-medium text-emerald-400">{typeof v === 'number' ? v.toFixed(4) : v}</span>
+                            <span className="text-sm font-medium text-[#E69F00]">{typeof v === 'number' ? v.toFixed(4) : v}</span>
                           </div>
                       ))}
                     </div>
@@ -221,24 +216,12 @@ export default function EntityProfilePage() {
 
           {type === 'model' && (
             <>
+              <Tabs.Content value="analytics" className="h-full focus:outline-none">
+                <ModelFamilyAnalytics model={{ id, name: profile?.name || id, category: profile?.category, tags: profile?.tags }} />
+              </Tabs.Content>
               <Tabs.Content value="metrics" className="h-full focus:outline-none">
                 <EntityMetrics metrics={metrics || []} />
               </Tabs.Content>
-              {modelArch === 'Kronos' && (
-                <Tabs.Content value="kronos" className="h-full focus:outline-none">
-                  <KronosAnalyticsTab profileId={id} />
-                </Tabs.Content>
-              )}
-              {modelArch === 'FinBERT' && (
-                <Tabs.Content value="finbert" className="h-full focus:outline-none">
-                  <FinbertAnalyticsTab profileId={id} />
-                </Tabs.Content>
-              )}
-              {modelArch === 'HMM' && (
-                <Tabs.Content value="hmm" className="h-full focus:outline-none">
-                  <HmmAnalyticsTab profileId={id} />
-                </Tabs.Content>
-              )}
               <Tabs.Content value="regression" className="h-full focus:outline-none flex flex-col">
                 <RegressionPage />
               </Tabs.Content>
@@ -322,9 +305,9 @@ export default function EntityProfilePage() {
                       <div className="text-xs text-neutral-500 mb-1">Drift Status</div>
                       <div className="text-sm flex items-center gap-2 mt-1">
                         {lineage.driftDetected ? (
-                          <><Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30">Drift Detected</Badge></>
+                          <><Badge className="bg-[#0072B2]/20 text-[#56B4E9] hover:bg-[#0072B2]/30">Drift Detected</Badge></>
                         ) : (
-                          <><Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30">Stable</Badge></>
+                          <><Badge className="bg-[#E69F00]/20 text-[#E69F00] hover:bg-[#E69F00]/30">Stable</Badge></>
                         )}
                       </div>
                     </div>
@@ -342,4 +325,5 @@ export default function EntityProfilePage() {
     </div>
   );
 }
+
 

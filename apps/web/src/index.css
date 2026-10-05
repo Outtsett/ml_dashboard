@@ -616,3 +616,11 @@
 .rounded-md {
   border-radius: 3px;
 }
+
+@theme {
+  --color-okabe-up: #E69F00;
+  --color-okabe-down: #0072B2;
+  --color-okabe-base: #000000;
+  --color-okabe-surface: #111111;
+}
+

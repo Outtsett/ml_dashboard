@@ -32,7 +32,7 @@ export function BottomDock() {
         {/* Global HUD Mini-Stats */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5" title="Global GPU Compute">
-            <Cpu className="h-3.5 w-3.5 text-emerald-500" />
+            <Cpu className="h-3.5 w-3.5 text-[#E69F00]" />
             <span>GPU: 0%</span>
           </div>
           <div className="flex items-center gap-1.5" title="Global GPU VRAM">
@@ -64,7 +64,7 @@ export function BottomDock() {
             onClick={() => setActiveTab("hardware")}
             className={cn(
               "px-3 h-full text-xs font-medium flex items-center gap-2 border-b-2 transition-colors",
-              activeTab === "hardware" ? "border-emerald-500 text-neutral-200 bg-neutral-900/50" : "border-transparent text-neutral-500 hover:text-neutral-300"
+              activeTab === "hardware" ? "border-[#E69F00] text-neutral-200 bg-neutral-900/50" : "border-transparent text-neutral-500 hover:text-neutral-300"
             )}
           >
             <Cpu className="h-3.5 w-3.5" />

@@ -8,7 +8,7 @@ import { WidthProvider } from "react-grid-layout/legacy";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, X, GripHorizontal } from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, X, GripHorizontal, Activity } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
@@ -17,6 +17,7 @@ import { useEntityStore } from "@/shared/contexts/EntityContext";
 import type { CatalogLifecycle } from "@shared/catalogLifecycle";
 import { LifecyclePanel } from "./LifecycleStrip";
 import { ArchitecturePreview } from "./architecture/ArchitecturePreview";
+import { ModelFamilyAnalytics } from "./analytics/ModelFamilyAnalytics";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -30,6 +31,7 @@ interface ModelDetailViewProps {
 
 const PANELS = [
   { id: "spec", label: "Blueprint", icon: FileText },
+  { id: "analytics", label: "Model Analytics", icon: Activity },
   { id: "train", label: "Pipeline", icon: Play },
   { id: "evaluate", label: "Evaluate", icon: LineChart },
   { id: "rl", label: "RL Console", icon: Bot },
@@ -48,11 +50,14 @@ export function ModelDetailView({
   const { setEntity, activeEntity } = useEntityStore();
   const isActive = activeEntity?.type === 'model' && activeEntity?.id === model.id;
 
-  const [activePanels, setActivePanels] = useState<string[]>(["spec"]);
+  const [activePanels, setActivePanels] = useState<string[]>(["spec", "analytics"]);
   
   // Default grid layouts dictionary for responsive breakpoints
   const [layouts, setLayouts] = useState<any>({
-    lg: [{ i: "spec", x: 0, y: 0, w: 12, h: 20 }]
+    lg: [
+      { i: "spec", x: 0, y: 0, w: 6, h: 22 },
+      { i: "analytics", x: 6, y: 0, w: 6, h: 22 }
+    ]
   });
 
   const togglePanel = (id: string) => {
@@ -207,6 +212,8 @@ export function ModelDetailView({
             </div>
           </ScrollArea>
         );
+      case "analytics":
+        return <ModelFamilyAnalytics model={model} />;
       case "train":
         return (
           <div className="h-full w-full overflow-y-auto p-4">

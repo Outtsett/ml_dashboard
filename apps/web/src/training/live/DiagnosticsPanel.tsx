@@ -1,4 +1,4 @@
-﻿import { Cpu, Server, Zap } from "lucide-react";
+import { Cpu, Server, Zap } from "lucide-react";
 
 interface DiagnosticsPanelProps {
   metrics: Record<string, number>;
@@ -9,16 +9,16 @@ export function DiagnosticsPanel({ metrics }: DiagnosticsPanelProps) {
   const fps = metrics["fps"] || 0;
   const gpuUtil = metrics["gpu_util"] || 0;
   
-  // Health calculation
+  // Health calculation (Okabe-Ito: up/healthy=#E69F00, down/critical=#0072B2)
   let healthLabel = "Healthy";
-  let healthColor = "text-emerald-500";
+  let healthColor = "text-[#E69F00]";
   if (queueDepth > 100) {
     healthLabel = "Lagging";
     healthColor = "text-amber-500";
   }
   if (queueDepth > 500) {
     healthLabel = "Critical";
-    healthColor = "text-red-500";
+    healthColor = "text-[#0072B2]";
   }
 
   return (

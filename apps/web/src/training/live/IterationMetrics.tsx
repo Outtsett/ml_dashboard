@@ -57,27 +57,27 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
           value={stats.currentIter}
           max={10000}
           label="ITERATION"
-          color="#3b82f6"
+          color="#56B4E9"
         />
         <RadialGauge
           value={stats.iterPerSec}
           max={100}
           label="SPEED"
           unit="it/s"
-          color="#10b981"
+          color="#E69F00"
         />
         <RadialGauge
           value={stats.nRegimes}
           max={50}
           label="REGIMES"
-          color="#f59e0b"
+          color="#E69F00"
         />
         <RadialGauge
           value={stats.ll != null ? stats.ll : 0}
           min={-5000}
           max={0}
           label="LOG-LIKELIHOOD"
-          color="#ef4444"
+          color="#0072B2"
         />
       </div>
     </div>

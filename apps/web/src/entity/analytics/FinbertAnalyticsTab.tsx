@@ -27,9 +27,10 @@ export function FinbertAnalyticsTab({ profileId }: { profileId: string }) {
               <YAxis stroke="#666" tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
               <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
               <Legend />
-              <Bar dataKey="positive" stackId="a" fill="#10b981" />
-              <Bar dataKey="neutral" stackId="a" fill="#6b7280" />
-              <Bar dataKey="negative" stackId="a" fill="#ef4444" />
+              {/* Okabe-Ito: positive=#E69F00, neutral=#CC79A7, negative=#0072B2 */}
+              <Bar dataKey="positive" stackId="a" fill="#E69F00" />
+              <Bar dataKey="neutral" stackId="a" fill="#CC79A7" />
+              <Bar dataKey="negative" stackId="a" fill="#0072B2" />
             </BarChart>
           </ResponsiveContainer>
         </div>

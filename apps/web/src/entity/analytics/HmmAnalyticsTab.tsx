@@ -14,7 +14,7 @@ export function HmmAnalyticsTab({ profileId }: { profileId: string }) {
   return (
     <div className="flex flex-col gap-6 p-6 overflow-y-auto">
       <div className="flex items-center gap-4">
-        <h2 className="text-xl font-bold text-emerald-500">HMM Regime Router</h2>
+        <h2 className="text-xl font-bold text-[#E69F00]">HMM Regime Router</h2>
         <span className="text-xs text-neutral-400 bg-neutral-900 px-2 py-1 rounded">Latent State Segregation</span>
       </div>
       <Card className="p-6 bg-neutral-900 border-neutral-800">
@@ -26,9 +26,10 @@ export function HmmAnalyticsTab({ profileId }: { profileId: string }) {
               <XAxis dataKey="time" stroke="#666" />
               <YAxis stroke="#666" />
               <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
-              <Area type="monotone" dataKey="regimeA" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} name="Trending" />
-              <Area type="monotone" dataKey="regimeB" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} name="Mean Reverting" />
-              <Area type="monotone" dataKey="regimeC" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="High Volatility" />
+              {/* Okabe-Ito: blue=#0072B2, orange=#E69F00, reddish-purple=#CC79A7 */}
+              <Area type="monotone" dataKey="regimeA" stackId="1" stroke="#0072B2" fill="#0072B2" fillOpacity={0.6} name="Trending" />
+              <Area type="monotone" dataKey="regimeB" stackId="1" stroke="#E69F00" fill="#E69F00" fillOpacity={0.6} name="Mean Reverting" />
+              <Area type="monotone" dataKey="regimeC" stackId="1" stroke="#CC79A7" fill="#CC79A7" fillOpacity={0.6} name="High Volatility" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

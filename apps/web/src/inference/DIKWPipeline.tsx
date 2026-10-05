@@ -18,7 +18,7 @@ export default function DIKWPipeline() {
     {
       title: "Descriptive (Data)",
       subtitle: "What is happening?",
-      icon: <Activity className="w-5 h-5 text-emerald-500" />,
+      icon: <Activity className="w-5 h-5 text-[#E69F00]" />,
       content: (
         <div className="space-y-4">
           <p className="text-sm text-neutral-400">Raw OHLCVA & Text ingestion. Tracking market microstructure and asynchronous news flow.</p>
@@ -29,7 +29,7 @@ export default function DIKWPipeline() {
                 <XAxis dataKey="time" stroke="#666" />
                 <YAxis stroke="#666" domain={['auto', 'auto']} />
                 <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
-                <Line type="monotone" dataKey="price" stroke="#10b981" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="price" stroke="#E69F00" dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -39,7 +39,7 @@ export default function DIKWPipeline() {
     {
       title: "Diagnostic (Information)",
       subtitle: "Why is it happening?",
-      icon: <BrainCircuit className="w-5 h-5 text-blue-500" />,
+      icon: <BrainCircuit className="w-5 h-5 text-[#0072B2]" />,
       content: (
         <div className="space-y-4">
           <p className="text-sm text-neutral-400">HMM Regime states and FinBERT sentiment shifts.</p>
@@ -50,8 +50,8 @@ export default function DIKWPipeline() {
                 <XAxis dataKey="time" stroke="#666" />
                 <YAxis stroke="#666" />
                 <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
-                <Area type="monotone" dataKey="sentiment" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
-                <Area type="monotone" dataKey="volatility" stackId="2" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} />
+                <Area type="monotone" dataKey="sentiment" stackId="1" stroke="#0072B2" fill="#0072B2" fillOpacity={0.2} />
+                <Area type="monotone" dataKey="volatility" stackId="2" stroke="#E69F00" fill="#E69F00" fillOpacity={0.2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -72,8 +72,8 @@ export default function DIKWPipeline() {
                 <XAxis dataKey="time" stroke="#666" />
                 <YAxis stroke="#666" domain={['auto', 'auto']} />
                 <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
-                <Line type="monotone" dataKey="price" stroke="#10b981" dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="price" stroke="#f59e0b" dot={false} strokeDasharray="5 5" strokeWidth={2} style={{ transform: 'translateX(20px)' }} />
+                <Line type="monotone" dataKey="price" stroke="#E69F00" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="price" stroke="#56B4E9" dot={false} strokeDasharray="5 5" strokeWidth={2} style={{ transform: 'translateX(20px)' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -83,7 +83,7 @@ export default function DIKWPipeline() {
     {
       title: "Prescriptive (Wisdom)",
       subtitle: "What should we do?",
-      icon: <ShieldCheck className="w-5 h-5 text-red-500" />,
+      icon: <ShieldCheck className="w-5 h-5 text-[#CC79A7]" />,
       content: (
         <div className="space-y-4">
           <p className="text-sm text-neutral-400">Gaussian NLL bounded actions. Position sizing based on confidence thresholds.</p>
@@ -94,7 +94,7 @@ export default function DIKWPipeline() {
                 <XAxis dataKey="time" stroke="#666" />
                 <YAxis stroke="#666" />
                 <Tooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333' }} />
-                <Bar dataKey="confidence" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="confidence" fill="#E69F00" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
