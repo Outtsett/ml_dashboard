@@ -13,7 +13,7 @@ dependencies = [
     "duckdb>=1.4",
 
     # ── ML / training ───────────────────────────────────────────────
-    "torch==2.11.0",            # sm_120-aware build via [tool.uv.sources] -> pytorch-cu130 index
+    "torch==2.14.1",            # sm_120-aware build via [tool.uv.sources] -> pytorch-cu130 index
     "scikit-learn>=1.6,<2",
     "scikit-optimize>=0.10",    # imported as `skopt` in optimizers/bayesian_optimizer.py
     "xgboost>=3.1,<4",
