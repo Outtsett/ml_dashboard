@@ -312,7 +312,7 @@ async function main() {
 
   // Wait for stdout to drain before exiting. On Windows a piped stdout is
   // asynchronous, so `process.exit` immediately after the summary truncated it —
-  // `npm run ci | tee` and CI log capture both lost the results table.
+  // `bun run ci | tee` and CI log capture both lost the results table.
   await new Promise((resolve) => {
     if (process.stdout.write('')) resolve();
     else process.stdout.once('drain', resolve);
