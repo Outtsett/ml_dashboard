@@ -26,7 +26,7 @@ the training run that consumed it.
 | Lifecycle derivation | `labelLifecycle.ts` (pure `buildLabelLifecycle` + gatherer) |
 | The canonical suite | `labelSuite.ts`, `scripts/run_label_suite.ts` |
 | Routes | `src/server/ml/labels.router.ts` (`/api/labels/*`) |
-| Serving views over every manifested derived dataset | `src/server/infrastructure/database/questdb/derivedDatasets.ts`; Python mirror `lake.serving.derived_views` |
+| Serving views over every manifested derived dataset | `apps/api/infrastructure/database/lake/derivedDatasets.ts`; Python mirror `lake.serving.derived_views` |
 | Python consumption | `src/ml/shared/label_sets.py` (`load_label_set`, `translate_label_params`, `label_horizon_bars`), `src/ml/shared/labels.py` (kernels) |
 | Client | `src/client/src/labels/` (`/labels`), `ml/stages/LabelsStage.tsx`, `market/lib/useLabelOverlay.ts` (landed sets on the chart) |
 | Notebook | `notebooks/label_catalog.py` (ML Dashboard group) |

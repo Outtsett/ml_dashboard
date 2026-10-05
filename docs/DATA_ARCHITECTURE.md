@@ -53,6 +53,5 @@ If you are an AI Agent tasked with debugging, extending, or answering questions 
 As of Oct 2026, we have formally locked in a **Strict Vertical / Non-Distributed Architecture**.
 - **No MinIO/S3:** Read raw .parquet from D:\ml_data directly.
 - **No Iceberg:** Direct globbing/filesystem access.
-- **No QuestDB:** High-frequency ticks flow straight into TimescaleDB.
 - **Processing:** Polars LazyFrames & DuckDB (single-node, multi-threaded).
 - **ML Loading:** Zero-copy PyTorch pointers (	orch.from_numpy) out of Polars buffers, bypassing pandas.

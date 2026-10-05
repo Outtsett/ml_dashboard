@@ -1,6 +1,6 @@
 ﻿> [!IMPORTANT]
 > **PIPELINE MANDATE**: This project operates strictly as a non-distributed, vertical architecture.
-> **DO NOT** use MinIO, Apache Iceberg, or QuestDB.
+> **DO NOT** use MinIO or Apache Iceberg.
 > **DO USE** Local Parquet (D:\ml_data), Polars, Standalone PostgreSQL+TimescaleDB, and Zero-Copy PyTorch Dataloaders.
 # Docs â€” Documentation and Specs
 

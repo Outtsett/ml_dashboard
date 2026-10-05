@@ -4,7 +4,7 @@ Stores every prediction emitted by a live model deployment, plus a 1-minute
 rollup for sub-second dashboard refresh.
 
 > **The time-series copy is gone.** Until 2026-09-10 this table was mirrored
-> into a QuestDB hot path alongside SQLite. That store was emptied and retired;
+> into a time-series hot path alongside SQLite. That copy was dropped;
 > the SQLite `prediction_log` table (`src/shared/schema.ts`) is now the only
 > one. The column shapes below still describe the intended record — read the
 > type column as intent, not as live DDL. Re-homing the rollup onto the lake or
