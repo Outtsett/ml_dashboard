@@ -36,7 +36,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-REGISTRY_DIRECTORY = Path(__file__).resolve().parents[2] / "config" / "cycle_models"
+from cycle.paths import CONFIG_ROOT
+
+REGISTRY_DIRECTORY = CONFIG_ROOT / "cycle_models"
 SHARED_FILE = "_cycle.json"
 
 KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,39}$")

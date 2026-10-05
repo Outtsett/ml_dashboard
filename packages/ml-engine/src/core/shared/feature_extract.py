@@ -130,9 +130,9 @@ except ImportError:
 
 def load_extraction_config() -> dict:
     """Read feature extraction config from packages/config/feature_extraction.json."""
-    config_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "config", "feature_extraction.json"
-    )
+    # `config/` is a sibling of the engine package. Counting up from this file
+    # (src/core/shared/feature_extract.py): shared -> core -> src -> ml-engine -> packages.
+    config_path = Path(__file__).resolve().parents[4] / "config" / "feature_extraction.json"
     with open(config_path) as f:
         return json.load(f)
 

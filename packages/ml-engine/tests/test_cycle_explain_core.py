@@ -46,8 +46,9 @@ from cycle.models import build_adapter, default_parameters
 from cycle.simulate import load_cost_model
 from shared import protocol
 
-REPOSITORY = Path(__file__).resolve().parents[1]
-EXPLAIN_MAIN = REPOSITORY / "src" / "ml" / "cycle" / "explain_main.py"
+ENGINE = Path(__file__).resolve().parents[1]
+REPOSITORY = ENGINE.parent.parent
+EXPLAIN_MAIN = ENGINE / "src" / "cycle" / "explain_main.py"
 VERIFY_SCRIPT = REPOSITORY / "scripts" / "verify_cycle_explain.py"
 FIXTURES = REPOSITORY / "tests" / "fixtures" / "cycle_explain"
 PYTHON = sys.executable

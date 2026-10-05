@@ -31,8 +31,15 @@ import sys
 from pathlib import Path
 
 _ML_ROOT = Path(__file__).resolve().parents[1]
-if str(_ML_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ML_ROOT))
+# `shared` is a top-level package under ml-engine/src/CORE, not src/shared, and a
+# bare `python main.py` starts with neither root on the path. CORE goes in here,
+# before `packages` is appended further down: `packages/shared` is the TypeScript
+# workspace, and Python finds it first as a namespace package, so `shared.protocol`
+# would come up missing.
+_ML_CORE = _ML_ROOT / "core"
+for _root in (_ML_CORE, _ML_ROOT):
+    if str(_root) not in sys.path:
+        sys.path.insert(0, str(_root))
 
 # The registry reader imports only the standard library, so it can run before
 # numpy: it decides whether torch has to be imported first.

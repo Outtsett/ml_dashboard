@@ -29,7 +29,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Callable
 
-COST_MODEL_PATH = Path(__file__).resolve().parents[2] / "config" / "cost_model.json"
+from cycle.paths import CONFIG_ROOT
+
+COST_MODEL_PATH = CONFIG_ROOT / "cost_model.json"
 _CONTRACT_CODE = re.compile(r"^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d{1,2})$")
 
 

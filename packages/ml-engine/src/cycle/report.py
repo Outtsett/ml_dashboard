@@ -45,7 +45,6 @@ import json
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
@@ -60,6 +59,7 @@ from cycle.metrics import (
     sharpe_ratio,
     trade_statistics,
 )
+from cycle.paths import CONFIG_ROOT
 
 REPORT_TABLES = ("model_metrics", "trading_metrics", "calibration_bins", "confusion_matrix", "distributions",
                  "drawdowns", "daily_results")
@@ -70,7 +70,7 @@ FUTURES_SESSION_OFFSET_SECONDS = 9 * 3600
 # how far P(up) sat from 0.5, for the confidence segments
 CONFIDENCE_EDGES = (0.0, 0.05, 0.10, 0.20, 0.5000001)
 
-_COST_MODEL = Path(__file__).resolve().parents[2] / "config" / "cost_model.json"
+_COST_MODEL = CONFIG_ROOT / "cost_model.json"
 
 
 def _finite(value) -> float | None:

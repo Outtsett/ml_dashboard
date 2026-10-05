@@ -9,7 +9,7 @@ what features exist, their categories, computation types, and parameters.
 from __future__ import annotations
 
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -160,8 +160,11 @@ COMPUTE_FUNCTIONS = {
 
 
 def _load_feature_config():
-    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "features.json")
-    with open(config_path, "r") as f:
+    # `config/` is a SIBLING of the engine package, not a child of `src`:
+    # <repo>/packages/config/features.json. Counting up from this file
+    # (src/core/shared/features.py): shared -> core -> src -> ml-engine -> packages.
+    config_root = Path(__file__).resolve().parents[4] / "config"
+    with open(config_root / "features.json", "r") as f:
         return json.load(f)
 
 

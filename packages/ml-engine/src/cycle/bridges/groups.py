@@ -22,11 +22,12 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 
-FEATURES_CONFIG = Path(__file__).resolve().parents[3] / "config" / "features.json"
+from cycle.paths import CONFIG_ROOT
+
+FEATURES_CONFIG = CONFIG_ROOT / "features.json"
 OTHER = "other"
 FINBERT = "finbert"
 CALENDAR = "calendar"

@@ -3,7 +3,7 @@ name = "ml-engine"
 version = "0.1.0"
 description = "Python ML Engine and Tensionflow"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ['fastapi', 'uvicorn']
 
 [build-system]
 requires = ["hatchling"]

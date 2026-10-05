@@ -36,12 +36,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "features.json"
+from cycle.paths import CONFIG_ROOT
+
+_CONFIG_PATH = CONFIG_ROOT / "features.json"
 
 # Truncation points (fractions of the bar count) used by the causality check.
 CAUSALITY_CUTS = (0.35, 0.6, 0.85)
