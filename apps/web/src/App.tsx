@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "@/infrastructure/api/query_client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/shared/ui/toaster";
@@ -7,7 +7,6 @@ import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
-import { ResizableSidePanel } from "@/shared/layout/ResizableSidePanel";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
 import { DuckDBProvider } from "@/shared/contexts/DuckDBContext";

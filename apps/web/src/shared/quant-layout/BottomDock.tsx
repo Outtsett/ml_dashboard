@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Terminal, Cpu, Activity, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Terminal, Cpu, Activity, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/shared/utils/utils";
 import { LoggingTerminal, LogEntry } from "./LoggingTerminal";
 

@@ -4,8 +4,6 @@
  * 1-hour TTL. Warmed on server startup.
  */
 
-import { checkLakeHealth, queryLake } from '../database/lake';
-import { logInfo } from "../lib/log";
 
 /** A row of the lake `symbols` reference table. */
 export interface SymbolCatalogRow {

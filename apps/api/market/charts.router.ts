@@ -12,7 +12,7 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getStitchedOHLCV, getFrontMonthAnchor, getSymbolsInlake as getSymbolsCatalog } from './pgMarketData';
+import { getOHLCVSampleBy, getStitchedOHLCV, getFrontMonthAnchor } from './pgMarketData';
 import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../infrastructure/cache/ohlcv';
 import { getCachedAnchor, setCachedAnchor } from '../infrastructure/cache/anchor';
@@ -106,8 +106,8 @@ function normaliseTimestamp(row: Pick<RawOhlcvRow, 'timestamp'>): number {
 }
 
 // ── Cache for lake health status (avoid checking every request) ──
-let lakeHealthy = false;
-let healthCheckedAt = 0;
+const lakeHealthy = false;
+const healthCheckedAt = 0;
 const HEALTH_CHECK_INTERVAL_MS = 10_000; // Re-check every 10s
 
 /** Floor for the SAMPLE BY lookback window: 4 days, covering a Fri-close ->
