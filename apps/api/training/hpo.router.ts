@@ -1,0 +1,382 @@
+/**
+ * HPO (Hyperparameter Optimization) Routes
+ *
+ * REST + SSE endpoints for launching, monitoring, and querying HPO sessions.
+ * Uses standalone exported functions from hpo.service (no NestJS DI needed).
+ *
+ * Routes:
+ *   POST /api/hpo/start             — Start a new HPO session
+ *   GET  /api/hpo/stream/:sessionId — SSE stream (reconnectable, replays buffered events)
+ *   GET  /api/hpo/status            — List active HPO sessions
+ *   GET  /api/hpo/sessions          — List past HPO sessions (with filters)
+ *   GET  /api/hpo/sessions/:id      — Full session + trial results
+ *   POST /api/hpo/stop/:sessionId   — Stop a running HPO session
+ *   POST /api/hpo/sessions/:id/apply — Extract best params for a new training run
+ */
+
+import { Router, Request, Response } from "express";
+import {
+  startHPO,
+  stopHPO,
+  getSession,
+  listActiveSessions,
+  getSessionResults,
+  listPastSessions,
+  applyBestParams,
+} from "./hpo";
+import { hpoRequestSchema } from "@shared/hpoTypes";
+import type { HPOEvent } from "./hpo/types";
+import { logInfo } from "../infrastructure/lib/log";
+
+const router = Router();
+
+// ─── Start HPO ───────────────────────────────────────────────────────────────
+
+router.post("/hpo/start", async (req: Request, res: Response) => {
+  try {
+    logInfo("[HPO] POST /hpo/start", {
+      modelType: req.body?.modelType,
+      optimizer: req.body?.optimizer?.type,
+    });
+
+    const request = hpoRequestSchema.parse(req.body);
+    const { sessionId } = await startHPO(request);
+
+    res.status(201).json({ sessionId });
+  } catch (err) {
+    // zod isn't imported here, so match structurally rather than by instanceof.
+    const zodErr = err as Error & { errors?: unknown };
+    if (zodErr.name === "ZodError") {
+      return res
+        .status(400)
+        .json({ error: "Invalid request", details: zodErr.errors });
+    }
+    if (
+      (err as Error).message?.includes("concurrency limit") ||
+      (err as Error).message?.includes("Already running")
+    ) {
+      return res.status(429).json({ error: (err as Error).message });
+    }
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── SSE Stream (reconnectable, replays buffered events) ─────────────────────
+
+router.get("/hpo/stream/:sessionId", (req: Request, res: Response) => {
+  const sessionId = String(req.params.sessionId);
+  logInfo("[HPO] GET /hpo/stream/:sessionId", { sessionId });
+
+  const session = getSession(sessionId);
+  if (!session) {
+    return res
+      .status(404)
+      .json({ error: `No HPO session for ${sessionId}` });
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  // Heartbeat to keep proxies from killing idle connections
+  const heartbeat = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch { clearInterval(heartbeat); }
+  }, 30000);
+
+  const send = (evt: HPOEvent) => {
+    try {
+      res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt.data)}\n\n`);
+    } catch {
+      /* dead connection */
+    }
+  };
+
+  // Replay buffered events so reconnecting client catches up
+  const fromIdx = parseInt(req.query.from as string) || 0;
+  for (let i = fromIdx; i < session.events.length; i++) {
+    send(session.events[i]!);
+  }
+  res.write(
+    `event: caught_up\ndata: ${JSON.stringify({ eventCount: session.events.length })}\n\n`,
+  );
+
+  // If already finished, close stream
+  if (session.finished) {
+    clearInterval(heartbeat);
+    res.end();
+    return;
+  }
+
+  // Subscribe to live events
+  const listener = (evt: HPOEvent) => {
+    send(evt);
+    if (evt.type === "hpo-complete" || evt.type === "hpo-error") {
+      clearInterval(heartbeat);
+      session.listeners.delete(listener);
+      try {
+        res.end();
+      } catch {
+        /* already closed */
+      }
+    }
+  };
+  session.listeners.add(listener);
+
+  // On disconnect: remove listener but don't kill HPO
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    session.listeners.delete(listener);
+    logInfo(
+      `[HPO] SSE client disconnected from ${sessionId} (HPO continues, ${session.listeners.size} listeners remain)`,
+    );
+  });
+});
+
+// ─── Status (active sessions) ────────────────────────────────────────────────
+
+router.get("/hpo/status", (_req: Request, res: Response) => {
+  try {
+    logInfo("[HPO] GET /hpo/status");
+    const sessions = listActiveSessions().map((s) => ({
+      sessionId: s.sessionId,
+      status: s.status,
+      modelType: s.modelType,
+      optimizer: s.optimizerType,
+      completedTrials: s.completedTrials,
+      bestScore: s.bestScore,
+      elapsedSec: parseFloat(
+        ((Date.now() - s.startedAt) / 1000).toFixed(1),
+      ),
+    }));
+    res.json(sessions);
+  } catch (err) {
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Past Sessions ───────────────────────────────────────────────────────────
+
+router.get("/hpo/sessions", (req: Request, res: Response) => {
+  try {
+    const { modelType, symbol, limit } = req.query;
+    logInfo("[HPO] GET /hpo/sessions", { modelType, symbol, limit });
+
+    const sessions = listPastSessions({
+      modelType: modelType as string | undefined,
+      symbol: symbol as string | undefined,
+      limit: limit ? Number(limit) : 50,
+    });
+    res.json({ sessions });
+  } catch (err) {
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Session Detail ──────────────────────────────────────────────────────────
+
+router.get("/hpo/sessions/:id", (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    logInfo("[HPO] GET /hpo/sessions/:id", { sessionId });
+
+    const result = getSessionResults(sessionId);
+    if (!result) {
+      return res.status(404).json({ error: `HPO session ${sessionId} not found` });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Stop HPO ────────────────────────────────────────────────────────────────
+
+router.post("/hpo/stop/:sessionId", (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId);
+    logInfo("[HPO] POST /hpo/stop/:sessionId", { sessionId });
+
+    const stopped = stopHPO(sessionId);
+    if (!stopped) {
+      return res
+        .status(404)
+        .json({ error: `No active HPO session ${sessionId}` });
+    }
+    res.json({ stopped: true });
+  } catch (err) {
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Apply Best Params ──────────────────────────────────────────────────────
+
+router.post("/hpo/sessions/:id/apply", (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    logInfo("[HPO] POST /hpo/sessions/:id/apply", { sessionId });
+
+    const result = applyBestParams(sessionId);
+    res.json(result);
+  } catch (err) {
+    if (
+      (err as Error).message?.includes("not found") ||
+      (err as Error).message?.includes("no best params")
+    ) {
+      return res.status(404).json({ error: (err as Error).message });
+    }
+    console.error("[HPO] Route error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Kill an individual running trial (nested HPO only) ────────────────────
+// Drops a sentinel file at optuna_studies/<study>.kill_trial_<trialId> that the
+// Python PrunableXgbCallback polls each boost round; when found, the trial
+// raises optuna.TrialPruned and the SSE stream emits hpo-trial-killed.
+
+router.post("/hpo/sessions/:id/trials/:trialId/kill", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    const trialId = parseInt(String(req.params.trialId), 10);
+    if (Number.isNaN(trialId)) {
+      return res.status(400).json({ error: "Invalid trial id" });
+    }
+    const { db } = await import("../infrastructure/database/db");
+    const { hpoSessions } = await import("@shared/pg_schema");
+    const { eq } = await import("drizzle-orm");
+    const session = (await db.select({
+          modelType: hpoSessions.modelType,
+          symbol: hpoSessions.symbol,
+          timeframe: hpoSessions.timeframe,
+        }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)))[0];
+    if (!session) {
+      return res.status(404).json({ error: `Unknown session ${sessionId}` });
+    }
+    const fs = await import("fs");
+    const path = await import("path");
+    const studyDir = path.join(process.cwd(), "optuna_studies");
+    fs.mkdirSync(studyDir, { recursive: true });
+
+    // Touch one sentinel file per fold; the running fold's Python callback picks it up.
+    // Pattern: <modelType>_<symbol>_<timeframe>_fold<N>.kill_trial_<trialId>
+    // We don't know the active fold from the API, so touch all candidate folds (cheap).
+    const baseName = `${session.modelType}_${session.symbol}_${session.timeframe}`;
+    const touched: string[] = [];
+    for (let fold = 0; fold < 50; fold++) {
+      const sentinel = path.join(studyDir, `${baseName}_fold${fold}.kill_trial_${trialId}`);
+      try { fs.writeFileSync(sentinel, ""); touched.push(sentinel); } catch { /* ignore */ }
+    }
+    res.json({ killed: true, trialId, sentinels: touched.length });
+  } catch (err) {
+    console.error("[HPO] Kill trial error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+// ─── Param-importance for a completed session ───────────────────────────────
+// Reads the per-fold Optuna SQLite studies created by hpo_main.py and computes
+// fANOVA-style param importance via Optuna's get_param_importances().
+
+router.get("/hpo/sessions/:id/importance", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    const { db } = await import("../infrastructure/database/db");
+    const { hpoSessions } = await import("@shared/pg_schema");
+    const { eq } = await import("drizzle-orm");
+    const session = (await db.select({
+          modelType: hpoSessions.modelType,
+          symbol: hpoSessions.symbol,
+          timeframe: hpoSessions.timeframe,
+        }).from(hpoSessions).where(eq(hpoSessions.sessionId, sessionId)))[0];
+    if (!session) {
+      return res.status(404).json({ error: `Unknown session ${sessionId}` });
+    }
+
+    const path = await import("path");
+    const fs = await import("fs");
+    const { spawn } = await import("child_process");
+    const studyDir = path.join(process.cwd(), "optuna_studies");
+    const baseName = `${session.modelType}_${session.symbol}_${session.timeframe}`;
+    const folds: number[] = [];
+    if (fs.existsSync(studyDir)) {
+      for (const f of fs.readdirSync(studyDir)) {
+        const m = f.match(new RegExp(`^${baseName}_fold(\\d+)\\.db$`));
+        if (m) folds.push(parseInt(m[1]!, 10));
+      }
+    }
+    folds.sort((a, b) => a - b);
+    if (folds.length === 0) {
+      return res.json({ folds: [], importance: {} });
+    }
+    // Spawn a small Python helper that reads each study and prints JSON.
+    const helper = path.join(process.cwd(), "src", "ml", "shared", "hpo_importance.py");
+    const py = await import("../training/registry");
+    const trainingCfg = py.getTrainingConfig();
+    const pythonExe = path.isAbsolute(trainingCfg.paths.pythonExe)
+      ? trainingCfg.paths.pythonExe
+      : path.join(process.cwd(), trainingCfg.paths.pythonExe);
+    const args = [helper,
+      "--study-dir", studyDir,
+      "--base-name", baseName,
+      "--folds", folds.join(",")];
+    const child = spawn(pythonExe, args, { cwd: process.cwd() });
+    let stdout = ""; let stderr = "";
+    child.stdout.on("data", d => stdout += d.toString());
+    child.stderr.on("data", d => stderr += d.toString());
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return res.status(500).json({ error: "importance helper failed", details: stderr });
+      }
+      try {
+        res.json(JSON.parse(stdout));
+      } catch (e) {
+        res.status(500).json({ error: "Bad helper output", details: stdout, parseError: (e as Error).message });
+      }
+    });
+  } catch (err) {
+    console.error("[HPO] Importance error:", err);
+    res.status(500).json({ error: (err as Error).message || "Internal server error" });
+  }
+});
+
+export default router;
+
+// ─── Delete/Stop Trial ────────────────────────────────────────────────
+
+router.delete("/hpo/trial/:id", async (req: Request, res: Response) => {
+  try {
+    const trialId = parseInt(req.params.id as string);
+    if (isNaN(trialId)) {
+      return res.status(400).json({ error: "Invalid trial ID" });
+    }
+
+    // Mark trial as stopped in SQLite
+    const { db } = await import("../infrastructure/database/db");
+    const { hpoTrials } = await import("@shared/pg_schema");
+    const { eq } = await import("drizzle-orm");
+
+    const [trial] = await db.update(hpoTrials)
+      .set({ 
+        status: "stopped"})
+      .where(eq(hpoTrials.id, trialId))
+      .returning();
+
+    if (!trial) {
+      return res.status(404).json({ error: "Trial not found" });
+    }
+
+    logInfo(`[HPO] Trial ${trialId} marked as stopped by user.`);
+    res.json({ success: true, trial });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to stop trial", details: (err as Error).message });
+  }
+});
+
