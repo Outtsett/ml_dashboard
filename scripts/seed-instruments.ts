@@ -6,7 +6,7 @@
  * `packages/shared/src/instruments.ts` (the roots the lake carries); forex rows are listed here.
  */
 import { db, closeDatabases } from '../apps/api/infrastructure/database/db';
-import { instruments, type InsertInstrument } from '../packages/shared/src/schema';
+import { instruments, type InsertInstrument } from '../packages/shared/src/pg_schema';
 import { futuresInstrumentRows } from '../packages/shared/src/instruments';
 
 const FOREX_INSTRUMENTS: InsertInstrument[] = [

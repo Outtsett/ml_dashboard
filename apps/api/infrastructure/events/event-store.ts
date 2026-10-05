@@ -1,6 +1,6 @@
 import { eq, gt, and, asc, sql, like } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { events } from '@shared/pg_schema';
+import { events } from '@shared/schema';
 import type { StoredEvent, NewEvent, EventMetadata } from '@shared/event-types';
 
 type DrizzleDb = BetterSQLite3Database<Record<string, unknown>>;

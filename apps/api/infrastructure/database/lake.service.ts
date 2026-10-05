@@ -4,11 +4,6 @@ import {
   closeLake,
   queryLake,
   checkLakeHealth,
-  lakeSender,
-  lakePool,
-  insertLakeBatch,
-  insertLakeStream,
-  type OHLCVRow,
 } from './lake/connection';
 
 @Injectable()
@@ -38,22 +33,6 @@ export class LakeService implements OnModuleInit, OnModuleDestroy {
 
   checkHealth() {
     return checkLakeHealth();
-  }
-
-  getSender() {
-    return lakeSender();
-  }
-
-  getPool() {
-    return lakePool();
-  }
-
-  insertBatch(rows: OHLCVRow[]) {
-    return insertLakeBatch(rows);
-  }
-
-  insertStream(symbol: string, timestamp: number, open: number, high: number, low: number, close: number, volume: number) {
-    return insertLakeStream(symbol, timestamp, open, high, low, close, volume);
   }
 }
 

@@ -5,7 +5,7 @@ import * as schema from "@shared/pg_schema";
 import { log } from "../lib/log";
 
 // Ensure PG connect string is configured
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5433/quant";
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/quant";
 
 const pool = new Pool({
   connectionString,

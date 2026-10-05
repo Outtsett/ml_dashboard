@@ -1,7 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { EventStore } from './event-store';
 import { EventBus, getEventBus } from './event-bus';
-import { db } from '../database/db';
+import { db } from '../database/sqlite';
 
 @Global()
 @Module({

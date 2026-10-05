@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { EventStore } from '../infrastructure/events/event-store.js';
-import { db } from '../infrastructure/database/db.js';
+import { db as sqliteDb } from '../infrastructure/database/sqlite.js';
 import { getString } from '../infrastructure/lib/routeHelpers';
 import type { StoredEvent, PipelineStatus, PipelineType } from '@shared/event-types';
 
 const router = Router();
-const eventStore = new EventStore(db);
+const eventStore = new EventStore(sqliteDb);
 
 // ── Derive pipeline status from its event stream ────────────
 interface PipelineState {

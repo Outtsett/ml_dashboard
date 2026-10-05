@@ -18,7 +18,7 @@
 //     correlationId: requestId,
 //   });
 
-import { db } from '../infrastructure/database/db';
+import { db as sqliteDb } from '../infrastructure/database/sqlite';
 import { EventStore } from '../infrastructure/events/event-store';
 import { getEventBus } from '../infrastructure/events/event-bus';
 import type {
@@ -31,7 +31,7 @@ import type {
 let storeInstance: EventStore | null = null;
 function getStore(): EventStore {
   if (!storeInstance) {
-    storeInstance = new EventStore(db);
+    storeInstance = new EventStore(sqliteDb);
   }
   return storeInstance;
 }

@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { pgDb } from "../infrastructure/database/pg_db";
-import { experimentsPg } from "@shared/pg_schema";
-import { eq } from "drizzle-orm";
+import { experiments, trainingMetrics } from "@shared/pg_schema";
+import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
 router.get("/experiments", async (req, res) => {
   try {
-    const allExperiments = await pgDb.select().from(experimentsPg);
+    const allExperiments = await pgDb.select().from(experiments);
     res.json(allExperiments);
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -18,8 +18,8 @@ router.get("/experiments/:id", async (req, res) => {
   try {
     const experiment = await pgDb
       .select()
-      .from(experimentsPg)
-      .where(eq(experimentsPg.experimentId, req.params.id))
+      .from(experiments)
+      .where(eq(experiments.experimentId, req.params.id))
       .limit(1);
     
     if (!experiment.length) {
@@ -33,13 +33,11 @@ router.get("/experiments/:id", async (req, res) => {
 
 router.get("/experiments/:id/metrics", async (req, res) => {
   try {
-    const { metricsPg } = await import("@shared/pg_schema");
-    const { desc } = await import("drizzle-orm");
     const metrics = await pgDb
       .select()
-      .from(metricsPg)
-      .where(eq(metricsPg.experimentId, req.params.id))
-      .orderBy(desc(metricsPg.timestamp))
+      .from(trainingMetrics)
+      .where(eq(trainingMetrics.experimentId, req.params.id))
+      .orderBy(desc(trainingMetrics.timestamp))
       .limit(1000);
     
     res.json(metrics);

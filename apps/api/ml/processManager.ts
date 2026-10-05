@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import { log } from "../infrastructure/lib/log";
 import { getEventBus } from "../infrastructure/events/event-bus";
 import { pgDb } from "../infrastructure/database/pg_db";
-import { experimentsPg } from "@shared/pg_schema";
+import { experiments } from "@shared/pg_schema";
 
 export interface JobConfig {
   jobId: string;
@@ -139,7 +139,7 @@ export class ProcessManager extends EventEmitter {
 
       // Write to Leaderboard Database
       try {
-        await pgDb.insert(experimentsPg).values({
+        await pgDb.insert(experiments).values({
           experimentId: config.jobId,
           model: `PPO ${config.instrument.toUpperCase()} ${config.timeframe}`,
           reward: metrics.reward,

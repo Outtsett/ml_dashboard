@@ -32,12 +32,12 @@ import { createHash } from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { Logger } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { db } from '../infrastructure/database/db';
+import { db as sqliteDb } from '../infrastructure/database/sqlite';
 import {
   backtestTrades,
   marketRegimes,
   regimeHistory,
-} from '@shared/pg_schema';
+} from '@shared/schema';
 import { mlRateLimiter, queryRateLimiter } from '../infrastructure/lib/rateLimiter';
 
 const router = Router();
@@ -442,7 +442,7 @@ function tableHasAnyRows(tableName: 'market_regimes' | 'regime_history'): boolea
   try {
     // Drizzle's `sql` template handles parameterisation; tableName is a
     // closed enum so injection-safe.
-    const result = db
+    const result = sqliteDb
       .all(sql.raw(`SELECT EXISTS(SELECT 1 FROM ${tableName} LIMIT 1) AS has_rows`)) as Array<{ has_rows: number }>;
     return Boolean(result[0]?.has_rows);
   } catch {
@@ -495,7 +495,7 @@ export async function fetchRegimeBreakdown(
     WHERE bt.backtest_run_id IN (${placeholders})
   `;
 
-  const rows = db.all(sql.raw(
+  const rows = sqliteDb.all(sql.raw(
     querySql.replace(
       `IN (${placeholders})`,
       `IN (${runIds.map((id) => Number(id)).join(', ')})`,

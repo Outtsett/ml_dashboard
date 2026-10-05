@@ -13,7 +13,8 @@ import { serveStatic } from './infrastructure/core/static';
 import { runStartupSequence, getStartupReport } from './infrastructure/lib/startupManager';
 import { getStaticOpenApiSpec } from './infrastructure/core/swagger/swagger.config';
 import { log } from './infrastructure/lib/log';
-import { db, closeDatabases } from './infrastructure/database/db';
+import { closeDatabases } from './infrastructure/database/db';
+import { db as sqliteDb } from './infrastructure/database/sqlite';
 import { setNestApp } from './infrastructure/lib/nest-context';
 import { shutdownAllPtySessions } from './infrastructure/lib/ptyServer';
 import { shutdownHardwareNode } from './system/telemetry.router';
@@ -344,7 +345,7 @@ async function bootstrap() {
   try {
     const { recoverPipelinesOnStartup } = await import('./infrastructure/sagas/recovery');
     const { EventStore } = await import('./infrastructure/events/event-store');
-    const recoveryStore = new EventStore(db);
+    const recoveryStore = new EventStore(sqliteDb);
     await recoverPipelinesOnStartup(recoveryStore);
   } catch (err) {
     console.error('[recovery] Failed to recover pipelines:', err);

@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const connectionString = process.env.PG_DATABASE_URL || "postgres://postgres:postgres@localhost:5432/ml_dashboard";
+const connectionString = process.env.PG_DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/quant";
 
 // Create the connection pool
 const pool = new pg.Pool({
@@ -19,6 +19,15 @@ pool.on('error', (err) => {
 });
 
 export const pgDb = drizzle(pool, { schema: pgSchema });
+
+export const marketPool = new pg.Pool({
+  connectionString: "postgresql://postgres:postgres@127.0.0.1:5432/market",
+  max: 20, 
+});
+
+marketPool.on('error', (err) => {
+  log(`Unexpected error on idle market pg client: ${err.message}`, "database");
+});
 
 /**
  * Whether this pool can actually reach Postgres.
