@@ -72,6 +72,7 @@ export function useStartRun(onStarted: (response: StartRunResponse) => void) {
       return (await response.json()) as StartRunResponse;
     },
     onSuccess: (response) => {
+      toast.success(`Run ${response.name} started`);
       void queryClient.invalidateQueries({ queryKey: ["/api/runs"], exact: true });
       onStarted(response);
     },

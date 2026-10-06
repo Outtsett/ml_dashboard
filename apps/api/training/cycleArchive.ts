@@ -16,8 +16,9 @@
  * finished run without fold bands. Log lines are not landed; the terminal says so.
  */
 import {
-  emptyBarColumns,
-  type CycleBarColumns,
+emptyBarColumns,
+type CycleBarColumns,
+type CycleBarSpan,
   type CycleEpoch,
   type CycleParameters,
   type CyclePlan,
@@ -129,6 +130,8 @@ interface RunRow {
   finished_at_timestamp: unknown;
   bars_processed: unknown;
   closed_trade_count: unknown;
+  final_metrics?: unknown;
+  plan?: unknown;
 }
 
 /** Every archived run, newest first: the `runs` table where it exists, the older three-table runs after it. */
@@ -138,11 +141,18 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
   if (hasView(view("runs"))) {
     const runs = await rows<RunRow>(
       `SELECT model_id, recipe, status, symbol, timeframe, model_key, started_at_timestamp, finished_at_timestamp,
-              bars_processed, closed_trade_count
+              bars_processed, closed_trade_count, final_metrics, plan
        FROM ${view("runs")} ORDER BY started_at_timestamp DESC NULLS LAST LIMIT ${Math.max(1, limit)}`,
     );
     for (const run of runs) {
       seen.add(run.recipe);
+      const finalMetrics = parseJson<Record<string, number | null>>(run.final_metrics);
+      const parsedPlan = parseJson<{ folds?: unknown[]; labelHorizonBars?: number; directionMode?: "classifier" | "from_price"; hasPriceModel?: boolean; tuning?: { objective?: string; trialCount?: number } | null }>(run.plan);
+      const dirEdge = finalMetrics?.price_forecast_direction_accuracy != null
+        ? Number(finalMetrics.price_forecast_direction_accuracy) * 100
+        : finalMetrics?.win_rate != null
+        ? Number(finalMetrics.win_rate) * 100
+        : null;
       out.push({
         modelId: run.model_id,
         modelType: `${run.model_key}${CYCLE_RUNNER_SUFFIX}`,
@@ -154,14 +164,24 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
         finishedAt: numberOrNull(run.finished_at_timestamp) === null ? null : numberOrNull(run.finished_at_timestamp)! * 1000,
         barCount: intOrNull(run.bars_processed) ?? 0,
         tradeCount: intOrNull(run.closed_trade_count) ?? 0,
+        foldCount: Array.isArray(parsedPlan?.folds) ? parsedPlan.folds.length : null,
+        directionalEdge: dirEdge,
+        confidenceEdge: numberOrNull(finalMetrics?.roc_auc),
+        nllLoss: numberOrNull(finalMetrics?.log_loss),
+        sharpeRatio: numberOrNull(finalMetrics?.sharpe_ratio),
+        labelHorizonBars: intOrNull(parsedPlan?.labelHorizonBars),
+        directionMode: parsedPlan?.directionMode ?? null,
+        hasPriceModel: typeof parsedPlan?.hasPriceModel === "boolean" ? parsedPlan.hasPriceModel : null,
+        tuningObjective: parsedPlan?.tuning?.objective ?? null,
+        tuningTrialCount: intOrNull(parsedPlan?.tuning?.trialCount),
       });
     }
   }
   if (hasView(view("folds"))) {
     // runs landed before the `runs` table existed: one row per recipe from the folds
-    const older = await rows<{ recipe: string; model_id: string; test_end: unknown; trade_count: unknown; bars: unknown }>(
+    const older = await rows<{ recipe: string; model_id: string; test_end: unknown; trade_count: unknown; bars: unknown; fold_count: unknown }>(
       `SELECT f.recipe, arg_max(f.model_id, f.fold_index) AS model_id, max(f.test_end) AS test_end,
-              sum(f.test_bar_count) AS bars
+              sum(f.test_bar_count) AS bars, count(distinct f.fold_index) AS fold_count
        FROM ${view("folds")} f GROUP BY f.recipe ORDER BY test_end DESC LIMIT ${Math.max(1, limit)}`,
     );
     for (const run of older) {
@@ -180,6 +200,11 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
         finishedAt: null,
         barCount: intOrNull(run.bars) ?? 0,
         tradeCount: intOrNull(run.trade_count) ?? 0,
+        foldCount: intOrNull(run.fold_count) ?? 1,
+        directionalEdge: null,
+        confidenceEdge: null,
+        nllLoss: null,
+        sharpeRatio: null,
       });
     }
   }
@@ -213,6 +238,8 @@ interface BarRow {
   timestamp: unknown;
   fold_index: unknown;
   role: string;
+  /** Which walk emitted the bar; absent in a record written before the validation replay existed. */
+  span?: string | null;
   open: unknown;
   high: unknown;
   low: unknown;
@@ -224,15 +251,21 @@ function barColumnsFrom(bars: BarRow[], predictions: PredictionRow[]): CycleBarC
   const columns = emptyBarColumns();
   const byTimestamp = new Map<number, PredictionRow>();
   for (const row of predictions) byTimestamp.set(intOrNull(row.timestamp) ?? -1, row);
-  const source: Array<{ row: BarRow | PredictionRow; role: "context" | "processed" }> = bars.length
-    ? bars.map((row) => ({ row, role: row.role === "processed" ? "processed" : "context" }))
-    : predictions.map((row) => ({ row, role: "processed" as const }));
+  const source: Array<{ row: BarRow | PredictionRow; role: "context" | "processed"; span: CycleBarSpan }> = bars.length
+    ? bars.map((row) => ({
+        row,
+        role: row.role === "processed" ? "processed" : "context",
+        span: row.span === "replay" ? "replay" : "test",
+      }))
+    : predictions.map((row) => ({ row, role: "processed" as const, span: "test" as const }));
   let last = -Infinity;
-  for (const { row, role } of source) {
+  for (const { row, role, span } of source) {
     const t = intOrNull(row.timestamp);
     if (t === null || t <= last) continue;
     last = t;
-    const prediction = role === "processed" ? byTimestamp.get(t) ?? null : null;
+    // a replay bar is in sample, so it carries no row in `predictions`: the scored walk
+    // owns that table, and a replay bar must never borrow another bar's numbers
+    const prediction = role === "processed" && span === "test" ? byTimestamp.get(t) ?? null : null;
     columns.timestamps.push(t);
     columns.open.push(numberOrNull(row.open) ?? 0);
     columns.high.push(numberOrNull(row.high) ?? 0);
@@ -240,6 +273,7 @@ function barColumnsFrom(bars: BarRow[], predictions: PredictionRow[]): CycleBarC
     columns.close.push(numberOrNull(row.close) ?? 0);
     columns.volume.push(numberOrNull(row.volume) ?? 0);
     columns.role.push(role);
+    columns.span.push(span);
     columns.foldIndex.push(intOrNull(row.fold_index));
     columns.probabilityUp.push(prediction ? numberOrNull(prediction.probability_up) : null);
     columns.predictedDirection.push(prediction ? direction(prediction.predicted_direction) : null);

@@ -28,6 +28,7 @@ import { loadCycleRegistry } from "./cycleModels";
 import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.router";
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
 import type { RunListItem, RunnableModel, RunView, StartRunResponse } from "@shared/runs/types";
+import { runName, runPurpose, runVersions } from "@shared/runs/naming";
 import type { CycleLogLine, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
 import type { TrainingRequest } from "@shared/trainingTypes";
 
@@ -142,6 +143,7 @@ router.post("/runs", mlRateLimiter, async (req: Request, res: Response) => {
     listCache = null;
     const body: StartRunResponse = {
       runId: started.modelId,
+      name: runName(started.modelId),
       modelType: model.runnerKey,
       url: `${req.protocol}://${req.get("host")}/training?run=${encodeURIComponent(started.modelId)}`,
     };
@@ -179,11 +181,53 @@ async function archivedRuns(): Promise<CycleRunSummary[]> {
   return listCache?.rows ?? [];
 }
 
-function toListItem(run: CycleRunSummary): RunListItem {
+/** Live runs first, then the lake's, deduped by id, newest first. */
+async function allRuns(): Promise<CycleRunSummary[]> {
+  ensureCycleAccumulator();
+  const live = listCycleRuns();
+  const seen = new Set(live.map((run) => run.modelId));
+  const archived = await archivedRuns();
+  return [...live, ...archived.filter((run) => !seen.has(run.modelId))].sort((a, b) => b.startedAt - a.startedAt);
+}
+
+function versionsOf(runs: readonly CycleRunSummary[]): Map<string, number> {
+  return runVersions(runs.map((run) => ({ id: run.modelId, modelType: run.modelType, symbol: run.symbol, timeframe: run.timeframe, startedAt: run.startedAt })));
+}
+
+let labelCache: Map<string, string> | null = null;
+
+/** The registry's display name per model key (`xgboost` -> `XGBoost`), read once. */
+function modelLabelOf(key: string): string {
+  if (!labelCache) {
+    try {
+      labelCache = new Map(runnableModels().map((model) => [model.key, model.displayName]));
+    } catch {
+      return key;
+    }
+  }
+  return labelCache.get(key) ?? key;
+}
+
+function toListItem(run: CycleRunSummary, version: number): RunListItem {
   // a run that has not sent its plan yet still says what it is in its id: `<SYMBOL>_<timeframe>_<runner>_<stamp>`
   const named = /^([A-Z0-9]+)_([0-9]+[a-z]+)_/.exec(run.modelId);
+  const modelLabel = modelLabelOf(run.modelFamily ?? run.modelType.replace(/\+walk_forward_cycle$/, ""));
   return {
     id: run.modelId,
+    name: runName(run.modelId),
+    version,
+    purpose: run.labelHorizonBars
+      ? runPurpose({
+          modelLabel,
+          symbol: run.symbol ?? named?.[1] ?? null,
+          timeframe: run.timeframe ?? named?.[2] ?? null,
+          directionMode: run.directionMode,
+          hasPriceModel: run.hasPriceModel,
+          labelHorizonBars: run.labelHorizonBars,
+          tuningObjective: run.tuningObjective,
+          tuningTrialCount: run.tuningTrialCount,
+        })
+      : "",
     modelType: run.modelType,
     modelFamily: run.modelFamily,
     symbol: run.symbol ?? named?.[1] ?? null,
@@ -197,12 +241,9 @@ function toListItem(run: CycleRunSummary): RunListItem {
 }
 
 router.get("/runs", async (_req: Request, res: Response) => {
-  ensureCycleAccumulator();
-  const live = listCycleRuns();
-  const seen = new Set(live.map((run) => run.modelId));
-  const archived = await archivedRuns();
-  const rows = [...live, ...archived.filter((run) => !seen.has(run.modelId))].sort((a, b) => b.startedAt - a.startedAt);
-  res.json({ runs: rows.map(toListItem) });
+  const rows = await allRuns();
+  const versions = versionsOf(rows);
+  res.json({ runs: rows.map((run) => toListItem(run, versions.get(run.modelId) ?? 1)) });
 });
 
 // ─── one run ────────────────────────────────────────────────────────────────
@@ -305,15 +346,16 @@ router.get("/runs/:id", async (req: Request, res: Response) => {
   const modelId = String(req.params.id);
   const cursor = cursorOf(req);
   ensureCycleAccumulator();
+  const version = versionsOf(await allRuns()).get(modelId) ?? null;
   const live = getCycleSnapshot(modelId);
   if (live) {
     if (live.status !== "running") void saveTerminal(live);
-    const view: RunView = buildRunView(live, liveReport(modelId), cursor);
+    const view: RunView = buildRunView(live, liveReport(modelId), cursor, version);
     return res.json(view);
   }
   try {
     const archived = await archivedRun(modelId);
-    if (archived) return res.json(buildRunView(archived.snapshot, archived.report, cursor));
+    if (archived) return res.json(buildRunView(archived.snapshot, archived.report, cursor, version));
   } catch (error) {
     return res.status(500).json({ error: `The record of ${modelId} could not be read: ${String(error)}` });
   }

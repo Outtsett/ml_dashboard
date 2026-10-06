@@ -351,3 +351,36 @@ describe("buildRunView", () => {
     expect(view.logs).toHaveLength(1);
   });
 });
+
+// ─── names ──────────────────────────────────────────────────────────────────
+
+describe("naming", () => {
+  it("gives a run the same adjective-noun-number name every time", async () => {
+    const { runName } = await import("@shared/runs/naming");
+    const name = runName("MNQ_5m_xgboost+walk_forward_cycle_20261006T205612");
+    expect(name).toMatch(/^[a-z]+-[a-z]+-\d{1,2}$/);
+    expect(runName("MNQ_5m_xgboost+walk_forward_cycle_20261006T205612")).toBe(name);
+    expect(runName("MNQ_5m_xgboost+walk_forward_cycle_20261006T205613")).not.toBe(name);
+  });
+
+  it("numbers runs of the same model on the same series from the oldest", async () => {
+    const { runVersions } = await import("@shared/runs/naming");
+    const versions = runVersions([
+      { id: "c", modelType: "xgboost+walk_forward_cycle", symbol: "MNQ", timeframe: "5m", startedAt: 3 },
+      { id: "a", modelType: "xgboost+walk_forward_cycle", symbol: "MNQ", timeframe: "5m", startedAt: 1 },
+      { id: "b", modelType: "xgboost+walk_forward_cycle", symbol: "MNQ", timeframe: "1m", startedAt: 2 },
+      { id: "d", modelType: "lstm+walk_forward_cycle", symbol: "MNQ", timeframe: "5m", startedAt: 4 },
+    ]);
+    expect([...versions.entries()]).toEqual(expect.arrayContaining([["a", 1], ["c", 2], ["b", 1], ["d", 1]]));
+  });
+
+  it("says what the run is and does in one line", async () => {
+    const { runPurpose } = await import("@shared/runs/naming");
+    expect(
+      runPurpose({ modelLabel: "XGBoost", symbol: "MNQ", timeframe: "5m", directionMode: "classifier", hasPriceModel: true, labelHorizonBars: 6, tuningObjective: "sharpe_ratio", tuningTrialCount: 20 }),
+    ).toBe("XGBoost · direction classifier + price model · MNQ 5m · calls the move 6 bars ahead · settings searched on Sharpe ratio, 20 trials per fold");
+    expect(runPurpose({ modelLabel: "LSTM", symbol: "ES", timeframe: "1m", directionMode: "classifier", hasPriceModel: false, labelHorizonBars: 12, tuningTrialCount: 0 })).toBe(
+      "LSTM · direction classifier · ES 1m · calls the move 12 bars ahead · reviewed default settings",
+    );
+  });
+});

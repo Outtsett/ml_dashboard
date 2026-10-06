@@ -112,6 +112,8 @@ export interface RunProgress {
 
 export interface RunSetup {
   modelLabel: string;
+  /** What the run is and does, in one line (`runPurpose`). */
+  purpose: string;
   modelFamily: string;
   symbol: string;
   timeframe: string;
@@ -128,6 +130,10 @@ export interface RunSetup {
 
 export interface RunView {
   id: string;
+  /** `brisk-heron-41`: the run's memorable name, derived from its id. */
+  name: string;
+  /** Its ordinal among runs of the same model on the same symbol and timeframe, oldest = 1. */
+  version: number | null;
   modelType: string;
   status: CycleRunStatus;
   error: string | null;
@@ -154,6 +160,10 @@ export interface RunView {
 /** One row of the run list (`GET /api/runs`). */
 export interface RunListItem {
   id: string;
+  name: string;
+  version: number;
+  /** What the run is and does, in one line; empty when the run recorded no plan. */
+  purpose: string;
   modelType: string;
   modelFamily: string | null;
   symbol: string | null;
@@ -189,6 +199,7 @@ export interface StartRunRequest {
 
 export interface StartRunResponse {
   runId: string;
+  name: string;
   modelType: string;
   /** The page that shows this run. */
   url: string;

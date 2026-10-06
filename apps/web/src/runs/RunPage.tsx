@@ -62,7 +62,10 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
   return (
     <header className="shrink-0 border-b border-border bg-card/40 px-3 py-2" data-testid="run-header">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="font-mono text-[15px] font-bold text-foreground">{setup?.modelLabel ?? shortModelType(run.modelType)}</h1>
+        <h1 className="font-mono text-[15px] font-bold text-foreground">
+          {run.name}
+          <span className="font-normal text-muted-foreground"> · {setup?.modelLabel ?? shortModelType(run.modelType)}{run.version ? ` v${run.version}` : ""}</span>
+        </h1>
         <span className="rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold" style={{ color: status.color, borderColor: status.color }}>
           {status.glyph} {status.label}
         </span>
@@ -87,7 +90,8 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
           </button>
         )}
       </div>
-      <div className="mt-1 font-mono text-[10px] text-muted-foreground">{facts.join(" · ") || run.id}</div>
+      {setup && <div className="mt-1 text-[12px] text-foreground/90">{setup.purpose}</div>}
+      <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{facts.join(" · ") || run.id}</div>
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-border/60">
         <div className="h-full" style={{ width: `${Math.round(fraction * 100)}%`, backgroundColor: status.color }} />
       </div>

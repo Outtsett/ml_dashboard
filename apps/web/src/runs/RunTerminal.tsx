@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { categorizeLogLine, type LogCategory } from "@/cycle/Terminal";
 import type { CycleLogLine } from "@shared/cycle/schema";
+import { condenseLine } from "@/runs/condense";
 import { formatClock } from "@/runs/format";
 
 type FilterId = "all" | "tuning" | "training" | "validation" | "testing" | "trades" | "problems";
@@ -52,10 +53,12 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
   const [filter, setFilter] = useState<FilterId>("all");
   const [search, setSearch] = useState("");
   const [follow, setFollow] = useState(true);
+  const [full, setFull] = useState(false);
+  const text = (line: CycleLogLine) => (full ? line.message : condenseLine(line.message));
   const scroller = useRef<HTMLDivElement | null>(null);
 
   const needle = search.trim().toLowerCase();
-  const filtered = lines.filter((line) => matches(line, filter) && (needle === "" || line.message.toLowerCase().includes(needle)));
+  const filtered = lines.filter((line) => matches(line, filter) && (needle === "" || text(line).toLowerCase().includes(needle)));
   const shown = filtered.length > MAX_ROWS ? filtered.slice(-MAX_ROWS) : filtered;
   const problemCount = lines.filter((line) => line.level === "warn" || line.level === "error").length;
 
@@ -72,8 +75,8 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
   }
 
   function copyShown() {
-    const text = filtered.map((line) => `${formatClock(line.receivedAt)}  ${line.message}`).join("\n");
-    void navigator.clipboard?.writeText(text).catch(() => undefined);
+    const copy = filtered.map((line) => `${formatClock(line.receivedAt)}  ${text(line)}`).join("\n");
+    void navigator.clipboard?.writeText(copy).catch(() => undefined);
   }
 
   return (
@@ -104,6 +107,13 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
         <span className="font-mono text-[10px] text-muted-foreground">
           {filtered.length.toLocaleString("en-US")} of {lines.length.toLocaleString("en-US")} lines
         </span>
+        <button
+          type="button"
+          onClick={() => setFull(!full)}
+          className={`cursor-pointer rounded border px-1.5 py-0.5 font-mono text-[10px] ${full ? "border-foreground/60 text-foreground" : "border-border/60 text-muted-foreground hover:text-foreground"}`}
+        >
+          Full lines
+        </button>
         <button type="button" onClick={copyShown} className="cursor-pointer rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground">
           Copy
         </button>
@@ -121,7 +131,7 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
                 <span className="shrink-0 text-muted-foreground/70">{formatClock(line.receivedAt)}</span>
                 {line.level === "error" && <span className="shrink-0 font-bold text-[#D55E00]">✕ ERR</span>}
                 {line.level === "warn" && <span className="shrink-0 font-bold text-[#F0E442]">▲ WRN</span>}
-                <span className="min-w-0 [overflow-wrap:anywhere]" style={{ color: line.level === "error" ? "#D55E00" : CATEGORY_COLOR[category] }}>{line.message}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere]" style={{ color: line.level === "error" ? "#D55E00" : CATEGORY_COLOR[category] }}>{text(line)}</span>
               </div>
             );
           })

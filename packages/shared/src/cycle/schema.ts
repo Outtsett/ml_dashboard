@@ -67,6 +67,12 @@ export const cyclePhaseSchema = z.enum([
   "tuning",
   "training",
   "validating",
+  /**
+   * The validation market replay: the fitted model walking the validation span bar by
+   * bar, on its own simulator and equity. Its own phase, so it is never mistaken for
+   * the models' validation pass during training.
+   */
+  "replaying",
   "testing",
   "complete",
   "stopped",
@@ -190,6 +196,16 @@ export type CyclePlan = z.infer<typeof cyclePlanSchema>;
 export const cycleBarRoleSchema = z.enum(["context", "processed"]);
 export type CycleBarRole = z.infer<typeof cycleBarRoleSchema>;
 
+/**
+ * Which walk produced a processed frame. `test` is the out-of-sample walk the run is
+ * scored on — the only thing its equity, trades, metrics and prediction markers come
+ * from. `replay` is the market replay over the validation span: the fitted model walking
+ * bars it was fitted and selected on, animated on the chart and never gated. A record
+ * written before the replay existed carries no span and reads as `test`.
+ */
+export const cycleBarSpanSchema = z.enum(["test", "replay"]);
+export type CycleBarSpan = z.infer<typeof cycleBarSpanSchema>;
+
 export const cycleBarsSchema = cycleEnvelopeSchema
   .extend({
     role: cycleBarRoleSchema,
@@ -200,7 +216,8 @@ export const cycleBarsSchema = cycleEnvelopeSchema
     low: z.array(z.number()),
     close: z.array(z.number()),
     volume: z.array(z.number()),
-    // Present (same length as timestamps) only when role === "processed".
+    /** Present (same length as timestamps) only when role === "processed". */
+    span: cycleBarSpanSchema.optional().default("test"),
     probabilityUp: z.array(nullableNumber).optional(),
     predictedDirection: z.array(directionSchema).optional(),
     /** The position wanted at the NEXT open after acting on this bar's prediction: 1 long, -1 short, 0 flat. */
@@ -480,6 +497,8 @@ export interface CycleBarColumns {
   close: number[];
   volume: number[];
   role: CycleBarRole[];
+  /** Which walk walked the bar: the scored out-of-sample test, or the validation replay. */
+  span: CycleBarSpan[];
   foldIndex: (number | null)[];
   probabilityUp: (number | null)[];
   predictedDirection: (1 | 0 | -1 | null)[];
@@ -533,6 +552,17 @@ export interface CycleRunSummary {
   finishedAt: number | null;
   barCount: number;
   tradeCount: number;
+  foldCount?: number | null;
+  directionalEdge?: number | null;
+  confidenceEdge?: number | null;
+  nllLoss?: number | null;
+  sharpeRatio?: number | null;
+  /** From the plan, for the run's purpose line; absent on runs recorded before the plan was landed. */
+  labelHorizonBars?: number | null;
+  directionMode?: CycleDirectionMode | null;
+  hasPriceModel?: boolean | null;
+  tuningObjective?: string | null;
+  tuningTrialCount?: number | null;
 }
 
 export function emptyBarColumns(): CycleBarColumns {
@@ -544,6 +574,7 @@ export function emptyBarColumns(): CycleBarColumns {
     close: [],
     volume: [],
     role: [],
+    span: [],
     foldIndex: [],
     probabilityUp: [],
     predictedDirection: [],
@@ -582,6 +613,7 @@ export function appendBars(columns: CycleBarColumns, event: CycleBars): number {
     columns.close.push(event.close[i]!);
     columns.volume.push(event.volume[i]!);
     columns.role.push(event.role);
+    columns.span.push(processed ? event.span : "test");
     columns.foldIndex.push(event.foldIndex);
     columns.probabilityUp.push(processed ? (event.probabilityUp?.[i] ?? null) : null);
     columns.predictedDirection.push(processed ? (event.predictedDirection?.[i] ?? null) : null);
@@ -619,4 +651,18 @@ export function findBarIndex(timestamps: readonly number[], target: number): num
     else high = middle - 1;
   }
   return -1;
+}
+
+/**
+ * Whether a bar is one the run is SCORED on: processed, and walked by the
+ * out-of-sample test walk.
+ *
+ * The validation replay's bars are processed too — the chart animates them on purpose
+ * — but they are bars the model was fitted and selected on, so nothing the run reports
+ * (equity, trades, metrics, prediction markers, the hover readout's scored numbers)
+ * may read them. Every consumer of a processed bar's data goes through this; a consumer
+ * that only draws may use `role` alone.
+ */
+export function isScoredBar(columns: CycleBarColumns, index: number): boolean {
+  return columns.role[index] === "processed" && columns.span[index] === "test";
 }

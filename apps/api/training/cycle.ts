@@ -331,6 +331,11 @@ export function listCycleRuns(): CycleRunSummary[] {
       finishedAt: run.finishedAt,
       barCount: run.bars.timestamps.length,
       tradeCount: run.trades.size,
+      labelHorizonBars: run.plan?.labelHorizonBars ?? null,
+      directionMode: run.plan?.directionMode ?? null,
+      hasPriceModel: run.plan?.hasPriceModel ?? null,
+      tuningObjective: run.plan?.tuning?.objective ?? null,
+      tuningTrialCount: run.plan?.tuning?.trialCount ?? null,
     }));
 }
 

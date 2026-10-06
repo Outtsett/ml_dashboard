@@ -15,6 +15,7 @@ import type {
   RunView,
 } from "./types";
 import { COIN_FLIP_BRIER_SCORE, COIN_FLIP_LOG_LOSS, MINIMUM_TRADE_COUNT, judgeRun } from "./verdicts";
+import { runName, runPurpose } from "./naming";
 
 /** The report tables this view reads, as `loadCycleReport` serves them (camel-cased rows). */
 export interface RunReportTables {
@@ -167,7 +168,7 @@ export function logsAfter(logs: readonly CycleLogLine[], cursor: LogCursor | nul
   return { lines: logs.slice(-LOG_TAIL_LINES), reset: true };
 }
 
-export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | null, cursor: LogCursor | null): RunView {
+export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | null, cursor: LogCursor | null, version: number | null = null): RunView {
   const scoreboard = snapshot.scoreboards.final ?? snapshot.scoreboards.running;
   const scoreScope: RunView["scoreScope"] = snapshot.scoreboards.final ? "final" : snapshot.scoreboards.running ? "running" : null;
   const metrics = scoreboard?.metrics ?? {};
@@ -179,6 +180,8 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
 
   return {
     id: snapshot.modelId,
+    name: runName(snapshot.modelId),
+    version,
     modelType: snapshot.modelType,
     status: snapshot.status,
     error: snapshot.error,
@@ -187,6 +190,16 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
     setup: plan
       ? {
           modelLabel: plan.modelLabel,
+          purpose: runPurpose({
+            modelLabel: plan.modelLabel,
+            symbol: plan.symbol,
+            timeframe: plan.timeframe,
+            directionMode: plan.directionMode ?? null,
+            hasPriceModel: plan.hasPriceModel ?? null,
+            labelHorizonBars: plan.labelHorizonBars,
+            tuningObjective: tuning?.objective ?? null,
+            tuningTrialCount: tuning?.trialCount ?? 0,
+          }),
           modelFamily: plan.modelFamily,
           symbol: plan.symbol,
           timeframe: plan.timeframe,

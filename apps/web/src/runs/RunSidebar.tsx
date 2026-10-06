@@ -107,14 +107,14 @@ function RunRow({ run, selected, onSelect }: { run: RunListItem; selected: boole
       data-testid="run-row"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono text-[12px] font-semibold text-foreground">{shortModelType(run.modelType)}</span>
+        <span className="truncate font-mono text-[12px] font-semibold text-foreground">{run.name}</span>
         <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: status.color }}>
           {status.glyph} {status.label}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
         <span>
-          {run.symbol ?? "?"} {run.timeframe ?? ""} · {formatStarted(run.startedAt)}
+          {shortModelType(run.modelType)} v{run.version} · {run.symbol ?? "?"} {run.timeframe ?? ""} · {formatStarted(run.startedAt)}
         </span>
         <span>{run.sharpeRatio === null ? "" : `Sharpe ${run.sharpeRatio.toFixed(2)}`}</span>
       </div>
@@ -135,7 +135,7 @@ export function RunSidebar({
 }) {
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
-  const shown = needle === "" ? runs : runs.filter((run) => `${run.modelType} ${run.symbol} ${run.timeframe} ${run.status}`.toLowerCase().includes(needle));
+  const shown = needle === "" ? runs : runs.filter((run) => `${run.name} ${run.modelType} v${run.version} ${run.symbol} ${run.timeframe} ${run.status} ${run.purpose}`.toLowerCase().includes(needle));
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card/40">
       <Launcher onStarted={onStarted} />
