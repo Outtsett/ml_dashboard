@@ -7,6 +7,8 @@ export default [
   ...tseslint.configs.recommended,
   {
     files: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}"],
+    // tsconfig.json excludes test files, and a type-aware parse of a file outside the project is an error, not a lint
+    ignores: ["**/*.test.{ts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { project: "./tsconfig.json" },

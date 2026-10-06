@@ -63,7 +63,7 @@ const LAKE_SIGNING_NAME = "s3tables";
  *
  * The pinned name is a rename that was applied to this code and to the docs and
  * never to the objects. The directory on disk is still
- * `recipe=snapshot_full_2026-09-09` (verified against `E:\lake\warehouse\derived`),
+ * `recipe=questdb_full_2026-09-09` (verified against `E:\lake\warehouse\derived`),
  * so the pinned name is tried first and the on-disk name is the fallback, and
  * whichever one resolves is logged and exported. Pin it either way with
  * `LAKE_SERVING_SNAPSHOT`; renaming the objects is the other fix and is
@@ -73,7 +73,7 @@ const SERVING_SNAPSHOT =
   process.env.LAKE_SERVING_SNAPSHOT || "derived/recipe=lake_snapshot_2026-09-09";
 
 /** The snapshot as it is actually named in the lake. */
-const SERVING_SNAPSHOT_ON_DISK = "derived/recipe=snapshot_full_2026-09-09";
+const SERVING_SNAPSHOT_ON_DISK = "derived/recipe=questdb_full_2026-09-09";
 
 /** The snapshot this process actually bound to; set once, by `buildInstance`. */
 let activeSnapshot = SERVING_SNAPSHOT;
@@ -96,25 +96,6 @@ export const lake_USER = process.env.lake_USER || "admin";
 export const lake_PASSWORD = process.env.lake_PASSWORD || "quest";
 
 const SLOW_QUERY_THRESHOLD_MS = 1000;
-
-/**
- * Every write path in this module raises this. The dashboard reads the lake and
- * never writes to it; landing data is datalake's job, through
- * `scripts/land_raw.py` and `scripts/migrate_to_iceberg.py`.
- */
-function retiredWriteMessage(): string {
-  return (
-    "lake was retired on 2026-09-10 and this server is read-only over the lake â€” " +
-    "nothing writes to the lake from ml_dashboard. Land new data through datalake " +
-    "(scripts/land_raw.py, then scripts/migrate_to_iceberg.py). Restore path if lake " +
-    "is ever needed again: s3://meta/lake_schema/lake_schema_latest.sql plus the " +
-    `parquet at s3://${activeSnapshot}/.`
-  );
-}
-
-function retiredWrite(operation: string): never {
-  throw new Error(`[lake] ${operation} is not available. ${retiredWriteMessage()}`);
-}
 
 // â”€â”€â”€ Iceberg catalog resolution (SigV4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -483,13 +464,13 @@ function releaseConnection(con: DuckDBConnection, interrupted: boolean = false) 
   if (interrupted) {
     // If the connection was interrupted, it might be in a bad state.
     // Close it and let the pool recreate a new one next time.
-    try { con.closeSync(); } catch (e) {}
+    try { con.closeSync(); } catch { /* already closed */ }
     return;
   }
   if (connectionPool.length < MAX_POOL_SIZE) {
     connectionPool.push(con);
   } else {
-    try { con.closeSync(); } catch (e) {}
+    try { con.closeSync(); } catch { /* already closed */ }
   }
 }
 

@@ -95,6 +95,9 @@ checkpoints/
 mlruns/
 optuna_studies/
 runs/
+# source, not run output: the run page and its shared view
+!apps/web/src/runs/
+!packages/shared/src/runs/
 tensorboard/
 lightning_logs/
 

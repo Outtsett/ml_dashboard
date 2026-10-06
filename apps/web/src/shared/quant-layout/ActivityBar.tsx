@@ -10,72 +10,96 @@
  * here can cause a layout shift.
  */
 
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import {
-  Library, Database, BookMarked, BarChart3, Radio, Compass, Settings, PanelLeftOpen, PanelLeftClose,
+import { Database, BookMarked, BarChart3, Activity, BrainCircuit, Settings, Layers,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Assets", href: "/", icon: BarChart3 },
-  { label: "Models", href: "/models", icon: Library },
-  { label: "Experiments", href: "/analytics", icon: Compass },
-  { label: "Data", href: "/databases", icon: Database },
-  { label: "Inference", href: "/live", icon: Radio },
-  { label: "Knowledge", href: "/glossary", icon: BookMarked },
+  { label: "Market", href: "/", icon: BarChart3 },
+  { label: "Catalog", href: "/analytics?tab=catalog", icon: Database },
+  { label: "Analytics", href: "/analytics", icon: Activity },
+  { label: "AI Studio", href: "/training", icon: BrainCircuit },
+  { label: "Data", href: "/databases", icon: Layers },
+  { label: "Knowledge", href: "/studies", icon: BookMarked },
 ];
 
 export interface ActivityBarProps {
-  /** Whether the contextual sidebar is currently shown. */
-  sidebarOpen: boolean;
-  /** Toggle the contextual sidebar (same action as Ctrl+B). */
-  onToggleSidebar: () => void;
+  /** Unused now that sidebar is removed */
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-/** Shared icon-button chrome; `active` adds the selected tint. */
-function iconClass(active: boolean): string {
-  return cn(
-    "p-2 rounded-xl transition-colors duration-150",
-    active ? "bg-blue-500/10 text-blue-400" : "text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/50",
-  );
-}
-
-export function ActivityBar({ sidebarOpen, onToggleSidebar }: ActivityBarProps) {
-  const [location] = useLocation();
+export function ActivityBar({}: ActivityBarProps = {}) {
+  const [pathname] = useLocation();
+  const search = useSearch();
 
   return (
-    <div className="w-12 h-full bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-2 shrink-0 z-20">
-      <div className="flex flex-col gap-3 w-full items-center flex-1">
+    <div className="w-[72px] h-full bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-2 shrink-0 z-20 select-none">
+      <div className="flex flex-col gap-1 w-full items-center flex-1 px-1">
         {NAV_ITEMS.map((item) => {
-          const isActive = item.href === "/" ? location === item.href : location.startsWith(item.href);
+          let isActive = false;
+          if (item.href === "/") {
+            isActive = pathname === "/";
+          } else if (item.href === "/analytics?tab=catalog") {
+            isActive = (pathname === "/analytics" && search.includes("tab=catalog")) ||
+              pathname.startsWith("/models") ||
+              pathname.startsWith("/model-catalog") ||
+              pathname.startsWith("/catalog");
+          } else if (item.href === "/analytics") {
+            isActive = (pathname.startsWith("/analytics") && !search.includes("tab=catalog")) ||
+              pathname.startsWith("/inference");
+          } else if (item.href === "/training") {
+            isActive = pathname.startsWith("/training");
+          } else if (item.href === "/studies") {
+            isActive = pathname.startsWith("/studies") || pathname.startsWith("/glossary") || pathname.startsWith("/knowledge");
+          } else {
+            isActive = pathname.startsWith(item.href);
+          }
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className="group relative flex justify-center w-full outline-none" title={item.label}>
-              <div className={iconClass(isActive)}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className="group relative flex flex-col items-center justify-center w-full px-1 py-1.5 outline-none rounded-xl transition-colors hover:bg-neutral-900/70"
+            >
+              <div className={cn(
+                "p-1.5 rounded-lg transition-colors duration-150 flex items-center justify-center",
+                isActive ? "bg-blue-500/15 text-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.2)]" : "text-neutral-400 group-hover:text-neutral-200"
+              )}>
                 <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
               </div>
-              {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-blue-500 rounded-r-full" />}
+              <span className={cn(
+                "text-[10px] font-medium tracking-tight mt-0.5 text-center leading-tight transition-colors",
+                isActive ? "text-blue-400 font-semibold" : "text-neutral-400 group-hover:text-neutral-200"
+              )}>
+                {item.label}
+              </span>
+              {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-7 bg-blue-500 rounded-r-full" />}
             </Link>
           );
         })}
       </div>
 
       {/* Bottom actions */}
-      <div className="flex flex-col gap-3 w-full items-center mb-2">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Show sidebar (Ctrl+B)"}
-          className="flex justify-center w-full outline-none"
+      <div className="flex flex-col gap-1.5 w-full items-center mb-2 px-1">
+        <Link 
+          href="/settings" 
+          title="Settings" 
+          className="group flex flex-col items-center justify-center w-full px-1 py-1 outline-none rounded-xl hover:bg-neutral-900/60 transition-colors"
         >
-          <div className={iconClass(false)}>
-            {sidebarOpen ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
+          <div className={cn(
+            "p-1 rounded-lg transition-colors",
+            pathname.startsWith("/settings") ? "text-blue-400" : "text-neutral-400 group-hover:text-neutral-200"
+          )}>
+            <Settings className="h-4 w-4" strokeWidth={2} />
           </div>
-        </button>
-        <Link href="/settings" title="Settings" className="group relative flex justify-center w-full outline-none">
-          <div className={iconClass(location.startsWith("/settings"))}>
-            <Settings className="h-5 w-5" strokeWidth={2} />
-          </div>
+          <span className={cn(
+            "text-[9px] font-medium transition-colors leading-tight",
+            pathname.startsWith("/settings") ? "text-blue-400 font-semibold" : "text-neutral-500 group-hover:text-neutral-300"
+          )}>
+            Settings
+          </span>
         </Link>
       </div>
     </div>

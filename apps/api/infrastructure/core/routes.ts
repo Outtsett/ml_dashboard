@@ -8,6 +8,7 @@ import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../../data/upload.router";
 import databasesRouter from "../../data";
 import analyticsRouter from "../../analytics/analytics.router";
+import modelAnalyticsRouter from "../../analytics/modelAnalytics.router";
 import studiesRouter from "../../studies/studies.router";
 import pipelinesRouter from "../../data/pipelines.router";
 import dataManagementRouter from "../../data/data-management.router";
@@ -32,10 +33,12 @@ import experimentsRouter from "../../ml/experiments.router";
 import lensRouter from "../../lens/lens.router";
 import lensTrainingRouter from "../../lens/training.router";
 import lensVectorsRouter from "../../lens/vectors.router";
+import triCoreRouter from "../../ml/triCore.router";
 
 // Training Domain
 import trainingRouter from "../../training/training.router";
 import cycleModelsRouter from "../../training/cycleModels.router";
+import runsRouter from "../../training/runs.router";
 import { createCycleExplainRouter } from "../../training/cycleExplain.router";
 import codegenRouter from "../../training/codegen.router";
 import curriculumRouter from "../../training/curriculum.router";
@@ -87,6 +90,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Mount domain-specific routers (Ordered to preserve precedence)
   app.use("/api", uploadRouter);
   app.use("/api", instrumentsRouter);
+  app.use("/api", runsRouter);                  // the run API: /runs, /runs/models, /runs/:id
   app.use("/api", cycleModelsRouter);           // Model Cycle model browser: /training/cycle-models
   app.use("/api", createCycleExplainRouter());  // Inside the model: /training/cycle/:modelId/explain… — before trainingRouter's /training/cycle/:modelId
   app.use("/api", trainingRouter);  // before mlRouter — static routes must match before ml's /training/:id
@@ -98,7 +102,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", lensRouter);     // before mlRouter
   app.use("/api", hpoRouter);      // before mlRouter
   app.use("/api", experimentsRouter);
+  app.use("/api", modelAnalyticsRouter); // Institutional model analytics
+  app.use("/api", triCoreRouter);        // Tri-Core (Kronos + FinBERT + HMM) telemetry & provenance
   app.use("/api", analyticsRouter); // four-layer analytics — before mlRouter
+
   app.use("/api", studiesRouter);   // the analytic pages that replaced the marimo notebooks
   app.use("/api", mlRouter);
   app.use("/api", newsRouter);

@@ -40,8 +40,13 @@ function lazyRetry(
           setTimeout(() => resolve(retryFactory(retriesLeft - 1)), 800);
         });
       }
-      console.error(`[beta] Chunk load failed for ${name} after retries, reloading`);
-      window.location.reload();
+      console.error(`[beta] Chunk load failed for ${name} after retries:`, err);
+      const lastReload = Number(sessionStorage.getItem("last_chunk_reload") || 0);
+      const now = Date.now();
+      if (now - lastReload > 15000) {
+        sessionStorage.setItem("last_chunk_reload", String(now));
+        window.location.reload();
+      }
       return { default: (() => null) as ComponentType };
     });
   };
@@ -83,7 +88,6 @@ const Forecast = lazyRetry(ForecastFactory, "Forecast");
 registerComponentFactory("/forecast", ForecastFactory);
 
 const ModelCatalogFactory = () => import("@/ml/ModelCatalogPage");
-const ModelCatalog = lazyRetry(ModelCatalogFactory, "ModelCatalog");
 registerComponentFactory("/model-catalog", ModelCatalogFactory);
 
 const GlossaryFactory = () => import("@/ml/GlossaryPage");
@@ -97,7 +101,7 @@ const FourierTransform = lazyRetry(FourierTransformFactory, "FourierTransform");
 registerComponentFactory("/fourier", FourierTransformFactory);
 
 // Training Domain
-const TrainingFactory = () => import("@/training/TrainingPage");
+const TrainingFactory = () => import("@/runs/RunPage");
 const Training = lazyRetry(TrainingFactory, "Training");
 registerComponentFactory("/training", TrainingFactory);
 
@@ -156,7 +160,6 @@ const EntityProfileFactory = () => import("@/entity/EntityProfilePage");
 const EntityProfile = lazyRetry(EntityProfileFactory, "EntityProfile");
 
 const DIKWPipelineFactory = () => import("@/inference/DIKWPipeline");
-const DIKWPipeline = lazyRetry(DIKWPipelineFactory, "DIKWPipeline");
 registerComponentFactory("/inference", DIKWPipelineFactory);
 
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
@@ -175,6 +178,7 @@ function Router() {
           </Route>
 
           {/* Redirects */}
+          <Route path="/ml-studio"><Redirect to="/training" /></Route>
           <Route path="/ml-hub"><Redirect to="/ml-studio" /></Route>
           <Route path="/rl-console"><Redirect to="/ml-studio" /></Route>
           <Route path="/risk"><Redirect to="/ml-studio" /></Route>
@@ -185,11 +189,14 @@ function Router() {
           <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
           <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
           <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
+          <Route path="/knowledge"><Redirect to="/studies" /></Route>
           <Route path="/feature-graph"><ErrorBoundary><Suspense fallback={<PageLoader />}><FeatureGraph /></Suspense></ErrorBoundary></Route>
           <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
           <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
           <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
-          <Route path="/models"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+          <Route path="/models"><Redirect to="/analytics?tab=catalog" /></Route>
+          <Route path="/model-catalog"><Redirect to="/analytics?tab=catalog" /></Route>
+          <Route path="/catalog"><Redirect to="/analytics?tab=catalog" /></Route>
           <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
           <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
           <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
@@ -204,7 +211,7 @@ function Router() {
           <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
           <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
           <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
-          <Route path="/inference"><ErrorBoundary><Suspense fallback={<PageLoader />}><DIKWPipeline /></Suspense></ErrorBoundary></Route>
+          <Route path="/inference"><Redirect to="/analytics" /></Route>
           <Route path="/entity/:type/:id"><ErrorBoundary><Suspense fallback={<PageLoader />}><EntityProfile /></Suspense></ErrorBoundary></Route>
 
           {/* Catch-all */}

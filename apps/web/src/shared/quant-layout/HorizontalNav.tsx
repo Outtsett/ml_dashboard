@@ -1,26 +1,36 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { Library, Database, BookMarked, BarChart3, Radio, Compass } from "lucide-react";
+import { BrainCircuit, Database, BookMarked, BarChart3, Activity } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Assets", href: "/", icon: BarChart3 },
-  { label: "Models", href: "/models", icon: Library },
-  { label: "Inference", href: "/live", icon: Radio },
-  { label: "Datasets", href: "/databases", icon: Database },
-  { label: "Experiments", href: "/analytics", icon: Compass },
-  { label: "Knowledge", href: "/glossary", icon: BookMarked },
+  { label: "Market", href: "/", icon: BarChart3 },
+  { label: "Analytics", href: "/analytics", icon: Activity },
+  { label: "AI Studio", href: "/training", icon: BrainCircuit },
+  { label: "Data", href: "/databases", icon: Database },
+  { label: "Knowledge", href: "/studies", icon: BookMarked },
 ];
 
 export function HorizontalNav() {
-  const [location] = useLocation();
+  const [pathname] = useLocation();
 
   return (
     <div className="w-full h-10 bg-neutral-950 border-b border-neutral-800 flex items-center shrink-0 overflow-x-auto overflow-y-hidden px-2 scrollbar-none">
       <NavigationMenu.Root className="flex-1">
         <NavigationMenu.List className="flex flex-row items-center gap-1 w-full m-0 list-none">
           {NAV_ITEMS.map((item) => {
-            const isActive = item.href === "/" ? location === item.href : location.startsWith(item.href);
+            let isActive = false;
+            if (item.href === "/") {
+              isActive = pathname === "/";
+            } else if (item.href === "/analytics") {
+              isActive = pathname.startsWith("/analytics") || pathname.startsWith("/models") || pathname.startsWith("/model-catalog");
+            } else if (item.href === "/training") {
+              isActive = pathname.startsWith("/training");
+            } else if (item.href === "/studies") {
+              isActive = pathname.startsWith("/studies") || pathname.startsWith("/glossary") || pathname.startsWith("/knowledge");
+            } else {
+              isActive = pathname.startsWith(item.href);
+            }
             const Icon = item.icon;
             
             return (
