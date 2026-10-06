@@ -78,6 +78,18 @@ are rules of thumb: they flag a run for a closer look.
 Each has a passing counterpart where a pass says something (`accuracy_edge`, `ranking_skill`,
 `learning_ok`, `beat_buy_and_hold`, `every_fold_profitable`, ...).
 
+## Names, versions, purpose (`packages/shared/src/runs/naming.ts`)
+
+- **Name:** `brisk-heron-41`, an adjective, a noun and a number derived from the run id's hash, so
+  every run (live, recorded, old) has the same name every time it is read and nothing is stored.
+- **Version:** the run's ordinal among runs of the same model on the same symbol and timeframe,
+  oldest first (`XGBoost v11`). Computed from the list, so it shifts only if an older run is deleted.
+- **Purpose:** one line from the run's own plan: model, what it predicts (direction classifier,
+  plus a price model), symbol and timeframe, how far ahead it calls, how its settings were chosen.
+  Runs recorded before the plan was landed have no purpose line.
+- The terminal shows the engine's landing lines condensed (`[save] landed metrics · 78 rows`);
+  "Full lines" shows the object paths.
+
 ## The page (`apps/web/src/runs/`)
 
 `RunPage.tsx` (layout, auto-open), `RunSidebar.tsx` (launch form, run list), `Verdicts.tsx`,
