@@ -51,8 +51,12 @@ const startRunSchema = z.object({
   timeframe: z.enum(RUN_TIMEFRAMES).optional(),
   dateStart: isoDate.optional(),
   dateEnd: isoDate.optional(),
+  // keys are constrained like values; downstream, `resolveHyperparameters` keeps only the names the model declares
   parameters: z
-    .record(z.union([z.number(), z.string().max(100).regex(/^[a-zA-Z0-9_.,-]*$/, "Unsafe parameter value"), z.boolean()]))
+    .record(
+      z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, "Unsafe parameter name"),
+      z.union([z.number(), z.string().max(100).regex(/^[a-zA-Z0-9_.,-]*$/, "Unsafe parameter value"), z.boolean()]),
+    )
     .optional(),
 });
 
