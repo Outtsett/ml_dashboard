@@ -13,6 +13,7 @@ Tri-Core HUD) on 2026-10-06. The engine underneath is unchanged: every run is a 
 | Call | What it does |
 | --- | --- |
 | `GET /api/runs/models` | Every launchable model: `key`, `runnerKey`, `displayName`, `kind`, `category`, `speed`, `estimatedTrainingTime`. |
+| `GET /api/runs/preflight?model=&symbol=&timeframe=&dateStart=&dateEnd=` | Everything a launch needs, checked before Run: the model resolves, the root is priced in `cost_model.json`, the lake holds 1m bars for the root across the window (the engine resamples), the `.venv` Python answers with torch and its CUDA device (probed every 5 min), `data/models` has over 5 GB free, nothing is already running. `{ ready, checks[] }`; the launcher shows each line and disables Run while one fails. |
 | `POST /api/runs` | Launch. Body `{ model, symbol?, timeframe?, dateStart?, dateEnd?, parameters? }`. Answers 202 `{ runId, modelType, url }`. |
 | `GET /api/runs` | Live runs and the lake's recorded runs, newest first. The recorded list is cached 30 s. |
 | `GET /api/runs/:id` | The run's view (below). `?logAt=<receivedAt>&logSeq=<seq>` returns only terminal lines after that one. |

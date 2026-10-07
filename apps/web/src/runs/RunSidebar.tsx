@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Play } from "lucide-react";
 
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
-import { useRunnableModels, useStartRun } from "@/runs/api";
+import { usePreflight, useRunnableModels, useStartRun } from "@/runs/api";
 import { formatStarted, shortModelType, STATUS_STYLE } from "@/runs/format";
 import type { RunListItem, StartRunResponse } from "@shared/runs/types";
 
@@ -39,6 +39,8 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
     parameters: { tuning_budget_trials: trials, fold_limit: folds },
   };
   const call = `curl -X POST http://127.0.0.1:5000/api/runs -H "content-type: application/json" -d '${JSON.stringify(body)}'`;
+  const preflight = usePreflight({ model: body.model, symbol: body.symbol, timeframe });
+  const blocked = preflight.data ? !preflight.data.ready : false;
 
   return (
     <div className="space-y-1.5 border-b border-border p-2">
@@ -79,15 +81,26 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
           <input type="number" min={1} max={50} value={folds} onChange={(event) => setFolds(Number(event.target.value))} className={FIELD} />
         </label>
       </div>
+      {preflight.data && (
+        <ul className="space-y-0.5 font-mono text-[10px]" data-testid="preflight">
+          {preflight.data.checks.map((check) => (
+            <li key={check.name} className="flex gap-1 leading-tight" title={check.detail}>
+              <span className="shrink-0 font-bold" style={{ color: check.ok ? "#009E73" : "#D55E00" }}>{check.ok ? "✓" : "✗"}</span>
+              <span className={check.ok ? "truncate text-muted-foreground" : "text-foreground"}>{check.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <button
         type="button"
-        disabled={start.isPending || model.trim() === ""}
+        disabled={start.isPending || model.trim() === "" || blocked}
+        title={blocked ? "A preflight check failed; see above" : undefined}
         onClick={() => start.mutate(body)}
         className="flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded bg-[#E69F00] font-mono text-[12px] font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="launch-run"
       >
         <Play className="h-3.5 w-3.5" />
-        {start.isPending ? "Starting" : "Run"}
+        {start.isPending ? "Starting" : blocked ? "Not ready" : "Run"}
       </button>
       <button type="button" onClick={() => setShowCall(!showCall)} className="cursor-pointer font-mono text-[10px] text-muted-foreground underline-offset-2 hover:underline">
         {showCall ? "Hide" : "Show"} the call Claude makes for this

@@ -155,6 +155,138 @@ router.post("/runs", mlRateLimiter, async (req: Request, res: Response) => {
   }
 });
 
+// ─── preflight ──────────────────────────────────────────────────────────────
+
+const PYTHON = path.join(process.cwd(), ".venv", "Scripts", "python.exe");
+const ENVIRONMENT_CACHE_MILLISECONDS = 5 * 60_000;
+let environmentCache: { at: number; result: PreflightCheck } | null = null;
+
+/** The Python side, probed once every five minutes: the interpreter, torch and the GPU it sees. */
+async function environmentCheck(): Promise<PreflightCheck> {
+  if (environmentCache && Date.now() - environmentCache.at < ENVIRONMENT_CACHE_MILLISECONDS) return environmentCache.result;
+  const { execFile } = await import("child_process");
+  const script =
+    "import json,sys\n" +
+    "try:\n import torch; cuda=torch.cuda.is_available(); name=torch.cuda.get_device_name(0) if cuda else None; v=torch.__version__\n" +
+    "except Exception as e: cuda=False; name=None; v='torch missing: '+str(e)\n" +
+    "print(json.dumps({'python':sys.version.split()[0],'torch':v,'cuda':cuda,'device':name}))";
+  const result = await new Promise<PreflightCheck>((resolve) => {
+    execFile(PYTHON, ["-c", script], { timeout: 60_000, windowsHide: true }, (error, stdout) => {
+      if (error) {
+        resolve({ name: "environment", ok: false, detail: `${PYTHON} did not answer: ${error.message.split("\n")[0]}` });
+        return;
+      }
+      try {
+        const info = JSON.parse(stdout.trim().split("\n").pop() ?? "{}") as { python: string; torch: string; cuda: boolean; device: string | null };
+        resolve({
+          name: "environment",
+          ok: !info.torch.startsWith("torch missing"),
+          detail: `Python ${info.python}, torch ${info.torch}, ${info.cuda ? `CUDA on ${info.device}` : "CPU only (no CUDA device)"}`,
+        });
+      } catch {
+        resolve({ name: "environment", ok: false, detail: `unreadable answer from ${PYTHON}` });
+      }
+    });
+  });
+  environmentCache = { at: Date.now(), result };
+  return result;
+}
+
+interface PreflightCheck {
+  name: "model" | "costs" | "bars" | "environment" | "disk" | "busy";
+  ok: boolean;
+  detail: string;
+}
+
+const preflightSchema = startRunSchema.pick({ model: true, symbol: true, timeframe: true, dateStart: true, dateEnd: true });
+
+/**
+ * Everything a launch needs, checked before the Run button is pressed: the
+ * model resolves, its root is priced, the lake has bars across the window,
+ * the Python side answers with torch, the models directory has room, and
+ * the dashboard is not already running something.
+ */
+router.get("/runs/preflight", async (req: Request, res: Response) => {
+  const parsed = preflightSchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join(", ") });
+  }
+  const symbol = (parsed.data.symbol ?? DEFAULT_SYMBOL).toUpperCase();
+  const timeframe = parsed.data.timeframe ?? DEFAULT_TIMEFRAME;
+  const dateStart = parsed.data.dateStart ?? DEFAULT_DATE_START;
+  const dateEnd = parsed.data.dateEnd ?? DEFAULT_DATE_END;
+  const checks: PreflightCheck[] = [];
+
+  let model: RunnableModel | null = null;
+  try {
+    model = resolveRunnableModel(parsed.data.model, runnableModels());
+    checks.push({ name: "model", ok: true, detail: `${model.displayName} (${model.key}), ${model.kind}` });
+  } catch (error) {
+    checks.push({ name: "model", ok: false, detail: (error as Error).message });
+  }
+
+  try {
+    const costModel = JSON.parse(await fs.promises.readFile(path.join(process.cwd(), "packages", "config", "cost_model.json"), "utf-8")) as Record<string, unknown>;
+    const priced = Object.prototype.hasOwnProperty.call(costModel, symbol);
+    checks.push({
+      name: "costs",
+      ok: priced,
+      detail: priced ? `${symbol} is priced in cost_model.json` : `${symbol} has no entry in packages/config/cost_model.json; the Model Cycle trades priced roots only`,
+    });
+  } catch (error) {
+    checks.push({ name: "costs", ok: false, detail: `cost_model.json unreadable: ${(error as Error).message}` });
+  }
+
+  try {
+    const { queryLake } = await import("../infrastructure/database/lake/connection");
+    const root = symbol.replace(/'/g, "''");
+    // the same table the engine reads (`lake.serving`), scoped to the root so it answers in seconds;
+    // the lake holds 1m bars and the engine resamples every launchable timeframe from the minutes
+    const source = "1m";
+    const rows = await queryLake<{ bar_count: number | bigint; first_bar: unknown; last_bar: unknown }>(
+      `SELECT count(*) AS bar_count, min(ts) AS first_bar, max(ts) AS last_bar FROM bars
+       WHERE timeframe = '${source}' AND root = '${root}' AND volume > 0
+         AND ts >= TIMESTAMP '${dateStart} 00:00:00' AND ts <= TIMESTAMP '${dateEnd} 23:59:59'`,
+      60_000,
+    );
+    const count = Number(rows[0]?.bar_count ?? 0);
+    const stamp = (value: unknown) => {
+      const date = value instanceof Date ? value : new Date(String(value));
+      return Number.isNaN(date.getTime()) ? "?" : date.toISOString().slice(0, 10);
+    };
+    checks.push({
+      name: "bars",
+      ok: count > 0,
+      detail:
+        count > 0
+          ? `${count.toLocaleString("en-US")} ${symbol} ${source} bars in the lake, ${stamp(rows[0]?.first_bar)} to ${stamp(rows[0]?.last_bar)}${source === timeframe ? "" : `, resampled to ${timeframe} by the engine`}`
+          : `the lake has no ${symbol} ${source} bars between ${dateStart} and ${dateEnd}`,
+    });
+  } catch (error) {
+    checks.push({ name: "bars", ok: false, detail: `the lake did not answer: ${(error as Error).message}` });
+  }
+
+  checks.push(await environmentCheck());
+
+  try {
+    const stats = await fs.promises.statfs(MODELS_DIR);
+    const freeGb = (stats.bavail * stats.bsize) / 1e9;
+    checks.push({ name: "disk", ok: freeGb > 5, detail: `${freeGb.toFixed(1)} GB free for data/models` });
+  } catch (error) {
+    checks.push({ name: "disk", ok: false, detail: `data/models unreadable: ${(error as Error).message}` });
+  }
+
+  ensureCycleAccumulator();
+  const running = listCycleRuns().filter((run) => run.status === "running");
+  checks.push({
+    name: "busy",
+    ok: running.length === 0,
+    detail: running.length === 0 ? "nothing is running" : `${running.length} run${running.length === 1 ? "" : "s"} already running: ${running.map((run) => runName(run.modelId)).join(", ")}`,
+  });
+
+  res.json({ ready: checks.every((check) => check.ok), checks });
+});
+
 // ─── the list ───────────────────────────────────────────────────────────────
 
 const LIST_CACHE_MILLISECONDS = 30_000;

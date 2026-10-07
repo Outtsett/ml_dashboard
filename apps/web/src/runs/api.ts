@@ -12,6 +12,31 @@ const RUN_POLL_MILLISECONDS = 1000;
 /** Lines kept in the page; the server's own buffer holds 5,000. */
 const MAX_TERMINAL_LINES = 6000;
 
+export interface PreflightCheck {
+  name: "model" | "costs" | "bars" | "environment" | "disk" | "busy";
+  ok: boolean;
+  detail: string;
+}
+export interface Preflight {
+  ready: boolean;
+  checks: PreflightCheck[];
+}
+
+/** Everything a launch needs, checked for the form's current choice (`GET /api/runs/preflight`). */
+export function usePreflight(request: { model: string; symbol: string; timeframe: string }) {
+  const query = new URLSearchParams(request).toString();
+  return useQuery<Preflight>({
+    queryKey: ["/api/runs/preflight", query],
+    queryFn: async ({ signal }) => {
+      const response = await apiRequest("GET", `/api/runs/preflight?${query}`, undefined, signal);
+      return (await response.json()) as Preflight;
+    },
+    enabled: request.model.trim().length > 0 && /^[A-Z][A-Z0-9_\-/]{0,19}$/.test(request.symbol),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useRunnableModels() {
   return useQuery<RunnableModel[]>({
     queryKey: ["/api/runs/models"],
