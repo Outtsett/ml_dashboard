@@ -1,6 +1,8 @@
 /**
  * The bars the run walked, above its terminal: candles, the model's trades on
- * them, and a highlight on the bar a terminal line names. Clicking a bar
+ * them as plain marks (orange ▲ a long opened, blue ▼ a short opened, a small
+ * circle the exit; no numbers on the chart — the terminal has them), and a
+ * yellow square on the bar a terminal line names. Clicking a bar
  * reports its time so the terminal can scroll to the lines logged on it.
  */
 import { useEffect, useRef } from "react";
@@ -91,7 +93,7 @@ export function RunBarsChart({
         position: long ? "belowBar" : "aboveBar",
         shape: long ? "arrowUp" : "arrowDown",
         color: long ? LONG : SHORT,
-        text: `#${trade.tradeNumber} ${long ? "long" : "short"}`,
+        size: 1,
       });
       if (trade.exitTimestamp !== null) {
         list.push({
@@ -99,12 +101,12 @@ export function RunBarsChart({
           position: long ? "aboveBar" : "belowBar",
           shape: "circle",
           color: long ? LONG : SHORT,
-          text: trade.netProfitUsd === null ? `#${trade.tradeNumber} exit` : `#${trade.tradeNumber} ${trade.netProfitUsd >= 0 ? "+" : "-"}$${Math.abs(trade.netProfitUsd).toFixed(0)}`,
+          size: 0.6,
         });
       }
     }
     if (focusTime !== null) {
-      list.push({ time: focusTime as UTCTimestamp, position: "inBar", shape: "square", color: FOCUS, text: "◆ log line" });
+      list.push({ time: focusTime as UTCTimestamp, position: "inBar", shape: "square", color: FOCUS, size: 1.2 });
     }
     list.sort((a, b) => Number(a.time) - Number(b.time));
     markers.setMarkers(list);
