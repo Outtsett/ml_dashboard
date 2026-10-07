@@ -11,6 +11,7 @@ import type {
   RunEpochPoint,
   RunConfiguration,
   RunFoldRow,
+  RunGateRouting,
   RunLossSurface,
   RunMetricTile,
   RunMetricUnit,
@@ -161,6 +162,13 @@ export function configurationOf(snapshot: Pick<CycleSnapshot, "plan" | "paramete
   };
 }
 
+/** The gate routings without their wire envelope, in fold order. */
+export function gateRoutingsOf(snapshot: Pick<CycleSnapshot, "gateRoutings">): RunGateRouting[] {
+  return (snapshot.gateRoutings ?? [])
+    .map(({ seq: _seq, ts: _ts, ...routing }) => routing)
+    .sort((a, b) => (a.foldIndex ?? 0) - (b.foldIndex ?? 0));
+}
+
 /** The surfaces without their wire envelope, in fold order then role. */
 export function lossSurfacesOf(snapshot: Pick<CycleSnapshot, "lossSurfaces">): RunLossSurface[] {
   return (snapshot.lossSurfaces ?? [])
@@ -307,6 +315,7 @@ export function buildRunView(
     verdicts: judgeRun({ status: snapshot.status, error: snapshot.error, metrics, epochs, trials: snapshot.trials, folds }),
     epochs,
     lossSurfaces: lossSurfacesOf(snapshot),
+    gateRoutings: gateRoutingsOf(snapshot),
     trials: snapshot.trials,
     folds,
     daily: dailyOf(report),

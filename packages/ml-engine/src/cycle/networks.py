@@ -1155,6 +1155,32 @@ class NeuralAdapter:
                     outputs.append(self._output(network(tensor)))
         return torch.cat(outputs).double().cpu().numpy()
 
+    def routing(self, features, index) -> np.ndarray | None:
+        """Which expert each bar was routed to: the gate probabilities, shape
+        (len(index), experts), for a network kind whose module defines
+        `routing(network, rows)` (the mixture of experts); None for every other
+        kind. Batched like `_predict`, in inference mode, on the fitted device."""
+        if self.network is None:
+            raise RuntimeError(f"{self.family}: routing called before fit")
+        module = NETWORK_EXTENSIONS.get(self.network_kind)
+        route = getattr(module, "routing", None) if module is not None else None
+        if not callable(route):
+            return None
+        index = _as_index(index)
+        if index.size == 0:
+            return np.empty((0, 0), dtype=np.float64)
+        features = self._inputs(features)
+        network = self.network
+        network.eval()
+        device = torch.device(self.device)
+        outputs = []
+        with torch.inference_mode():
+            for start in range(0, index.size, _PREDICTION_CHUNK_ROWS):
+                chunk = index[start:start + _PREDICTION_CHUNK_ROWS]
+                tensor = torch.from_numpy(self._gather_host(features, chunk)).to(device)
+                outputs.append(route(network, tensor))
+        return torch.cat(outputs).double().cpu().numpy()
+
     def predict_probability(self, features, index):
         if self.task != "classification":
             raise _wrong_task_error(self.family, self.task, "predict_probability")

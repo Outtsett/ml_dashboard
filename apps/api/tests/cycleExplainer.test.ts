@@ -355,7 +355,7 @@ describe('command and singleton', () => {
     try {
       delete process.env.CYCLE_EXPLAINER_COMMAND;
       const command = defaultExplainerCommand('E:/repo');
-      expect(command.slice(1)).toEqual([path.join('src', 'ml', 'cycle', 'explain_main.py'), '--serve']);
+      expect(command.slice(1)).toEqual([path.join('packages', 'ml-engine', 'src', 'cycle', 'explain_main.py'), '--serve']);
       expect(command[0]).toContain(path.join('E:/repo', '.venv'));
       process.env.CYCLE_EXPLAINER_COMMAND = 'python fake.py';
       expect(defaultExplainerCommand('E:/repo')).toEqual(['python', 'fake.py']);

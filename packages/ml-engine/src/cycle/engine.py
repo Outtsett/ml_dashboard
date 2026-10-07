@@ -477,6 +477,7 @@ class CycleEngine:
         self.accumulators: list[FoldAccumulator] = []
         self.epoch_records: list[dict] = []
         self.loss_surfaces: list[dict] = []              # one per final neural fit, as emitted (`cycle_loss_surface`)
+        self.gate_routings: list[dict] = []              # one per fold of a mixture of experts (`cycle_gate_routing`)
         self.trial_records: list[dict] = []
         self.prediction_rows: dict[int, dict] = {}     # row -> record (insertion ordered)
         self.trades: dict[int, Trade] = {}
@@ -1041,6 +1042,7 @@ class CycleEngine:
         testing_started = self.clock()
         self._walk_test(spec, adapter, accumulator, price_adapter)
         testing_seconds = self.clock() - testing_started
+        self._record_gate_routing(spec, adapter)
         self.test_seconds += testing_seconds
         record["testingSeconds"] = testing_seconds
 
@@ -1176,6 +1178,39 @@ class CycleEngine:
                                    test=spec.test_index, price_train=price_train, price_validation=price_validation)
         except Exception as error:  # noqa: BLE001 - the run must not fail over its explain files
             self.log(f"[save] fold {spec.fold_index + 1}/{self.fold_count} row index could not be written: {error}", "warn")
+
+    GATE_ROUTINGS_FILE = "gate_routings.json"
+
+    def _record_gate_routing(self, spec: FoldSpec, adapter: ModelAdapter) -> None:
+        """A mixture of experts' gate probabilities over the fold's scored test
+        bars, emitted live and written beside the artifacts; nothing for a kind
+        with no gate. A failure is a warning, never a lost fold."""
+        route = getattr(adapter, "routing", None)
+        if not callable(route):
+            return
+        try:
+            rows = spec.test_index[history_valid(self.features, int(adapter.minimum_history()))[spec.test_index]]
+            probabilities = route(self.features, rows)
+            if probabilities is None or len(rows) == 0:
+                return
+            timestamps = [int(self.data.timestamps[row]) for row in rows]
+            payload = protocol.cycle_gate_routing_payload(fold_index=spec.fold_index, model_role="direction", timestamps=timestamps, probabilities=probabilities)
+            protocol.emit_cycle_gate_routing(fold_index=spec.fold_index, model_role="direction", timestamps=timestamps, probabilities=probabilities)
+            self.gate_routings.append(payload)
+            self._write_json_list(self.GATE_ROUTINGS_FILE, self.gate_routings)
+            usage = ", ".join(f"expert {k + 1} {share * 100:.0f}%" for k, share in enumerate(payload["usage"]))
+            self.log(f"{self.fold_prefix(spec.fold_index)}[routing] gate over {len(rows):,} test bars: {usage}")
+        except Exception as error:  # noqa: BLE001 - the routing is a picture of the fit, not the fit
+            self.log(f"{self.fold_prefix(spec.fold_index)}[routing] gate routing not recorded: {error}", "warn")
+
+    def _write_json_list(self, file_name: str, rows: list[dict]) -> None:
+        """One JSON file of every entry so far beside the run's artifacts, written atomically."""
+        os.makedirs(self.settings.artifact_directory, exist_ok=True)
+        path = os.path.join(self.settings.artifact_directory, file_name)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(rows, handle)
+        os.replace(tmp, path)
 
     LOSS_SURFACES_FILE = "loss_surfaces.json"
 

@@ -161,7 +161,7 @@ export function defaultExplainerCommand(repoRoot: string = process.cwd()): strin
     process.platform === "win32"
       ? path.join(repoRoot, ".venv", "Scripts", "python.exe")
       : path.join(repoRoot, ".venv", "bin", "python");
-  return [python, path.join("src", "ml", "cycle", "explain_main.py"), "--serve"];
+  return [python, path.join("packages", "ml-engine", "src", "cycle", "explain_main.py"), "--serve"];
 }
 
 /** Where the engine saves a fold's model for a role (see the brief's artifact layout). */

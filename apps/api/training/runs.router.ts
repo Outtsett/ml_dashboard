@@ -31,7 +31,7 @@ import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.rou
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
 import type { RunListItem, RunnableModel, RunView, StartRunResponse } from "@shared/runs/types";
 import { runName, runPurpose, runVersions } from "@shared/runs/naming";
-import type { CycleLogLine, CycleLossSurface, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
+import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
 import type { TrainingRequest } from "@shared/trainingTypes";
 
 const router = Router();
@@ -478,6 +478,19 @@ async function readLossSurfaces(modelId: string): Promise<CycleLossSurface[]> {
   }
 }
 
+const GATE_ROUTINGS_FILE = "gate_routings.json";
+
+async function readGateRoutings(modelId: string): Promise<CycleGateRouting[]> {
+  const terminal = terminalPath(modelId);
+  if (!terminal) return [];
+  try {
+    const parsed: unknown = JSON.parse(await fs.promises.readFile(path.join(path.dirname(terminal), GATE_ROUTINGS_FILE), "utf-8"));
+    return Array.isArray(parsed) ? (parsed as CycleGateRouting[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 const REPORT_REFRESH_MILLISECONDS = 20_000;
 const reportCache = new Map<string, { at: number; report: RunReportTables | null }>();
 const reportRefresh = new Map<string, Promise<void>>();
@@ -509,14 +522,15 @@ const archiveCache = new Map<string, { snapshot: CycleSnapshot; report: RunRepor
 async function archivedRun(modelId: string): Promise<{ snapshot: CycleSnapshot; report: RunReportTables | null } | null> {
   const cached = archiveCache.get(modelId);
   if (cached) return cached;
-  const [snapshot, report, terminal, lossSurfaces] = await Promise.all([
+  const [snapshot, report, terminal, lossSurfaces, gateRoutings] = await Promise.all([
     loadArchivedCycleSnapshot(modelId),
     loadCycleReport(modelId).catch(() => null),
     readTerminal(modelId),
     readLossSurfaces(modelId),
+    readGateRoutings(modelId),
   ]);
   if (!snapshot) return null;
-  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, lossSurfaces }, report };
+  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, lossSurfaces, gateRoutings }, report };
   archiveCache.set(modelId, entry);
   if (archiveCache.size > ARCHIVE_CACHE_SIZE) archiveCache.delete(archiveCache.keys().next().value as string);
   return entry;

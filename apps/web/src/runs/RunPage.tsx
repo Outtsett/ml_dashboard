@@ -28,6 +28,8 @@ import { LearningGrid, LossSurfacePanel } from "@/runs/learning";
 import { TrialParameterChart } from "@/runs/search";
 import { MetricReadouts } from "@/runs/foldGrid";
 import { Configuration } from "@/runs/Configuration";
+import { AttentionPanel } from "@/runs/analytics/AttentionPanel";
+import { GateRoutingPanel } from "@/runs/analytics/GateRoutingPanel";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
   const critical = findings.filter((verdict) => verdict.severity === "critical").length;
@@ -111,7 +113,7 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
   );
 }
 
-function RunBody({ run }: { run: RunView }) {
+function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: number | null; onFocusTime: (seconds: number) => void }) {
   const of = (category: RunCategory) => run.verdicts.filter((verdict) => verdict.category === category);
   // which analytics this kind of model owns (`runs/analytics/families.ts`)
   const models = useRunnableModels();
@@ -151,6 +153,8 @@ function RunBody({ run }: { run: RunView }) {
           <LossChart epochs={run.epochs} />
           {panels.has("learning_curves") && <LearningGrid epochs={run.epochs} />}
           {panels.has("loss_surface") && <LossSurfacePanel surfaces={run.lossSurfaces} modelLabel={run.setup?.modelLabel ?? null} />}
+          {panels.has("attention") && <AttentionPanel run={run} focusTime={focusTime} onFocusTime={onFocusTime} />}
+          {panels.has("gate_routing") && <GateRoutingPanel routings={run.gateRoutings} modelLabel={run.setup?.modelLabel ?? null} />}
         </Section>
         <Section category="prediction" findings={of("prediction")}>
           <Tiles tiles={tilesOf("prediction")} />
@@ -286,7 +290,7 @@ export default function RunPage() {
             </div>
             <div className="min-h-0 flex-1">
               {view === "charts" ? (
-                <RunBody run={run.data} />
+                <RunBody run={run.data} focusTime={focusTime} onFocusTime={(seconds) => { setSeekTime(seconds); setFocusTime(seconds); }} />
               ) : (
                 <ResizablePanelGroup direction="vertical" autoSaveId="run-terminal-split" className="h-full">
                   <ResizablePanel defaultSize={50} minSize={20}>

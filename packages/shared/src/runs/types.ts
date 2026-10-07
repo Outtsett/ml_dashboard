@@ -6,7 +6,7 @@
  * It carries no bars: the chart of the run lives on the Market page. What is
  * here is what answers "how is this run doing and what is wrong with it".
  */
-import type { CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
+import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
 
 /** The six fixed sections every run page shows, in this order. */
 export const RUN_CATEGORIES = ["verdict", "configuration", "learning", "prediction", "trading", "tuning", "folds"] as const;
@@ -80,6 +80,8 @@ export interface RunEpochPoint {
 
 /** A fold's loss surface as the engine sent it (`cycle_loss_surface`), without the envelope. */
 export type RunLossSurface = Omit<CycleLossSurface, "seq" | "ts">;
+/** A fold's gate routing as the engine sent it (`cycle_gate_routing`), without the envelope. */
+export type RunGateRouting = Omit<CycleGateRouting, "seq" | "ts">;
 
 export interface RunFoldRow {
   foldIndex: number;
@@ -191,6 +193,8 @@ export interface RunView {
   epochs: RunEpochPoint[];
   /** One per final neural fit; empty for a tree or linear model, which has no weights to perturb. */
   lossSurfaces: RunLossSurface[];
+  /** One per fold of a mixture of experts; empty for every other kind. */
+  gateRoutings: RunGateRouting[];
   trials: CycleTrial[];
   folds: RunFoldRow[];
   daily: RunDailyRow[];

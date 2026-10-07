@@ -25,6 +25,7 @@ import {
   type CycleEpoch,
   type CycleLogLine,
   type CycleLossSurface,
+  type CycleGateRouting,
   type CyclePlan,
   type CycleRunStatus,
   type CycleRunSummary,
@@ -75,6 +76,8 @@ interface CycleRunState {
   epochs: CycleEpoch[];
   /** One per final neural fit (`cycle_loss_surface`), in arrival order. */
   lossSurfaces: CycleLossSurface[];
+  /** One per fold of a mixture of experts (`cycle_gate_routing`). */
+  gateRoutings: CycleGateRouting[];
   /** Latest state per (fold, trial number) — a trial reports running, then complete; numbering restarts every fold. */
   trials: Map<string, CycleTrial>;
   /** Per fold: the hyperparameters its models were fitted with (`cycle_parameters`). */
@@ -104,6 +107,7 @@ function newRunState(modelId: string, modelType: string, startedAt: number): Cyc
     finalScoreboard: null,
     epochs: [],
     lossSurfaces: [],
+    gateRoutings: [],
     trials: new Map(),
     parameters: new Map(),
     logs: [],
@@ -167,6 +171,9 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
       return;
     case "cycle_loss_surface":
       run.lossSurfaces.push(data as unknown as CycleLossSurface);
+      return;
+    case "cycle_gate_routing":
+      run.gateRoutings.push(data as unknown as CycleGateRouting);
       return;
     case "cycle_trial": {
       const trial = data as unknown as CycleTrial;
@@ -325,6 +332,7 @@ function toSnapshot(run: CycleRunState): CycleSnapshot {
     scoreboards: toScoreboards(run),
     epochs: run.epochs,
     lossSurfaces: run.lossSurfaces,
+    gateRoutings: run.gateRoutings,
     trials: [...run.trials.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1) || a.trial - b.trial),
     parameters: [...run.parameters.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1)),
     logs: run.logs,

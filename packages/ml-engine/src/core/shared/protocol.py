@@ -1044,6 +1044,40 @@ def emit_cycle_loss_surface(*, fold_index, model_role: str, surface: dict) -> No
     _emit_cycle("cycle_loss_surface", cycle_loss_surface_payload(fold_index=fold_index, model_role=model_role, surface=surface))
 
 
+def cycle_gate_routing_payload(*, fold_index, model_role: str, timestamps, probabilities) -> dict:
+    """The wire shape of a fold's gate routing (a mixture of experts): for every
+    scored test bar, the gate's probability per expert, which expert won, how
+    diffuse the choice was, and each expert's share of the fold. One per final
+    fit of a mixture; other kinds send none."""
+    import math
+
+    if model_role not in ("direction", "price"):
+        raise ValueError(f"cycle_gate_routing: model role must be direction or price, got {model_role!r}")
+    rows = [[float(value) for value in row] for row in probabilities]
+    stamps = [int(value) for value in timestamps]
+    if len(rows) != len(stamps):
+        raise ValueError(f"cycle_gate_routing: {len(rows)} probability rows for {len(stamps)} timestamps")
+    expert_count = len(rows[0]) if rows else 0
+    chosen = [int(max(range(len(row)), key=lambda k: row[k])) if row else -1 for row in rows]
+    entropy = [float(-sum(p * math.log(p) for p in row if p > 0.0)) for row in rows]
+    usage = [float(sum(row[k] for row in rows) / len(rows)) if rows else 0.0 for k in range(expert_count)]
+    return {
+        "foldIndex": _optional_int(fold_index),
+        "modelRole": model_role,
+        "expertCount": expert_count,
+        "timestamps": stamps,
+        "probabilities": [[round(value, 4) for value in row] for row in rows],
+        "chosenExpert": chosen,
+        "entropy": [round(value, 4) for value in entropy],
+        "usage": [round(value, 4) for value in usage],
+    }
+
+
+def emit_cycle_gate_routing(*, fold_index, model_role: str, timestamps, probabilities) -> None:
+    """A fold's gate routing over its test walk (see ``cycle_gate_routing_payload``)."""
+    _emit_cycle("cycle_gate_routing", cycle_gate_routing_payload(fold_index=fold_index, model_role=model_role, timestamps=timestamps, probabilities=probabilities))
+
+
 def emit_cycle_trade(trade: dict) -> None:
     """A trade opened (``status="open"``) or closed (``status="closed"``).
 

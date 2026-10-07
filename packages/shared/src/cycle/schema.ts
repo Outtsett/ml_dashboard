@@ -356,6 +356,31 @@ export const cycleLossSurfaceSchema = cycleEnvelopeSchema.extend({
 });
 export type CycleLossSurface = z.infer<typeof cycleLossSurfaceSchema>;
 
+// ─── cycle_gate_routing ─────────────────────────────────────────────────────
+
+/**
+ * A mixture of experts' gate over a fold's scored test bars: the probability
+ * the gate gave each expert for every bar, which expert won, how diffuse the
+ * choice was, and each expert's share of the fold. One per fold; a kind with
+ * no gate never sends one.
+ */
+export const cycleGateRoutingSchema = cycleEnvelopeSchema.extend({
+  foldIndex: z.number().int().nonnegative().nullable(),
+  modelRole: z.enum(["direction", "price"]),
+  expertCount: z.number().int().nonnegative(),
+  /** Epoch seconds of each scored test bar, in the chart's own stamps, in walk order. */
+  timestamps: z.array(epochSeconds),
+  /** `probabilities[bar][expert]`, each row summing to 1. */
+  probabilities: z.array(z.array(z.number())),
+  /** The expert with the highest probability on each bar. */
+  chosenExpert: z.array(z.number().int()),
+  /** Shannon entropy of each bar's row (0 = one expert took it all; ln(experts) = an even split). */
+  entropy: z.array(z.number()),
+  /** Mean probability per expert over the fold's bars. */
+  usage: z.array(z.number()),
+});
+export type CycleGateRouting = z.infer<typeof cycleGateRoutingSchema>;
+
 // ─── cycle_trial ────────────────────────────────────────────────────────────
 
 export const cycleTrialSchema = cycleEnvelopeSchema.extend({
@@ -487,6 +512,7 @@ export const CYCLE_EVENT_SCHEMAS = {
   cycle_cursor: cycleCursorSchema,
   cycle_epoch: cycleEpochSchema,
   cycle_loss_surface: cycleLossSurfaceSchema,
+  cycle_gate_routing: cycleGateRoutingSchema,
   cycle_trial: cycleTrialSchema,
   cycle_parameters: cycleParametersSchema,
   cycle_trade: cycleTradeSchema,
@@ -502,6 +528,7 @@ export interface CycleEventPayloads {
   cycle_cursor: CycleCursor;
   cycle_epoch: CycleEpoch;
   cycle_loss_surface: CycleLossSurface;
+  cycle_gate_routing: CycleGateRouting;
   cycle_trial: CycleTrial;
   cycle_parameters: CycleParameters;
   cycle_trade: CycleTrade;
@@ -578,6 +605,8 @@ export interface CycleSnapshot {
   parameters: CycleParameters[];
   /** One per final neural fit, in the order they were computed; absent on snapshots rebuilt from the lake alone. */
   lossSurfaces?: CycleLossSurface[];
+  /** One per fold of a mixture of experts; absent on snapshots rebuilt from the lake alone. */
+  gateRoutings?: CycleGateRouting[];
   logs: CycleLogLine[];
 }
 

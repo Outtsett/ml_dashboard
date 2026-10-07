@@ -121,6 +121,15 @@ class MixtureOfExperts(nn.Module):
         return self.head(self.components(rows)[2]).squeeze(-1)
 
 
+def routing(network: nn.Module, rows: torch.Tensor) -> torch.Tensor:
+    """The gate's probabilities for a batch of bars, (batch, experts), rows
+    summing to 1: which expert each bar was routed to. The same `gate` the
+    forward pass uses, so this is exactly the mixing the prediction had."""
+    if not isinstance(network, MixtureOfExperts):
+        raise TypeError(f"mixture_of_experts.routing: expected a MixtureOfExperts, got {type(network).__name__}")
+    return network.gate(rows)
+
+
 def build(parameters: dict, feature_count: int) -> nn.Module:
     """The network for a registry entry's resolved parameters (full-word names)."""
     missing = [name for name in PARAMETER_NAMES if name not in parameters]
