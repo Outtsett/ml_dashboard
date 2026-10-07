@@ -24,12 +24,11 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
   const selection = useSymbolContext();
   const models = useRunnableModels();
   const start = useStartRun(onStarted);
-  const [model, setModel] = useState("xgboost");
+  const [model, setModel] = useState("");
   const [symbol, setSymbol] = useState(selection.symbol || "MNQ");
   const [timeframe, setTimeframe] = useState(TIMEFRAMES.find((entry) => entry.minutes === selection.timeframeMinutes)?.label ?? "5m");
   const [trials, setTrials] = useState(20);
   const [folds, setFolds] = useState(3);
-  const [showCall, setShowCall] = useState(false);
 
   const known = models.data?.find((entry) => entry.key === model || entry.displayName === model);
   const body = {
@@ -38,7 +37,6 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
     timeframe,
     parameters: { tuning_budget_trials: trials, fold_limit: folds },
   };
-  const call = `curl -X POST http://127.0.0.1:5000/api/runs -H "content-type: application/json" -d '${JSON.stringify(body)}'`;
   const preflight = usePreflight({ model: body.model, symbol: body.symbol, timeframe });
   const blocked = preflight.data ? !preflight.data.ready : false;
 
@@ -60,9 +58,6 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
           </option>
         ))}
       </datalist>
-      <div className="font-mono text-[10px] leading-tight text-muted-foreground">
-        {known ? `${known.displayName} · ${known.kind} · ${known.estimatedTrainingTime ?? known.speed ?? ""}` : `${models.data?.length ?? 0} models can run. Type to search.`}
-      </div>
       <div className="grid grid-cols-2 gap-1.5">
         <input value={symbol} onChange={(event) => setSymbol(event.target.value)} className={FIELD} aria-label="Symbol" />
         <select value={timeframe} onChange={(event) => setTimeframe(event.target.value)} className={FIELD} aria-label="Timeframe">
@@ -81,20 +76,10 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
           <input type="number" min={1} max={50} value={folds} onChange={(event) => setFolds(Number(event.target.value))} className={FIELD} />
         </label>
       </div>
-      {preflight.data && (
-        <ul className="space-y-0.5 font-mono text-[10px]" data-testid="preflight">
-          {preflight.data.checks.map((check) => (
-            <li key={check.name} className="flex gap-1 leading-tight" title={check.detail}>
-              <span className="shrink-0 font-bold" style={{ color: check.ok ? "#009E73" : "#D55E00" }}>{check.ok ? "✓" : "✗"}</span>
-              <span className={check.ok ? "truncate text-muted-foreground" : "text-foreground"}>{check.detail}</span>
-            </li>
-          ))}
-        </ul>
-      )}
       <button
         type="button"
         disabled={start.isPending || model.trim() === "" || blocked}
-        title={blocked ? "A preflight check failed; see above" : undefined}
+        title={blocked ? preflight.data?.checks.filter((check) => !check.ok).map((check) => check.detail).join("; ") : undefined}
         onClick={() => start.mutate(body)}
         className="flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded bg-[#E69F00] font-mono text-[12px] font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="launch-run"
@@ -102,10 +87,6 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
         <Play className="h-3.5 w-3.5" />
         {start.isPending ? "Starting" : blocked ? "Not ready" : "Run"}
       </button>
-      <button type="button" onClick={() => setShowCall(!showCall)} className="cursor-pointer font-mono text-[10px] text-muted-foreground underline-offset-2 hover:underline">
-        {showCall ? "Hide" : "Show"} the call Claude makes for this
-      </button>
-      {showCall && <pre className="whitespace-pre-wrap break-all rounded border border-border bg-black/40 p-2 font-mono text-[10px] text-muted-foreground">{call}</pre>}
     </div>
   );
 }
