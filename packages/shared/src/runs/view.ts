@@ -241,6 +241,7 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
     scoreScope,
     barsEvaluated: scoreboard?.barsEvaluated ?? 0,
     tiles: tilesOf(metrics),
+    metrics,
     verdicts: judgeRun({ status: snapshot.status, error: snapshot.error, metrics, epochs, trials: snapshot.trials, folds }),
     epochs,
     lossSurfaces: lossSurfacesOf(snapshot),

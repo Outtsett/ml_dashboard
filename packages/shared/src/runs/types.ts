@@ -154,6 +154,8 @@ export interface RunView {
   scoreScope: "final" | "running" | null;
   barsEvaluated: number;
   tiles: RunMetricTile[];
+  /** Every scoreboard metric of the run, by name, as the engine scored it. */
+  metrics: Record<string, number | null>;
   verdicts: RunVerdict[];
   epochs: RunEpochPoint[];
   /** One per final neural fit; empty for a tree or linear model, which has no weights to perturb. */

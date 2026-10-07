@@ -25,7 +25,7 @@ import { Tiles } from "@/runs/Tiles";
 import { CalibrationChart, ConfusionGrid, EquityChart, FoldsChart, LossChart, TrialsChart } from "@/runs/charts";
 import { LearningGrid, LossSurfacePanel } from "@/runs/learning";
 import { TrialParameterChart } from "@/runs/search";
-import { FoldMetricsGrid } from "@/runs/foldGrid";
+import { MetricReadouts } from "@/runs/foldGrid";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
   const critical = findings.filter((verdict) => verdict.severity === "critical").length;
@@ -152,7 +152,7 @@ function RunBody({ run }: { run: RunView }) {
         </Section>
         <Section category="folds" findings={of("folds")}>
           <FoldsChart folds={run.folds} />
-          <FoldMetricsGrid folds={run.folds} />
+          <MetricReadouts metrics={run.metrics} folds={run.folds} />
         </Section>
       </div>
     </div>
