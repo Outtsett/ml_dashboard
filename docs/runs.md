@@ -62,6 +62,7 @@ no weights to perturb and the page says so.
 | Section | Question | Shows |
 | --- | --- | --- |
 | Verdict | What is wrong, and what to change | Every rule that fired, with its numbers and its fix |
+| Configuration | What the run was given, and what each fold used | Base hyperparameters, run settings, cost model, feature list; per-fold table with the search's changes in orange (`Configuration.tsx`, `RunView.configuration`) |
 | Learning | Learning or memorising? | Loss by step against the coin-flip line; one small panel per logged quantity (training loss, validation loss, accuracy, F1, learning rate, gradient norm) with the kept step marked; the 3D loss surface per fold (`learning.tsx`) |
 | Prediction quality | Better than guessing the common direction? | Tiles, calibration curve, confusion table |
 | Trading result | Money after costs? | Tiles, net profit by session day |

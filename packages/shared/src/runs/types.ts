@@ -9,11 +9,12 @@
 import type { CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
 
 /** The six fixed sections every run page shows, in this order. */
-export const RUN_CATEGORIES = ["verdict", "learning", "prediction", "trading", "tuning", "folds"] as const;
+export const RUN_CATEGORIES = ["verdict", "configuration", "learning", "prediction", "trading", "tuning", "folds"] as const;
 export type RunCategory = (typeof RUN_CATEGORIES)[number];
 
 export const RUN_CATEGORY_LABELS: Record<RunCategory, string> = {
   verdict: "Verdict",
+  configuration: "Configuration",
   learning: "Learning",
   prediction: "Prediction quality",
   trading: "Trading result",
@@ -24,6 +25,7 @@ export const RUN_CATEGORY_LABELS: Record<RunCategory, string> = {
 /** What each section answers, shown under its heading. */
 export const RUN_CATEGORY_QUESTIONS: Record<RunCategory, string> = {
   verdict: "What is wrong with this run, and what to change.",
+  configuration: "Every setting this run was given, and what each fold actually used.",
   learning: "Is the model learning, or memorising the training bars?",
   prediction: "Are its calls better than always guessing the common direction?",
   trading: "Did the calls make money after costs?",
@@ -37,7 +39,7 @@ export interface RunVerdict {
   /** Stable rule id, e.g. `one_direction`. */
   rule: string;
   severity: VerdictSeverity;
-  category: Exclude<RunCategory, "verdict">;
+  category: Exclude<RunCategory, "verdict" | "configuration">;
   /** The finding in one blunt sentence. */
   title: string;
   /** The measured numbers the finding rests on. */
@@ -51,7 +53,7 @@ export type RunMetricUnit = "usd" | "ratio" | "fraction" | "count" | "points" | 
 export interface RunMetricTile {
   name: string;
   label: string;
-  category: Exclude<RunCategory, "verdict">;
+  category: Exclude<RunCategory, "verdict" | "configuration">;
   value: number | null;
   unit: RunMetricUnit;
   /** Which way is good; `none` for a count or a baseline. */
@@ -137,6 +139,32 @@ export interface RunSetup {
   dataEnd: number;
 }
 
+/** One parameter value as a run records it. */
+export type RunParameterValue = number | string | boolean | null;
+
+/** What a fold's models were fitted with, and how that was chosen (`cycle_parameters`). */
+export interface RunFoldConfiguration {
+  foldIndex: number;
+  parameters: Record<string, RunParameterValue>;
+  source: "tuned" | "manual" | "reviewed_defaults";
+  objectiveName: string | null;
+  bestTrial: number | null;
+  bestValue: number | null;
+  trialCount: number | null;
+  pinned: string[];
+}
+
+/** Everything the run was given, from its plan, plus what each fold used. */
+export interface RunConfiguration {
+  /** The model's base hyperparameters as the run started (before any fold's search). */
+  parameters: Record<string, RunParameterValue>;
+  /** The run's own settings: label, purge and embargo, trading rule, tuning budget, device, data window. */
+  settings: Record<string, RunParameterValue>;
+  costModel: Record<string, RunParameterValue>;
+  featureNames: string[];
+  folds: RunFoldConfiguration[];
+}
+
 export interface RunView {
   id: string;
   /** `brisk-heron-41`: the run's memorable name, derived from its id. */
@@ -149,6 +177,7 @@ export interface RunView {
   startedAt: number;
   finishedAt: number | null;
   setup: RunSetup | null;
+  configuration: RunConfiguration | null;
   progress: RunProgress | null;
   /** Which scoreboard the tiles come from: the finished run's, or the one still accumulating. */
   scoreScope: "final" | "running" | null;

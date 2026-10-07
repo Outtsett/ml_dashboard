@@ -9,7 +9,7 @@ import type { CycleLogLine, CycleSnapshot, CycleTrial } from "@shared/cycle/sche
 import { emptyBarColumns } from "@shared/cycle/schema";
 import type { RunEpochPoint } from "@shared/runs/types";
 import { COIN_FLIP_LOG_LOSS, foldCurves, headlineOf, judgeRun, type VerdictInput } from "@shared/runs/verdicts";
-import { buildRunView, finalFitEpochs, logsAfter, tilesOf } from "@shared/runs/view";
+import { buildRunView, configurationOf, finalFitEpochs, logsAfter, tilesOf } from "@shared/runs/view";
 
 const COLLAPSED: Record<string, number | null> = {
   net_profit_usd: -2191.34,
@@ -321,6 +321,32 @@ describe("buildRunView", () => {
     expect(view.barsEvaluated).toBe(5961);
     expect(view.tiles.find((tile) => tile.name === "sharpe_ratio")?.value).toBeCloseTo(-2.4069);
     expect(view.verdicts.some((verdict) => verdict.rule === "one_direction")).toBe(true);
+  });
+
+  it("has no configuration before the plan, then the plan's settings and what each fold fitted with", () => {
+    expect(configurationOf({ plan: null, parameters: [] })).toBeNull();
+    const plan = {
+      symbol: "MNQ", timeframe: "5m", modelFamily: "xgboost", modelLabel: "XGBoost",
+      parameters: { max_depth: 6, learning_rate: 0.05, boosting_rounds: 400 },
+      device: "cuda", deviceName: "RTX", dataStart: 1_754_006_400, dataEnd: 1_767_052_800, barCount: 28_942, barsPerYear: 70_000,
+      featureNames: ["return_1", "return_5"], labelHorizonBars: 6, labelThresholdTicks: 0, purgeBars: 6, embargoBars: 0,
+      costModel: { tickSize: 0.25, tickValueUsd: 0.5, pointValueUsd: 2, costPerSideUsd: 1.1, roundTripCostUsd: 2.2, source: "cost_model.json" },
+      trading: { longOnly: false, holdingBars: 6, stopLossTicks: 0, takeProfitTicks: 0, contracts: 1 },
+      tuning: { trialCount: 4, objective: "sharpe_ratio" as const, innerFoldCount: 2, perFold: true, pinned: ["boosting_rounds"] },
+      folds: [{ foldIndex: 0, trainStart: 1, trainEnd: 2, validationStart: 2, validationEnd: 3, testStart: 3, testEnd: 4, trainBarCount: 1, validationBarCount: 1, testBarCount: 1 }],
+      barsPerSecond: 0, startPaused: false, artifactDirectory: "x",
+    } as unknown as CycleSnapshot["plan"];
+    const configuration = configurationOf({
+      plan,
+      parameters: [{ foldIndex: 0, parameters: { max_depth: 7, learning_rate: 0.05, boosting_rounds: 400 }, source: "tuned", objectiveName: "sharpe_ratio", bestTrial: 2, bestValue: 0.91, trialCount: 4, pinned: ["boosting_rounds"] }],
+    });
+    expect(configuration?.parameters).toEqual({ max_depth: 6, learning_rate: 0.05, boosting_rounds: 400 });
+    expect(configuration?.settings.data_start).toBe("2025-08-01");
+    expect(configuration?.settings.tuning_pinned).toBe("boosting_rounds");
+    expect(configuration?.settings.purge_bars).toBe(6);
+    expect(configuration?.featureNames).toEqual(["return_1", "return_5"]);
+    expect(configuration?.folds[0]?.parameters.max_depth).toBe(7);
+    expect(configuration?.folds[0]?.source).toBe("tuned");
   });
 
   it("keeps only the run-scope rows of the report tables", () => {

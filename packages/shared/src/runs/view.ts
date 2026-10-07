@@ -9,6 +9,7 @@ import type {
   RunConfusionCell,
   RunDailyRow,
   RunEpochPoint,
+  RunConfiguration,
   RunFoldRow,
   RunLossSurface,
   RunMetricTile,
@@ -105,6 +106,59 @@ export function finalFitEpochs(snapshot: Pick<CycleSnapshot, "epochs">): RunEpoc
     });
   }
   return points;
+}
+
+/** Everything the run was given (its plan) and what each fold fitted with (`cycle_parameters`). */
+export function configurationOf(snapshot: Pick<CycleSnapshot, "plan" | "parameters">): RunConfiguration | null {
+  const plan = snapshot.plan;
+  if (!plan) return null;
+  const tuning = plan.tuning;
+  return {
+    parameters: { ...plan.parameters },
+    settings: {
+      symbol: plan.symbol,
+      timeframe: plan.timeframe,
+      data_start: new Date(plan.dataStart * 1000).toISOString().slice(0, 10),
+      data_end: new Date(plan.dataEnd * 1000).toISOString().slice(0, 10),
+      bar_count: plan.barCount,
+      fold_count: plan.folds.length,
+      label_horizon_bars: plan.labelHorizonBars,
+      label_threshold_ticks: plan.labelThresholdTicks,
+      label_gap_multiple: plan.labelGapMultiple ?? null,
+      purge_bars: plan.purgeBars,
+      embargo_bars: plan.embargoBars,
+      direction_mode: plan.directionMode ?? null,
+      has_price_model: plan.hasPriceModel ?? null,
+      long_only: plan.trading.longOnly,
+      holding_bars: plan.trading.holdingBars,
+      stop_loss_ticks: plan.trading.stopLossTicks,
+      take_profit_ticks: plan.trading.takeProfitTicks,
+      contracts: plan.trading.contracts,
+      tuning_mode: tuning?.mode ?? (tuning ? "tuned" : "reviewed_defaults"),
+      tuning_objective: tuning?.objective ?? null,
+      tuning_trial_count: tuning?.trialCount ?? 0,
+      tuning_budget_seconds: tuning?.budgetSeconds ?? null,
+      tuning_inner_fold_count: tuning?.innerFoldCount ?? null,
+      tuning_pinned: tuning?.pinned?.join(", ") ?? "",
+      price_adjustment: plan.priceAdjustment?.method ?? "none",
+      device: plan.deviceName ?? plan.device,
+      bars_per_second: plan.barsPerSecond,
+    },
+    costModel: { ...plan.costModel },
+    featureNames: [...plan.featureNames],
+    folds: (snapshot.parameters ?? [])
+      .map((entry) => ({
+        foldIndex: entry.foldIndex ?? 0,
+        parameters: { ...entry.parameters },
+        source: entry.source,
+        objectiveName: entry.objectiveName ?? null,
+        bestTrial: entry.bestTrial ?? null,
+        bestValue: entry.bestValue ?? null,
+        trialCount: entry.trialCount ?? null,
+        pinned: [...entry.pinned],
+      }))
+      .sort((a, b) => a.foldIndex - b.foldIndex),
+  };
 }
 
 /** The surfaces without their wire envelope, in fold order then role. */
@@ -227,6 +281,7 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
           dataEnd: plan.dataEnd,
         }
       : null,
+    configuration: configurationOf(snapshot),
     progress: snapshot.cursor
       ? {
           phase: snapshot.cursor.phase,

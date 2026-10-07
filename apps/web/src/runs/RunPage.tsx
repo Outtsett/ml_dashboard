@@ -27,6 +27,7 @@ import { CalibrationChart, ConfusionGrid, EquityChart, FoldsChart, LossChart, Tr
 import { LearningGrid, LossSurfacePanel } from "@/runs/learning";
 import { TrialParameterChart } from "@/runs/search";
 import { MetricReadouts } from "@/runs/foldGrid";
+import { Configuration } from "@/runs/Configuration";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
   const critical = findings.filter((verdict) => verdict.severity === "critical").length;
@@ -136,6 +137,9 @@ function RunBody({ run }: { run: RunView }) {
       <div className="space-y-6 p-3">
         <Section category="verdict" findings={run.verdicts}>
           <Verdicts status={run.status} verdicts={run.verdicts} />
+        </Section>
+        <Section category="configuration" findings={[]}>
+          <Configuration configuration={run.configuration} />
         </Section>
         <Section category="learning" findings={of("learning")}>
           <div className="font-mono text-[10px] text-muted-foreground">Panels for a {FAMILY_LABELS[family].toLowerCase()}.</div>
