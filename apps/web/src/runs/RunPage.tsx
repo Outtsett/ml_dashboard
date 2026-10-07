@@ -13,7 +13,8 @@ import { useSearchParams } from "wouter";
 import { PanelLeftClose, PanelLeftOpen, Square } from "lucide-react";
 
 import { RUN_CATEGORIES, RUN_CATEGORY_LABELS, RUN_CATEGORY_QUESTIONS, type RunCategory, type RunView } from "@shared/runs/types";
-import { useRun, useRunList, useStopRun } from "@/runs/api";
+import { useRun, useRunList, useRunnableModels, useStopRun } from "@/runs/api";
+import { analyticsFamilyOf, FAMILY_LABELS, FAMILY_PANELS } from "@/runs/analytics/families";
 import { formatDuration, formatStarted, shortModelType, SEVERITY_STYLE, STATUS_STYLE } from "@/runs/format";
 import { RunSidebar } from "@/runs/RunSidebar";
 import { RunTerminal } from "@/runs/RunTerminal";
@@ -106,6 +107,12 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
 
 function RunBody({ run }: { run: RunView }) {
   const of = (category: RunCategory) => run.verdicts.filter((verdict) => verdict.category === category);
+  // which analytics this kind of model owns (`runs/analytics/families.ts`)
+  const models = useRunnableModels();
+  const modelKey = run.modelType.replace(/\+walk_forward_cycle$/, "");
+  const kind = models.data?.find((entry) => entry.key === modelKey)?.kind ?? null;
+  const family = analyticsFamilyOf(kind, modelKey);
+  const panels = new Set(FAMILY_PANELS[family]);
   const tilesOf = (category: RunCategory) => run.tiles.filter((tile) => tile.category === category);
   const scope = run.scoreScope === "running" ? `Numbers so far: ${run.barsEvaluated.toLocaleString("en-US")} test bars walked.` : null;
   return (
@@ -131,9 +138,10 @@ function RunBody({ run }: { run: RunView }) {
           <Verdicts status={run.status} verdicts={run.verdicts} />
         </Section>
         <Section category="learning" findings={of("learning")}>
+          <div className="font-mono text-[10px] text-muted-foreground">Panels for a {FAMILY_LABELS[family].toLowerCase()}.</div>
           <LossChart epochs={run.epochs} />
-          <LearningGrid epochs={run.epochs} />
-          <LossSurfacePanel surfaces={run.lossSurfaces} modelLabel={run.setup?.modelLabel ?? null} />
+          {panels.has("learning_curves") && <LearningGrid epochs={run.epochs} />}
+          {panels.has("loss_surface") && <LossSurfacePanel surfaces={run.lossSurfaces} modelLabel={run.setup?.modelLabel ?? null} />}
         </Section>
         <Section category="prediction" findings={of("prediction")}>
           <Tiles tiles={tilesOf("prediction")} />
