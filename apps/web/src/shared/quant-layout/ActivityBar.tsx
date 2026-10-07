@@ -10,14 +10,14 @@
  * here can cause a layout shift.
  */
 
-import { Link, useLocation, useSearch } from "wouter";
+import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
 import { Database, BookMarked, BarChart3, Activity, BrainCircuit, Settings, Layers,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
-  { label: "Catalog", href: "/analytics?tab=catalog", icon: Database },
+  { label: "Catalog", href: "/model-catalog", icon: Database },
   { label: "Analytics", href: "/analytics", icon: Activity },
   { label: "AI Studio", href: "/training", icon: BrainCircuit },
   { label: "Data", href: "/databases", icon: Layers },
@@ -32,7 +32,6 @@ export interface ActivityBarProps {
 
 export function ActivityBar({}: ActivityBarProps = {}) {
   const [pathname] = useLocation();
-  const search = useSearch();
 
   return (
     <div className="w-[72px] h-full bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-2 shrink-0 z-20 select-none">
@@ -41,14 +40,10 @@ export function ActivityBar({}: ActivityBarProps = {}) {
           let isActive = false;
           if (item.href === "/") {
             isActive = pathname === "/";
-          } else if (item.href === "/analytics?tab=catalog") {
-            isActive = (pathname === "/analytics" && search.includes("tab=catalog")) ||
-              pathname.startsWith("/models") ||
-              pathname.startsWith("/model-catalog") ||
-              pathname.startsWith("/catalog");
+          } else if (item.href === "/model-catalog") {
+            isActive = pathname.startsWith("/models") || pathname.startsWith("/model-catalog") || pathname.startsWith("/catalog");
           } else if (item.href === "/analytics") {
-            isActive = (pathname.startsWith("/analytics") && !search.includes("tab=catalog")) ||
-              pathname.startsWith("/inference");
+            isActive = pathname.startsWith("/analytics") || pathname.startsWith("/inference");
           } else if (item.href === "/training") {
             isActive = pathname.startsWith("/training");
           } else if (item.href === "/studies") {

@@ -5,7 +5,6 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia, EmptyCont
 import { Button } from "@/shared/ui/button";
 import { TrendingUp, DollarSign, BarChart3, Clock, LineChart, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useIndicatorData } from "@/market/lib/useIndicatorData";
@@ -18,7 +17,7 @@ import { dispatchOverlayEvent, reportOverlayDispatchResult } from "@/training/li
 import type { PredictionMarker } from "@/shared/contexts/dashboardTypes";
 import { useLocalReplay } from "@/market/lib/useLocalReplay";
 import { useTrainingSync } from "@/training/lib/useTrainingSync";
-import { useTrainingContext, useTrainingControl } from "@/training/lib/TrainingContext";
+import { useTrainingContext } from "@/training/lib/TrainingContext";
 import { useRegimeModels } from "@/ml/lib/useRegimeData";
 import type { Trade } from "@/shared/utils/types";
 import { useMLTrades } from "@/ml/lib/useMLData";
@@ -28,9 +27,6 @@ import { type InstrumentInfo } from "@/market/types";
 import { minutesToLabel, minutesToApiKey, apiKeyToMinutes } from "@/market/lib/timeframes";
 import { isFuturesSymbol } from "@/market/components/chartConfig";
 import { Toolbar } from "./Toolbar";
-import { TerminalTabs } from "@/system/components/TerminalTabs";
-import { MLWorkflowSidebar } from "@/system/components/MLWorkflowSidebar";
-import { MarketGridLayout } from "./components/MarketGridLayout";
 import { AnalyticsStrip } from "./AnalyticsStrip";
 import { LiveQuoteStrip } from "./LiveQuoteStrip";
 import { useLiveTail } from "@/live/useLiveTail";
@@ -45,9 +41,9 @@ import { useRunOverlay } from "@/cycle/useRunOverlay";
 import type { ChartAttachTarget } from "@/market/components/useChartSetup";
 import type { RunOverlayTarget } from "@/cycle/useRunOverlay";
 import { useCycleStore } from "@/cycle/store";
+import { useFeatureOverIndication } from "@/market/lib/useFeatureOverIndication";
+import { ForecastAccuracyHUD } from "@/market/components/ForecastAccuracyHUD";
 
-/** Stable identity so the grid tile does not re-render the ML sidebar on every page render. */
-const NOOP_LABEL_MARKERS = (): void => {};
 
 /** No label markers while a run covers the chart — see where they are passed. */
 const NO_LABEL_MARKERS: never[] = [];
@@ -88,7 +84,7 @@ export default function MarketData() {
   const { symbol, assetType, timeframeMinutes: timeframe } = dashboard;
   
   const [symbolOpen, setSymbolOpen] = useState(false);
-  const [, navigate] = useLocation();
+
 
   // Memoized setters that update dashboard context
   const _setSymbol = useCallback((s: string) => {
@@ -207,6 +203,9 @@ export default function MarketData() {
     clearAll: clearAllIndicators,
     overlays: indicatorOverlays,
   } = useActiveIndicators(drawnSource);
+
+  // ── Feature Engineering Over-Indication & Collinearity Analysis ──
+  const featureOverIndication = useFeatureOverIndication(activeIndicators);
 
   // ── CDL Patterns (computed client-side from OHLCV data) ──
   // Candlestick patterns are label generators now, chosen one at a time from
@@ -416,24 +415,6 @@ export default function MarketData() {
   }, [quickTrades]);
 
   const isTrainingActive = training.isTraining;
-  const { startTraining, stopTraining, availableModels, selectedModelType, isPending: isTrainingStarting } = useTrainingControl();
-
-  const handleStartTraining = useCallback(() => {
-    const modelType = selectedModelType || "primitives-discovery";
-    const modelDef = availableModels[modelType];
-    const hyperparameters: Record<string, number | string | boolean> = {};
-    if (modelDef?.defaultHyperparameters) {
-      for (const [k, v] of Object.entries(modelDef.defaultHyperparameters)) {
-        hyperparameters[k] = v.default;
-      }
-    }
-    startTraining({ modelType, symbol, timeframe: tfLabel, hyperparameters });
-  }, [selectedModelType, availableModels, symbol, tfLabel, startTraining]);
-
-  const handleStopTraining = useCallback(() => {
-    stopTraining();
-  }, [stopTraining]);
-
   const livePredictionMarkerCount = livePredictionMarkers.length;
 
   const trainingWindowLabels = useMemo(() => {
@@ -461,7 +442,6 @@ export default function MarketData() {
   const handleToggleSR = useCallback(() => overlayToggles.setShowSR(v => !v), [overlayToggles]);
   const handleToggleZigZag = useCallback(() => overlayToggles.setShowZigZag(v => !v), [overlayToggles]);
   const handleToggleStructure = useCallback(() => overlayToggles.setShowStructure((v: boolean) => !v), [overlayToggles]);
-  const handleOpenMlPanel = useCallback(() => navigate("/ml-studio"), [navigate]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -502,10 +482,6 @@ export default function MarketData() {
         showStructure={overlayToggles.showStructure}
         onToggleStructure={handleToggleStructure}
         isTrainingActive={isTrainingActive}
-        onStartTraining={handleStartTraining}
-        onStopTraining={handleStopTraining}
-        isTrainingStarting={isTrainingStarting}
-        onOpenMlPanel={handleOpenMlPanel}
         onResetScrollState={resetScrollState}
       />
 
@@ -580,7 +556,12 @@ export default function MarketData() {
         regimeIsTraining={training.isTraining}
         regimeQualityScore={regimeQualityScore}
         isTrainingActive={isTrainingActive}
+        featureOverIndication={featureOverIndication}
+        onClearAllIndicators={clearAllIndicators}
       />
+
+      {/* Model Forecast Accuracy & Backtest Telemetry HUD */}
+      <ForecastAccuracyHUD />
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Training banner */}
@@ -683,60 +664,50 @@ export default function MarketData() {
         )}
 
         {displayData.length > 0 ? (
-          <MarketGridLayout
-            mlStudioElement={
-              <MLWorkflowSidebar
-                chartData={displayData}
-                symbol={chartSymbol}
-                isFutures={chartIsFutures}
-                timeframe={chartTimeframeMinutes}
-                // Chart label markers are owned by useLabelOverlay (selectedLabelGenerator);
-                // the sidebar's own preview markers are not painted on the main chart.
-                onLabelMarkersChange={NOOP_LABEL_MARKERS}
-              />
-            }
-            terminalElement={<TerminalTabs />}
-            chartElement={
-              <IndicatorChartLayout
-              onReloadBars={handleReloadBars}
-              isReloadingBars={isReloadingBars}
-              data={displayData}
-              symbol={chartSymbol}
-              isFutures={chartIsFutures}
-              timeframe={chartTimeframeMinutes}
-              isReplayActive={replay.active}
-              // Infinite scroll belongs to the market's own series. A run's bars
-              // are the whole test walk already, and asking the lake for more of
-              // them would append bars the model never read.
-              onLoadMore={!replay.active && !run.active && useInfiniteScroll ? handleLoadMore : undefined}
-              onPrefetch={!replay.active && !run.active && useInfiniteScroll ? triggerPrefetch : undefined}
-              onVisibleTimeRangeChange={handleVisibleRangeChange}
-              isLoadingMore={isLoadingMore}
-              hasMoreLeft={!replay.active && !run.active && hasMoreLeft}
-              hasMoreRight={!replay.active && !run.active && hasMoreRight}
-              // A landed label set is keyed to the market series it was generated
-              // from; its markers would point at bars the chart is no longer
-              // showing, so they step aside for the run's own glyphs.
-              labelMarkers={run.active ? NO_LABEL_MARKERS : labelMarkers}
-              indicatorOverlays={allOverlays}
-              onRemoveIndicators={handleRemoveIndicators}
-              zigZagPoints={zigZagPts}
-              swingZigZagPoints={structurePts}
-              tradeMarkers={dashboard.overlays.tradeMarkers}
-              predictionMarkers={dashboard.overlays.predictionMarkers}
-              regimeColorMap={regimeColorMap}
-              trainTestSplitTime={trainTestSplitTime}
-              onBarClick={setSelectedBarMs}
-              notebookMarkers={notebookOverlays.markers}
-              notebookDrawings={notebookOverlays.drawings}
-              // ── The Model Cycle run, on this chart ──
-              extraPanels={runPanels}
-              extraMarkers={run.markers}
-              onChartReady={onRunChartReady}
-              chrome={<RunChartChrome hover={runHover} />}
-            />
-            }
-          />
+          <div className="flex-1 min-h-0 w-full h-full overflow-hidden relative">
+            {(
+              <div className="w-full h-full min-h-0">
+                <IndicatorChartLayout
+                  onReloadBars={handleReloadBars}
+                  isReloadingBars={isReloadingBars}
+                  data={displayData}
+                  symbol={chartSymbol}
+                  isFutures={chartIsFutures}
+                  timeframe={chartTimeframeMinutes}
+                  isReplayActive={replay.active}
+                  // Infinite scroll belongs to the market's own series. A run's bars
+                  // are the whole test walk already, and asking the lake for more of
+                  // them would append bars the model never read.
+                  onLoadMore={!replay.active && !run.active && useInfiniteScroll ? handleLoadMore : undefined}
+                  onPrefetch={!replay.active && !run.active && useInfiniteScroll ? triggerPrefetch : undefined}
+                  onVisibleTimeRangeChange={handleVisibleRangeChange}
+                  isLoadingMore={isLoadingMore}
+                  hasMoreLeft={!replay.active && !run.active && hasMoreLeft}
+                  hasMoreRight={!replay.active && !run.active && hasMoreRight}
+                  // A landed label set is keyed to the market series it was generated
+                  // from; its markers would point at bars the chart is no longer
+                  // showing, so they step aside for the run's own glyphs.
+                  labelMarkers={run.active ? NO_LABEL_MARKERS : labelMarkers}
+                  indicatorOverlays={allOverlays}
+                  onRemoveIndicators={handleRemoveIndicators}
+                  zigZagPoints={zigZagPts}
+                  swingZigZagPoints={structurePts}
+                  tradeMarkers={dashboard.overlays.tradeMarkers}
+                  predictionMarkers={dashboard.overlays.predictionMarkers}
+                  regimeColorMap={regimeColorMap}
+                  trainTestSplitTime={trainTestSplitTime}
+                  onBarClick={setSelectedBarMs}
+                  notebookMarkers={notebookOverlays.markers}
+                  notebookDrawings={notebookOverlays.drawings}
+                  // ── The Model Cycle run, on this chart ──
+                  extraPanels={runPanels}
+                  extraMarkers={run.markers}
+                  onChartReady={onRunChartReady}
+                  chrome={<RunChartChrome hover={runHover} />}
+                />
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
             <div className="relative mb-5">

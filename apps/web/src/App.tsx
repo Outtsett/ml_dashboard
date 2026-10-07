@@ -68,15 +68,14 @@ const RegressionFactory = () => import("@/market/regression/RegressionPage");
 const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
 
-import Analytics from "@/analytics/AnalyticsPage";
-registerComponentFactory("/analytics", () => Promise.resolve({ default: Analytics }));
-// The Analytics tab is the many-runs complement of the run page (2026-10-07);
-// `?tab=catalog` still opens the model catalog the Catalog nav item points at.
+// The Analytics tab is the many-runs complement of the run page (2026-10-07).
+// The model catalog is its own page at /model-catalog; the old analytics page
+// (`@/analytics/AnalyticsPage`) stays importable but nothing routes to it.
 const CompareFactory = () => import("@/runs/compare/ComparePage");
 const Compare = lazyRetry(CompareFactory, "Compare");
 function AnalyticsRoute() {
-  const catalog = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "catalog";
-  return catalog ? <Analytics /> : <Compare />;
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "catalog") return <Redirect to="/model-catalog" />;
+  return <Compare />;
 }
 
 
@@ -97,6 +96,7 @@ registerComponentFactory("/forecast", ForecastFactory);
 
 const ModelCatalogFactory = () => import("@/ml/ModelCatalogPage");
 registerComponentFactory("/model-catalog", ModelCatalogFactory);
+const ModelCatalog = lazyRetry(ModelCatalogFactory, "ModelCatalog");
 
 const GlossaryFactory = () => import("@/ml/GlossaryPage");
 const Glossary = lazyRetry(GlossaryFactory, "Glossary");
@@ -202,9 +202,9 @@ function Router() {
           <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
           <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
           <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
-          <Route path="/models"><Redirect to="/analytics?tab=catalog" /></Route>
-          <Route path="/model-catalog"><Redirect to="/analytics?tab=catalog" /></Route>
-          <Route path="/catalog"><Redirect to="/analytics?tab=catalog" /></Route>
+          <Route path="/models"><Redirect to="/model-catalog" /></Route>
+          <Route path="/model-catalog"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+          <Route path="/catalog"><Redirect to="/model-catalog" /></Route>
           <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
           <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
           <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>

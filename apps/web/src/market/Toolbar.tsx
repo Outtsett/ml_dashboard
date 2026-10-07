@@ -1,12 +1,9 @@
-﻿import { memo } from "react";
+import { memo } from "react";
 import { Button } from "@/shared/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/shared/ui/command";
-import {
-  Activity, DollarSign, ChevronsUpDown, Check,
-  Layers, ZapOff, Play, Square, PanelRightOpen,
-} from "lucide-react";
+import { Activity, DollarSign, ChevronsUpDown, Check, Layers, ZapOff } from "lucide-react";
 import { IndicatorSelector } from "@/market/components/IndicatorSelector";
 import { LakeSeriesSelector } from "@/market/components/LakeSeriesSelector";
 import type { LakeSeriesControls } from "@/market/lib/useLakeSeries";
@@ -60,12 +57,6 @@ interface ToolbarProps {
   showStructure: boolean;
   onToggleStructure: () => void;
   isTrainingActive: boolean;
-  // Training triggers (shared with ML Studio via TrainingContext)
-  onStartTraining: () => void;
-  onStopTraining: () => void;
-  isTrainingStarting: boolean;
-  // ML Panel
-  onOpenMlPanel?: () => void;
   // Data reset callback
   onResetScrollState: () => void;
 }
@@ -83,9 +74,7 @@ export const Toolbar = memo(function Toolbar({
   labelMarkerCount, labelDistribution, labelClassBalanceRatio,
   labelCoveredRange, labelChartExtendsPastLabels, labelsLoading, labelsError,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showStructure, onToggleStructure,
-  isTrainingActive,
-  onStartTraining, onStopTraining, isTrainingStarting,
-  onOpenMlPanel,
+  isTrainingActive: _isTrainingActive,
   onResetScrollState: _onResetScrollState,
 }: ToolbarProps) {
   return (
@@ -257,41 +246,6 @@ export const Toolbar = memo(function Toolbar({
       </div>
 
       <div className="flex-1" />
-
-      {/* Train / Stop button */}
-      {isTrainingActive ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-3 text-[11px] font-mono font-semibold border-[hsl(var(--data-neg)/0.25)] bg-[hsl(var(--data-neg)/0.1)] hover:bg-[hsl(var(--data-neg)/0.2)] hover:border-[hsl(var(--data-neg)/0.4)] text-[hsl(var(--data-neg))] gap-1.5"
-          onClick={onStopTraining}
-        >
-          <Square className="h-3 w-3" /> Stop
-          <span className="w-2 h-2 rounded-full bg-[hsl(var(--data-pos))] animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isTrainingStarting}
-          className="h-8 px-3 text-[11px] font-mono font-semibold border-[hsl(var(--data-pos)/0.25)] bg-[hsl(var(--data-pos)/0.1)] hover:bg-[hsl(var(--data-pos)/0.2)] hover:border-[hsl(var(--data-pos)/0.4)] text-[hsl(var(--data-pos))] gap-1.5 disabled:opacity-40"
-          onClick={onStartTraining}
-        >
-          <Play className="h-3 w-3" /> Train
-        </Button>
-      )}
-
-      {/* ML Tools drawer trigger */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 px-4 text-[11px] font-mono font-semibold border-primary/25 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 text-primary/90 hover:text-primary gap-2 shadow-[0_0_12px_rgba(96,165,250,0.08)]"
-        onClick={onOpenMlPanel}
-      >
-        <PanelRightOpen className="h-3.5 w-3.5" />
-        ML Tools
-        {isTrainingActive && <span className="w-2 h-2 rounded-full bg-[hsl(var(--data-pos))] animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />}
-      </Button>
     </div>
   );
 });

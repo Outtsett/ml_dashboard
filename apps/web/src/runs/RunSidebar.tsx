@@ -24,7 +24,14 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
   const selection = useSymbolContext();
   const models = useRunnableModels();
   const start = useStartRun(onStarted);
-  const [model, setModel] = useState("");
+  // the catalog's "Train" lands here with ?model=<key>
+  const [model, setModel] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("model") ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [symbol, setSymbol] = useState(selection.symbol || "MNQ");
   const [timeframe, setTimeframe] = useState(TIMEFRAMES.find((entry) => entry.minutes === selection.timeframeMinutes)?.label ?? "5m");
   const [trials, setTrials] = useState(20);

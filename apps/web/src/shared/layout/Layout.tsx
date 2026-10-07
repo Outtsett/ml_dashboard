@@ -1,8 +1,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { TopBar } from "../quant-layout/TopBar";
-import { LeftSidebar } from "../quant-layout/LeftSidebar";
 import { ActivityBar } from "../quant-layout/ActivityBar";
-import { BottomDock } from "../quant-layout/BottomDock";
 
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
@@ -19,7 +17,7 @@ function loadNavCollapsed(): boolean {
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(loadNavCollapsed);
+  const [_collapsed, setCollapsed] = useState(loadNavCollapsed);
 
   // A plain function: the React Compiler memoizes it.
   const toggleNav = () => {
@@ -54,13 +52,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 2. Global Activity Bar */}
-        <ActivityBar sidebarOpen={!collapsed} onToggleSidebar={toggleNav} />
-
-        {/* 3. Contextual Sidebar Navigation */}
-        <LeftSidebar collapsed={collapsed} onToggle={toggleNav} />
+        <ActivityBar sidebarOpen={false} onToggleSidebar={toggleNav} />
 
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {/* 4. Main Canvas */}
+          {/* 3. Main Canvas */}
           <main className="flex-1 bg-neutral-950 flex flex-col overflow-hidden relative">
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
@@ -70,8 +65,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             </ErrorBoundary>
           </main>
-          
-          <BottomDock />
         </div>
       </div>
     </div>
