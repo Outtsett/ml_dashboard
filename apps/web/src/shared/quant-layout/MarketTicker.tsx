@@ -1,7 +1,8 @@
 /**
  * The price tape across the top bar: every instrument the live data hub
  * carries (OANDA forex in real time, Yahoo futures about ten minutes behind),
- * scrolling right to left and paused while the pointer is over it.
+ * laid out as one still row (it does not scroll by itself; drag or wheel to
+ * see the rest).
  *
  * Each item carries the direction of its last price change as a glyph as well
  * as a colour, and a delayed quote says how far behind it is: a delayed price
@@ -16,9 +17,6 @@ import { trendGlyph, trendToneClass, type TrendTone } from "@/shared/theme/dataC
 
 /** A quote more than this far behind the exchange shows its delay. */
 const DELAYED_AFTER_SECONDS = 60;
-/** Scroll speed: seconds for one item to cross, so a longer tape is not faster. */
-const SECONDS_PER_ITEM = 3;
-
 const ASSET_ORDER: Record<LiveQuote["assetClass"], number> = { futures: 0, index: 1, forex: 2 };
 
 function priceOf(quote: LiveQuote): number | null {
@@ -105,18 +103,10 @@ export function MarketTicker() {
 
   return (
     <div
-      className="market-ticker relative h-full w-full overflow-hidden flex items-center text-xs"
+      className="market-ticker relative h-full w-full overflow-x-auto overflow-y-hidden flex items-center text-xs [scrollbar-width:none]"
       title={connected ? "Live prices from the live data hub" : "Live data hub stream reconnecting; prices may be stale"}
     >
-      {/* Two copies back to back: the track scrolls by exactly one copy, so the
-          loop has no seam. The second copy is hidden from screen readers. */}
-      <div
-        className="market-ticker-track flex w-max whitespace-nowrap"
-        style={{ animationDuration: `${sorted.length * SECONDS_PER_ITEM}s` }}
-      >
-        <div className="flex">{items}</div>
-        <div className="flex" aria-hidden="true">{items}</div>
-      </div>
+      <div className="flex w-max whitespace-nowrap">{items}</div>
       {!connected && (
         <span className="absolute right-0 top-1/2 -translate-y-1/2 bg-neutral-950 pl-2 text-[10px] text-neutral-500">
           reconnecting

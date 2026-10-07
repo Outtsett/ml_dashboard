@@ -21,22 +21,7 @@
   app-region: no-drag;
 }
 
-/* Top-bar price tape: the track holds two copies of the quotes and scrolls by
-   one copy, so the loop is seamless. Paused under the pointer. It scrolls even
-   under prefers-reduced-motion: this machine reports that whenever Windows'
-   animation effects are off, and a still tape was not the ticker asked for. */
-@keyframes market-ticker-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.market-ticker-track {
-  animation-name: market-ticker-scroll;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-.market-ticker:hover .market-ticker-track {
-  animation-play-state: paused;
-}
+/* The price tape in the top bar is still (2026-10-06); it scrolls only by hand. */
 
 /* Desktop titlebar */
 .titlebar {
