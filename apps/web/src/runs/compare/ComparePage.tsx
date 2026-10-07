@@ -332,7 +332,7 @@ export function VersionsView({ run, runs }: { run: RunView; runs: RunListItem[] 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="versions-view">
       <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card/40 px-3 py-1.5">
-        <span className="font-mono text-[11px] font-bold uppercase text-foreground">Versions of {label} on {run.setup?.symbol ?? "?"} {run.setup?.timeframe ?? ""}</span>
+        <span className="font-mono text-[11px] font-bold uppercase text-foreground">{run.id === "" ? "Versions of one model on one series" : `Versions of ${label} on ${run.setup?.symbol ?? "?"} ${run.setup?.timeframe ?? ""}`}</span>
         <span className="text-[11px] text-muted-foreground">· {line.length} run{line.length === 1 ? "" : "s"} in this line; pick up to {MAX_RUNS}. Only runs of this same model on this same series are compared.</span>
         <div className="ml-auto flex flex-wrap items-center gap-1">
           {line.map((entry) => {
@@ -349,7 +349,33 @@ export function VersionsView({ run, runs }: { run: RunView; runs: RunListItem[] 
       <Saved chosen={chosen} onOpen={(ids) => setChosen(ids.filter((id) => lineIds.has(id)))} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="space-y-4 p-3">
-          {views.length === 0 ? (
+          {run.id === "" ? (
+            // the view's shape with nothing in it: every panel in its place, each saying what fills it
+            <>
+              <div className="rounded-md border border-border bg-card/60 p-3 text-[11px] text-muted-foreground" data-testid="versions-placeholder">
+                <div className="text-[12px] font-semibold text-foreground">Every metric, one row per version</div>
+                The readout table: one row per chosen version, every scoreboard metric as a column, the best version in each column starred. Hover a heading for how the engine computes it. Only versions of the same model on the same series are shown together; no model is compared against another.
+              </div>
+              <div className="grid gap-2 xl:grid-cols-2">
+                {[
+                  ["Findings by run date", "One point per version at the time it ran: how many critical and warning findings it earned. A line that falls over time is a model getting better."],
+                  ["Validation loss, every version on one axis", "Each version's validation loss by training step for the chosen fold, one colour per version."],
+                  ["Net profit, every version on one axis", "Each version's running net profit by session day across its test windows, one colour per version."],
+                  ["Calibration, every version on one axis", "Each version's observed up-fraction against its predicted probability; the diagonal is honest."],
+                ].map(([title, caption]) => (
+                  <div key={title} className="flex min-h-[220px] flex-col rounded-md border border-border bg-card/60 p-3">
+                    <div className="text-[12px] font-semibold text-foreground">{title}</div>
+                    <div className="text-[11px] leading-snug text-muted-foreground">{caption}</div>
+                    <div className="flex flex-1 items-center justify-center text-[11px] text-muted-foreground">Lands with the first run.</div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-md border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
+                <div className="text-[12px] font-semibold text-foreground">One card per version</div>
+                Its purpose line, its family's panels in miniature, and its findings; saved comparisons keep a set of versions by name.
+              </div>
+            </>
+          ) : views.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground">Reading the versions.</div>
           ) : (
             <>

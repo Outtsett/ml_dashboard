@@ -108,7 +108,9 @@ function Readout({ name, value, folds }: { name: CycleMetricName; value: number 
 /** Every metric the run scored, each a readout with its fold-by-fold trace. */
 export function MetricReadouts({ metrics, folds }: { metrics: Record<string, number | null>; folds: RunFoldRow[] }) {
   const [family, setFamily] = useState<Family | "all">("all");
-  const present = CYCLE_METRIC_NAMES.filter((name) => (metrics[name] !== null && metrics[name] !== undefined) || folds.some((fold) => fold.metrics[name] != null));
+  const scored = CYCLE_METRIC_NAMES.filter((name) => (metrics[name] !== null && metrics[name] !== undefined) || folds.some((fold) => fold.metrics[name] != null));
+  // before anything is scored, every metric is shown at "—" so the page has its shape
+  const present = scored.length > 0 ? scored : [...CYCLE_METRIC_NAMES];
   const families = (["trading", "prediction", "price"] as Family[]).filter((entry) => present.some((name) => SPECS[name].family === entry));
   const shown = present.filter((name) => family === "all" || SPECS[name].family === family);
   return (

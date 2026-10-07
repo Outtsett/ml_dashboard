@@ -16,7 +16,8 @@ import { formatBarTime } from "@/runs/barTime";
 
 export function AttentionPanel({ run, focusTime, onFocusTime }: { run: RunView; focusTime: number | null; onFocusTime: (seconds: number) => void }) {
   const live = run.status === "running";
-  const manifestQuery = useExplainManifest(run.id, live);
+  // the empty page (no run yet) has nothing to read; the hook is held off with a null id
+  const manifestQuery = useExplainManifest(run.id === "" ? null : run.id, live);
   const manifest = manifestQuery.data;
   // with no bar chosen, the first test bar of the first fold whose model is saved
   const defaultFold = manifest?.folds.find((fold) => fold.direction === "ready") ?? null;
@@ -52,6 +53,8 @@ export function AttentionPanel({ run, focusTime, onFocusTime }: { run: RunView; 
       <div className="mt-2">
         {manifest?.available === false || (manifestQuery.isError && !manifest) ? (
           <div className="text-[11px] text-muted-foreground">This run saved no explain artifacts, so its attention cannot be read back.</div>
+        ) : run.id === "" ? (
+          <div className="text-[11px] text-muted-foreground">A transformer's attention lands here after each fold's final fit: one heat strip per head, over the bars of the window it read.</div>
         ) : !fold ? (
           <div className="text-[11px] text-muted-foreground">{manifestQuery.isLoading ? "Reading the run's artifacts." : "Choose a bar inside one of the run's test windows."}</div>
         ) : fold.direction !== "ready" ? (

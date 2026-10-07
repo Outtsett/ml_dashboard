@@ -13,8 +13,9 @@ import { useSearchParams } from "wouter";
 import { PanelLeftClose, PanelLeftOpen, Square } from "lucide-react";
 
 import { RUN_CATEGORIES, RUN_CATEGORY_LABELS, RUN_CATEGORY_QUESTIONS, type RunCategory, type RunView } from "@shared/runs/types";
+import { emptyRunView } from "@shared/runs/view";
 import { useRun, useRunList, useRunnableModels, useStopRun } from "@/runs/api";
-import { analyticsFamilyOf, FAMILY_LABELS, FAMILY_PANELS } from "@/runs/analytics/families";
+import { analyticsFamilyOf, FAMILY_LABELS, FAMILY_PANELS, type AnalyticsPanel } from "@/runs/analytics/families";
 import { formatDuration, formatStarted, shortModelType, SEVERITY_STYLE, STATUS_STYLE } from "@/runs/format";
 import { RunSidebar } from "@/runs/RunSidebar";
 import { RunTerminal } from "@/runs/RunTerminal";
@@ -55,6 +56,7 @@ function Section({ category, findings, children }: { category: RunCategory; find
 function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void; stopping: boolean }) {
   const status = STATUS_STYLE[run.status];
   const setup = run.setup;
+  const placeholder = run.id === "";
   const progress = run.progress;
   const elapsed = run.finishedAt ? (run.finishedAt - run.startedAt) / 1000 : progress?.elapsedSeconds ?? (Date.now() - run.startedAt) / 1000;
   const fraction = run.status === "running" ? progress?.overallFraction ?? 0 : 1;
@@ -76,9 +78,11 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
           {run.name}
           <span className="font-normal text-muted-foreground"> · {setup?.modelLabel ?? shortModelType(run.modelType)}{run.version ? ` v${run.version}` : ""}</span>
         </h1>
-        <span className="rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold" style={{ color: status.color, borderColor: status.color }}>
-          {status.glyph} {status.label}
-        </span>
+        {!placeholder && (
+          <span className="rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold" style={{ color: status.color, borderColor: status.color }}>
+            {status.glyph} {status.label}
+          </span>
+        )}
         {run.status === "running" && progress && (
           <span className="font-mono text-[11px] text-muted-foreground">
             {progress.phase}
@@ -86,9 +90,11 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
             {progress.trial !== null && progress.trialCount ? ` · trial ${progress.trial + 1} of ${progress.trialCount}` : ""}
           </span>
         )}
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {formatStarted(run.startedAt)} · {formatDuration(elapsed)}
-        </span>
+        {!placeholder && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {formatStarted(run.startedAt)} · {formatDuration(elapsed)}
+          </span>
+        )}
         {run.status === "running" && (
           <button
             type="button"
@@ -106,7 +112,7 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
           relaunched from <a href={`/training?run=${encodeURIComponent(run.lineage.parentRunId)}`} className="text-[#56B4E9] underline-offset-2 hover:underline">{run.lineage.parentName}</a>
         </div>
       )}
-      <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{facts.join(" · ") || run.id}</div>
+      <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{placeholder ? "Pick a model on the left and press Run, or tell Claude to run one. The page below is what a run fills in." : facts.join(" · ") || run.id}</div>
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-border/60">
         <div className="h-full" style={{ width: `${Math.round(fraction * 100)}%`, backgroundColor: status.color }} />
       </div>
@@ -121,7 +127,9 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
   const modelKey = run.modelType.replace(/\+walk_forward_cycle$/, "");
   const kind = models.data?.find((entry) => entry.key === modelKey)?.kind ?? null;
   const family = analyticsFamilyOf(kind, modelKey);
-  const panels = new Set(FAMILY_PANELS[family]);
+  // with no run at all, every family's panel is drawn empty so each analytic's place is visible
+  const placeholder = run.id === "";
+  const panels = new Set(placeholder ? (Object.values(FAMILY_PANELS).flat() as AnalyticsPanel[]) : FAMILY_PANELS[family]);
   const tilesOf = (category: RunCategory) => run.tiles.filter((tile) => tile.category === category);
   const scope = run.scoreScope === "running" ? `Numbers so far: ${run.barsEvaluated.toLocaleString("en-US")} test bars walked.` : null;
   return (
@@ -147,7 +155,7 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
           <Configuration configuration={run.configuration} runId={run.id} />
         </Section>
         <Section category="learning" findings={of("learning")}>
-          <div className="font-mono text-[10px] text-muted-foreground">Panels for a {FAMILY_LABELS[family].toLowerCase()}.</div>
+          <div className="font-mono text-[10px] text-muted-foreground">{placeholder ? "Every family's panels; a run draws the ones its model kind owns." : `Panels for a ${FAMILY_LABELS[family].toLowerCase()}.`}</div>
           <LossChart epochs={run.epochs} />
           {panels.has("learning_curves") && <LearningGrid epochs={run.epochs} />}
           {panels.has("loss_surface") && <LossSurfacePanel surfaces={run.lossSurfaces} modelLabel={run.setup?.modelLabel ?? null} />}
@@ -260,6 +268,10 @@ export default function RunPage() {
   }, [runs.data]);
 
   const run = useRun(selectedId);
+  // with no run at all, the page keeps its full shape over an empty view: every section and
+  // every metric is on screen at "—" and fills in as the first run reports
+  const noRunsYet = selectedId === null && runs.data !== undefined && runs.data.length === 0;
+  const shown: RunView | undefined = run.data ?? (noRunsYet ? emptyRunView() : undefined);
   const live = run.data?.status === "running";
   const bars = useRunBars(view === "terminal" ? selectedId : null, live);
   // the bar a terminal line named (chart scrolls there) and the bar clicked on the chart (terminal scrolls there)
@@ -270,9 +282,9 @@ export default function RunPage() {
     <div className="flex h-full w-full overflow-hidden bg-background" data-testid="run-page">
       {sidebarOpen && <RunSidebar runs={list} selectedId={selectedId} onSelect={select} onStarted={(response) => select(response.runId)} />}
       <main className="flex min-w-0 flex-1 flex-col">
-        {run.data ? (
+        {shown ? (
           <>
-            <RunHeader run={run.data} onStop={() => stop.mutate(run.data.id)} stopping={stop.isPending} />
+            <RunHeader run={shown} onStop={() => run.data && stop.mutate(run.data.id)} stopping={stop.isPending} />
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-card/40 px-3 py-1">
               <button
                 type="button"
@@ -299,15 +311,16 @@ export default function RunPage() {
                   {entry === "charts" ? "Charts" : entry === "terminal" ? "Terminal" : "Versions"}
                 </button>
               ))}
-              {view === "charts" && run.data.status === "running" && (
-                <span className="ml-2 font-mono text-[10px] text-muted-foreground">{run.data.logs.length.toLocaleString("en-US")} terminal lines so far</span>
+              {view === "charts" && shown.status === "running" && (
+                <span className="ml-2 font-mono text-[10px] text-muted-foreground">{shown.logs.length.toLocaleString("en-US")} terminal lines so far</span>
               )}
+              {noRunsYet && <span className="ml-2 font-mono text-[10px] text-[#E69F00]">no run yet — every panel fills in as the first run reports</span>}
             </div>
             <div className="min-h-0 flex-1">
               {view === "charts" ? (
-                <RunBody run={run.data} focusTime={focusTime} onFocusTime={(seconds) => { setSeekTime(seconds); setFocusTime(seconds); }} />
+                <RunBody run={shown} focusTime={focusTime} onFocusTime={(seconds) => { setSeekTime(seconds); setFocusTime(seconds); }} />
               ) : view === "versions" ? (
-                <VersionsView run={run.data} runs={list} />
+                <VersionsView run={shown} runs={list} />
               ) : (
                 <ResizablePanelGroup direction="vertical" autoSaveId="run-terminal-split" className="h-full">
                   <ResizablePanel defaultSize={50} minSize={20}>
@@ -323,7 +336,7 @@ export default function RunPage() {
                   </ResizablePanel>
                   <ResizableHandle withHandle />
                   <ResizablePanel defaultSize={50} minSize={20}>
-                    <RunTerminal lines={run.data.logs} live={live} onLocate={setFocusTime} seekTime={seekTime} />
+                    <RunTerminal lines={shown.logs} live={live} onLocate={setFocusTime} seekTime={seekTime} />
                   </ResizablePanel>
                 </ResizablePanelGroup>
               )}

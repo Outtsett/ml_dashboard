@@ -61,10 +61,10 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function tilesOf(metrics: Record<string, number | null>): RunMetricTile[] {
+export function tilesOf(metrics: Record<string, number | null>, every = false): RunMetricTile[] {
   const tiles: RunMetricTile[] = [];
   for (const spec of TILE_SPECS) {
-    if (!(spec.name in metrics)) continue;
+    if (!every && !(spec.name in metrics)) continue;
     let baseline: RunMetricTile["baseline"] = null;
     if (spec.baseline) {
       if ("metric" in spec.baseline) {
@@ -241,6 +241,42 @@ export function logsAfter(logs: readonly CycleLogLine[], cursor: LogCursor | nul
     if (line.receivedAt < cursor.receivedAt) break;
   }
   return { lines: logs.slice(-LOG_TAIL_LINES), reset: true };
+}
+
+/**
+ * The page's shape with nothing in it: every section, every tile and readout at
+ * "—", so the analytics are on screen before a run exists and fill in as one runs.
+ */
+export function emptyRunView(): RunView {
+  return {
+    id: "",
+    name: "No run yet",
+    version: null,
+    modelType: "",
+    status: "complete",
+    error: null,
+    startedAt: 0,
+    finishedAt: null,
+    setup: null,
+    configuration: null,
+    lineage: null,
+    progress: null,
+    scoreScope: null,
+    barsEvaluated: 0,
+    tiles: tilesOf({}, true),
+    metrics: {},
+    verdicts: [],
+    epochs: [],
+    lossSurfaces: [],
+    gateRoutings: [],
+    trials: [],
+    folds: [],
+    daily: [],
+    calibration: [],
+    confusion: [],
+    logs: [],
+    logsReset: true,
+  };
 }
 
 export function buildRunView(
