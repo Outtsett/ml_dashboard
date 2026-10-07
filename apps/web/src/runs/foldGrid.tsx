@@ -9,6 +9,7 @@ import { useState } from "react";
 import { CYCLE_METRIC_NAMES, type CycleMetricName } from "@shared/cycle/schema";
 import type { RunFoldRow } from "@shared/runs/types";
 import { Chip } from "@/runs/learning";
+import { howComputed } from "@/runs/howComputed";
 
 type Family = "trading" | "prediction" | "price";
 
@@ -91,7 +92,7 @@ function Readout({ name, value, folds }: { name: CycleMetricName; value: number 
   const spec = SPECS[name];
   const perFold = folds.map((fold) => fold.metrics[name] ?? null);
   return (
-    <div className="rounded border border-border bg-card/60 px-2 py-1.5" data-testid={`metric-readout-${name}`} title={spec.meaning}>
+    <div className="rounded border border-border bg-card/60 px-2 py-1.5" data-testid={`metric-readout-${name}`} title={howComputed(name, spec.label)}>
       <div className="truncate font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{spec.label}</div>
       <div className="font-mono text-[18px] font-semibold tabular-nums leading-tight text-foreground">{value === null ? "—" : spec.format(value)}</div>
       <div className="truncate text-[10px] leading-snug text-muted-foreground">{spec.meaning}</div>
@@ -114,7 +115,7 @@ export function MetricReadouts({ metrics, folds }: { metrics: Record<string, num
     <div className="space-y-2" data-testid="metric-readouts">
       <div className="flex flex-wrap items-center gap-1">
         <span className="mr-1 text-[11px] text-muted-foreground">
-          Every one of the {present.length} metrics the run scored, as a readout: the run's number, what it means, and the thin line of its value in each fold (orange dot: the latest fold).
+          Every one of the {present.length} metrics the run scored, as a readout: the run's number, what it means, and the thin line of its value in each fold (orange dot: the latest fold). Hover any readout for exactly how the engine computes it.
         </span>
         <Chip active={family === "all"} onClick={() => setFamily("all")}>All</Chip>
         {families.map((entry) => (

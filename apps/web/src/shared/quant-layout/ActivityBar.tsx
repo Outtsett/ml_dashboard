@@ -12,13 +12,12 @@
 
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { Database, BookMarked, BarChart3, Activity, BrainCircuit, Settings, Layers,
+import { Database, BookMarked, BarChart3, BrainCircuit, Settings, Layers,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
   { label: "Catalog", href: "/model-catalog", icon: Database },
-  { label: "Analytics", href: "/analytics", icon: Activity },
   { label: "AI Studio", href: "/training", icon: BrainCircuit },
   { label: "Data", href: "/databases", icon: Layers },
   { label: "Knowledge", href: "/studies", icon: BookMarked },
@@ -42,8 +41,6 @@ export function ActivityBar({}: ActivityBarProps = {}) {
             isActive = pathname === "/";
           } else if (item.href === "/model-catalog") {
             isActive = pathname.startsWith("/models") || pathname.startsWith("/model-catalog") || pathname.startsWith("/catalog");
-          } else if (item.href === "/analytics") {
-            isActive = pathname.startsWith("/analytics") || pathname.startsWith("/inference");
           } else if (item.href === "/training") {
             isActive = pathname.startsWith("/training");
           } else if (item.href === "/studies") {

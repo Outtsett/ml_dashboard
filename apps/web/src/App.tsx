@@ -68,14 +68,12 @@ const RegressionFactory = () => import("@/market/regression/RegressionPage");
 const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
 
-// The Analytics tab is the many-runs complement of the run page (2026-10-07).
-// The model catalog is its own page at /model-catalog; the old analytics page
+// Analytics lives inside AI Studio since 2026-10-07 (the run page's Versions view);
+// the model catalog is its own page at /model-catalog. The old analytics page
 // (`@/analytics/AnalyticsPage`) stays importable but nothing routes to it.
-const CompareFactory = () => import("@/runs/compare/ComparePage");
-const Compare = lazyRetry(CompareFactory, "Compare");
 function AnalyticsRoute() {
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "catalog") return <Redirect to="/model-catalog" />;
-  return <Compare />;
+  return <Redirect to="/training" />;
 }
 
 

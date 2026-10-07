@@ -1,8 +1,7 @@
 /**
- * The Analytics tab (`/analytics`): the many-runs complement of the run page.
- * Pick runs on the left (by model, symbol, timeframe); the same numbers and
- * panels the run page shows for one run are laid side by side for several,
- * from the same `RunView`, so nothing here is a second definition of anything.
+ * The Versions view of the run page: the open run's line (same model, same
+ * symbol and timeframe) side by side, from the same `RunView` the run page
+ * reads, so nothing here is a second definition of anything.
  *
  *   readouts   every headline metric, one row per run, the best in each column marked
  *   verdicts   how many critical / warning findings each run carries, by when it ran
@@ -11,18 +10,19 @@
  *
  * Comparisons are saved on disk through `/api/runs/comparisons`.
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useSearchParams } from "wouter";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 
 import type { RunListItem, RunView } from "@shared/runs/types";
 import { TILE_SPECS } from "@shared/runs/view";
 import { COIN_FLIP_LOG_LOSS } from "@shared/runs/verdicts";
-import { useRunList, useRunnableModels } from "@/runs/api";
-import { formatStarted, formatValue, shortModelType, STATUS_STYLE } from "@/runs/format";
+import { useRunnableModels } from "@/runs/api";
+import { formatValue, shortModelType, STATUS_STYLE } from "@/runs/format";
 import { analyticsFamilyOf, FAMILY_LABELS, FAMILY_PANELS } from "@/runs/analytics/families";
 import { Chip, LossSurfacePanel } from "@/runs/learning";
 import { useComparisons, useDeleteComparison, useRunViews, useSaveComparison } from "@/runs/compare/api";
+import { howComputed } from "@/runs/howComputed";
 
 const MAX_RUNS = 6;
 /** One colour per chosen run, Okabe-Ito. */
@@ -48,53 +48,6 @@ function Frame({ title, caption, children, controls }: { title: string; caption:
 
 function Empty({ children }: { children: ReactNode }) {
   return <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">{children}</div>;
-}
-
-// ─── picker ─────────────────────────────────────────────────────────────────
-
-function Picker({ runs, chosen, onToggle }: { runs: RunListItem[]; chosen: string[]; onToggle: (id: string) => void }) {
-  const [search, setSearch] = useState("");
-  const needle = search.trim().toLowerCase();
-  const shown = needle === "" ? runs : runs.filter((run) => `${run.name} ${run.modelType} ${run.symbol} ${run.timeframe} ${run.status}`.toLowerCase().includes(needle));
-  const groups = new Map<string, RunListItem[]>();
-  for (const run of shown) {
-    const key = `${shortModelType(run.modelType)} · ${run.symbol ?? "?"} ${run.timeframe ?? ""}`;
-    groups.set(key, [...(groups.get(key) ?? []), run]);
-  }
-  return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card/40" data-testid="compare-picker">
-      <div className="flex items-center gap-2 border-b border-border px-2 py-1.5">
-        <span className="font-mono text-[11px] font-bold uppercase text-foreground">Runs</span>
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter" className="h-6 w-full rounded border border-border bg-transparent px-2 font-mono text-[12px] outline-none" />
-        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{chosen.length}/{MAX_RUNS}</span>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {[...groups.entries()].map(([key, members]) => (
-          <div key={key} className="border-b border-border/70">
-            <div className="bg-foreground/[0.04] px-2 py-1 font-mono text-[11px] font-bold text-foreground">{key}</div>
-            {members.map((run) => {
-              const on = chosen.includes(run.id);
-              const full = !on && chosen.length >= MAX_RUNS;
-              const status = STATUS_STYLE[run.status];
-              return (
-                <label key={run.id} className={`flex cursor-pointer items-start gap-2 border-b border-border/40 px-2 py-1 ${on ? "bg-foreground/10" : "hover:bg-foreground/5"} ${full ? "opacity-50" : ""}`}>
-                  <input type="checkbox" checked={on} disabled={full} onChange={() => onToggle(run.id)} className="mt-0.5" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-1">
-                      <span className="truncate font-mono text-[12px] font-semibold text-foreground">{run.name}</span>
-                      <span className="shrink-0 font-mono text-[10px] font-bold" style={{ color: status.color }}>{status.glyph}</span>
-                    </span>
-                    <span className="block truncate font-mono text-[10px] text-muted-foreground">v{run.version} · {formatStarted(run.startedAt)}{run.sharpeRatio === null ? "" : ` · Sharpe ${run.sharpeRatio.toFixed(2)}`}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        ))}
-        {shown.length === 0 && <div className="p-3 font-mono text-[11px] text-muted-foreground">No runs. Launch one in AI Studio.</div>}
-      </div>
-    </aside>
-  );
 }
 
 // ─── saved comparisons ──────────────────────────────────────────────────────
@@ -154,7 +107,7 @@ function ReadoutTable({ views }: { views: RunView[] }) {
           <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
             <th className="px-2 py-1.5">Run</th>
             {specs.map((spec) => (
-              <th key={spec.name} className="px-2 py-1.5 text-right" title={spec.baseline ? `beats: ${spec.baseline.label}` : undefined}>{spec.label}</th>
+              <th key={spec.name} className="cursor-help px-2 py-1.5 text-right" title={howComputed(spec.name, spec.label) + (spec.baseline ? `\n\nJudged against: ${spec.baseline.label}` : "")}>{spec.label}</th>
             ))}
           </tr>
         </thead>
@@ -180,7 +133,7 @@ function ReadoutTable({ views }: { views: RunView[] }) {
           ))}
         </tbody>
       </table>
-      <div className="px-2 py-1 text-[10px] text-muted-foreground">★ the best of the chosen runs in that column (higher or lower as the metric wants). The run page judges each against its baseline; this table only ranks.</div>
+      <div className="px-2 py-1 text-[10px] text-muted-foreground">★ the best of the chosen versions in that column (higher or lower as the metric wants). Hover a column heading for exactly how the engine computes it. The run page judges each against its baseline; this table only ranks.</div>
     </div>
   );
 }
@@ -350,62 +303,72 @@ function RunCard({ view, color, kind }: { view: RunView; color: string; kind: st
 
 // ─── page ───────────────────────────────────────────────────────────────────
 
-export default function ComparePage() {
+/**
+ * The Versions view of the run page: this run's line — every run of the same
+ * model on the same symbol and timeframe — side by side. Runs of different
+ * models are never compared here: they answer different questions.
+ */
+export function VersionsView({ run, runs }: { run: RunView; runs: RunListItem[] }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const runs = useRunList();
   const models = useRunnableModels();
-  const chosen = (searchParams.get("runs") ?? "").split(",").filter((id) => id.length > 0).slice(0, MAX_RUNS);
+  const line = runs.filter((entry) => entry.modelType === run.modelType && entry.symbol === (run.setup?.symbol ?? entry.symbol) && entry.timeframe === (run.setup?.timeframe ?? entry.timeframe));
+  const lineIds = new Set(line.map((entry) => entry.id));
+  const fromUrl = (searchParams.get("versions") ?? "").split(",").filter((id) => lineIds.has(id));
+  // by default the newest versions of the line, the open run always among them
+  const chosen = (fromUrl.length > 0 ? fromUrl : [run.id, ...line.map((entry) => entry.id).filter((id) => id !== run.id)].slice(0, MAX_RUNS)).slice(0, MAX_RUNS);
   function setChosen(ids: string[]) {
     setSearchParams((previous) => {
       const next = new URLSearchParams(previous);
-      if (ids.length === 0) next.delete("runs");
-      else next.set("runs", ids.join(","));
+      if (ids.length === 0) next.delete("versions");
+      else next.set("versions", ids.join(","));
       return next;
     }, { replace: true });
   }
-  // with nothing chosen, the two newest runs are compared
-  useEffect(() => {
-    if (chosen.length === 0 && runs.data && runs.data.length > 0 && searchParams.get("runs") === null) setChosen(runs.data.slice(0, 2).map((run) => run.id));
-    // only on first load of the list
-
-  }, [runs.data]);
-
   const results = useRunViews(chosen);
   const views = results.map((result) => result.data).filter((view): view is RunView => view !== undefined);
-  const kindOf = (view: RunView) => models.data?.find((entry) => entry.key === view.modelType.replace(/\+walk_forward_cycle$/, ""))?.kind ?? null;
+  const kind = models.data?.find((entry) => entry.key === run.modelType.replace(/\+walk_forward_cycle$/, ""))?.kind ?? null;
+  const label = run.setup?.modelLabel ?? shortModelType(run.modelType);
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background" data-testid="compare-page">
-      <Picker runs={runs.data ?? []} chosen={chosen} onToggle={(id) => setChosen(chosen.includes(id) ? chosen.filter((entry) => entry !== id) : [...chosen, id])} />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-border bg-card/40 px-3 py-2">
-          <h1 className="font-mono text-[15px] font-bold text-foreground">Analytics <span className="font-normal text-muted-foreground">· {views.length} run{views.length === 1 ? "" : "s"} side by side</span></h1>
-          <div className="text-[11px] text-muted-foreground">The run page reads one run; this reads several from the same numbers. Pick up to {MAX_RUNS} on the left, or open a saved comparison.</div>
-        </header>
-        <Saved chosen={chosen} onOpen={setChosen} />
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-4 p-3">
-            {views.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">{runs.isLoading ? "Loading runs." : "Pick runs on the left."}</div>
-            ) : (
-              <>
-                <ReadoutTable views={views} />
-                <div className="grid gap-2 xl:grid-cols-2">
-                  <VerdictScatter views={views} />
-                  <LossOverlay views={views} />
-                  <EquityOverlay views={views} />
-                  <CalibrationOverlay views={views} />
-                </div>
-                <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
-                  {views.map((view, index) => (
-                    <RunCard key={view.id} view={view} color={RUN_COLORS[index % RUN_COLORS.length]!} kind={kindOf(view)} />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+    <div className="flex h-full min-h-0 flex-col" data-testid="versions-view">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card/40 px-3 py-1.5">
+        <span className="font-mono text-[11px] font-bold uppercase text-foreground">Versions of {label} on {run.setup?.symbol ?? "?"} {run.setup?.timeframe ?? ""}</span>
+        <span className="text-[11px] text-muted-foreground">· {line.length} run{line.length === 1 ? "" : "s"} in this line; pick up to {MAX_RUNS}. Only runs of this same model on this same series are compared.</span>
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          {line.map((entry) => {
+            const on = chosen.includes(entry.id);
+            const full = !on && chosen.length >= MAX_RUNS;
+            return (
+              <Chip key={entry.id} active={on} onClick={() => !full && setChosen(on ? chosen.filter((id) => id !== entry.id) : [...chosen, entry.id])}>
+                v{entry.version} {entry.name}
+              </Chip>
+            );
+          })}
         </div>
-      </main>
+      </div>
+      <Saved chosen={chosen} onOpen={(ids) => setChosen(ids.filter((id) => lineIds.has(id)))} />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-4 p-3">
+          {views.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">Reading the versions.</div>
+          ) : (
+            <>
+              <ReadoutTable views={views} />
+              <div className="grid gap-2 xl:grid-cols-2">
+                <VerdictScatter views={views} />
+                <LossOverlay views={views} />
+                <EquityOverlay views={views} />
+                <CalibrationOverlay views={views} />
+              </div>
+              <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+                {views.map((view, index) => (
+                  <RunCard key={view.id} view={view} color={RUN_COLORS[index % RUN_COLORS.length]!} kind={kind} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -57,6 +57,15 @@ reads that file back. The lake record does not carry it. The grid size is the cy
 a feedforward network; 0 turns it off); a tuning trial's fit never computes one. A tree model has
 no weights to perturb and the page says so.
 
+### Transparency
+
+Every metric carries how the engine computes it: `packages/shared/src/runs/metricDefinitions.ts`
+(30 definitions read from `cycle/metrics.py` and `simulate.py` and verified against them) is shown
+on hover on every tile, readout and versions-table heading (`runs/howComputed.ts`). The purpose
+line is complete sentences (`runPurpose`): the instrument and bar size, exactly what is predicted
+over what horizon in bars and clock time, and how the settings were chosen. The verdict is the last
+section of the page.
+
 ### The five sections and the verdict
 
 | Section | Question | Shows |
@@ -124,11 +133,12 @@ Each has a passing counterpart where a pass says something (`accuracy_edge`, `ra
   record does not carry the lines; a recorded run reads it back. Runs from before 2026-10-06 have
   no terminal.
 
-## The Analytics tab (`/analytics`, `apps/web/src/runs/compare/`)
+## The Versions view (`apps/web/src/runs/compare/`)
 
-The many-runs complement of the run page, rebuilt 2026-10-07 on the same `RunView`: pick up to six
-runs on the left (grouped by model, symbol and timeframe; the two newest open by default; the choice
-is in the URL as `?runs=a,b`), and read them side by side — every headline metric as a table with
+Analytics lives inside AI Studio (since 2026-10-07 15:00; `/analytics` redirects to `/training`, the
+nav item is gone): the run page's third view, **Versions**, compares the open run's line — runs of
+the same model on the same symbol and timeframe, never different models against each other. Up to
+six versions (chips; the choice is in the URL as `?versions=a,b`), read side by side — every headline metric as a table with
 one row per run and the best of each column starred; critical and warning counts by when each run
 ran; validation loss by step, running net profit by session day and calibration with every run on
 one axis; and one card per run with the panels its family owns (`runs/analytics/families.ts`, the

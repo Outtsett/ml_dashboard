@@ -30,6 +30,7 @@ import { MetricReadouts } from "@/runs/foldGrid";
 import { Configuration } from "@/runs/Configuration";
 import { AttentionPanel } from "@/runs/analytics/AttentionPanel";
 import { GateRoutingPanel } from "@/runs/analytics/GateRoutingPanel";
+import { VersionsView } from "@/runs/compare/ComparePage";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
   const critical = findings.filter((verdict) => verdict.severity === "critical").length;
@@ -142,9 +143,6 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
         {scope && <span className="ml-auto font-mono text-[10px] text-[#E69F00]">{scope}</span>}
       </nav>
       <div className="space-y-6 p-3">
-        <Section category="verdict" findings={run.verdicts}>
-          <Verdicts status={run.status} verdicts={run.verdicts} />
-        </Section>
         <Section category="configuration" findings={[]}>
           <Configuration configuration={run.configuration} runId={run.id} />
         </Section>
@@ -175,6 +173,9 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
           <FoldsChart folds={run.folds} />
           <MetricReadouts metrics={run.metrics} folds={run.folds} />
         </Section>
+        <Section category="verdict" findings={run.verdicts}>
+          <Verdicts status={run.status} verdicts={run.verdicts} />
+        </Section>
       </div>
     </div>
   );
@@ -187,14 +188,15 @@ export default function RunPage() {
   const requested = searchParams.get("run");
   const [selectedId, setSelectedId] = useState<string | null>(requested);
   // the terminal is a page of its own, not a pane beside the charts; the choice is remembered
-  const [view, setViewState] = useState<"charts" | "terminal">(() => {
+  const [view, setViewState] = useState<"charts" | "terminal" | "versions">(() => {
     try {
-      return window.localStorage.getItem("run-page-view") === "terminal" ? "terminal" : "charts";
+      const stored = window.localStorage.getItem("run-page-view");
+      return stored === "terminal" || stored === "versions" ? stored : "charts";
     } catch {
       return "charts";
     }
   });
-  function setView(next: "charts" | "terminal") {
+  function setView(next: "charts" | "terminal" | "versions") {
     setViewState(next);
     try {
       window.localStorage.setItem("run-page-view", next);
@@ -271,7 +273,7 @@ export default function RunPage() {
                 {sidebarOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
                 Runs
               </button>
-              {(["charts", "terminal"] as const).map((entry) => (
+              {(["charts", "terminal", "versions"] as const).map((entry) => (
                 <button
                   key={entry}
                   type="button"
@@ -281,7 +283,7 @@ export default function RunPage() {
                   }`}
                   data-testid={`view-${entry}`}
                 >
-                  {entry === "charts" ? "Charts" : "Terminal"}
+                  {entry === "charts" ? "Charts" : entry === "terminal" ? "Terminal" : "Versions"}
                 </button>
               ))}
               {view === "charts" && run.data.status === "running" && (
@@ -291,6 +293,8 @@ export default function RunPage() {
             <div className="min-h-0 flex-1">
               {view === "charts" ? (
                 <RunBody run={run.data} focusTime={focusTime} onFocusTime={(seconds) => { setSeekTime(seconds); setFocusTime(seconds); }} />
+              ) : view === "versions" ? (
+                <VersionsView run={run.data} runs={list} />
               ) : (
                 <ResizablePanelGroup direction="vertical" autoSaveId="run-terminal-split" className="h-full">
                   <ResizablePanel defaultSize={50} minSize={20}>

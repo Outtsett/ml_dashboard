@@ -1,4 +1,5 @@
 /** A section's headline numbers, each beside the value it has to beat. */
+import { howComputed } from "@/runs/howComputed";
 import type { RunMetricTile } from "@shared/runs/types";
 import { formatValue, standingOf } from "@/runs/format";
 
@@ -14,8 +15,8 @@ export function Tiles({ tiles }: { tiles: RunMetricTile[] }) {
       {tiles.map((tile) => {
         const standing = standingOf(tile);
         return (
-          <div key={tile.name} className="rounded-md border border-border bg-card/60 px-3 py-2" data-testid={`tile-${tile.name}`}>
-            <div className="font-mono text-[10px] uppercase text-muted-foreground">{tile.label}</div>
+          <div key={tile.name} className="cursor-help rounded-md border border-border bg-card/60 px-3 py-2" data-testid={`tile-${tile.name}`} title={howComputed(tile.name, tile.label)}>
+            <div className="font-mono text-[10px] uppercase text-muted-foreground">{tile.label} <span className="text-[9px] normal-case text-muted-foreground/70">· hover: how it is computed</span></div>
             <div className="font-mono text-lg font-semibold tabular-nums text-foreground">{formatValue(tile.value, tile.unit)}</div>
             {tile.baseline && (
               <div className="font-mono text-[10px] leading-tight text-muted-foreground">

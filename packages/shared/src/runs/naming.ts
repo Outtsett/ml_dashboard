@@ -95,22 +95,47 @@ const OBJECTIVE_WORDS: Record<string, string> = {
  * far ahead, and how its settings were chosen. Built from the plan the engine
  * announced, so it is true of the run rather than of the model in general.
  */
+/** `5m` → `5-minute`, `1h` → `1-hour`; null when the timeframe is not of that shape. */
+function timeframeWords(timeframe: string | null | undefined): string | null {
+  const match = /^(\d+)(m|h|d)$/.exec(timeframe ?? "");
+  if (!match) return null;
+  const unit = { m: "minute", h: "hour", d: "day" }[match[2] as "m" | "h" | "d"];
+  return `${Number(match[1])}-${unit}`;
+}
+
+/** The horizon as a clock span: `6 bars (30 minutes)` for 6 bars of 5 minutes; bars alone when the timeframe is unknown. */
+function horizonWords(bars: number, timeframe: string | null | undefined): string {
+  const match = /^(\d+)(m|h|d)$/.exec(timeframe ?? "");
+  if (!match) return `${bars} bar${bars === 1 ? "" : "s"}`;
+  const minutes = Number(match[1]) * { m: 1, h: 60, d: 1440 }[match[2] as "m" | "h" | "d"] * bars;
+  const span = minutes % 1440 === 0 && minutes >= 1440 ? `${minutes / 1440} day${minutes === 1440 ? "" : "s"}` : minutes % 60 === 0 && minutes >= 60 ? `${minutes / 60} hour${minutes === 60 ? "" : "s"}` : `${minutes} minutes`;
+  return `${bars} bar${bars === 1 ? "" : "s"} (${span})`;
+}
+
+/**
+ * What the run is and does, in complete sentences a reader can check against the
+ * data: the instrument and bar size, exactly what is predicted and over what
+ * horizon, and how the settings were chosen. Never shorthand.
+ */
 export function runPurpose(input: PurposeInput): string {
-  const parts: string[] = [input.modelLabel];
+  const series = input.symbol ? `${input.symbol}${timeframeWords(input.timeframe) ? ` on ${timeframeWords(input.timeframe)} bars` : input.timeframe ? ` ${input.timeframe}` : ""}` : "the series";
+  const horizon = input.labelHorizonBars ? horizonWords(input.labelHorizonBars, input.timeframe) : null;
+  const close = horizon ? `the close ${horizon} after each bar` : "a later close";
+  const sentences: string[] = [];
   if (input.directionMode === "from_price") {
-    parts.push("price model, direction taken from the forecast");
+    sentences.push(`${input.modelLabel} forecasts ${series}: for every bar it predicts where ${close} will be, in points, and the direction it trades is the sign of that forecast.`);
   } else if (input.hasPriceModel) {
-    parts.push("direction classifier + price model");
+    sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up), and a second model predicts how far it will move, in points.`);
   } else if (input.directionMode === "classifier") {
-    parts.push("direction classifier");
+    sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up).`);
+  } else {
+    sentences.push(`${input.modelLabel} on ${series}, predicting ${close}.`);
   }
-  if (input.symbol) parts.push(`${input.symbol}${input.timeframe ? ` ${input.timeframe}` : ""}`);
-  if (input.labelHorizonBars) parts.push(`calls the move ${input.labelHorizonBars} bars ahead`);
   if (input.tuningTrialCount && input.tuningTrialCount > 0) {
     const objective = input.tuningObjective ? OBJECTIVE_WORDS[input.tuningObjective] ?? input.tuningObjective : "its objective";
-    parts.push(`settings searched on ${objective}, ${input.tuningTrialCount} trials per fold`);
+    sentences.push(`Inside every fold, ${input.tuningTrialCount} candidate setting${input.tuningTrialCount === 1 ? "" : "s"} were tried on that fold's own training bars and the one with the best ${objective} was kept.`);
   } else if (input.tuningTrialCount === 0) {
-    parts.push("reviewed default settings");
+    sentences.push("Settings are the registry's reviewed defaults; nothing was searched.");
   }
-  return parts.join(" · ");
+  return sentences.join(" ");
 }

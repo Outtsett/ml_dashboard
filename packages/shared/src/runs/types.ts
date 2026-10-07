@@ -9,7 +9,7 @@
 import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
 
 /** The six fixed sections every run page shows, in this order. */
-export const RUN_CATEGORIES = ["verdict", "configuration", "learning", "prediction", "trading", "tuning", "folds"] as const;
+export const RUN_CATEGORIES = ["configuration", "learning", "prediction", "trading", "tuning", "folds", "verdict"] as const;
 export type RunCategory = (typeof RUN_CATEGORIES)[number];
 
 export const RUN_CATEGORY_LABELS: Record<RunCategory, string> = {

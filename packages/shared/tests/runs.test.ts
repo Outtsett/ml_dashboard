@@ -400,13 +400,13 @@ describe("naming", () => {
     expect([...versions.entries()]).toEqual(expect.arrayContaining([["a", 1], ["c", 2], ["b", 1], ["d", 1]]));
   });
 
-  it("says what the run is and does in one line", async () => {
+  it("says what the run is and does in complete sentences a reader can check", async () => {
     const { runPurpose } = await import("@shared/runs/naming");
-    expect(
-      runPurpose({ modelLabel: "XGBoost", symbol: "MNQ", timeframe: "5m", directionMode: "classifier", hasPriceModel: true, labelHorizonBars: 6, tuningObjective: "sharpe_ratio", tuningTrialCount: 20 }),
-    ).toBe("XGBoost · direction classifier + price model · MNQ 5m · calls the move 6 bars ahead · settings searched on Sharpe ratio, 20 trials per fold");
-    expect(runPurpose({ modelLabel: "LSTM", symbol: "ES", timeframe: "1m", directionMode: "classifier", hasPriceModel: false, labelHorizonBars: 12, tuningTrialCount: 0 })).toBe(
-      "LSTM · direction classifier · ES 1m · calls the move 12 bars ahead · reviewed default settings",
+    const purpose = runPurpose({ modelLabel: "XGBoost", symbol: "MNQ", timeframe: "5m", directionMode: "classifier", hasPriceModel: true, labelHorizonBars: 6, tuningObjective: "sharpe_ratio", tuningTrialCount: 4 });
+    expect(purpose).toBe(
+      "XGBoost on MNQ on 5-minute bars: for every bar it predicts whether the close 6 bars (30 minutes) after each bar will be above or below that bar's close (a direction classifier, giving a probability of up), and a second model predicts how far it will move, in points. Inside every fold, 4 candidate settings were tried on that fold's own training bars and the one with the best Sharpe ratio was kept.",
     );
+    expect(runPurpose({ modelLabel: "LSTM", symbol: "ES", timeframe: "1h", directionMode: "classifier", hasPriceModel: false, labelHorizonBars: 24, tuningObjective: null, tuningTrialCount: 0 })).toContain("24 bars (1 day)");
+    expect(runPurpose({ modelLabel: "LSTM", symbol: "ES", timeframe: "1h", directionMode: "classifier", hasPriceModel: false, labelHorizonBars: 24, tuningObjective: null, tuningTrialCount: 0 })).toContain("reviewed defaults; nothing was searched");
   });
 });
