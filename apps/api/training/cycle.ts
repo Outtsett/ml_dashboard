@@ -37,6 +37,16 @@ import {
 } from "@shared/cycle/schema";
 import { getEventBus } from "../infrastructure/events";
 import { refreshDerivedViews } from "../infrastructure/database/lake";
+import { recordFinish, recordFoldParameters, recordPlan, takePendingParent } from "./runRecords";
+
+/** The entity rows are a record beside the snapshot; a failed write is logged, never a lost event. */
+function recordSafely(what: string, write: () => void): void {
+  try {
+    write();
+  } catch (error) {
+    console.warn(`[cycle] ${what} not recorded: ${String(error)}`);
+  }
+}
 
 /** How many `cycle_*` runs' state is kept in memory at once. */
 const MAX_TRACKED_RUNS = 5;
@@ -144,6 +154,7 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
   switch (type) {
     case "cycle_plan":
       run.plan = data as unknown as CyclePlan;
+      recordSafely("plan", () => recordPlan(run.modelId, run.modelType, run.plan!, run.startedAt, takePendingParent(run.modelId)));
       return;
     case "cycle_bars":
       appendBars(run.bars, data as unknown as CycleBars);
@@ -165,6 +176,7 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
     case "cycle_parameters": {
       const parameters = data as unknown as CycleParameters;
       run.parameters.set(parameters.foldIndex ?? -1, parameters);
+      recordSafely("fold parameters", () => recordFoldParameters(run.modelId, parameters));
       return;
     }
     case "cycle_trade": {
@@ -196,6 +208,7 @@ function finishRun(run: CycleRunState, status: CycleRunStatus, error: string | n
   run.status = status;
   run.error = error;
   run.finishedAt = finishedAt;
+  recordSafely("finish", () => recordFinish(toSnapshot(run), status, error, finishedAt));
   // the process landed its record tables while it ran; the serving views for
   // any table landed for the first time exist once the manifests are re-read
   void refreshDerivedViews().catch((refreshError) => {

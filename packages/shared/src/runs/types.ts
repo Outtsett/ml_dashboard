@@ -178,6 +178,8 @@ export interface RunView {
   finishedAt: number | null;
   setup: RunSetup | null;
   configuration: RunConfiguration | null;
+  /** The run this one was relaunched from, when it was. */
+  lineage: { parentRunId: string; parentName: string } | null;
   progress: RunProgress | null;
   /** Which scoreboard the tiles come from: the finished run's, or the one still accumulating. */
   scoreScope: "final" | "running" | null;
@@ -230,7 +232,9 @@ export interface RunnableModel {
 
 /** Body of `POST /api/runs`. `model` is a key, a runner key or a display name. */
 export interface StartRunRequest {
-  model: string;
+  /** Relaunch a recorded run: its model, series, window and base parameters, with any field below overriding. */
+  from?: string;
+  model?: string;
   symbol?: string;
   timeframe?: string;
   dateStart?: string;

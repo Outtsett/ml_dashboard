@@ -235,7 +235,13 @@ export function logsAfter(logs: readonly CycleLogLine[], cursor: LogCursor | nul
   return { lines: logs.slice(-LOG_TAIL_LINES), reset: true };
 }
 
-export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | null, cursor: LogCursor | null, version: number | null = null): RunView {
+export function buildRunView(
+  snapshot: CycleSnapshot,
+  report: RunReportTables | null,
+  cursor: LogCursor | null,
+  version: number | null = null,
+  lineage: RunView["lineage"] = null,
+): RunView {
   const scoreboard = snapshot.scoreboards.final ?? snapshot.scoreboards.running;
   const scoreScope: RunView["scoreScope"] = snapshot.scoreboards.final ? "final" : snapshot.scoreboards.running ? "running" : null;
   const metrics = scoreboard?.metrics ?? {};
@@ -282,6 +288,7 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
         }
       : null,
     configuration: configurationOf(snapshot),
+    lineage,
     progress: snapshot.cursor
       ? {
           phase: snapshot.cursor.phase,

@@ -42,9 +42,11 @@ Normalisation: every table has a single-column key, every non-key column depends
 
 **Model development.** When Tyler asks for a model to be made or changed: (1) the registry file is written or edited (`packages/config/cycle_models/<key>.json` — parameters, search space, explain kind), (2) the adapter module if the kind is new (`cycle/adapters_extra/`, `cycle/networks_extra/`), (3) its contract test (`test_cycle_catalog_contract.py`) is run, (4) the catalog page and the launcher list it on the next load (both read the registry), (5) a smoke launch through `POST /api/runs` proves it fits, and the run's Configuration section shows the parameters the registry declares. A model change is a new registry hash; runs record which hash they ran under, so old runs are never silently re-labelled.
 
-## 4. Order of work
+## 4. Done the same day (2026-10-07)
 
-1. SQLite entities + the writers on `cycle_plan` / `cycle_parameters` / `done` (Drizzle schema, `db:push`, the accumulator writes).
-2. `POST /api/runs` with `from` (relaunch a configuration), `runs.parent_run_id`, lineage shown on the run page.
-3. `saved_analytics` replaces `comparisons.json`; the Analytics tab saves any panel, not only a run set.
-4. The per-family panels from `docs/plans/2026-10-06-studio-analytics-components.md` (attention, cluster graph, gate routing, stream contribution).
+1. **Entities** — `cycle_runs`, `cycle_run_configurations`, `cycle_run_settings`, `cycle_run_features`, `cycle_run_verdicts`, `saved_analytics`, `saved_analytics_runs` in `packages/shared/src/schema.ts`; created in the working database by `scripts/create_cycle_run_tables.mjs` (drizzle-kit push refuses while another in-flight schema change would drop a column). Writers in `apps/api/training/runRecords.ts`, called from the accumulator (`training/cycle.ts`) on `cycle_plan` (run row with its fixed name and version, settings, features, base parameters), `cycle_parameters` (per-fold rows) and the end (status, verdicts). Verified: a 2-fold XGBoost run wrote 1 run, 8 base + 8 + 8 fold parameter rows, 33 settings, 38 features, 8 verdicts.
+2. **Relaunch** — `POST /api/runs { "from": "<run_id>", ...overrides }` starts from the recorded model, series, window, launch settings (fold limit, trials, label, trading rule, pinned names) and base hyperparameters; the child records `parent_run_id`, the view carries `lineage`, the header says "relaunched from <name>", and the Configuration section has a "Relaunch with these settings" button. Verified: the child inherited 2 folds and 2 trials, took the override, and became v3 of its line.
+3. **Saved analytics** — `/api/runs/comparisons` reads and writes `saved_analytics` (kind `comparison`) through `apps/api/training/savedAnalytics.ts`; `data/analytics/comparisons.json` is gone.
+4. `scripts/purge_cycle_runs.py --apply` now clears all three tiers (lake record, artifacts, SQLite rows).
+
+**Still open:** the per-family panels in `docs/plans/2026-10-06-studio-analytics-components.md` (attention, cluster graph, gate routing, stream contribution) — each needs its engine artifact first.

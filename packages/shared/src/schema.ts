@@ -1786,3 +1786,136 @@ export const trainingTelemetry = sqliteTable("training_telemetry", {
 export const insertTrainingTelemetrySchema = createInsertSchema(trainingTelemetry).omit({ id: true, timestamp: true });
 export type InsertTrainingTelemetry = z.infer<typeof insertTrainingTelemetrySchema>;
 export type TrainingTelemetry = InferSelectModel<typeof trainingTelemetry>;
+
+// ============================================================
+// TRI-CORE MODEL PROVENANCE & TELEMETRY TRACKING
+// ============================================================
+export const triCoreTracking = sqliteTable("tri_core_tracking", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull(),
+  symbol: text("symbol").notNull(),
+  barTimestamp: integer("bar_timestamp").notNull(),
+  inputs: text("inputs").notNull(),   // JSON: { klineShape, ohlcSummary, sentimentSnippet, elapsedMinutes, microstructureFeatures }
+  weights: text("weights").notNull(), // JSON: { streamAttribution: { kronos, finbert, hmm }, decayFactor, layerNorms, parameterCounts }
+  outputs: text("outputs").notNull(), // JSON: { mu, sigma, logVar, regimeProbs, directionalSignal, kellyFraction, dynamicBounds }
+  metrics: text("metrics").notNull(), // JSON: { nll, rmse, directionalEdge, latencyMs, vramMb, computePct }
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  runIdIdx: index("tri_core_tracking_run_id_idx").on(table.runId),
+  symbolTimestampIdx: index("tri_core_tracking_symbol_ts_idx").on(table.symbol, table.barTimestamp),
+  timestampIdx: index("tri_core_tracking_ts_idx").on(table.barTimestamp),
+}));
+
+export const insertTriCoreTrackingSchema = createInsertSchema(triCoreTracking).omit({ id: true, createdAt: true });
+export type InsertTriCoreTracking = z.infer<typeof insertTriCoreTrackingSchema>;
+export type TriCoreTracking = InferSelectModel<typeof triCoreTracking>;
+
+
+// ============================================================
+// MODEL CYCLE RUNS — the dashboard's entities around a run (2026-10-07).
+// The run's measured series live in the lake (`derived_model_cycle_runs_*`);
+// these rows are what the run page and the Analytics tab ask about a run:
+// its identity, every parameter it was given and every parameter each fold
+// used (one row each: 1NF), its settings, its features, its verdicts, and the
+// saved analytics that reference it. Written by `apps/api/training/runRecords.ts`
+// on `cycle_plan`, `cycle_parameters` and the run's end.
+// ============================================================
+export const cycleRuns = sqliteTable("cycle_runs", {
+  runId: text("run_id").primaryKey(),
+  modelKey: text("model_key").notNull(),
+  modelType: text("model_type").notNull(),
+  modelLabel: text("model_label").notNull(),
+  symbol: text("symbol").notNull(),
+  timeframe: text("timeframe").notNull(),
+  /** The memorable name, stored once so it never changes under a run. */
+  name: text("name").notNull(),
+  /** Ordinal among runs of the same model on the same symbol and timeframe, fixed at start. */
+  version: integer("version").notNull(),
+  purpose: text("purpose").notNull(),
+  status: text("status", { enum: ["running", "complete", "failed", "stopped"] }).notNull(),
+  error: text("error"),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+  /** The run this one was relaunched from, when it was. */
+  parentRunId: text("parent_run_id").references((): AnySQLiteColumn => cycleRuns.runId, { onDelete: "set null" }),
+  dataStart: integer("data_start").notNull(),
+  dataEnd: integer("data_end").notNull(),
+  barCount: integer("bar_count").notNull(),
+  foldCount: integer("fold_count").notNull(),
+}, (table) => ({
+  modelIdx: index("cycle_runs_model_idx").on(table.modelKey, table.symbol, table.timeframe),
+  startedIdx: index("cycle_runs_started_idx").on(table.startedAt),
+}));
+export type CycleRunRow = InferSelectModel<typeof cycleRuns>;
+export type InsertCycleRunRow = InferInsertModel<typeof cycleRuns>;
+
+/** One row per parameter: the run's base value (`scope = base`) and what each fold fitted with (`scope = fold`). */
+export const cycleRunConfigurations = sqliteTable("cycle_run_configurations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull().references(() => cycleRuns.runId, { onDelete: "cascade" }),
+  scope: text("scope", { enum: ["base", "fold"] }).notNull(),
+  foldIndex: integer("fold_index"),
+  parameterName: text("parameter_name").notNull(),
+  parameterValue: text("parameter_value"),
+  valueType: text("value_type", { enum: ["number", "string", "boolean", "null"] }).notNull(),
+  source: text("source", { enum: ["manual", "tuned", "reviewed_defaults"] }).notNull(),
+}, (table) => ({
+  runIdx: index("cycle_run_configurations_run_idx").on(table.runId, table.scope, table.foldIndex),
+  oneValue: uniqueIndex("cycle_run_configurations_one_value_idx").on(table.runId, table.scope, table.foldIndex, table.parameterName),
+}));
+export type CycleRunConfigurationRow = InferSelectModel<typeof cycleRunConfigurations>;
+
+/** The run's own settings as rows: label horizon, purge, embargo, trading rule, search budget, device, data window. */
+export const cycleRunSettings = sqliteTable("cycle_run_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull().references(() => cycleRuns.runId, { onDelete: "cascade" }),
+  settingName: text("setting_name").notNull(),
+  settingValue: text("setting_value"),
+  valueType: text("value_type", { enum: ["number", "string", "boolean", "null"] }).notNull(),
+}, (table) => ({
+  oneSetting: uniqueIndex("cycle_run_settings_one_idx").on(table.runId, table.settingName),
+}));
+
+export const cycleRunFeatures = sqliteTable("cycle_run_features", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull().references(() => cycleRuns.runId, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  featureName: text("feature_name").notNull(),
+}, (table) => ({
+  oneFeature: uniqueIndex("cycle_run_features_one_idx").on(table.runId, table.position),
+}));
+
+/** The verdict rules that fired when the run ended, so analytics can ask how often a rule fires per model kind. */
+export const cycleRunVerdicts = sqliteTable("cycle_run_verdicts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull().references(() => cycleRuns.runId, { onDelete: "cascade" }),
+  rule: text("rule").notNull(),
+  severity: text("severity", { enum: ["critical", "warning", "pass"] }).notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  evidence: text("evidence").notNull(),
+  action: text("action").notNull(),
+}, (table) => ({
+  runIdx: index("cycle_run_verdicts_run_idx").on(table.runId),
+  ruleIdx: index("cycle_run_verdicts_rule_idx").on(table.rule),
+}));
+
+/** A saved analytic: a named definition (which panel, which parameters) over the runs in `saved_analytics_runs`. */
+export const savedAnalytics = sqliteTable("saved_analytics", {
+  analyticsId: text("analytics_id").primaryKey(),
+  name: text("name").notNull().unique(),
+  kind: text("kind", { enum: ["comparison", "chart", "query"] }).notNull(),
+  definition: text("definition", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type SavedAnalyticsRow = InferSelectModel<typeof savedAnalytics>;
+
+export const savedAnalyticsRuns = sqliteTable("saved_analytics_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  analyticsId: text("analytics_id").notNull().references(() => savedAnalytics.analyticsId, { onDelete: "cascade" }),
+  runId: text("run_id").notNull(),
+  position: integer("position").notNull(),
+}, (table) => ({
+  oneRun: uniqueIndex("saved_analytics_runs_one_idx").on(table.analyticsId, table.runId),
+}));

@@ -6,7 +6,11 @@
  */
 import { useState } from "react";
 
+import { useLocation } from "wouter";
+import { Play } from "lucide-react";
+
 import type { RunConfiguration, RunParameterValue } from "@shared/runs/types";
+import { useStartRun } from "@/runs/api";
 import { Chip } from "@/runs/learning";
 
 function show(value: RunParameterValue): string {
@@ -43,14 +47,29 @@ const SOURCE_WORDS: Record<RunConfiguration["folds"][number]["source"], string> 
   reviewed_defaults: "the registry's defaults",
 };
 
-export function Configuration({ configuration }: { configuration: RunConfiguration | null }) {
+export function Configuration({ configuration, runId }: { configuration: RunConfiguration | null; runId: string }) {
   const [showFeatures, setShowFeatures] = useState(false);
+  const [, navigate] = useLocation();
+  // a relaunch starts a new run from this run's model, series, window and base parameters (`POST /api/runs {from}`)
+  const relaunch = useStartRun((response) => navigate(`/training?run=${encodeURIComponent(response.runId)}`));
   if (!configuration) {
     return <div className="rounded-md border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">The configuration lands with the run's plan, before the first fit.</div>;
   }
   const names = [...new Set([...Object.keys(configuration.parameters), ...configuration.folds.flatMap((fold) => Object.keys(fold.parameters))])].sort();
   return (
     <div className="space-y-2" data-testid="configuration">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={relaunch.isPending}
+          onClick={() => relaunch.mutate({ from: runId })}
+          className="flex cursor-pointer items-center gap-1.5 rounded border border-[#E69F00] px-2 py-0.5 font-mono text-[11px] font-bold text-[#E69F00] disabled:opacity-50"
+          data-testid="relaunch"
+        >
+          <Play className="h-3 w-3" /> {relaunch.isPending ? "Starting" : "Relaunch with these settings"}
+        </button>
+        <span className="text-[11px] text-muted-foreground">Starts a new run from this model, series, window and base hyperparameters; the new run records this one as its parent.</span>
+      </div>
       <div className="grid gap-2 xl:grid-cols-3">
         <Table title="Model hyperparameters, as given" caption="The base values the run started with. A fold's search starts from these; the table below shows what each fold ended up using." rows={Object.entries(configuration.parameters)} />
         <Table title="Run settings" caption="The label, the walk-forward windows, the trading rule, the search budget, the device and the data window." rows={Object.entries(configuration.settings)} />

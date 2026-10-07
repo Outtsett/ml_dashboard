@@ -1,6 +1,7 @@
 """Clear the Model Cycle run history: every recorded run in the lake
 (`s3://derived/model_cycle_runs/recipe=<run>/`), its manifest lines, its
-artifacts under `data/models/<run>/`, and the Analytics tab's saved comparisons.
+artifacts under `data/models/<run>/`, the run entity rows in SQLite
+(`cycle_runs` and its children, `saved_analytics`), and the legacy comparisons file.
 
     uv run python scripts/purge_cycle_runs.py            # list what would go
     uv run python scripts/purge_cycle_runs.py --apply    # delete it
@@ -24,6 +25,8 @@ sys.path.insert(0, str(ROOT / "packages" / "ml-engine" / "src"))
 DATASET = "model_cycle_runs"
 MODELS_DIR = ROOT / "data" / "models"
 COMPARISONS = ROOT / "data" / "analytics" / "comparisons.json"
+SQLITE = ROOT / "data" / "ml_dashboard.db"
+ENTITY_TABLES = ("cycle_run_verdicts", "cycle_run_features", "cycle_run_settings", "cycle_run_configurations", "cycle_runs", "saved_analytics_runs", "saved_analytics")
 RUN_SUFFIX = "+walk_forward_cycle_"
 
 
@@ -66,13 +69,29 @@ def main() -> int:
     print(f"artifact directories under {MODELS_DIR}: {len(artifact_dirs)}")
     for directory in artifact_dirs:
         print("  " + directory.name)
-    print(f"saved comparisons: {comparisons}")
+    print(f"saved comparisons (legacy file): {comparisons}")
+    entity_rows = {}
+    if SQLITE.exists():
+        import sqlite3
+
+        with sqlite3.connect(SQLITE) as connection:
+            for table in ENTITY_TABLES:
+                try:
+                    entity_rows[table] = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                except sqlite3.OperationalError:
+                    entity_rows[table] = None
+    print("sqlite entity rows: " + ", ".join(f"{table}={count}" for table, count in entity_rows.items()))
     if not args.apply:
         print("\nnothing deleted (pass --apply)")
         return 0
 
     for recipe in recipes:
-        filesystem.delete_dir(recipe)
+        try:
+            filesystem.delete_dir(recipe)
+        except FileNotFoundError:
+            # an object store lists a prefix whose objects are already gone; nothing to delete
+            print("already gone " + recipe)
+            continue
         print("deleted " + recipe)
     if manifest_lines:
         with filesystem.open_output_stream(manifest_key) as sink:
@@ -82,8 +101,18 @@ def main() -> int:
         shutil.rmtree(directory, ignore_errors=False)
         print("removed " + directory.name)
     if COMPARISONS.exists():
-        COMPARISONS.write_text("[]\n", encoding="utf-8")
-        print("cleared " + os.fspath(COMPARISONS))
+        COMPARISONS.unlink()
+        print("removed " + os.fspath(COMPARISONS))
+    if SQLITE.exists():
+        import sqlite3
+
+        with sqlite3.connect(SQLITE) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            for table in ENTITY_TABLES:
+                if entity_rows.get(table) is not None:
+                    connection.execute(f"DELETE FROM {table}")
+            connection.commit()
+        print("emptied sqlite: " + ", ".join(table for table in ENTITY_TABLES if entity_rows.get(table) is not None))
     print("\ndone: the run history is empty")
     return 0
 

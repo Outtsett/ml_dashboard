@@ -98,6 +98,11 @@ function RunHeader({ run, onStop, stopping }: { run: RunView; onStop: () => void
         )}
       </div>
       {setup && <div className="mt-1 text-[12px] text-foreground/90">{setup.purpose}</div>}
+      {run.lineage && (
+        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+          relaunched from <a href={`/training?run=${encodeURIComponent(run.lineage.parentRunId)}`} className="text-[#56B4E9] underline-offset-2 hover:underline">{run.lineage.parentName}</a>
+        </div>
+      )}
       <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{facts.join(" · ") || run.id}</div>
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-border/60">
         <div className="h-full" style={{ width: `${Math.round(fraction * 100)}%`, backgroundColor: status.color }} />
@@ -139,7 +144,7 @@ function RunBody({ run }: { run: RunView }) {
           <Verdicts status={run.status} verdicts={run.verdicts} />
         </Section>
         <Section category="configuration" findings={[]}>
-          <Configuration configuration={run.configuration} />
+          <Configuration configuration={run.configuration} runId={run.id} />
         </Section>
         <Section category="learning" findings={of("learning")}>
           <div className="font-mono text-[10px] text-muted-foreground">Panels for a {FAMILY_LABELS[family].toLowerCase()}.</div>

@@ -25,6 +25,8 @@ import { ensureCycleAccumulator, getCycleSnapshot, listCycleRuns } from "./cycle
 import { listArchivedCycleRuns, loadArchivedCycleSnapshot } from "./cycleArchive";
 import { loadCycleReport } from "./cycleReport";
 import { loadCycleRegistry } from "./cycleModels";
+import { baseParametersOf, recordLineage, runRowOf } from "./runRecords";
+import { deleteSavedAnalytic, listSavedAnalytics, saveAnalytic } from "./savedAnalytics";
 import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.router";
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
 import type { RunListItem, RunnableModel, RunView, StartRunResponse } from "@shared/runs/types";
@@ -47,7 +49,9 @@ const RUN_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h"] as const;
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "dates are YYYY-MM-DD");
 
 const startRunSchema = z.object({
-  model: z.string().min(1, "model is required").max(120),
+  /** A recorded run to relaunch: its model, series, window and base parameters, with the fields below overriding. */
+  from: z.string().regex(/^[A-Za-z0-9_+\-.]{1,160}$/).optional(),
+  model: z.string().min(1, "model is required").max(120).optional(),
   symbol: z.string().regex(/^[A-Z][A-Z0-9_\-/]{0,19}$/, "Invalid symbol format").optional(),
   timeframe: z.enum(RUN_TIMEFRAMES).optional(),
   dateStart: isoDate.optional(),
@@ -122,24 +126,36 @@ router.post("/runs", mlRateLimiter, async (req: Request, res: Response) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join(", ") });
   }
+  // a relaunch starts from the recorded run's own settings; anything given here overrides
+  const parent = parsed.data.from ? baseParametersOf(parsed.data.from) : null;
+  if (parsed.data.from && !parent) return res.status(404).json({ error: `No recorded run ${parsed.data.from} to relaunch` });
+  const modelName = parsed.data.model ?? parent?.modelKey;
+  if (!modelName) return res.status(400).json({ error: "model is required (or `from`, a recorded run)" });
   let model: RunnableModel;
   try {
-    model = resolveRunnableModel(parsed.data.model, runnableModels());
+    model = resolveRunnableModel(modelName, runnableModels());
   } catch (error) {
     return res.status(400).json({ error: (error as Error).message });
   }
+  const day = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+  const inherited: Record<string, number | string | boolean> = {};
+  for (const [name, value] of Object.entries(parent?.parameters ?? {})) if (value !== null) inherited[name] = value;
   const request: TrainingRequest = {
     modelType: model.runnerKey,
-    symbol: parsed.data.symbol ?? DEFAULT_SYMBOL,
-    timeframe: parsed.data.timeframe ?? DEFAULT_TIMEFRAME,
-    dateRange: { start: parsed.data.dateStart ?? DEFAULT_DATE_START, end: parsed.data.dateEnd ?? DEFAULT_DATE_END },
+    symbol: parsed.data.symbol ?? parent?.symbol ?? DEFAULT_SYMBOL,
+    timeframe: parsed.data.timeframe ?? parent?.timeframe ?? DEFAULT_TIMEFRAME,
+    dateRange: {
+      start: parsed.data.dateStart ?? (parent ? day(parent.dataStart) : DEFAULT_DATE_START),
+      end: parsed.data.dateEnd ?? (parent ? day(parent.dataEnd) : DEFAULT_DATE_END),
+    },
     // A launch from the API walks the test bars as fast as the model answers; the paced replay is the Model Cycle page's.
-    hyperparameters: { bars_per_second: 0, ...parsed.data.parameters },
+    hyperparameters: { bars_per_second: 0, ...inherited, ...parsed.data.parameters },
     maxBars: 0,
   };
   try {
     ensureCycleAccumulator();
     const started = await getNestApp().get(TrainingService).start(request);
+    if (parsed.data.from) recordLineage(started.modelId, parsed.data.from);
     listCache = null;
     const body: StartRunResponse = {
       runId: started.modelId,
@@ -198,7 +214,7 @@ interface PreflightCheck {
   detail: string;
 }
 
-const preflightSchema = startRunSchema.pick({ model: true, symbol: true, timeframe: true, dateStart: true, dateEnd: true });
+const preflightSchema = startRunSchema.pick({ symbol: true, timeframe: true, dateStart: true, dateEnd: true }).extend({ model: z.string().min(1, "model is required").max(120) });
 
 /**
  * Everything a launch needs, checked before the Run button is pressed: the
@@ -289,56 +305,25 @@ router.get("/runs/preflight", async (req: Request, res: Response) => {
 
 // ─── saved comparisons (the Analytics tab) ──────────────────────────────────
 
-const COMPARISONS_FILE = path.join(process.cwd(), "data", "analytics", "comparisons.json");
-
-interface SavedComparison {
-  id: string;
-  name: string;
-  runIds: string[];
-  savedAt: number;
-}
-
-async function readComparisons(): Promise<SavedComparison[]> {
-  try {
-    const parsed: unknown = JSON.parse(await fs.promises.readFile(COMPARISONS_FILE, "utf-8"));
-    return Array.isArray(parsed) ? (parsed as SavedComparison[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeComparisons(rows: SavedComparison[]): Promise<void> {
-  await fs.promises.mkdir(path.dirname(COMPARISONS_FILE), { recursive: true });
-  const tmp = `${COMPARISONS_FILE}.tmp`;
-  await fs.promises.writeFile(tmp, JSON.stringify(rows, null, 2), "utf-8");
-  await fs.promises.rename(tmp, COMPARISONS_FILE);
-}
-
 const comparisonSchema = z.object({
   name: z.string().trim().min(1).max(80),
   runIds: z.array(z.string().regex(/^[A-Za-z0-9_+\-.]{1,160}$/)).min(1).max(12),
 });
 
-/** Comparisons live on disk beside the data, so a clone of the repo sees the same ones as this machine. */
-router.get("/runs/comparisons", async (_req: Request, res: Response) => {
-  res.json({ comparisons: (await readComparisons()).sort((a, b) => b.savedAt - a.savedAt) });
+/** Comparisons are `saved_analytics` rows of kind `comparison`; a clone of the repo sees the same ones as this machine. */
+router.get("/runs/comparisons", (_req: Request, res: Response) => {
+  res.json({ comparisons: listSavedAnalytics("comparison") });
 });
 
-router.post("/runs/comparisons", async (req: Request, res: Response) => {
+router.post("/runs/comparisons", (req: Request, res: Response) => {
   const parsed = comparisonSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join(", ") });
-  const rows = await readComparisons();
-  const existing = rows.find((row) => row.name.toLowerCase() === parsed.data.name.toLowerCase());
-  const saved: SavedComparison = { id: existing?.id ?? `cmp_${Date.now().toString(36)}`, name: parsed.data.name, runIds: parsed.data.runIds, savedAt: Date.now() };
-  await writeComparisons([...rows.filter((row) => row.id !== saved.id), saved]);
-  res.status(existing ? 200 : 201).json(saved);
+  const { saved, created } = saveAnalytic({ name: parsed.data.name, kind: "comparison", definition: {}, runIds: parsed.data.runIds });
+  res.status(created ? 201 : 200).json(saved);
 });
 
-router.delete("/runs/comparisons/:id", async (req: Request, res: Response) => {
-  const rows = await readComparisons();
-  const id = String(req.params.id);
-  if (!rows.some((row) => row.id === id)) return res.status(404).json({ error: `No comparison ${id}` });
-  await writeComparisons(rows.filter((row) => row.id !== id));
+router.delete("/runs/comparisons/:id", (req: Request, res: Response) => {
+  if (!deleteSavedAnalytic(String(req.params.id))) return res.status(404).json({ error: `No comparison ${String(req.params.id)}` });
   res.status(204).end();
 });
 
@@ -548,16 +533,19 @@ router.get("/runs/:id", async (req: Request, res: Response) => {
   const modelId = String(req.params.id);
   const cursor = cursorOf(req);
   ensureCycleAccumulator();
-  const version = versionsOf(await allRuns()).get(modelId) ?? null;
+  const row = runRowOf(modelId);
+  const version = row?.version ?? versionsOf(await allRuns()).get(modelId) ?? null;
+  const parent = row?.parentRunId ? runRowOf(row.parentRunId) : null;
+  const lineage = row?.parentRunId ? { parentRunId: row.parentRunId, parentName: parent?.name ?? runName(row.parentRunId) } : null;
   const live = getCycleSnapshot(modelId);
   if (live) {
     if (live.status !== "running") void saveTerminal(live);
-    const view: RunView = buildRunView(live, liveReport(modelId), cursor, version);
+    const view: RunView = buildRunView(live, liveReport(modelId), cursor, version, lineage);
     return res.json(view);
   }
   try {
     const archived = await archivedRun(modelId);
-    if (archived) return res.json(buildRunView(archived.snapshot, archived.report, cursor, version));
+    if (archived) return res.json(buildRunView(archived.snapshot, archived.report, cursor, version, lineage));
   } catch (error) {
     return res.status(500).json({ error: `The record of ${modelId} could not be read: ${String(error)}` });
   }
