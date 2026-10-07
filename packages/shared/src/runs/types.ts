@@ -6,7 +6,7 @@
  * It carries no bars: the chart of the run lives on the Market page. What is
  * here is what answers "how is this run doing and what is wrong with it".
  */
-import type { CycleLogLine, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
+import type { CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
 
 /** The six fixed sections every run page shows, in this order. */
 export const RUN_CATEGORIES = ["verdict", "learning", "prediction", "trading", "tuning", "folds"] as const;
@@ -68,7 +68,16 @@ export interface RunEpochPoint {
   trainLoss: number | null;
   validationLoss: number | null;
   validationAccuracy: number | null;
+  validationF1Score: number | null;
+  learningRate: number | null;
+  gradientNorm: number | null;
+  /** The step whose weights the fold kept. */
+  isBest: boolean;
+  secondsElapsed: number;
 }
+
+/** A fold's loss surface as the engine sent it (`cycle_loss_surface`), without the envelope. */
+export type RunLossSurface = Omit<CycleLossSurface, "seq" | "ts">;
 
 export interface RunFoldRow {
   foldIndex: number;
@@ -147,6 +156,8 @@ export interface RunView {
   tiles: RunMetricTile[];
   verdicts: RunVerdict[];
   epochs: RunEpochPoint[];
+  /** One per final neural fit; empty for a tree or linear model, which has no weights to perturb. */
+  lossSurfaces: RunLossSurface[];
   trials: CycleTrial[];
   folds: RunFoldRow[];
   daily: RunDailyRow[];

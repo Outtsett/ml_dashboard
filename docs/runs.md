@@ -34,22 +34,40 @@ the one rebuilt from the lake) and the run's report tables into a `RunView`:
   has to beat (accuracy against the majority-class share, log loss against a coin flip, net profit
   against buy and hold, closed trades against the minimum to judge).
 - `verdicts`: the rules of `verdicts.ts`, worst first.
-- `epochs` (each fold's final fit only), `trials`, `folds`, `daily`, `calibration`, `confusion`:
-  what the charts draw.
+- `epochs` (each fold's final fit only: step, training and validation loss, validation accuracy and
+  F1, learning rate, gradient norm, the kept step), `trials`, `folds`, `daily`, `calibration`,
+  `confusion`: what the charts draw.
+- `lossSurfaces`: one per final neural fit (below). Empty for a tree or linear model.
 - `logs`: terminal lines after the caller's cursor.
 
-It carries no bars. The chart of a run is on the Market page (`cycle/useRunOverlay.ts`).
+It carries no bars. The chart of a run is on the Market page (`cycle/useRunOverlay.ts`); the
+Terminal view of the run page draws the bars the run walked from `GET /api/runs/:id/bars`.
+
+### The loss surface (`cycle_loss_surface`)
+
+After each fold's final fit, a neural adapter (`packages/ml-engine/src/cycle/networks.py`)
+evaluates the validation loss on a grid of weights around the kept ones, along two random
+filter-normalised directions (Li et al. 2018, `core/shared/loss_surface.py`), and hands it to the
+engine, which emits `cycle_loss_surface` (fold, model role, `alphas`, `betas`, `losses`,
+`diagnostics`: sharpness, condition number, valley width, locally convex), keeps it in the live
+snapshot and writes every surface so far to `data/models/<id>/loss_surfaces.json`; a recorded run
+reads that file back. The lake record does not carry it. The grid size is the cycle flag
+`--loss-surface-resolution` (default 21, so 441 points × 4 validation batches, under a second for
+a feedforward network; 0 turns it off); a tuning trial's fit never computes one. A tree model has
+no weights to perturb and the page says so.
 
 ### The five sections and the verdict
 
 | Section | Question | Shows |
 | --- | --- | --- |
 | Verdict | What is wrong, and what to change | Every rule that fired, with its numbers and its fix |
-| Learning | Learning or memorising? | Training and validation loss by step, per fold, against the coin-flip line |
+| Learning | Learning or memorising? | Loss by step against the coin-flip line; one small panel per logged quantity (training loss, validation loss, accuracy, F1, learning rate, gradient norm) with the kept step marked; the 3D loss surface per fold (`learning.tsx`) |
 | Prediction quality | Better than guessing the common direction? | Tiles, calibration curve, confusion table |
 | Trading result | Money after costs? | Tiles, net profit by session day |
-| Hyperparameter search | Did the search beat the defaults? | Objective per trial and best so far, per fold |
-| Fold stability | Every window, or one? | Net profit, Sharpe, accuracy or ROC AUC per fold |
+| Hyperparameter search | Did the search beat the defaults? | Objective per trial and best so far, per fold; objective against each parameter the search varied, best trial ringed (`search.tsx`) |
+| Fold stability | Every window, or one? | Net profit, Sharpe, accuracy or ROC AUC per fold; every scoreboard metric as its own small bar chart (`foldGrid.tsx`) |
+
+The run list on the left folds away (the **Runs** button; remembered in `run-page-sidebar`).
 
 ### Verdict rules (`packages/shared/src/runs/verdicts.ts`)
 

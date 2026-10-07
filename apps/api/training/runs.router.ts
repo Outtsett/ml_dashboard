@@ -29,7 +29,7 @@ import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.rou
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
 import type { RunListItem, RunnableModel, RunView, StartRunResponse } from "@shared/runs/types";
 import { runName, runPurpose, runVersions } from "@shared/runs/naming";
-import type { CycleLogLine, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
+import type { CycleLogLine, CycleLossSurface, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
 import type { TrainingRequest } from "@shared/trainingTypes";
 
 const router = Router();
@@ -291,6 +291,21 @@ async function readTerminal(modelId: string): Promise<CycleLogLine[] | null> {
   }
 }
 
+const LOSS_SURFACES_FILE = "loss_surfaces.json";
+
+/** The surfaces the engine wrote beside the run's artifacts (`engine.write_loss_surfaces`); the lake record does not carry them. */
+async function readLossSurfaces(modelId: string): Promise<CycleLossSurface[]> {
+  const terminal = terminalPath(modelId);
+  if (!terminal) return [];
+  try {
+    const text = await fs.promises.readFile(path.join(path.dirname(terminal), LOSS_SURFACES_FILE), "utf-8");
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) ? (parsed as CycleLossSurface[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 const REPORT_REFRESH_MILLISECONDS = 20_000;
 const reportCache = new Map<string, { at: number; report: RunReportTables | null }>();
 const reportRefresh = new Map<string, Promise<void>>();
@@ -322,14 +337,14 @@ const archiveCache = new Map<string, { snapshot: CycleSnapshot; report: RunRepor
 async function archivedRun(modelId: string): Promise<{ snapshot: CycleSnapshot; report: RunReportTables | null } | null> {
   const cached = archiveCache.get(modelId);
   if (cached) return cached;
-  const [snapshot, report, terminal] = await Promise.all([
+  const [snapshot, report, terminal, lossSurfaces] = await Promise.all([
     loadArchivedCycleSnapshot(modelId),
     loadCycleReport(modelId).catch(() => null),
     readTerminal(modelId),
+    readLossSurfaces(modelId),
   ]);
   if (!snapshot) return null;
-  // the run page draws no bars; holding them would only pin megabytes per cached run
-  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, bars: { ...snapshot.bars, timestamps: [] } }, report };
+  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, lossSurfaces }, report };
   archiveCache.set(modelId, entry);
   if (archiveCache.size > ARCHIVE_CACHE_SIZE) archiveCache.delete(archiveCache.keys().next().value as string);
   return entry;
@@ -360,6 +375,68 @@ router.get("/runs/:id", async (req: Request, res: Response) => {
     return res.status(500).json({ error: `The record of ${modelId} could not be read: ${String(error)}` });
   }
   return res.status(404).json({ error: `No run tracked or recorded for ${modelId}` });
+});
+
+// ─── the bars the model walked ──────────────────────────────────────────────
+
+/** One bar as the terminal view's chart draws it: the candle, the model's call on it and the equity after it. */
+interface RunBar {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  foldIndex: number | null;
+  role: string;
+  probabilityUp: number | null;
+  position: number | null;
+  equityUsd: number | null;
+  correct: boolean | null;
+}
+
+function barsAfter(snapshot: CycleSnapshot, after: number): RunBar[] {
+  const columns = snapshot.bars;
+  const out: RunBar[] = [];
+  for (let index = 0; index < columns.timestamps.length; index += 1) {
+    const time = columns.timestamps[index]!;
+    if (time <= after) continue;
+    out.push({
+      time,
+      open: columns.open[index]!,
+      high: columns.high[index]!,
+      low: columns.low[index]!,
+      close: columns.close[index]!,
+      foldIndex: columns.foldIndex[index] ?? null,
+      role: columns.role[index]!,
+      probabilityUp: columns.probabilityUp[index] ?? null,
+      position: columns.positionHeld[index] ?? null,
+      equityUsd: columns.equityUsd[index] ?? null,
+      correct: columns.correct[index] ?? null,
+    });
+  }
+  return out;
+}
+
+/**
+ * `GET /api/runs/:id/bars?after=<epoch seconds>`: every bar the run has drawn after
+ * the given time, plus the trades. A live page asks with its last bar's time and
+ * receives only what is new.
+ */
+router.get("/runs/:id/bars", async (req: Request, res: Response) => {
+  const modelId = String(req.params.id);
+  const after = Number(req.query.after);
+  const since = Number.isFinite(after) ? after : -Infinity;
+  ensureCycleAccumulator();
+  let snapshot: CycleSnapshot | null = getCycleSnapshot(modelId);
+  if (!snapshot) {
+    try {
+      snapshot = (await archivedRun(modelId))?.snapshot ?? null;
+    } catch (error) {
+      return res.status(500).json({ error: `The bars of ${modelId} could not be read: ${String(error)}` });
+    }
+  }
+  if (!snapshot) return res.status(404).json({ error: `No run tracked or recorded for ${modelId}` });
+  res.json({ status: snapshot.status, bars: barsAfter(snapshot, since), trades: snapshot.trades });
 });
 
 // ─── stop ───────────────────────────────────────────────────────────────────

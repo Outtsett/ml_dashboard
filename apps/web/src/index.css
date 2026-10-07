@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* `runs/` matches a .gitignore pattern (negated for this directory, which Tailwind's
+   scanner does not honour), so its classes are only generated when it is named. */
+@source "./runs";
 @import "tw-animate-css";
 /* Markdown in the Claude panel (prose classes). */
 @plugin "@tailwindcss/typography";

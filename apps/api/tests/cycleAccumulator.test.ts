@@ -94,7 +94,10 @@ describe('cycle accumulator — folding the real fixture into a snapshot', () =>
     expect(snapshot.scoreboards.running).not.toBeNull();
     expect(snapshot.scoreboards.folds.length).toBe(1);
     expect(snapshot.scoreboards.final).not.toBeNull();
-    expect(snapshot.lastSequence).toBe(10); // the fixture's highest seq (cycle_parameters)
+    expect(snapshot.lossSurfaces).toHaveLength(1);
+    expect(snapshot.lossSurfaces![0]!.resolution).toBe(5);
+    expect(snapshot.lossSurfaces![0]!.diagnostics.locallyConvex).toBe(true);
+    expect(snapshot.lastSequence).toBe(11); // the fixture's highest seq (cycle_loss_surface)
   });
 
   it('listCycleRuns reflects the tracked run, symbol/timeframe/family from the plan', () => {

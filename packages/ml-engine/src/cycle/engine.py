@@ -54,6 +54,7 @@ Overall progress (``cursor.overallFraction``), monotonic:
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
@@ -62,6 +63,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 import numpy as np
+from shared import protocol
+from shared.walk_forward import iter_day_folds
 
 from cycle import catalog
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
@@ -71,8 +74,6 @@ from cycle.labels import actual_direction, horizon_crosses_gap, make_labels, pri
 from cycle.market import MarketView, bind_market
 from cycle.metrics import ScoreInputs, bars_per_year, buy_and_hold_usd, scoreboard
 from cycle.simulate import CostModel, Simulator, Trade, round_to_tick
-from shared import protocol
-from shared.walk_forward import iter_day_folds
 
 CONTEXT_CHUNK = 2000
 CURSOR_INTERVAL_SECONDS = 0.05        # <= 20 Hz
@@ -86,6 +87,7 @@ MINIMUM_VALIDATION_ROWS = 10
 LOADING_END = 0.05
 FOLDS_END = 0.99
 TRAINING_SHARE = 0.4
+REPLAY_SHARE = 0.25          # of a fold's post-training span, when the validation replay is on
 TUNING_SHARE_OF_FOLD = 0.35     # of a fold's progress span, when the fold tunes first
 DIRECTION_TRAINING_SHARE = 0.6   # of TRAINING_SHARE; the price model takes the rest
 
@@ -131,7 +133,8 @@ class CycleSettings:
     model_parameters: dict
     artifact_directory: str
     train_days: int = 60
-    validation_fraction: float = 0.2
+    validation_fraction: float = 0.1
+    test_fraction: float = 0.1
     test_days: int = 10
     step_days: int = 0
     fold_limit: int = 3
@@ -157,14 +160,23 @@ class CycleSettings:
     start_paused: bool = False
     quiet_bars: bool = False
     log_every_batches: int = 10
+    loss_surface_resolution: int = 21       # grid size of the loss surface after each fold's final neural fit (0 = none)
     device: str = "cpu"
     device_name: str | None = None
     seed: int = 42
     land_in_lake: bool = True
+    replay_validation: bool = True          # replay the validation span bar by bar after the fit
 
     @property
     def resolved_holding_bars(self) -> int:
         return self.holding_bars if self.holding_bars > 0 else self.label_horizon_bars
+
+    @property
+    def train_fraction(self) -> float:
+        """The share of a fold's bars that train. Derived, never configured: a run
+        cannot ask for 80/10/20 because only the validation and test shares are
+        dials and the three always sum to one."""
+        return 1.0 - self.validation_fraction - self.test_fraction
 
     @property
     def pinned_parameters(self) -> tuple[str, ...]:
@@ -251,6 +263,8 @@ class FoldSpec:
     # the price model's rows: feature history and a known forward move (empty = no price model)
     price_train_index: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
     price_validation_index: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
+    # rows the two boundaries cost: the horizon purge and any embargo between the blocks
+    discarded_bar_count: int = 0
 
     def plan(self, timestamps: np.ndarray) -> dict:
         def span(index: np.ndarray) -> tuple[int, int]:
@@ -259,6 +273,11 @@ class FoldSpec:
         train_start, train_end = span(self.train_index)
         validation_start, validation_end = span(self.validation_index)
         test_start, test_end = span(self.test_index)
+        # the shares actually realised, over the fold's whole extent — the honest
+        # answer to "what trained, what validated, what was tested", after the
+        # session-gap rule and the feature warmup took the rows they took
+        extent = (self.train_index.size + self.validation_index.size + self.test_index.size
+                  + self.discarded_bar_count) or 1
         return {
             "foldIndex": self.fold_index,
             "trainStart": train_start,
@@ -270,16 +289,51 @@ class FoldSpec:
             "trainBarCount": int(self.train_index.size),
             "validationBarCount": int(self.validation_index.size),
             "testBarCount": int(self.test_index.size),
+            "discardedBarCount": int(self.discarded_bar_count),
+            "trainFraction": self.train_index.size / extent,
+            "validationFraction": self.validation_index.size / extent,
+            "testFraction": self.test_index.size / extent,
         }
 
 
-def split_window(rows: np.ndarray, validation_fraction: float, purge: int) -> tuple[np.ndarray, np.ndarray]:
-    """Chronological split of contiguous ``rows``: the last fraction validates,
-    ``purge`` rows between the two are dropped."""
-    count = rows.size
+def split_window(rows: np.ndarray, validation_fraction: float, test_fraction: float,
+                 purge: int, embargo: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Chronological three-way split of contiguous ``rows``.
+
+    ``rows`` is one fold's whole extent in time order — the walk-forward window and
+    the forward test window together — and it is cut once, in time, into
+
+      * the first ``1 - validation_fraction - test_fraction`` that TRAIN,
+      * the next ``validation_fraction`` that VALIDATE,
+      * the last ``test_fraction`` that TEST.
+
+    Each block's own rows are never trimmed at either end, so the three share really
+    are the fractions asked for. What a boundary costs is charged to the block AFTER
+    it: ``purge`` rows are dropped from the head of validation and of test, because a
+    label or target made in the earlier block resolves ``horizon`` bars later and
+    would otherwise be read across the boundary; ``embargo`` drops that many more
+    bars from the head of test. Returns ``(train, validation, test, discarded)`` and
+    ``discarded`` is the purged and embargoed rows, so a plan can state how many
+    bars the boundaries cost.
+    """
+    count = int(rows.size)
+    if count == 0:
+        empty = np.empty(0, dtype=np.int64)
+        return empty, empty.copy(), empty.copy(), empty.copy()
     validation_count = int(round(count * validation_fraction))
-    split = count - validation_count
-    return rows[: max(0, split - purge)], rows[split:]
+    test_count = int(round(count * test_fraction))
+    # the three counts must leave the train block something; the engine validates
+    # the fractions against a floor before calling, so this is a backstop only
+    train_count = max(1, count - validation_count - test_count)
+    validation_end = train_count + validation_count
+    train = rows[:train_count]
+    validation = rows[train_count + purge: validation_end]
+    test = rows[validation_end + purge + embargo:]
+    discarded = np.concatenate((
+        rows[train_count: train_count + purge],
+        rows[validation_end: validation_end + purge + embargo],
+    )) if purge + embargo > 0 else np.empty(0, dtype=np.int64)
+    return train, validation, test, discarded
 
 
 def check_fold_invariants(spec: FoldSpec, labels: np.ndarray, valid: np.ndarray, horizon: int,
@@ -290,6 +344,10 @@ def check_fold_invariants(spec: FoldSpec, labels: np.ndarray, valid: np.ndarray,
         assert np.all(valid[index]), f"fold {spec.fold_index}: {name} row without feature history"
         assert np.all(np.isfinite(labels[index])), f"fold {spec.fold_index}: {name} row without a label"
     assert spec.test_index.size > 0 and np.all(np.diff(spec.test_index) == 1), "test span must be contiguous"
+    # the three blocks are one chronological cut of the fold's extent, so they are
+    # ordered and disjoint: nothing is trained on, validated on and tested at once
+    assert (spec.train_index[-1] < spec.validation_index[0] <= spec.validation_index[-1]
+            < spec.test_index[0]), f"fold {spec.fold_index}: train / validation / test are not one ordered cut"
     # A training label resolves at t + h: strictly before validation starts;
     # a validation label resolves strictly before the test span starts.
     assert spec.train_index[-1] + horizon < spec.validation_index[0], f"fold {spec.fold_index}: train labels leak into validation"
@@ -317,6 +375,34 @@ class FoldAccumulator:
     bars_evaluated: int = 0
     first_open: float | None = None
     last_close: float | None = None
+
+
+@dataclass
+class WalkSpan:
+    """One bar-by-bar walk of a fold.
+
+    The out-of-sample test walk and the validation market replay are the SAME walk
+    pointed at different rows, so there is one definition of how a bar is predicted,
+    filled, scored and drawn. They differ in what they own:
+
+      * ``test`` carries ``writes_run_state=True``: its bars become the run's
+        prediction rows, its trades and its equity are the run's, and its metrics are
+        the fold's score.
+      * ``replay`` carries ``writes_run_state=False``: it has its own simulator, its
+        own equity and its own accumulator, it animates on the chart, and it writes
+        nothing that a later gate could read.
+
+    ``wire_name`` is what a ``cycle_bars`` frame is tagged with, so the two walks are
+    told apart on the wire rather than by which fold or phase they belong to.
+    """
+    label: str
+    phase: str
+    wire_name: str
+    rows: np.ndarray
+    fold_index: int
+    simulator: Simulator
+    accumulator: FoldAccumulator
+    writes_run_state: bool
 
 
 class CycleEngine:
@@ -390,6 +476,7 @@ class CycleEngine:
         self.fold_records: list[dict] = []
         self.accumulators: list[FoldAccumulator] = []
         self.epoch_records: list[dict] = []
+        self.loss_surfaces: list[dict] = []              # one per final neural fit, as emitted (`cycle_loss_surface`)
         self.trial_records: list[dict] = []
         self.prediction_rows: dict[int, dict] = {}     # row -> record (insertion ordered)
         self.trades: dict[int, Trade] = {}
@@ -414,6 +501,7 @@ class CycleEngine:
         self.plan: dict | None = None
         self.tuning_summary: dict | None = None
         self._frame: dict | None = None
+        self._span = "test"                # which walk the frames being built belong to
         self._post_frame: list[Callable[[], None]] = []
         self._last_flush = -math.inf     # when the last processed frame went out (<= 20 Hz above 20 bars/s)
         self._next_due: float | None = None
@@ -455,10 +543,14 @@ class CycleEngine:
         protocol.emit_metric(name, value, iteration=iteration, total=total)
 
     def _record_bars(self, role: str, fold_index: int | None, timestamps, open_prices, high_prices, low_prices,
-                     close_prices, volumes) -> None:
-        """One chunk of the `bars` table: the bars just emitted, as the model saw them."""
+                     close_prices, volumes, span: str = "test") -> None:
+        """One chunk of the `bars` table: the bars just emitted, as the model saw them.
+
+        ``span`` travels with the chunk so a run rebuilt from the record can still tell
+        the scored out-of-sample bars from the validation replay's.
+        """
         self.bar_chunks.append({
-            "role": role, "fold_index": fold_index,
+            "role": role, "span": span, "fold_index": fold_index,
             "timestamp": np.asarray(timestamps, dtype=np.int64), "open": np.asarray(open_prices, dtype=np.float64),
             "high": np.asarray(high_prices, dtype=np.float64), "low": np.asarray(low_prices, dtype=np.float64),
             "close": np.asarray(close_prices, dtype=np.float64), "volume": np.asarray(volumes, dtype=np.float64),
@@ -546,10 +638,31 @@ class CycleEngine:
             self.next_unemitted = end
 
     # ── plan ───────────────────────────────────────────────────────────────
+    def _check_split_fractions(self) -> None:
+        """The three shares must leave every block rows to work with, so a fold is
+        never planned over a block too small to fit or to score."""
+        s = self.settings
+        for name, value in (("validation_fraction", s.validation_fraction), ("test_fraction", s.test_fraction)):
+            if not 0.0 < value < 1.0:
+                raise ValueError(f"{name} must be between 0 and 1, got {value}")
+        if s.train_fraction <= 0.0:
+            raise ValueError(
+                f"validation_fraction ({s.validation_fraction}) + test_fraction ({s.test_fraction}) "
+                f"must leave a training share, got {s.train_fraction:.4f}"
+            )
+        # a fold's extent is train_days + test_days calendar days; a validation or test
+        # block of under a whole day's bars is never usable, so say so before loading one
+        window_days = s.train_days + s.test_days
+        if min(s.validation_fraction, s.test_fraction) * window_days < 1.0:
+            raise ValueError(
+                f"train_days={s.train_days} and test_days={s.test_days} give a window of {window_days} calendar "
+                f"days; at validation_fraction={s.validation_fraction} and test_fraction={s.test_fraction} the "
+                "smaller block is under a day of bars. Widen the window or raise the fractions."
+            )
+
     def plan_folds(self, minimum_history: int) -> list[FoldSpec]:
         s = self.settings
-        if not 0.0 < s.validation_fraction < 1.0:
-            raise ValueError(f"validation_fraction must be between 0 and 1, got {s.validation_fraction}")
+        self._check_split_fractions()
         step = s.resolved_step_days
         if step < s.test_days:
             raise ValueError(f"step_days ({s.step_days}) must be 0 or >= test_days ({s.test_days}); a test bar is never tested twice")
@@ -557,17 +670,23 @@ class CycleEngine:
         specs: list[FoldSpec] = []
         for fold in iter_day_folds(
             self.data.timestamps, s.train_days, s.test_days, step,
-            purge_bars=self.horizon, embargo_bars=s.embargo_bars, expanding=s.expanding_window,
+            # the boundaries are cut by split_window below, once, over the fold's
+            # WHOLE extent: so the iterator hands over the window and the forward
+            # test window untrimmed, and the purge is charged there and not twice
+            purge_bars=0, embargo_bars=0, expanding=s.expanding_window,
         ):
-            window = fold.train_idx
-            train_rows, validation_rows = split_window(window, s.validation_fraction, self.horizon)
+            # one fold's extent: the walk-forward window and the forward test window
+            # together, contiguous and in time order
+            extent = np.concatenate((fold.train_idx, fold.test_idx))
+            train_rows, validation_rows, test_rows, discarded = split_window(
+                extent, s.validation_fraction, s.test_fraction, self.horizon, s.embargo_bars)
             train = train_rows[valid[train_rows] & np.isfinite(self.labels[train_rows])]
             validation = validation_rows[valid[validation_rows] & np.isfinite(self.labels[validation_rows])]
             price_train = train_rows[valid[train_rows] & np.isfinite(self.price_targets[train_rows])]
             price_validation = validation_rows[valid[validation_rows] & np.isfinite(self.price_targets[validation_rows])]
             if price_train.size < MINIMUM_TRAIN_ROWS or price_validation.size < MINIMUM_VALIDATION_ROWS:
                 price_train = price_validation = np.empty(0, dtype=np.int64)
-            when = f"{format_time(self.data.timestamps[fold.test_idx[0]])}..{format_time(self.data.timestamps[fold.test_idx[-1]])}"
+            when = f"{format_time(self.data.timestamps[test_rows[0]])}..{format_time(self.data.timestamps[test_rows[-1]])}"
             if train.size < MINIMUM_TRAIN_ROWS or validation.size < MINIMUM_VALIDATION_ROWS:
                 self.log(
                     f"[plan] skipped the fold testing {when}: {train.size} training and {validation.size} validation rows "
@@ -576,9 +695,10 @@ class CycleEngine:
                 )
                 continue
             specs.append(FoldSpec(
-                fold_index=len(specs), window_start=int(window[0]), window_end=int(window[-1]) + 1,
-                train_index=train, validation_index=validation, test_index=fold.test_idx,
+                fold_index=len(specs), window_start=int(extent[0]), window_end=int(extent[-1]) + 1,
+                train_index=train, validation_index=validation, test_index=test_rows,
                 price_train_index=price_train, price_validation_index=price_validation,
+                discarded_bar_count=int(discarded.size),
             ))
         if not specs:
             raise ValueError(
@@ -594,6 +714,14 @@ class CycleEngine:
             labels = self.labels[spec.train_index]
             spec.majority_up = 1 if np.mean(labels) >= 0.5 else 0
             check_fold_invariants(spec, self.labels, valid, self.horizon, self.price_targets)
+        first = specs[0].plan(self.data.timestamps)
+        self.log(
+            f"[plan] {len(specs)} fold(s) cut {s.train_fraction:.0%} train / {s.validation_fraction:.0%} validation / "
+            f"{s.test_fraction:.0%} test of each window's bars, chronologically; the first fold realised "
+            f"{first['trainFraction']:.1%} / {first['validationFraction']:.1%} / {first['testFraction']:.1%} "
+            f"({first['trainBarCount']:,} / {first['validationBarCount']:,} / {first['testBarCount']:,} bars) after "
+            f"{self.horizon} bars purged at each boundary"
+        )
         return specs
 
     def _progress_geometry(self) -> None:
@@ -609,7 +737,7 @@ class CycleEngine:
         self._fold_regions = regions
 
     def fold_progress(self, fold_index: int, training_fraction: float | None = None, test_fraction: float | None = None,
-                      model_role: str = "direction") -> None:
+                      model_role: str = "direction", replay: bool = False) -> None:
         low, high = self._fold_regions[fold_index]
         within = 0.0
         if training_fraction is not None:
@@ -620,7 +748,11 @@ class CycleEngine:
                 fraction = DIRECTION_TRAINING_SHARE * fraction
             within = TRAINING_SHARE * fraction
         if test_fraction is not None:
-            within = TRAINING_SHARE + (1 - TRAINING_SHARE) * min(1.0, max(0.0, test_fraction))
+            # after training the fold has two walks: the validation replay takes the
+            # first quarter of what is left, the out-of-sample test walk the rest
+            replayed = replay and self.settings.replay_validation
+            start = TRAINING_SHARE if replayed else TRAINING_SHARE + (REPLAY_SHARE if self.settings.replay_validation else 0.0)
+            within = start + (1.0 - start) * min(1.0, max(0.0, test_fraction))
         within = self._tuning_share + (1 - self._tuning_share) * within
         self.set_overall(low + (high - low) * within)
 
@@ -668,6 +800,13 @@ class CycleEngine:
             "gapCrossingBarCount": int(self.crosses_gap.sum()),
             "purgeBars": int(self.horizon),
             "embargoBars": int(s.embargo_bars),
+            "splitFractions": {
+                "train": float(s.train_fraction),
+                "validation": float(s.validation_fraction),
+                "test": float(s.test_fraction),
+            },
+            # the validation span is replayed bar by bar after the fit; nothing it shows gates anything
+            "replayValidation": bool(s.replay_validation),
             "costModel": {
                 "tickSize": self.cost.tick_size,
                 "tickValueUsd": self.cost.tick_value,
@@ -816,8 +955,21 @@ class CycleEngine:
         prefix = self.fold_prefix(k)
         protocol.set_active_fold(k)
         protocol.set_active_trial(None)
-        self.emit_context_until(int(spec.test_index[0]), k)
+        # The chart is fed bars in the order the process reads them, each exactly once,
+        # so the validation replay can only read bars the run has not walked yet. A
+        # rolling window steps forward by less than its own length, so on every fold
+        # after the first the validation block reaches back over bars an earlier fold
+        # already walked out of sample; those folds do not replay, and say so.
         ts = self.data.timestamps
+        replay_rows = spec.validation_index if s.replay_validation else np.empty(0, dtype=np.int64)
+        if replay_rows.size and int(replay_rows[0]) < self.next_unemitted:
+            self.log(
+                f"{prefix}[replay] this fold's validation block starts {format_time(ts[replay_rows[0]])}, "
+                f"which an earlier fold has already walked out of sample; it is replayed on the first fold instead",
+                "debug",
+            )
+            replay_rows = np.empty(0, dtype=np.int64)
+        self.emit_context_until(int(replay_rows[0]) if replay_rows.size else int(spec.test_index[0]), k)
         parameters, tuning_summary = self._choose_parameters(spec)
         self.active_parameters = dict(parameters)
         directory = os.path.join(s.artifact_directory, f"fold_{k}")
@@ -871,6 +1023,21 @@ class CycleEngine:
                   # what this fold's models were fitted with, and how it was chosen
                   "parameters": dict(parameters), "tuning": tuning_summary, "status": "running"}
         self.fold_records.append(record)
+        if replay_rows.size:
+            # the market replay: the fitted model walking the validation span bar by
+            # bar, before the out-of-sample walk, on its own simulator and equity
+            replay_summary = self._replay_validation(spec, adapter, price_adapter)
+            # the replay consumed the validation bars, so the context resumes here and
+            # the walk below starts from the test span with nothing re-emitted
+            self.emit_context_until(int(spec.test_index[0]), k)
+            if replay_summary is not None:
+                record["validationReplay"] = replay_summary
+                self.log(
+                    f"{prefix}[replay] {replay_summary['barsWalked']:,} validation bars walked, "
+                    f"{replay_summary['tradeCount']} trades, net {format_usd(replay_summary['netProfitUsd'])}, "
+                    f"accuracy {_format_number(replay_summary['accuracy'], '.3f')} — the model was fitted and "
+                    "selected on these bars, so this is a look at the fitted model, never a test result"
+                )
         testing_started = self.clock()
         self._walk_test(spec, adapter, accumulator, price_adapter)
         testing_seconds = self.clock() - testing_started
@@ -1010,6 +1177,22 @@ class CycleEngine:
         except Exception as error:  # noqa: BLE001 - the run must not fail over its explain files
             self.log(f"[save] fold {spec.fold_index + 1}/{self.fold_count} row index could not be written: {error}", "warn")
 
+    LOSS_SURFACES_FILE = "loss_surfaces.json"
+
+    def write_loss_surfaces(self) -> None:
+        """Every loss surface so far, as one JSON file beside the run's
+        artifacts (`data/models/<id>/loss_surfaces.json`): the run page reads
+        it back for a recorded run. A failed write is a warning, never a lost fold."""
+        try:
+            os.makedirs(self.settings.artifact_directory, exist_ok=True)
+            path = os.path.join(self.settings.artifact_directory, self.LOSS_SURFACES_FILE)
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as handle:
+                json.dump(self.loss_surfaces, handle)
+            os.replace(tmp, path)
+        except Exception as error:  # noqa: BLE001 - the run must not fail over its surface file
+            self.log(f"[save] loss surfaces could not be written: {error}", "warn")
+
     def _save_model(self, adapter: ModelAdapter, directory: str, fold_index: int, words: str) -> str | None:
         """Save one fitted model; a failed save is a warning, never a lost fold."""
         try:
@@ -1120,24 +1303,81 @@ class CycleEngine:
         actual = float(self.data.close[target_row]) - float(self.data.close[source_row])
         accumulator.inputs.forecast_predicted_move_points.append(predicted_move)
         accumulator.inputs.forecast_actual_move_points.append(actual)
-        self.prediction_rows[source_row]["forecast_error_points"] = predicted_move - actual
+        row = self.prediction_rows.get(source_row)
+        if row is not None:
+            row["forecast_error_points"] = predicted_move - actual
 
-    # ── the test walk ──────────────────────────────────────────────────────
+    # ── the walk ───────────────────────────────────────────────────────────
     def _walk_test(self, spec: FoldSpec, adapter: ModelAdapter, accumulator: FoldAccumulator,
                    price_adapter: ModelAdapter | None = None) -> None:
+        """The fold's out-of-sample walk over the last `test_fraction` of its bars.
+        It owns the run: the bars it walks are scored, its trades and its equity are
+        the run's, and its metrics are the fold's score."""
+        assert self.simulator is not None
+        self._walk_span(spec, adapter, price_adapter, WalkSpan(
+            label="test", phase="testing", wire_name="test", rows=spec.test_index, fold_index=spec.fold_index,
+            simulator=self.simulator, accumulator=accumulator, writes_run_state=True,
+        ))
+
+    def _replay_validation(self, spec: FoldSpec, adapter: ModelAdapter,
+                           price_adapter: ModelAdapter | None) -> dict | None:
+        """The market replay: the fitted model, walked bar by bar over the validation
+        span at the run's pace, on its own simulator and its own equity.
+
+        The validation bars are rows the model was fitted on and selected on, so this
+        is a look at the fitted model trading the span it learned from — never a test
+        result. Nothing it measures is written to the run's prediction rows, trades or
+        equity, and no gate reads it: the fold's score still comes from the test walk.
+        It returns the summary it puts in the fold's record.
+        """
+        rows = spec.validation_index
+        if rows.size == 0:
+            return None
+        simulator = Simulator(
+            self.cost,
+            contracts=self.settings.contracts,
+            holding_bars=self.settings.resolved_holding_bars,
+            stop_loss_ticks=self.settings.stop_loss_ticks,
+            take_profit_ticks=self.settings.take_profit_ticks,
+            long_only=self.settings.long_only,
+        )
+        accumulator = FoldAccumulator(fold_index=spec.fold_index)
+        self.emit_context_until(int(rows[0]), spec.fold_index)
+        self._walk_span(spec, adapter, price_adapter, WalkSpan(
+            label="replay", phase="replaying", wire_name="replay", rows=rows, fold_index=spec.fold_index,
+            simulator=simulator, accumulator=accumulator, writes_run_state=False,
+        ))
+        metrics, _, _ = scoreboard(accumulator.inputs, self.periods_per_year)
+        return {
+            "barsWalked": int(accumulator.bars_evaluated),
+            "barsScored": int(len(accumulator.inputs.scored_actual_up)),
+            "tradeCount": int(len(simulator.closed_trades)),
+            "netProfitUsd": metrics["net_profit_usd"],
+            "winRate": metrics["win_rate"],
+            "accuracy": metrics["accuracy"],
+            "sharpeRatio": metrics["sharpe_ratio"],
+            "totalCostUsd": float(accumulator.inputs.total_cost_usd),
+        }
+
+    def _walk_span(self, spec: FoldSpec, adapter: ModelAdapter, price_adapter: ModelAdapter | None,
+                   span: WalkSpan) -> None:
         s = self.settings
         d = self.data
-        k = spec.fold_index
+        k = span.fold_index
         prefix = self.fold_prefix(k)
-        simulator = self.simulator
-        assert simulator is not None
+        simulator = span.simulator
         simulator.begin_fold(k)
-        rows = spec.test_index
+        accumulator = span.accumulator
+        rows = span.rows
+        equity = 0.0 if not span.writes_run_state else self.equity
         count = rows.size
         valid = history_valid(self.features, int(adapter.minimum_history()))
         span_start, span_end = int(d.timestamps[rows[0]]), int(d.timestamps[rows[-1]])
-        self.set_phase("testing", fold_index=k, span_start=span_start, span_end=span_end, bar_count=count, bar_index=0)
-        self.log(f"{prefix}[test] walking {count:,} bars one at a time {format_time(span_start)}..{format_time(span_end)}")
+        self.set_phase(span.phase, fold_index=k, span_start=span_start, span_end=span_end, bar_count=count, bar_index=0)
+        self.log(f"{prefix}[{span.label}] walking {count:,} bars one at a time {format_time(span_start)}..{format_time(span_end)}")
+        # every processed frame this span flushes says which walk it came from, so a
+        # consumer can tell the scored out-of-sample bars from the validation replay's
+        self._span = span.wire_name
         self._frame = None
         self._next_due = None
         last_board = last_bar_log = -math.inf
@@ -1153,6 +1393,15 @@ class CycleEngine:
             self.checkpoint()
             self._pace()
             i = int(rows[j])
+            if self.next_unemitted < i:
+                # A walk over a non-contiguous span (the validation replay keeps only the
+                # rows with a label and feature history, so it steps over the purged and the
+                # gap-crossing bars) leaves rows between two walked bars. The chart is fed
+                # every bar exactly once in time order, so those rows are context: the walk's
+                # own bars are still the scored ones, and the frame is flushed first so the
+                # context cannot overtake the bars already walked.
+                self._flush_frame()
+                self.emit_context_until(i, k)
             probability: float | None = None
             if valid[i]:
                 value = float(adapter.predict_probability(self.features, np.array([i], dtype=np.int64))[0])
@@ -1160,7 +1409,7 @@ class CycleEngine:
                     probability = min(1.0, max(0.0, value))
                 elif not warned_non_finite:
                     warned_non_finite = True
-                    self.log(f"{prefix}[test] the model returned a non-finite probability at {format_time(d.timestamps[i])}; such bars are not traded", "warn")
+                    self.log(f"{prefix}[{span.label}] the model returned a non-finite probability at {format_time(d.timestamps[i])}; such bars are not traded", "warn")
             # every prediction is traded: long at P(up) >= 0.5, short below (flat
             # below when long only — the simulator maps it)
             if probability is None:
@@ -1177,7 +1426,7 @@ class CycleEngine:
                     predicted_move = output * scale
                 elif not warned_price:
                     warned_price = True
-                    self.log(f"{prefix}[test] the price model returned a non-finite value at {format_time(d.timestamps[i])}; "
+                    self.log(f"{prefix}[{span.label}] the price model returned a non-finite value at {format_time(d.timestamps[i])}; "
                              "such bars draw no forecast", "warn")
             predicted_close = None
             predicted_move_raw = predicted_move          # the model's own number: output x scale, unrounded
@@ -1195,8 +1444,10 @@ class CycleEngine:
             if last:
                 net += simulator.flatten(i, int(d.timestamps[i]), float(d.close[i]), "fold_end")
                 position = 0
-            self.equity += net
-            self.last_processed_row = i
+            equity += net
+            if span.writes_run_state:
+                self.equity = equity
+                self.last_processed_row = i
             accumulator.bars_evaluated += 1
             accumulator.inputs.bar_net_usd.append(net)
             accumulator.inputs.bar_exposed.append(result.exposed)
@@ -1205,29 +1456,34 @@ class CycleEngine:
             accumulator.last_close = float(d.close[i])
             predicted_class_for_row[i] = direction
             probability_for_row[i] = probability
-            self.prediction_rows[i] = {
-                "timestamp": int(d.timestamps[i]), "fold_index": k,
-                "open": float(d.open[i]), "high": float(d.high[i]), "low": float(d.low[i]),
-                "close": float(d.close[i]), "volume": float(d.volume[i]),
-                "probability_up": probability, "predicted_direction": direction,
-                # `target_position` is the position wanted at the next open; `position_held` was carried through this bar
-                "target_position": int(position), "position_held": int(result.held),
-                "bar_net_profit_usd": float(net), "exposed": bool(result.exposed), "crosses_gap": crosses_gap,
-                "equity_usd": self.equity, "actual_direction": None, "correct": None,
-                "predicted_move_points": predicted_move, "predicted_move_raw_points": predicted_move_raw,
-                "predicted_close": predicted_close,
-                "forecast_timestamp": forecast_timestamp, "forecast_error_points": None,
-            }
+            if span.writes_run_state:
+                self.prediction_rows[i] = {
+                    "timestamp": int(d.timestamps[i]), "fold_index": k,
+                    "open": float(d.open[i]), "high": float(d.high[i]), "low": float(d.low[i]),
+                    "close": float(d.close[i]), "volume": float(d.volume[i]),
+                    "probability_up": probability, "predicted_direction": direction,
+                    # `target_position` is the position wanted at the next open; `position_held` was carried through this bar
+                    "target_position": int(position), "position_held": int(result.held),
+                    "bar_net_profit_usd": float(net), "exposed": bool(result.exposed), "crosses_gap": crosses_gap,
+                    "equity_usd": equity, "actual_direction": None, "correct": None,
+                    "predicted_move_points": predicted_move, "predicted_move_raw_points": predicted_move_raw,
+                    "predicted_close": predicted_close,
+                    "forecast_timestamp": forecast_timestamp, "forecast_error_points": None,
+                }
             frame = self._frame_for(k)
             for key, value in (("timestamps", int(d.timestamps[i])), ("open", d.open[i]), ("high", d.high[i]), ("low", d.low[i]),
                                ("close", d.close[i]), ("volume", d.volume[i]), ("probabilityUp", probability),
                                ("predictedDirection", direction), ("position", position), ("positionHeld", int(result.held)),
-                               ("equityUsd", self.equity), ("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
+                               ("equityUsd", equity), ("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
                 frame[key].append(value)
 
-            # the label of the bar h back (same fold) is known now
-            if j >= self.horizon:
-                resolved_row = int(rows[j - self.horizon])
+            # A label or a forecast made at row r resolves at row r + horizon. Keyed on
+            # the row itself rather than on the walk's position, because a walk over a
+            # non-contiguous span (the validation replay skips the purged and the
+            # gap-crossing bars) can reach a target row whose source was never walked —
+            # and then that label, or that forecast, does not resolve inside this walk.
+            resolved_row = i - self.horizon
+            if resolved_row in predicted_class_for_row:
                 # a bar whose horizon crossed a session gap is not scored (actual 0 = unscored)
                 actual = 0 if self.crosses_gap[resolved_row] else actual_direction(
                     d.close, resolved_row, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
@@ -1236,9 +1492,10 @@ class CycleEngine:
                 frame["resolvedTimestamps"].append(int(d.timestamps[resolved_row]))
                 frame["resolvedActual"].append(actual)
                 frame["resolvedCorrect"].append(correct)
-                record = self.prediction_rows[resolved_row]
-                record["actual_direction"] = actual
-                record["correct"] = correct
+                record = self.prediction_rows.get(resolved_row)
+                if record is not None:
+                    record["actual_direction"] = actual
+                    record["correct"] = correct
                 if correct is not None:
                     accumulator.inputs.scored_actual_up.append(1 if actual > 0 else 0)
                     accumulator.inputs.scored_predicted_up.append(1 if predicted > 0 else 0)
@@ -1252,14 +1509,14 @@ class CycleEngine:
             if not s.quiet_bars and ((0 < pace <= 50) or now - last_bar_log >= BAR_LOG_INTERVAL_SECONDS):
                 last_bar_log = now
                 line = (
-                    f"{prefix}[test] {format_time(d.timestamps[i])} bar {j + 1}/{count} close={d.close[i]:.2f} "
+                    f"{prefix}[{span.label}] {format_time(d.timestamps[i])} bar {j + 1}/{count} close={d.close[i]:.2f} "
                     f"p_up={_format_number(probability, '.3f')} signal={SIDE_WORDS[signal] if signal is not None else 'NONE'} "
-                    f"position={SIDE_WORDS[position]} equity={format_usd(self.equity)} "
+                    f"position={SIDE_WORDS[position]} equity={format_usd(equity)} "
                     f"forecast={self._forecast_words(predicted_close, forecast_timestamp)}"
                 )
                 self._post_frame.append(lambda line=line: self.log(line))
             self._cursor.update(bar_timestamp=int(d.timestamps[i]), bar_index=j, bar_count=count, phase_fraction=(j + 1) / count)
-            self.fold_progress(k, test_fraction=(j + 1) / count)
+            self.fold_progress(k, test_fraction=(j + 1) / count, replay=not span.writes_run_state)
             if last or (0 < pace <= 20) or now - self._last_flush >= FRAME_INTERVAL_SECONDS:
                 self._flush_frame()
             if not last and now - last_board >= SCOREBOARD_INTERVAL_SECONDS:
@@ -1269,10 +1526,11 @@ class CycleEngine:
         accumulator.inputs.total_cost_usd = sum(t.cost_usd or 0.0 for t in simulator.closed_trades if t.fold_index == k)
         accumulator.inputs.buy_and_hold_usd = self._fold_buy_and_hold(accumulator)
         walked = self.clock() - walk_started
-        self.test_bars += count
-        self._emit_running_scoreboard(k)
+        if span.writes_run_state:
+            self.test_bars += count
+            self._emit_running_scoreboard(k)
         if walked > 0:
-            self.log(f"{prefix}[test] {count / walked:,.1f} bars/s over {count:,} bars", "debug")
+            self.log(f"{prefix}[{span.label}] {count / walked:,.1f} bars/s over {count:,} bars", "debug")
 
     @staticmethod
     def _forecast_words(predicted_close: float | None, forecast_timestamp: int | None) -> str:
@@ -1291,6 +1549,7 @@ class CycleEngine:
         if self._frame is None:
             self._frame = {
                 "foldIndex": fold_index,
+                "span": self._span,
                 **{key: [] for key in ("timestamps", "open", "high", "low", "close", "volume", "probabilityUp",
                                        "predictedDirection", "position", "positionHeld", "equityUsd", "predictedClose",
                                        "forecastTimestamp", "resolvedTimestamps", "resolvedActual", "resolvedCorrect")},
@@ -1313,9 +1572,10 @@ class CycleEngine:
                 predicted_direction=frame["predictedDirection"], position=frame["position"],
                 equity_usd=frame["equityUsd"], resolved=resolved, predicted_close=frame["predictedClose"],
                 forecast_timestamp=frame["forecastTimestamp"], position_held=frame["positionHeld"],
+                span=frame["span"],
             )
             self._record_bars("processed", frame["foldIndex"], frame["timestamps"], frame["open"], frame["high"],
-                              frame["low"], frame["close"], frame["volume"])
+                              frame["low"], frame["close"], frame["volume"], span=frame["span"])
             self.emit_cursor(force=True)
         actions, self._post_frame = self._post_frame, []
         for action in actions:
@@ -1557,6 +1817,8 @@ class EngineReporter:
         self.validation_span = (int(ts[validation_index[0]]), int(ts[validation_index[-1]])) if validation_index.size else self.window
         patience = engine.parameters.get("patience")
         self.patience = int(patience) if isinstance(patience, (int, float)) and not isinstance(patience, bool) else None
+        # a tuning trial's fit is one of many candidates: no surface for it
+        self.loss_surface_resolution = 0 if self.tuning else max(0, int(engine.settings.loss_surface_resolution))
 
     def _unit(self) -> str | None:
         unit = getattr(self, "step_unit", None)
@@ -1631,6 +1893,22 @@ class EngineReporter:
         tail = " (every round sees the whole training window)" if whole and unit != "epoch" else ""
         self.engine.log(f"{self.prefix}[train] {self.role_words}{head} {' '.join(parts)} {block}{tail}",
                         "debug" if self.tuning else "info")
+
+    def loss_surface(self, surface: dict) -> None:
+        """A neural adapter's loss surface around its kept weights: emitted
+        live, kept for the record and written beside the fold's artifacts."""
+        engine = self.engine
+        payload = protocol.cycle_loss_surface_payload(fold_index=self.fold_index, model_role=self.model_role, surface=surface)
+        protocol.emit_cycle_loss_surface(fold_index=self.fold_index, model_role=self.model_role, surface=surface)
+        engine.loss_surfaces.append(payload)
+        engine.write_loss_surfaces()
+        d = payload["diagnostics"]
+        engine.log(
+            f"{self.prefix}[surface] {self.role_words}loss surface {payload['resolution']}x{payload['resolution']} around the kept "
+            f"weights in {payload['secondsElapsed']:.1f} s: sharpness={_format_number(d['sharpness'], '.4f')} "
+            f"condition_number={_format_number(d['conditionNumber'], '.1f')} valley_width={_format_number(d['valleyWidth'], '.3f')} "
+            f"{'locally convex' if d['locallyConvex'] else 'not convex here (a saddle or a ridge)'}"
+        )
 
     def validating(self, epoch: int, epoch_count: int) -> None:
         self.epoch, self.epoch_count = int(epoch), int(epoch_count)

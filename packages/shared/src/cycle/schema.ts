@@ -320,6 +320,42 @@ export const cycleEpochSchema = cycleEnvelopeSchema.extend({
 });
 export type CycleEpoch = z.infer<typeof cycleEpochSchema>;
 
+// ─── cycle_loss_surface ─────────────────────────────────────────────────────
+
+/**
+ * The loss landscape around a fold's kept weights (Li et al. 2018): the loss
+ * at every point of a grid along two filter-normalised random directions in
+ * weight space, so a flat wide bowl and a sharp narrow pit look different. One
+ * per final neural fit (a tuning trial's fit has none; a tree model has no
+ * weights to perturb and never sends one).
+ */
+export const cycleLossSurfaceSchema = cycleEnvelopeSchema.extend({
+  foldIndex: z.number().int().nonnegative().nullable(),
+  modelRole: z.enum(["direction", "price"]),
+  /** Grid coordinates along the first direction, in filter-normalised units (1 = the weights' own scale). */
+  alphas: z.array(z.number()),
+  /** Grid coordinates along the second direction. */
+  betas: z.array(z.number()),
+  /** `losses[i][j]` is the loss at `(alphas[i], betas[j])`; the centre `(0, 0)` is the kept weights. */
+  losses: z.array(z.array(nullableNumber)),
+  resolution: z.number().int().min(3),
+  range: z.tuple([z.number(), z.number()]),
+  diagnostics: z.object({
+    /** Mean |second derivative| at the grid minimum: how fast the loss climbs when the weights move. */
+    sharpness: nullableNumber,
+    /** Ratio of the two curvatures at the minimum: 1 is a round bowl, large is a long narrow valley. */
+    conditionNumber: nullableNumber,
+    /** Distance from the minimum to the nearest point whose loss is 1% higher. */
+    valleyWidth: nullableNumber,
+    /** Every sampled curvature around the minimum is positive: a bowl, not a saddle. */
+    locallyConvex: z.boolean(),
+  }),
+  /** Validation batches each grid point was scored on. */
+  batchCount: z.number().int().positive().nullable(),
+  secondsElapsed: z.number().nonnegative(),
+});
+export type CycleLossSurface = z.infer<typeof cycleLossSurfaceSchema>;
+
 // ─── cycle_trial ────────────────────────────────────────────────────────────
 
 export const cycleTrialSchema = cycleEnvelopeSchema.extend({
@@ -450,6 +486,7 @@ export const CYCLE_EVENT_SCHEMAS = {
   cycle_bars: cycleBarsSchema,
   cycle_cursor: cycleCursorSchema,
   cycle_epoch: cycleEpochSchema,
+  cycle_loss_surface: cycleLossSurfaceSchema,
   cycle_trial: cycleTrialSchema,
   cycle_parameters: cycleParametersSchema,
   cycle_trade: cycleTradeSchema,
@@ -464,6 +501,7 @@ export interface CycleEventPayloads {
   cycle_bars: CycleBars;
   cycle_cursor: CycleCursor;
   cycle_epoch: CycleEpoch;
+  cycle_loss_surface: CycleLossSurface;
   cycle_trial: CycleTrial;
   cycle_parameters: CycleParameters;
   cycle_trade: CycleTrade;
@@ -538,6 +576,8 @@ export interface CycleSnapshot {
   trials: CycleTrial[];
   /** One per fold that has chosen its hyperparameters, in fold order. */
   parameters: CycleParameters[];
+  /** One per final neural fit, in the order they were computed; absent on snapshots rebuilt from the lake alone. */
+  lossSurfaces?: CycleLossSurface[];
   logs: CycleLogLine[];
 }
 

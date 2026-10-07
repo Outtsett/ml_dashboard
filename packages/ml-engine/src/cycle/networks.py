@@ -815,6 +815,45 @@ class NeuralAdapter:
             return raw
         return torch.sigmoid(raw)
 
+    # ── loss surface ──
+
+    LOSS_SURFACE_BATCHES = 4
+
+    def _report_loss_surface(self, reporter, network, criterion, matrix, label_tensor, rows, batch_size, device) -> None:
+        """The loss landscape around the kept weights (Li et al. 2018), on the
+        first few validation batches, handed to the reporter. Only when the
+        reporter asks for one (a tuning trial's fit never does); a failure is
+        logged, never raised — the fit itself is done."""
+        resolution = int(getattr(reporter, "loss_surface_resolution", 0) or 0)
+        report = getattr(reporter, "loss_surface", None)
+        if resolution < 3 or not callable(report) or rows.numel() == 0:
+            return
+        from core.shared.loss_surface import compute_loss_surface
+
+        batch_count = min(self.LOSS_SURFACE_BATCHES, max(1, math.ceil(rows.numel() / batch_size)))
+        batches = []
+        for start in range(0, rows.numel(), batch_size):
+            if len(batches) >= batch_count:
+                break
+            chunk = rows[start:start + batch_size]
+            batches.append((self._gather_device(matrix, chunk), label_tensor[chunk]))
+
+        def loss(output, targets):
+            return criterion(output.float(), targets)
+
+        started = time.perf_counter()
+        try:
+            surface = compute_loss_surface(
+                network, loss, batches, resolution=resolution, num_batches=batch_count,
+                device=str(device), seed=self.seed,
+            )
+        except Exception as error:  # noqa: BLE001 - a surface is a picture of the fit, not the fit
+            reporter.log(f"{self.family}: loss surface not computed: {error}", "warn")
+            return
+        surface["batch_count"] = batch_count
+        surface["seconds_elapsed"] = time.perf_counter() - started
+        report(surface)
+
     # ── fit ──
 
     def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
@@ -1044,6 +1083,10 @@ class NeuralAdapter:
         else:
             best_epoch = last_epoch
         network.eval()
+        self._report_loss_surface(
+            reporter, network, loss_override if callable(loss_override) else loss_function,
+            matrix, label_tensor, validation_rows if validation_index.size else train_rows, batch_size, device,
+        )
         del matrix, label_tensor, train_rows, validation_rows
         summary = {
             **_training_summary(train_index, validation_index, timestamps),

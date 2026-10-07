@@ -4,6 +4,7 @@
  * filter chips are the same categories the engine writes.
  */
 import { useEffect, useRef, useState } from "react";
+import { barTimeOf, formatBarTime } from "@/runs/barTime";
 
 import { categorizeLogLine, type LogCategory } from "@/cycle/Terminal";
 import type { CycleLogLine } from "@shared/cycle/schema";
@@ -49,10 +50,24 @@ function matches(line: CycleLogLine, filter: FilterId): boolean {
   return categoryOf(line.message) === filter;
 }
 
-export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: boolean }) {
+export function RunTerminal({
+  lines,
+  live,
+  onLocate,
+  seekTime,
+}: {
+  lines: CycleLogLine[];
+  live: boolean;
+  /** A line that names a bar was clicked: its bar time, in epoch seconds. */
+  onLocate?: (seconds: number) => void;
+  /** A bar was clicked on the chart: scroll to the first line logged on it. */
+  seekTime?: number | null;
+}) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [search, setSearch] = useState("");
   const [follow, setFollow] = useState(true);
+  const [picked, setPicked] = useState<number | null>(null);
+  const rowRefs = useRef(new Map<number, HTMLDivElement>());
   const [full, setFull] = useState(false);
   const text = (line: CycleLogLine) => (full ? line.message : condenseLine(line.message));
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -66,6 +81,18 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
     if (!follow || !scroller.current) return;
     scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [follow, shown.length, filter]);
+
+  // a bar clicked on the chart: find the first shown line stamped with that bar and scroll to it
+  useEffect(() => {
+    if (seekTime === null || seekTime === undefined) return;
+    const stamp = formatBarTime(seekTime);
+    const index = shown.findIndex((line) => line.message.includes(stamp));
+    if (index < 0) return;
+    setFollow(false);
+    setPicked(index);
+    rowRefs.current.get(index)?.scrollIntoView({ block: "center" });
+    // `shown` changes every poll; re-running on it would fight the user's scrolling
+  }, [seekTime]);
 
   function handleScroll() {
     const element = scroller.current;
@@ -126,8 +153,22 @@ export function RunTerminal({ lines, live }: { lines: CycleLogLine[]; live: bool
         ) : (
           shown.map((line, index) => {
             const category = categoryOf(line.message);
+            const barTime = barTimeOf(line.message);
             return (
-              <div key={`${line.receivedAt}-${line.seq ?? "x"}-${index}`} className="flex gap-2 whitespace-pre-wrap break-words">
+              <div
+                key={`${line.receivedAt}-${line.seq ?? "x"}-${index}`}
+                ref={(node) => {
+                  if (node) rowRefs.current.set(index, node);
+                  else rowRefs.current.delete(index);
+                }}
+                onClick={() => {
+                  if (barTime === null || !onLocate) return;
+                  setPicked(index);
+                  onLocate(barTime);
+                }}
+                title={barTime === null ? undefined : "Click to show this bar on the chart"}
+                className={`flex gap-2 whitespace-pre-wrap break-words ${barTime === null ? "" : "cursor-pointer hover:bg-foreground/5"} ${picked === index ? "bg-[#F0E442]/15 outline outline-1 outline-[#F0E442]/60" : ""}`}
+              >
                 <span className="shrink-0 text-muted-foreground/70">{formatClock(line.receivedAt)}</span>
                 {line.level === "error" && <span className="shrink-0 font-bold text-[#D55E00]">✕ ERR</span>}
                 {line.level === "warn" && <span className="shrink-0 font-bold text-[#F0E442]">▲ WRN</span>}

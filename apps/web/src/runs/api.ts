@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiRequest } from "@/infrastructure/api/query_client";
-import type { CycleLogLine } from "@shared/cycle/schema";
+import type { CycleLogLine, CycleTrade } from "@shared/cycle/schema";
 import type { RunListItem, RunnableModel, RunView, StartRunRequest, StartRunResponse } from "@shared/runs/types";
 
 const LIST_POLL_MILLISECONDS = 3000;
@@ -90,5 +90,51 @@ export function useStopRun() {
     onError: (error) => {
       toast.error("The run did not stop", { description: error instanceof Error ? error.message : String(error) });
     },
+  });
+}
+
+// ─── the bars the run walked ──────────────────────────────────────────────
+
+export interface RunBar {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  foldIndex: number | null;
+  role: string;
+  probabilityUp: number | null;
+  position: number | null;
+  equityUsd: number | null;
+  correct: boolean | null;
+}
+
+export interface RunBarsPayload {
+  status: string;
+  bars: RunBar[];
+  trades: CycleTrade[];
+}
+
+const BARS_POLL_MILLISECONDS = 3000;
+
+/** The run's bars and trades, appended as a live run walks forward (each poll asks for bars after the last one held). */
+export function useRunBars(runId: string | null, live: boolean) {
+  const held = useRef<{ runId: string | null; bars: RunBar[] }>({ runId: null, bars: [] });
+  return useQuery<RunBarsPayload>({
+    queryKey: ["/api/runs", runId, "bars"],
+    enabled: runId !== null,
+    queryFn: async ({ signal }) => {
+      if (held.current.runId !== runId) held.current = { runId, bars: [] };
+      const last = held.current.bars[held.current.bars.length - 1];
+      const after = last ? `?after=${last.time}` : "";
+      const response = await apiRequest("GET", `/api/runs/${encodeURIComponent(runId!)}/bars${after}`, undefined, signal);
+      const payload = (await response.json()) as RunBarsPayload;
+      held.current.bars = last ? [...held.current.bars, ...payload.bars] : payload.bars;
+      return { ...payload, bars: held.current.bars };
+    },
+    refetchInterval: live ? BARS_POLL_MILLISECONDS : false,
+    refetchIntervalInBackground: true,
+    staleTime: Infinity,
+    retry: false,
   });
 }

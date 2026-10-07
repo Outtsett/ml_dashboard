@@ -117,6 +117,14 @@ class TrainingReporter(Protocol):
 
     def log(self, message: str, level: str = "info") -> None: ...
 
+    # Optional, for neural adapters. ``loss_surface_resolution`` is the grid
+    # size the engine wants (0 = none: a tuning trial's fit, or the run turned
+    # it off); ``loss_surface(surface)`` hands back what
+    # ``core.shared.loss_surface.compute_loss_surface`` returned.
+    loss_surface_resolution: int
+
+    def loss_surface(self, surface: dict) -> None: ...
+
 
 MODEL_TASKS = ("classification", "regression")
 

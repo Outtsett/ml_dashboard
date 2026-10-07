@@ -89,15 +89,17 @@ _PROJECT_ROOT = _ML_ROOT.parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.append(str(_PROJECT_ROOT))
 
-from cycle.adapter import MODEL_FAMILIES, MODEL_LABELS  # noqa: E402
 from shared import protocol  # noqa: E402
+
+from cycle.adapter import MODEL_FAMILIES, MODEL_LABELS  # noqa: E402
 
 # ── the plan's flag tables ─────────────────────────────────────────────────
 
 # (key, type, default, help)
 CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
-    ("train_days", int, 60, "calendar days in each training window"),
-    ("validation_fraction", float, 0.2, "last fraction of the training window used for validation"),
+    ("train_days", int, 60, "calendar days in each fold's training window"),
+    ("validation_fraction", float, 0.1, "share of each fold's bars that validates"),
+    ("test_fraction", float, 0.1, "share of each fold's bars that tests out of sample; the train share is 1 - validation - test"),
     ("test_days", int, 10, "calendar days in each test window"),
     ("step_days", int, 0, "days between test windows (0 = test_days; must be >= test_days)"),
     ("fold_limit", int, 3, "0 = all folds, else the most recent N"),
@@ -105,6 +107,7 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("label_horizon_bars", int, 6, "bars ahead the direction label looks"),
     ("label_threshold_ticks", float, 0.0, "moves within this many ticks are unlabelled"),
     ("embargo_bars", int, 0, "bars dropped from the start of each test window"),
+    ("replay_validation", bool, True, "replay the validation span bar by bar after the fit (in sample; never a test result)"),
     ("label_gap_multiple", float, 3.0, "a bar whose horizon crosses a gap over this many typical bar intervals gets no label (0 = off)"),
     ("long_only", bool, False, "never go short"),
     ("holding_bars", int, 0, "bars to hold a position (0 = label horizon)"),
@@ -122,6 +125,7 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("start_paused", bool, False, "start paused"),
     ("quiet_bars", bool, False, "suppress per-bar log lines"),
     ("log_every_batches", int, 10, "log a training line every N batches"),
+    ("loss_surface_resolution", int, 21, "grid size of the loss surface computed after each fold's final neural fit (0 = none)"),
     ("device", str, "auto", "auto | cuda | cpu"),
     ("seed", int, 42, "random seed"),
 )
@@ -252,9 +256,10 @@ def _factory_hook():
 def adjust_for_rolls(symbol: str, timeframe: str, data):
     """Back-adjust a stitched futures root at its contract rolls (see
     `cycle.rolls`). Returns the (possibly adjusted) data and the rolls found."""
+    from shared.data import _serving
+
     from cycle.engine import MarketData, format_time
     from cycle.rolls import back_adjust, contract_rows_from_lake, find_rolls
-    from shared.data import _serving
 
     try:
         rows = contract_rows_from_lake(_serving(), symbol, timeframe, int(data.timestamps[0]), int(data.timestamps[-1]))
@@ -285,11 +290,12 @@ def adjust_for_rolls(symbol: str, timeframe: str, data):
 
 
 def run(args: argparse.Namespace, unknown: list[str]) -> int:
+    from shared.sentiment import infer_clock
+
     from cycle.control import ControlState, start_reader
     from cycle.engine import CycleEngine, CycleSettings, clean_market_data
     from cycle.features import MarketContext, build_features, require_finbert
     from cycle.simulate import load_cost_model
-    from shared.sentiment import infer_clock
 
     started = time.monotonic()
     family = args.model_family

@@ -10,6 +10,7 @@ import type {
   RunDailyRow,
   RunEpochPoint,
   RunFoldRow,
+  RunLossSurface,
   RunMetricTile,
   RunMetricUnit,
   RunView,
@@ -96,9 +97,21 @@ export function finalFitEpochs(snapshot: Pick<CycleSnapshot, "epochs">): RunEpoc
       trainLoss: epoch.trainLoss,
       validationLoss: epoch.validationLoss,
       validationAccuracy: epoch.validationAccuracy,
+      validationF1Score: epoch.validationF1Score ?? null,
+      learningRate: epoch.learningRate ?? null,
+      gradientNorm: epoch.gradientNorm ?? null,
+      isBest: epoch.isBest === true,
+      secondsElapsed: epoch.secondsElapsed ?? 0,
     });
   }
   return points;
+}
+
+/** The surfaces without their wire envelope, in fold order then role. */
+export function lossSurfacesOf(snapshot: Pick<CycleSnapshot, "lossSurfaces">): RunLossSurface[] {
+  return (snapshot.lossSurfaces ?? [])
+    .map(({ seq: _seq, ts: _ts, ...surface }) => surface)
+    .sort((a, b) => (a.foldIndex ?? 0) - (b.foldIndex ?? 0) || a.modelRole.localeCompare(b.modelRole));
 }
 
 function runScopeRows(rows: ReadonlyArray<Record<string, unknown>> | undefined): Record<string, unknown>[] {
@@ -230,6 +243,7 @@ export function buildRunView(snapshot: CycleSnapshot, report: RunReportTables | 
     tiles: tilesOf(metrics),
     verdicts: judgeRun({ status: snapshot.status, error: snapshot.error, metrics, epochs, trials: snapshot.trials, folds }),
     epochs,
+    lossSurfaces: lossSurfacesOf(snapshot),
     trials: snapshot.trials,
     folds,
     daily: dailyOf(report),

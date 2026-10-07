@@ -35,7 +35,7 @@ interface SurfaceDiagnostics {
   locally_convex: boolean;
 }
 
-interface SurfaceGridData {
+export interface SurfaceGridData {
   alphas: number[];
   betas: number[];
   losses: number[][];
@@ -197,7 +197,7 @@ function TrajectoryFallback({ data }: { data: TrajectoryData }) {
 
 // ── SVG Fallback: Surface Contour ───────────────────────────────────────────
 
-function SurfaceContourFallback({ data }: { data: SurfaceGridData }) {
+export function SurfaceContourFallback({ data }: { data: SurfaceGridData }) {
   const { losses, resolution, trajectory_3d } = data;
   const flatLosses = losses.flat();
   const minLoss = Math.min(...flatLosses);
@@ -278,7 +278,7 @@ function SurfaceContourFallback({ data }: { data: SurfaceGridData }) {
 
 // ── 3D Surface (R3F) — lazy loaded ──────────────────────────────────────────
 
-function Surface3DScene({ data }: { data: SurfaceGridData }) {
+export function Surface3DScene({ data }: { data: SurfaceGridData }) {
   const [ThreeComponents, setThreeComponents] = useState<{
     fiber: typeof import('@react-three/fiber');
     drei: typeof import('@react-three/drei');
@@ -306,10 +306,20 @@ function Surface3DScene({ data }: { data: SurfaceGridData }) {
   if (loadFailed || !ThreeComponents) {
     return <SurfaceContourFallback data={data} />;
   }
+  // the geometry hook lives in a child so no hook runs after the early return above
+  return <LoadedSurfaceScene data={data} modules={ThreeComponents} />;
+}
 
-  const { Canvas } = ThreeComponents.fiber;
-  const { OrbitControls, Grid: DreiGrid } = ThreeComponents.drei;
-  const THREE = ThreeComponents.THREE;
+function LoadedSurfaceScene({
+  data,
+  modules,
+}: {
+  data: SurfaceGridData;
+  modules: { fiber: typeof import('@react-three/fiber'); drei: typeof import('@react-three/drei'); THREE: typeof import('three') };
+}) {
+  const { Canvas } = modules.fiber;
+  const { OrbitControls, Grid: DreiGrid } = modules.drei;
+  const THREE = modules.THREE;
 
   const { losses, resolution, trajectory_3d } = data;
 

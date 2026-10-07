@@ -122,6 +122,68 @@ function RunRow({ run, selected, onSelect }: { run: RunListItem; selected: boole
   );
 }
 
+/** One model on one series: every run of `xgboost` on MNQ 5m sits under one header, newest first. */
+interface RunGroupItem {
+  key: string;
+  modelType: string;
+  symbol: string | null;
+  timeframe: string | null;
+  runs: RunListItem[];
+}
+
+function groupRuns(runs: RunListItem[]): RunGroupItem[] {
+  const groups = new Map<string, RunGroupItem>();
+  for (const run of runs) {
+    const key = `${run.modelType}|${run.symbol ?? ""}|${run.timeframe ?? ""}`;
+    const group = groups.get(key) ?? { key, modelType: run.modelType, symbol: run.symbol, timeframe: run.timeframe, runs: [] };
+    group.runs.push(run);
+    groups.set(key, group);
+  }
+  // the list arrives newest first, so a group's first run is its newest; groups order by their newest run
+  return [...groups.values()].sort((a, b) => b.runs[0]!.startedAt - a.runs[0]!.startedAt);
+}
+
+function RunGroup({
+  group,
+  open,
+  onToggle,
+  selectedId,
+  onSelect,
+}: {
+  group: RunGroupItem;
+  open: boolean;
+  onToggle: () => void;
+  selectedId: string | null;
+  onSelect: (runId: string) => void;
+}) {
+  const newest = group.runs[0]!;
+  const live = group.runs.filter((run) => run.status === "running").length;
+  return (
+    <div className="border-b border-border/70">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full cursor-pointer items-center gap-1.5 bg-foreground/[0.04] px-2 py-1 text-left hover:bg-foreground/[0.08]"
+        data-testid="run-group"
+      >
+        <span className="font-mono text-[10px] text-muted-foreground">{open ? "▾" : "▸"}</span>
+        <span className="truncate font-mono text-[11px] font-bold text-foreground">
+          {shortModelType(group.modelType)} · {group.symbol ?? "?"} {group.timeframe ?? ""}
+        </span>
+        <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
+          {live > 0 ? `${live} live · ` : ""}
+          {group.runs.length} run{group.runs.length === 1 ? "" : "s"}
+        </span>
+      </button>
+      {open ? (
+        group.runs.map((run) => <RunRow key={run.id} run={run} selected={run.id === selectedId} onSelect={() => onSelect(run.id)} />)
+      ) : (
+        <RunRow run={newest} selected={newest.id === selectedId} onSelect={() => onSelect(newest.id)} />
+      )}
+    </div>
+  );
+}
+
 export function RunSidebar({
   runs,
   selectedId,
@@ -134,19 +196,36 @@ export function RunSidebar({
   onStarted: (response: StartRunResponse) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
   const needle = search.trim().toLowerCase();
+  function toggle(key: string) {
+    setOpened((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   const shown = needle === "" ? runs : runs.filter((run) => `${run.name} ${run.modelType} v${run.version} ${run.symbol} ${run.timeframe} ${run.status} ${run.purpose}`.toLowerCase().includes(needle));
+  const groups = groupRuns(shown);
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card/40">
       <Launcher onStarted={onStarted} />
       <div className="flex items-center gap-2 border-b border-border px-2 py-1.5">
         <span className="font-mono text-[11px] font-bold uppercase text-foreground">Runs</span>
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter" className={`${FIELD} h-6`} />
-        <span className="font-mono text-[10px] text-muted-foreground">{shown.length}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">{shown.length} in {groups.length}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {shown.map((run) => (
-          <RunRow key={run.id} run={run} selected={run.id === selectedId} onSelect={() => onSelect(run.id)} />
+        {groups.map((group) => (
+          <RunGroup
+            key={group.key}
+            group={group}
+            open={needle !== "" || opened.has(group.key) || group.runs.some((run) => run.id === selectedId)}
+            onToggle={() => toggle(group.key)}
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
         ))}
         {shown.length === 0 && <div className="p-3 font-mono text-[11px] text-muted-foreground">No runs yet. Launch one above.</div>}
       </div>

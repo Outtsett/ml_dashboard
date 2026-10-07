@@ -675,6 +675,10 @@ CYCLE_PHASES = (
     "tuning",
     "training",
     "validating",
+    # the validation market replay: the fitted model walking the validation span bar by
+    # bar. Its own phase, distinct from `validating` (the models' validation pass during
+    # training), so the phase strip and every phase-keyed consumer can tell them apart.
+    "replaying",
     "testing",
     "complete",
     "stopped",
@@ -736,6 +740,7 @@ def emit_cycle_bars(
     predicted_close=None,
     forecast_timestamp=None,
     position_held=None,
+    span: str = "test",
 ) -> None:
     """Bars in strict timestamp order, each bar emitted exactly once per run.
 
@@ -751,9 +756,19 @@ def emit_cycle_bars(
     parallel): the price model's forecast made at each bar of the close
     ``labelHorizonBars`` later, and the epoch seconds of that later bar (None
     past the loaded data).
+
+    ``span`` (processed bars, default ``"test"``): which walk produced the
+    frame. ``"test"`` is the out-of-sample walk the run is scored on.
+    ``"replay"`` is the market replay over the validation span — the fitted
+    model walking bars it was fitted and selected on, which nothing gates and
+    which never counts toward the run's equity, trades or metrics. A consumer
+    that draws the run's scored position, equity or predictions must read this
+    and skip ``"replay"`` frames.
     """
     if role not in ("context", "processed"):
         raise ValueError(f"emit_cycle_bars: role must be context or processed, got {role!r}")
+    if span not in ("test", "replay"):
+        raise ValueError(f"emit_cycle_bars: span must be test or replay, got {span!r}")
     count = len(timestamps)
     columns = {
         "open": open_prices,
@@ -789,6 +804,7 @@ def emit_cycle_bars(
         payload["predictedDirection"] = [int(v) for v in predicted_direction]
         payload["position"] = [int(v) for v in position]
         payload["equityUsd"] = [float(v) for v in equity_usd]
+        payload["span"] = span
         for name, column in (("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp),
                              ("positionHeld", position_held)):
             if column is not None and len(column) != count:
@@ -991,6 +1007,41 @@ def emit_cycle_parameters(
             "pinned": [str(name) for name in pinned],
         },
     )
+
+
+def cycle_loss_surface_payload(*, fold_index, model_role: str, surface: dict) -> dict:
+    """The wire shape of a fold's loss surface (Li et al. 2018, as
+    ``core.shared.loss_surface.compute_loss_surface`` returns it): the grid of
+    losses around the fitted weights along two filter-normalised directions,
+    plus the geometry read off it. One per final fit; a tuning trial's fit
+    has none."""
+    if model_role not in ("direction", "price"):
+        raise ValueError(f"cycle_loss_surface: model role must be direction or price, got {model_role!r}")
+    diagnostics = surface.get("diagnostics") or {}
+    losses = [[_optional_number(value) for value in row] for row in surface["losses"]]
+    return {
+        "foldIndex": _optional_int(fold_index),
+        "modelRole": model_role,
+        "alphas": [float(value) for value in surface["alphas"]],
+        "betas": [float(value) for value in surface["betas"]],
+        "losses": losses,
+        "resolution": int(surface["resolution"]),
+        "range": [float(surface["range"][0]), float(surface["range"][1])],
+        "diagnostics": {
+            "sharpness": _optional_number(diagnostics.get("sharpness")),
+            "conditionNumber": _optional_number(diagnostics.get("condition_number")),
+            "valleyWidth": _optional_number(diagnostics.get("valley_width")),
+            "locallyConvex": bool(diagnostics.get("locally_convex", False)),
+        },
+        "batchCount": _optional_int(surface.get("batch_count")),
+        "secondsElapsed": max(0.0, float(surface.get("seconds_elapsed") or 0.0)),
+    }
+
+
+def emit_cycle_loss_surface(*, fold_index, model_role: str, surface: dict) -> None:
+    """A fold's loss surface, once its final fit is done (see
+    ``cycle_loss_surface_payload``)."""
+    _emit_cycle("cycle_loss_surface", cycle_loss_surface_payload(fold_index=fold_index, model_role=model_role, surface=surface))
 
 
 def emit_cycle_trade(trade: dict) -> None:
