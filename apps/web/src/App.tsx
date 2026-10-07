@@ -70,6 +70,14 @@ registerComponentFactory("/regression", RegressionFactory);
 
 import Analytics from "@/analytics/AnalyticsPage";
 registerComponentFactory("/analytics", () => Promise.resolve({ default: Analytics }));
+// The Analytics tab is the many-runs complement of the run page (2026-10-07);
+// `?tab=catalog` still opens the model catalog the Catalog nav item points at.
+const CompareFactory = () => import("@/runs/compare/ComparePage");
+const Compare = lazyRetry(CompareFactory, "Compare");
+function AnalyticsRoute() {
+  const catalog = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "catalog";
+  return catalog ? <Analytics /> : <Compare />;
+}
 
 
 // Portfolio Domain
@@ -188,7 +196,7 @@ function Router() {
           {/* Main Domain Routes */}
           <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
           <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
-          <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
+          <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><AnalyticsRoute /></Suspense></ErrorBoundary></Route>
           <Route path="/knowledge"><Redirect to="/studies" /></Route>
           <Route path="/feature-graph"><ErrorBoundary><Suspense fallback={<PageLoader />}><FeatureGraph /></Suspense></ErrorBoundary></Route>
           <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>

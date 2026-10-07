@@ -123,6 +123,19 @@ Each has a passing counterpart where a pass says something (`accuracy_edge`, `ra
   record does not carry the lines; a recorded run reads it back. Runs from before 2026-10-06 have
   no terminal.
 
+## The Analytics tab (`/analytics`, `apps/web/src/runs/compare/`)
+
+The many-runs complement of the run page, rebuilt 2026-10-07 on the same `RunView`: pick up to six
+runs on the left (grouped by model, symbol and timeframe; the two newest open by default; the choice
+is in the URL as `?runs=a,b`), and read them side by side — every headline metric as a table with
+one row per run and the best of each column starred; critical and warning counts by when each run
+ran; validation loss by step, running net profit by session day and calibration with every run on
+one axis; and one card per run with the panels its family owns (`runs/analytics/families.ts`, the
+loss surface for a neural fit) and a link into AI Studio. Comparisons are saved on disk through
+`GET/POST /api/runs/comparisons` and `DELETE /api/runs/comparisons/:id`
+(`data/analytics/comparisons.json`), so a clone sees them. `?tab=catalog` still opens the model
+catalog the Catalog nav item points at.
+
 ## From Claude
 
 `.claude/commands/run-model.md`: list models, `POST /api/runs`, open the returned `url` in the

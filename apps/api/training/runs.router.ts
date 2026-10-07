@@ -287,6 +287,61 @@ router.get("/runs/preflight", async (req: Request, res: Response) => {
   res.json({ ready: checks.every((check) => check.ok), checks });
 });
 
+// ─── saved comparisons (the Analytics tab) ──────────────────────────────────
+
+const COMPARISONS_FILE = path.join(process.cwd(), "data", "analytics", "comparisons.json");
+
+interface SavedComparison {
+  id: string;
+  name: string;
+  runIds: string[];
+  savedAt: number;
+}
+
+async function readComparisons(): Promise<SavedComparison[]> {
+  try {
+    const parsed: unknown = JSON.parse(await fs.promises.readFile(COMPARISONS_FILE, "utf-8"));
+    return Array.isArray(parsed) ? (parsed as SavedComparison[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeComparisons(rows: SavedComparison[]): Promise<void> {
+  await fs.promises.mkdir(path.dirname(COMPARISONS_FILE), { recursive: true });
+  const tmp = `${COMPARISONS_FILE}.tmp`;
+  await fs.promises.writeFile(tmp, JSON.stringify(rows, null, 2), "utf-8");
+  await fs.promises.rename(tmp, COMPARISONS_FILE);
+}
+
+const comparisonSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  runIds: z.array(z.string().regex(/^[A-Za-z0-9_+\-.]{1,160}$/)).min(1).max(12),
+});
+
+/** Comparisons live on disk beside the data, so a clone of the repo sees the same ones as this machine. */
+router.get("/runs/comparisons", async (_req: Request, res: Response) => {
+  res.json({ comparisons: (await readComparisons()).sort((a, b) => b.savedAt - a.savedAt) });
+});
+
+router.post("/runs/comparisons", async (req: Request, res: Response) => {
+  const parsed = comparisonSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join(", ") });
+  const rows = await readComparisons();
+  const existing = rows.find((row) => row.name.toLowerCase() === parsed.data.name.toLowerCase());
+  const saved: SavedComparison = { id: existing?.id ?? `cmp_${Date.now().toString(36)}`, name: parsed.data.name, runIds: parsed.data.runIds, savedAt: Date.now() };
+  await writeComparisons([...rows.filter((row) => row.id !== saved.id), saved]);
+  res.status(existing ? 200 : 201).json(saved);
+});
+
+router.delete("/runs/comparisons/:id", async (req: Request, res: Response) => {
+  const rows = await readComparisons();
+  const id = String(req.params.id);
+  if (!rows.some((row) => row.id === id)) return res.status(404).json({ error: `No comparison ${id}` });
+  await writeComparisons(rows.filter((row) => row.id !== id));
+  res.status(204).end();
+});
+
 // ─── the list ───────────────────────────────────────────────────────────────
 
 const LIST_CACHE_MILLISECONDS = 30_000;
