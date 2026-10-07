@@ -232,6 +232,19 @@ export default function RunPage() {
     }, { replace: true });
   }
 
+  // A run named in the URL that no longer exists (the history was cleared) is dropped,
+  // so the page never waits on it.
+  useEffect(() => {
+    if (!runs.data || selectedId === null) return;
+    if (runs.data.some((entry) => entry.id === selectedId)) return;
+    setSelectedId(null);
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.delete("run");
+      return next;
+    }, { replace: true });
+  }, [runs.data, selectedId]);
+
   // A run that starts while the page is open (from this page or from the API) opens itself;
   // with nothing chosen, the newest run is shown.
   useEffect(() => {
@@ -323,13 +336,34 @@ export default function RunPage() {
                 <PanelLeftOpen className="h-3.5 w-3.5" /> Show the run list
               </button>
             )}
-            {selectedId === null
-              ? runs.isLoading
-                ? "Loading runs."
-                : "No runs yet. Pick a model on the left and press Run, or tell Claude to run one."
-              : run.isError
-              ? `This run could not be read: ${run.error instanceof Error ? run.error.message : String(run.error)}`
-              : "Loading the run."}
+            {selectedId === null ? (
+              runs.isLoading ? (
+                "Loading runs."
+              ) : (
+                <div className="max-w-xl space-y-3">
+                  <div className="text-foreground">No runs yet. Pick a model on the left and press Run, or tell Claude to run one.</div>
+                  <div className="grid gap-2 text-left text-[12px] sm:grid-cols-3">
+                    <div className="rounded-md border border-border bg-card/40 p-2">
+                      <div className="font-mono text-[11px] font-bold uppercase text-foreground">Charts</div>
+                      Every number the run logs, drawn: configuration, learning curves and the loss surface, prediction quality, trading result, the hyperparameter search, fold stability, then the verdict. Hover any metric for how it is computed.
+                    </div>
+                    <div className="rounded-md border border-border bg-card/40 p-2">
+                      <div className="font-mono text-[11px] font-bold uppercase text-foreground">Terminal</div>
+                      The bars the model walks over its live log; click a line to see the bar, click a bar to find its lines.
+                    </div>
+                    <div className="rounded-md border border-border bg-card/40 p-2">
+                      <div className="font-mono text-[11px] font-bold uppercase text-foreground">Versions</div>
+                      The analytics across runs: every version of the same model on the same series side by side, never one model against another.
+                    </div>
+                  </div>
+                  <div className="font-mono text-[10px]">The three views appear above the run as soon as one exists.</div>
+                </div>
+              )
+            ) : run.isError ? (
+              `This run could not be read: ${run.error instanceof Error ? run.error.message : String(run.error)}`
+            ) : (
+              "Loading the run."
+            )}
           </div>
         )}
       </main>
