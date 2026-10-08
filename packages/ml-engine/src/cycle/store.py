@@ -21,8 +21,8 @@ Local files (full-word column names):
                          fitting, holds the rows each was fitted on
     explain/             written at plan time for "Inside the model"
                          (``write_explain_inputs``): manifest.json and the arrays the
-                         models read — features.npy, raw_features.npy, timestamps.npy,
-                         close.npy, move_scale.npy, labels.npy, price_target.npy
+                         models read — features.npy.zst, raw_features.npy.zst, timestamps.npy.zst,
+                         close.npy.zst, move_scale.npy.zst, labels.npy.zst, price_target.npy.zst (zstandard)
     trades.parquet       one row per trade
     epochs.parquet       one row per training step summary (folds and tuning trials)
     trials.parquet       one row per tuning trial, with its fold
@@ -57,11 +57,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+from shared.protocol import dumps_safe
 
+from cycle import compressed
 from cycle.metrics import METRIC_NAMES as CYCLE_METRIC_NAMES
 from cycle.metrics import PRICE_FORECAST_METRIC_NAMES
 from cycle.report import REPORT_TABLES
-from shared.protocol import dumps_safe
 
 if TYPE_CHECKING:
     from cycle.engine import CycleEngine
@@ -203,11 +204,8 @@ def _write_json(path: str, value) -> None:
 
 
 def _save_array(path: str, values: np.ndarray) -> None:
-    # np.save appends ".npy" to a name without it, so write through a handle
-    temporary = path + ".tmp"
-    with open(temporary, "wb") as handle:
-        np.save(handle, values, allow_pickle=False)
-    os.replace(temporary, path)
+    # ``<name>.npy.zst``: the .npy bytes, zstandard-compressed (cycle/compressed.py)
+    compressed.write_array(path, values)
 
 
 def explain_manifest(engine: CycleEngine, sequence_length: int) -> dict:
@@ -281,7 +279,7 @@ def write_fold_index(directory: str, *, train: np.ndarray, validation: np.ndarra
     path = os.path.join(directory, "index.npz")
     temporary = path + ".tmp"
     with open(temporary, "wb") as handle:
-        np.savez(handle, **{name: np.asarray(rows, dtype=np.int64) for name, rows in (
+        np.savez_compressed(handle, **{name: np.asarray(rows, dtype=np.int64) for name, rows in (
             ("train", train), ("validation", validation), ("test", test),
             ("price_train", price_train), ("price_validation", price_validation))})
     os.replace(temporary, path)

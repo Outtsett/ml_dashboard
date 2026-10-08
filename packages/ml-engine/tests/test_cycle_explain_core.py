@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
-
+from cycle import compressed
 from cycle import explain as explain_package
 from cycle.control import ControlState
 from cycle.engine import CycleEngine, CycleSettings, MarketData
@@ -470,10 +470,9 @@ def test_replies_never_carry_nan(runs, tmp_path):
     # a run whose raw columns were not written (the engine writes NaN): raw reads as null
     made = runs["xgboost"]
     run = copy_run(made, tmp_path / "no_raw_run")
-    raw_path = run / "explain" / "raw_features.npy"
-    raw = np.load(raw_path)
-    with open(raw_path, "wb") as handle:
-        np.save(handle, np.full_like(raw, np.nan))
+    raw_path = run / "explain" / "raw_features.npy"  # stored zstandard-compressed as raw_features.npy.zst
+    raw = compressed.read_array(str(raw_path))
+    compressed.write_array(str(raw_path), np.full_like(raw, np.nan))
     bar = Explainer().explain(str(run), 0, "direction", timestamp_of(made, int(rows_tested(made, 0)[3])))
     assert bar["inputs"]["raw"] == [None] * len(FEATURE_NAMES)
     text = encode({"id": "x", "ok": True, "result": bar})

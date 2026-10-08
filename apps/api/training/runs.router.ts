@@ -15,6 +15,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import fs from "fs";
+import zlib from "node:zlib";
 import path from "path";
 import { z } from "zod";
 
@@ -37,7 +38,38 @@ import type { TrainingRequest } from "@shared/trainingTypes";
 const router = Router();
 
 const MODELS_DIR = path.join(process.cwd(), "data", "models");
+// Every file beside a run's artifacts is zstandard-compressed (`<name>.zst`, Node's built-in
+// zlib zstd since 22.15); readers try the compressed name first, the plain name second, so
+// runs recorded before 2026-10-07 still open.
 const TERMINAL_FILE = "terminal.jsonl";
+const COMPRESSED_SUFFIX = ".zst";
+// zstd landed in node:zlib in 22.15; the installed @types/node (20.x) predates it
+const zstd = zlib as unknown as {
+  zstdCompressSync(buffer: Buffer, options?: { params?: Record<number, number> }): Buffer;
+  zstdDecompressSync(buffer: Buffer): Buffer;
+  constants: { ZSTD_c_compressionLevel: number };
+};
+
+async function readArtifactText(file: string): Promise<string | null> {
+  try {
+    const bytes = await fs.promises.readFile(file + COMPRESSED_SUFFIX);
+    return zstd.zstdDecompressSync(bytes).toString("utf-8");
+  } catch {
+    try {
+      return await fs.promises.readFile(file, "utf-8");
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function writeArtifactText(file: string, text: string): Promise<void> {
+  const target = file + COMPRESSED_SUFFIX;
+  const temporary = target + ".tmp";
+  await fs.promises.writeFile(temporary, zstd.zstdCompressSync(Buffer.from(text, "utf-8"), { params: { [zstd.constants.ZSTD_c_compressionLevel]: 3 } }));
+  await fs.promises.rename(temporary, target);
+  await fs.promises.rm(file, { force: true });
+}
 
 // The data window the Model Cycle form opens with; a launch that names none gets the same one.
 const DEFAULT_SYMBOL = "MNQ";
@@ -436,7 +468,7 @@ async function saveTerminal(snapshot: CycleSnapshot): Promise<void> {
   if (!file || !fs.existsSync(path.dirname(file))) return;
   savedTerminals.add(snapshot.modelId);
   try {
-    await fs.promises.writeFile(file, snapshot.logs.map((line) => JSON.stringify(line)).join("\n") + "\n", "utf-8");
+    await writeArtifactText(file, snapshot.logs.map((line) => JSON.stringify(line)).join("\n") + "\n");
   } catch (error) {
     savedTerminals.delete(snapshot.modelId);
     console.warn(`[runs] could not save the terminal of ${snapshot.modelId}: ${String(error)}`);
@@ -446,8 +478,9 @@ async function saveTerminal(snapshot: CycleSnapshot): Promise<void> {
 async function readTerminal(modelId: string): Promise<CycleLogLine[] | null> {
   const file = terminalPath(modelId);
   if (!file) return null;
+  const text = await readArtifactText(file);
+  if (text === null) return null;
   try {
-    const text = await fs.promises.readFile(file, "utf-8");
     const lines: CycleLogLine[] = [];
     for (const row of text.split("\n")) {
       if (!row) continue;
@@ -470,8 +503,8 @@ async function readLossSurfaces(modelId: string): Promise<CycleLossSurface[]> {
   const terminal = terminalPath(modelId);
   if (!terminal) return [];
   try {
-    const text = await fs.promises.readFile(path.join(path.dirname(terminal), LOSS_SURFACES_FILE), "utf-8");
-    const parsed: unknown = JSON.parse(text);
+    const text = await readArtifactText(path.join(path.dirname(terminal), LOSS_SURFACES_FILE));
+    const parsed: unknown = text === null ? [] : JSON.parse(text);
     return Array.isArray(parsed) ? (parsed as CycleLossSurface[]) : [];
   } catch {
     return [];
@@ -484,7 +517,8 @@ async function readGateRoutings(modelId: string): Promise<CycleGateRouting[]> {
   const terminal = terminalPath(modelId);
   if (!terminal) return [];
   try {
-    const parsed: unknown = JSON.parse(await fs.promises.readFile(path.join(path.dirname(terminal), GATE_ROUTINGS_FILE), "utf-8"));
+    const text = await readArtifactText(path.join(path.dirname(terminal), GATE_ROUTINGS_FILE));
+    const parsed: unknown = text === null ? [] : JSON.parse(text);
     return Array.isArray(parsed) ? (parsed as CycleGateRouting[]) : [];
   } catch {
     return [];

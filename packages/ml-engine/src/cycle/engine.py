@@ -66,7 +66,7 @@ import numpy as np
 from shared import protocol
 from shared.walk_forward import iter_day_folds
 
-from cycle import catalog
+from cycle import catalog, compressed
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
@@ -1204,19 +1204,15 @@ class CycleEngine:
             self.log(f"{self.fold_prefix(spec.fold_index)}[routing] gate routing not recorded: {error}", "warn")
 
     def _write_json_list(self, file_name: str, rows: list[dict]) -> None:
-        """One JSON file of every entry so far beside the run's artifacts, written atomically."""
+        """One zstandard-compressed JSON file (``<name>.zst``) of every entry so far beside the run's artifacts, written atomically."""
         os.makedirs(self.settings.artifact_directory, exist_ok=True)
-        path = os.path.join(self.settings.artifact_directory, file_name)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as handle:
-            json.dump(rows, handle)
-        os.replace(tmp, path)
+        compressed.write_json(os.path.join(self.settings.artifact_directory, file_name), rows)
 
     LOSS_SURFACES_FILE = "loss_surfaces.json"
 
     def write_loss_surfaces(self) -> None:
         """Every loss surface so far, as one JSON file beside the run's
-        artifacts (`data/models/<id>/loss_surfaces.json`): the run page reads
+        artifacts (`data/models/<id>/loss_surfaces.json.zst`): the run page reads
         it back for a recorded run. A failed write is a warning, never a lost fold."""
         try:
             os.makedirs(self.settings.artifact_directory, exist_ok=True)

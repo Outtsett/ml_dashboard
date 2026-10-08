@@ -5,7 +5,7 @@ Layout (written by ``cycle.engine`` / ``cycle.store``; see
 
     data/models/<model_id>/
         explain/manifest.json   written at plan time, after the arrays (a manifest means they are complete)
-        explain/<name>.npy      features, raw_features, timestamps, close, move_scale, labels, price_target
+        explain/<name>.npy.zst  features, raw_features, timestamps, close, move_scale, labels, price_target (zstandard; plain .npy still read)
         fold_<k>/index.npz      train, validation, test, price_train, price_validation (int64 rows)
         fold_<k>/model.json     the direction model (+ its file), saved right after its fit
         fold_<k>/price_model/   the price model, saved right after its fit
@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+from cycle import compressed
 
 from . import ExplainError
 
@@ -95,7 +97,7 @@ def manifest(run_directory: str | os.PathLike) -> dict:
             "hasPriceModel": False, "featureNames": [], "featureDisplayNames": [], "sequenceLength": 1,
             "labelHorizonBars": 1, "folds": [],
         }
-    missing = [name for name in ARRAY_NAMES if not (run / EXPLAIN_DIRECTORY / f"{name}.npy").is_file()]
+    missing = [name for name in ARRAY_NAMES if not compressed.exists(str(run / EXPLAIN_DIRECTORY / f"{name}.npy"))]
     folds = []
     for fold in written.get("folds", []):
         k = int(fold["foldIndex"])
@@ -152,9 +154,8 @@ def require_ready(run_directory: str | os.PathLike, manifest_document: dict, fol
 
 
 def _load_array(path: Path) -> np.ndarray:
-    # read through a handle so nothing keeps the file open (never mmap_mode)
-    with open(path, "rb") as handle:
-        return np.load(handle, allow_pickle=False)
+    # read whole (never mmap_mode: Windows locks a mapped file); ``.npy.zst`` first, plain ``.npy`` second
+    return compressed.read_array(str(path))
 
 
 @dataclass
@@ -186,7 +187,7 @@ class RunArrays:
 def explain_signature(run_directory: str | os.PathLike) -> tuple:
     """Modification times of ``explain/`` (tuning can rewrite it with a longer history)."""
     folder = Path(run_directory) / EXPLAIN_DIRECTORY
-    return tuple(_mtime(folder / f"{name}.npy") for name in ARRAY_NAMES) + (_mtime(folder / MANIFEST_FILE),)
+    return tuple(compressed.mtime(str(folder / f"{name}.npy")) for name in ARRAY_NAMES) + (_mtime(folder / MANIFEST_FILE),)
 
 
 def load_run_arrays(run_directory: str | os.PathLike) -> RunArrays:
@@ -195,7 +196,7 @@ def load_run_arrays(run_directory: str | os.PathLike) -> RunArrays:
     if written is None:
         raise ExplainError("This run was made before Inside the model existed: it has no explain/ folder.")
     folder = run / EXPLAIN_DIRECTORY
-    missing = [name for name in ARRAY_NAMES if not (folder / f"{name}.npy").is_file()]
+    missing = [name for name in ARRAY_NAMES if not compressed.exists(str(folder / f"{name}.npy"))]
     if missing:
         raise ExplainError(f"The run's model inputs were not written ({', '.join(missing)} missing).")
     signature = explain_signature(run)

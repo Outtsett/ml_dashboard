@@ -37,8 +37,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
-
-from cycle import store
+from cycle import compressed, store
 from cycle.adapter import BatchReport, EpochReport, check_index
 from cycle.control import ControlState
 from cycle.engine import (
@@ -2059,7 +2058,8 @@ def test_every_feature_has_a_full_word_display_name():
 def test_the_explain_inputs_are_what_the_engine_read(full_run, market):
     engine = full_run.engine
     directory = full_run.directory / "explain"
-    loaded = {name: np.load(directory / f"{name}.npy", allow_pickle=False) for name in (
+    # written as <name>.npy.zst (zstandard); read back through the same helper the explainer uses
+    loaded = {name: compressed.read_array(str(directory / f"{name}.npy")) for name in (
         "features", "raw_features", "timestamps", "close", "move_scale", "labels", "price_target")}
     np.testing.assert_array_equal(loaded["features"], engine.features)
     assert loaded["features"].dtype == np.float32

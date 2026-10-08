@@ -51,7 +51,7 @@ evaluates the validation loss on a grid of weights around the kept ones, along t
 filter-normalised directions (Li et al. 2018, `core/shared/loss_surface.py`), and hands it to the
 engine, which emits `cycle_loss_surface` (fold, model role, `alphas`, `betas`, `losses`,
 `diagnostics`: sharpness, condition number, valley width, locally convex), keeps it in the live
-snapshot and writes every surface so far to `data/models/<id>/loss_surfaces.json`; a recorded run
+snapshot and writes every surface so far to `data/models/<id>/loss_surfaces.json.zst`; a recorded run
 reads that file back. The lake record does not carry it. The grid size is the cycle flag
 `--loss-surface-resolution` (default 21, so 441 points × 4 validation batches, under a second for
 a feedforward network; 0 turns it off); a tuning trial's fit never computes one. A tree model has
@@ -72,7 +72,7 @@ section of the page.
 | --- | --- | --- |
 | Verdict | What is wrong, and what to change | Every rule that fired, with its numbers and its fix |
 | Configuration | What the run was given, and what each fold used | Base hyperparameters, run settings, cost model, feature list; per-fold table with the search's changes in orange (`Configuration.tsx`, `RunView.configuration`) |
-| Learning | Learning or memorising? | (family panels, `runs/analytics/`) **attention** for a transformer: the chosen test bar's attention per layer and head over the window it read, from the run's explain artifacts via `/api/training/cycle/:id/explain/bar` (`AttentionPanel.tsx`); **gate routing** for a mixture of experts: each expert's gate probability per test bar stacked to 1, usage per expert, decisiveness (entropy), from `cycle_gate_routing` per fold (`GateRoutingPanel.tsx`, engine `_record_gate_routing`, `data/models/<id>/gate_routings.json`); plus | Loss by step against the coin-flip line; one small panel per logged quantity (training loss, validation loss, accuracy, F1, learning rate, gradient norm) with the kept step marked; the 3D loss surface per fold (`learning.tsx`) |
+| Learning | Learning or memorising? | (family panels, `runs/analytics/`) **attention** for a transformer: the chosen test bar's attention per layer and head over the window it read, from the run's explain artifacts via `/api/training/cycle/:id/explain/bar` (`AttentionPanel.tsx`); **gate routing** for a mixture of experts: each expert's gate probability per test bar stacked to 1, usage per expert, decisiveness (entropy), from `cycle_gate_routing` per fold (`GateRoutingPanel.tsx`, engine `_record_gate_routing`, `data/models/<id>/gate_routings.json.zst`); plus | Loss by step against the coin-flip line; one small panel per logged quantity (training loss, validation loss, accuracy, F1, learning rate, gradient norm) with the kept step marked; the 3D loss surface per fold (`learning.tsx`) |
 | Prediction quality | Better than guessing the common direction? | Tiles, calibration curve, confusion table |
 | Trading result | Money after costs? | Tiles, net profit by session day |
 | Hyperparameter search | Did the search beat the defaults? | Objective per trial and best so far, per fold; objective against each parameter the search varied, best trial ringed (`search.tsx`) |
@@ -129,7 +129,7 @@ Each has a passing counterpart where a pass says something (`accuracy_edge`, `ra
   launched by Claude shows itself.
 - The terminal's filter chips are the engine's own log categories. Each poll sends the last line
   the page holds and receives only the lines after it.
-- A finished run's terminal is written once to `data/models/<id>/terminal.jsonl`, because the lake
+- A finished run's terminal is written once to `data/models/<id>/terminal.jsonl.zst`, because the lake
   record does not carry the lines; a recorded run reads it back. Runs from before 2026-10-06 have
   no terminal.
 
@@ -151,3 +151,9 @@ catalog the Catalog nav item points at.
 
 `.claude/commands/run-model.md`: list models, `POST /api/runs`, open the returned `url` in the
 dashboard's tab, poll `GET /api/runs/:id`, report the verdicts.
+
+## Storage tiers and compression (2026-10-07)
+
+Every run lives in three in-process tiers, nothing else: the **lake** (`s3://derived/model_cycle_runs/recipe=<run>/`, eight record tables plus seven report tables, zstd parquet, read by DuckDB as `derived_model_cycle_runs_<table>`), **SQLite** (`cycle_runs`, `cycle_run_configurations`, `cycle_run_settings`, `cycle_run_features`, `cycle_run_verdicts`, `saved_analytics`, `saved_analytics_runs`: the entities, 3NF) and **files** beside the artifacts (`data/models/<id>/`: weights, explain arrays, the terminal, loss surfaces, gate routings). DuckDB is the reader of the lake tier, never a store.
+
+Every file beside the artifacts is zstandard-compressed (`<name>.zst`, level 3): the engine through `packages/ml-engine/src/cycle/compressed.py` (`write_json` / `write_array` / `read_*`, `np.savez_compressed` for the fold indexes), the server through Node's built-in `zlib.zstdCompressSync` (`readArtifactText` / `writeArtifactText` in `apps/api/training/runs.router.ts`). Readers try the compressed name first and the plain name second, so runs recorded before 2026-10-07 still open. Measured: loss surfaces 112x, terminal lines 53x, int64 / float64 series 2-4x, float32 feature matrices 1.06x (kept for one convention; a 32 MB matrix reads in 41 ms). The lake record was already zstd parquet (the lake writer's codec and level); SQLite rows are kilobytes.
