@@ -457,10 +457,14 @@ class CycleEngine:
         if settings.label_kind not in ("direction", "reversal"):
             raise ValueError(f"label_kind must be 'direction' or 'reversal', got {settings.label_kind!r}")
         self.reversal = settings.label_kind == "reversal"
+        # the up/down label over the horizon is always kept: it is what a bar is scored against
+        # and what the "always the common direction" baseline is taken from, whichever label the
+        # model is fitted on
+        self.direction_labels = make_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
         if self.reversal:
             self.labels = make_reversal_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
         else:
-            self.labels = make_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
+            self.labels = self.direction_labels
         # the price model's target, and the causal scale that turns its output back into points
         self.volatility_window = int(features.lookback)
         self.price_targets, self.move_scale, self.forward_moves = price_target(
@@ -576,6 +580,23 @@ class CycleEngine:
             "high": np.asarray(high_prices, dtype=np.float64), "low": np.asarray(low_prices, dtype=np.float64),
             "close": np.asarray(close_prices, dtype=np.float64), "volume": np.asarray(volumes, dtype=np.float64),
         })
+
+    def probability_up(self, value: float | None, row: int) -> float | None:
+        """The direction model's output at ``row`` as P(up), the one probability the walk, the
+        search, the scores and the chart use.
+
+        A direction model answers P(up) already. A reversal model answers P(turn): the chance
+        the next ``horizon`` bars move against the previous ``horizon`` bars. A turn after an
+        up-move is a down-move, so P(up) = 1 - P(turn) after an up-move and P(up) = P(turn)
+        after a down-move. With no trailing move outside the label threshold there is nothing
+        to turn against, and the bar has no call (None)."""
+        if value is None or not self.reversal:
+            return value
+        trailing = trailing_direction(self.data.close, int(row), self.horizon,
+                                      self.settings.label_threshold_ticks, self.cost.tick_size)
+        if trailing == 0:
+            return None
+        return 1.0 - value if trailing > 0 else value
 
     def fold_prefix(self, fold_index: int | None) -> str:
         if fold_index is None:
@@ -732,8 +753,11 @@ class CycleEngine:
             specs = specs[-s.fold_limit:]
         for position, spec in enumerate(specs):
             spec.fold_index = position
-            labels = self.labels[spec.train_index]
-            spec.majority_up = 1 if np.mean(labels) >= 0.5 else 0
+            # the baseline is a direction (always up, or always down), so it is taken from the
+            # up/down labels of the training bars even when the model is fitted on reversal labels
+            directions = self.direction_labels[spec.train_index]
+            directions = directions[np.isfinite(directions)]
+            spec.majority_up = 1 if directions.size == 0 or np.mean(directions) >= 0.5 else 0
             check_fold_invariants(spec, self.labels, valid, self.horizon, self.price_targets)
         first = specs[0].plan(self.data.timestamps)
         self.log(
@@ -933,7 +957,8 @@ class CycleEngine:
         gap_bars = int(self.crosses_gap.sum())
         if self.reversal:
             self.log(f"[plan] label: reversal — 1 when the next {self.horizon} bars move against the previous {self.horizon} bars, 0 when they continue; "
-                     "the walk trades against the trailing move at P(turn) >= 0.5 and with it below")
+                     "the model's P(turn) is read as P(up) = 1 - P(turn) after an up-move and P(turn) after a down-move, "
+                     "so the walk, the search, the scores and the chart all use P(up); a bar with no trailing move outside the threshold has no call")
         if s.label_gap_multiple > 0:
             self.log(
                 f"[plan] session-gap rule: a bar whose {self.horizon}-bar horizon crosses a gap over {s.label_gap_multiple:g}× the typical "
@@ -1524,31 +1549,32 @@ class CycleEngine:
             if valid[i]:
                 value = float(adapter.predict_probability(self.features, np.array([i], dtype=np.int64))[0])
                 if math.isfinite(value):
-                    probability = min(1.0, max(0.0, value))
+                    # one definition downstream: P(up). A reversal model's P(turn) is converted
+                    # here (`probability_up`), so the signal, the gate, every probability metric,
+                    # the calibration table and the chart all read the same quantity.
+                    probability = self.probability_up(min(1.0, max(0.0, value)), i)
                 elif not warned_non_finite:
                     warned_non_finite = True
                     self.log(f"{prefix}[{span.label}] the model returned a non-finite probability at {format_time(d.timestamps[i])}; such bars are not traded", "warn")
             # every prediction is traded: long at P(up) >= 0.5, short below (flat
-            # below when long only — the simulator maps it). A reversal model's probability
-            # is P(turn): at or above 0.5 it trades against the trailing move, below it
-            # trades with it; a bar with no trailing move outside the threshold is not traded.
+            # below when long only — the simulator maps it). A reversal model has no call
+            # (None) on a bar whose trailing move is inside the threshold: nothing to turn against.
             if probability is None:
                 direction, signal = 0, None
             else:
-                if self.reversal:
-                    trailing = trailing_direction(d.close, i, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
-                    direction = signal = (-trailing if probability >= 0.5 else trailing)
-                    if direction == 0:
-                        signal = None
-                else:
-                    direction = signal = 1 if probability >= 0.5 else -1
+                direction = signal = 1 if probability >= 0.5 else -1
                 # the model's own gate and its per-bar regime forecast apply whichever label kind it predicts
-                if signal is not None and trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
+                # (|P(turn) - 0.5| = |P(up) - 0.5|, so the gate is the same either way)
+                if trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
                     signal = 0
                 if regime_forecast is not None:
                     said = regime_forecast(i)
                     if said is not None:
-                        self._regime_rows.append({**said, "timestamp": int(d.timestamps[i])})
+                        row = {**said, "timestamp": int(d.timestamps[i])}
+                        if self.reversal and "decision_probability_up" in row:
+                            # the decision model spoke in P(turn); the panel is told P(up) like everything else
+                            row["decision_probability_up"] = probability
+                        self._regime_rows.append(row)
             # the price model: its output times the causal scale at this bar, in points
             predicted_move: float | None = None
             scale = float(self.move_scale[i])
