@@ -22,6 +22,8 @@ export interface MetricSpec {
 }
 
 const usd = (value: number) => `${value < 0 ? "-" : ""}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
+// a per-trade amount is often under a dollar: whole dollars would read "-$0"
+const usdCents = (value: number) => `${value < 0 ? "-" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ratio = (value: number) => value.toFixed(2);
 const fraction = (value: number) => `${(value * 100).toFixed(1)}%`;
 const count = (value: number) => Math.round(value).toLocaleString("en-US");
@@ -37,8 +39,8 @@ export const SPECS: Record<CycleMetricName, MetricSpec> = {
   profit_factor: { label: "Profit factor", family: "trading", meaning: "Gross profit divided by gross loss.", format: ratio },
   win_rate: { label: "Win rate", family: "trading", meaning: "Share of closed trades that made money.", format: fraction },
   trade_count: { label: "Closed trades", family: "trading", meaning: "Trades opened and closed across the test windows.", format: count },
-  average_trade_usd: { label: "Average trade", family: "trading", meaning: "Net profit divided by the number of trades.", format: usd },
-  expectancy_usd: { label: "Expectancy", family: "trading", meaning: "What the next trade is worth on average.", format: usd },
+  average_trade_usd: { label: "Average trade", family: "trading", meaning: "Net profit divided by the number of trades.", format: usdCents },
+  expectancy_usd: { label: "Expectancy", family: "trading", meaning: "What the next trade is worth on average.", format: usdCents },
   exposure_fraction: { label: "Time in market", family: "trading", meaning: "Share of test bars with a position on.", format: fraction },
   gross_profit_usd: { label: "Gross profit", family: "trading", meaning: "The winning trades added up, before costs.", format: usd },
   gross_loss_usd: { label: "Gross loss", family: "trading", meaning: "The losing trades added up, before costs.", format: usd },
