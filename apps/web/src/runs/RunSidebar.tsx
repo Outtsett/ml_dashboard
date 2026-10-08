@@ -26,7 +26,8 @@ interface LaunchPreferences {
 }
 
 const LAUNCH_PREFERENCES_KEY = "run-launch-v1";
-const DEFAULT_LAUNCH: LaunchPreferences = { followChart: false, symbol: "MNQ", timeframe: "5m", target: "direction" };
+// MNQ on 5-minute bars, detecting reversals: the series and the target the work is on until changed here
+const DEFAULT_LAUNCH: LaunchPreferences = { followChart: false, symbol: "MNQ", timeframe: "5m", target: "reversal" };
 
 function readLaunchPreferences(): LaunchPreferences {
   try {
@@ -37,7 +38,7 @@ function readLaunchPreferences(): LaunchPreferences {
       followChart: parsed.followChart === true,
       symbol: typeof parsed.symbol === "string" && parsed.symbol ? parsed.symbol : DEFAULT_LAUNCH.symbol,
       timeframe: typeof parsed.timeframe === "string" && parsed.timeframe ? parsed.timeframe : DEFAULT_LAUNCH.timeframe,
-      target: parsed.target === "reversal" ? "reversal" : "direction",
+      target: parsed.target === "direction" ? "direction" : "reversal",
     };
   } catch {
     return DEFAULT_LAUNCH;
