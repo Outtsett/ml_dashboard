@@ -10,26 +10,33 @@ by the engine (``bind_market``).
 Four models feed one decision model. Every one of them reads only bars at or
 before the bar it speaks for.
 
-1. **Regime model** — a Gaussian hidden Markov model (``hmmlearn.GaussianHMM``,
-   full covariance, ``regime_count`` states) over three causal inputs per bar:
-   the one-bar log return of the close, its realised volatility (the root mean
-   square of the last ``volatility_window_bars`` finite one-bar log returns)
-   and a volume z-score (the log of the bar's volume against the mean and
-   deviation of the last ``volatility_window_bars`` log volumes). The inputs are
-   standardised with the mean and deviation of the training span. It is fitted
-   on the training span only. States are renumbered by their mean realised
-   volatility, so regime 1 is always the calmest. During the walk the adapter
-   runs the FORWARD filter, never the smoother:
+1. **Regime model** — the structural regime hidden Markov model
+   (``cycle.regime_hmm.StructuralRegimeHMM``, specification ``docs/regime-hmm.md``):
+   exactly three states, named and ordered ``flat``, ``uptrend``, ``downtrend``,
+   over eight causal features per bar — a flat-market detector (Wilder's ADX 14,
+   the candle body-to-range ratio over 14 bars, the 14-bar over 100-bar true
+   range), swing structure (N-bar confirmed pivots from the dashboard's own
+   ``shared.zones.structural_pivots``, N = ``swing_confirmation_bars``: the
+   close's distance from the last confirmed swing high and low over the move
+   scale, bars since the last pivot) and trend confirmation (a decayed
+   higher-high / higher-low counter and the sign of the last two pivots). The
+   emission of each state is a diagonal Gaussian over the features standardised
+   on the training span; Baum-Welch (hmmlearn) is seeded from a heuristic
+   labelling (flat where ADX < ``adx_threshold``, else up / down by the sign of
+   the counter) with a sticky transition prior, refined for up to
+   ``regime_fit_iteration_count`` iterations on the training span only, and the
+   states are ordered afterwards by the mean of the counter. During the walk the
+   adapter runs the FORWARD filter, never the smoother:
    ``alpha_t = normalise((alpha_(t-1) · A) * b(x_t))``, with ``A`` the fitted
    transition matrix and ``b`` the Gaussian density of each state; a bar whose
-   inputs are missing (a session gap, the warmup) only advances
-   ``alpha_(t-1) · A``. The filter starts ``REGIME_FILTER_BURN_IN_BARS`` bars
-   before the training span, so its start never depends on a later bar.
+   features are not all known (the warmup, a session gap in the move scale) only
+   advances ``alpha_(t-1) · A``. The filter starts ``REGIME_FILTER_BURN_IN_BARS``
+   bars before the training span, so its start never depends on a later bar.
 
 2. **Monte Carlo simulator** — per regime, a Student-t distribution of the
    one-bar log return fitted by maximum likelihood (``scipy.stats.t.fit``; degrees
    of freedom held inside 2.05..200 with location and scale refitted, see
-   ``student_t_fit``) on the training bars the smoothed posterior assigns to that regime (a regime
+   ``student_t_fit``) on the training bars the forward filter puts in that regime (a regime
    with fewer than ``MINIMUM_REGIME_RETURNS`` bars uses the pooled training
    returns, and says so). At bar t, ``simulation_count`` paths of ``horizon``
    bars start from the filtered regime probabilities: the first bar's regime is
@@ -73,8 +80,28 @@ come from the regime model fitted on the whole training span, and stop the
 boosting early. Feature weights are the decision model's total gain per signal,
 as shares of the total (``feature_weights``).
 
-**Trade gate** — ``trade_gate(features, index)`` is open when
-``|P(up) − 0.5| >= decision_threshold``. The engine still scores every bar's
+**Trade gate** — a quantile gate. ``gate_open_fraction`` is the share of bars
+the gate should open on, most confident first. At fit the fold's absolute
+threshold is the (1 − ``gate_open_fraction``) quantile of ``|P − 0.5|`` over the
+kept decision model's probabilities on the validation rows — bars its trees were
+not fitted on, on the kept model's own probability scale (0 at
+``gate_open_fraction`` = 1: every bar is open). The decision model is also
+refitted ``stacking_fold_count`` times, each time without one stacking block and
+without ``horizon`` bars either side of it, scoring that block (purged
+out-of-fold probabilities, the same rounds as the kept model): their quantile is
+the threshold when a fold has fewer than ``MINIMUM_GATE_ROWS`` validation rows,
+and is logged beside the validation one otherwise. It is not the first choice
+because the block models are other boosters: measured 2026-10-07 on the test
+market, a kept model of one round topped out at |P − 0.5| = 0.0977 while the
+out-of-fold 80th percentile was 0.1029, so that threshold opened on no bar.
+Distance is measured from 0.5 because the engine trades long at P(up) >= 0.5 and
+short below, so "far from 0.5" is conviction in the traded direction; under
+reversal labels |P(turn) − 0.5| = |P(up) − 0.5|, so the gate is the same.
+``trade_gate(features, index)`` is open when ``|P − 0.5| >= decision_threshold``
+(the derived threshold, ``self.decision_threshold``). An absolute threshold tuned
+on training bars did not carry over between folds (2026-10-07: 95.9%, 0.0% and
+0.0% of test bars open in three folds), which is why the setting is a share.
+The engine still scores every bar's
 direction; it enters only where the gate is open, and a closed gate stands
 aside (signal 0: no new entry, the held position runs to its holding period).
 
@@ -87,12 +114,12 @@ has scored, the regime probabilities, the fan, Kronos' candles, the decision
 probability and the gate; the engine streams them as ``cycle_regime_forecast``.
 
 The explainer cannot reload this model: Kronos reads open, high, low and volume
-and the regime model reads volume at predict time, and the explainer's saved
-arrays carry neither (``cycle.market``). Predicting from a view without them is
-refused with a sentence that says so.
+and the regime model reads open, high and low at predict time, and the
+explainer's saved arrays carry none of them (``cycle.market``). Predicting from
+a view without them is refused with a sentence that says so.
 
-Saved as ``decision_model.ubj`` (xgboost), ``regime_model.npz`` (the regime
-model, its input scaler and the per-regime Student-t parameters) and
+Saved as ``decision_model.ubj`` (xgboost), ``regime_model.npz`` (the structural
+regime model, its feature scaler and the per-regime Student-t parameters) and
 ``model.json``.
 """
 
@@ -104,7 +131,6 @@ import os
 import sys
 import threading
 import time
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -123,19 +149,19 @@ from ..models import (
     write_metadata,
 )
 from ..paths import PACKAGES_ROOT
+from ..regime_hmm import REGIME_NAMES, StructuralRegimeHMM, contiguous_lengths, structural_features
 
 ADAPTER = "regime_montecarlo_decision"
 DECISION_MODEL_FILE = "decision_model.ubj"
 REGIME_MODEL_FILE = "regime_model.npz"
 
-REGIME_INPUT_NAMES = ("one_bar_log_return", "realised_volatility", "volume_zscore")
 FINBERT_PREFIX = "finbert_"
 REGIME_FILTER_BURN_IN_BARS = 1000
 MINIMUM_REGIME_RETURNS = 50
-MINIMUM_FIT_ROWS = 100
 STUDENT_DEGREES_OF_FREEDOM_BOUNDS = (2.05, 200.0)
-COVARIANCE_FLOOR = 1e-3
 EARLY_STOPPING_ROUNDS = 30
+# fewer validation probabilities than this cannot place a quantile; the out-of-fold ones do then
+MINIMUM_GATE_ROWS = 50
 KRONOS_BATCH_ROWS = 128
 KRONOS_CLIP = 5.0
 # simulated values held in memory at once (rows x paths x horizon) before the walk is chunked
@@ -157,162 +183,71 @@ _KRONOS_FORECASTS: dict[tuple, np.ndarray] = {}
 _KRONOS_LOCK = threading.Lock()
 
 
-# ─── causal regime inputs ──────────────────────────────────────────────────
-
-
-def _trailing_on_finite(values: np.ndarray, window: int, statistic: str) -> np.ndarray:
-    """A trailing statistic over the last ``window`` FINITE values up to and including
-    each row (``min_periods == window``): NaN where the row itself is not finite or
-    fewer than ``window`` finite values precede it. ``statistic`` is "root_mean_square",
-    "mean" or "deviation" (population)."""
-    values = np.asarray(values, dtype=np.float64)
-    out = np.full(values.shape[0], np.nan, dtype=np.float64)
-    finite = np.flatnonzero(np.isfinite(values))
-    if finite.size < window:
-        return out
-    compact = values[finite]
-    cumulative = np.concatenate([[0.0], np.cumsum(compact)])
-    cumulative_square = np.concatenate([[0.0], np.cumsum(compact * compact)])
-    ends = np.arange(window, compact.size + 1)
-    sums = cumulative[ends] - cumulative[ends - window]
-    squares = cumulative_square[ends] - cumulative_square[ends - window]
-    if statistic == "root_mean_square":
-        result = np.sqrt(np.maximum(squares / window, 0.0))
-    elif statistic == "mean":
-        result = sums / window
-    elif statistic == "deviation":
-        mean = sums / window
-        result = np.sqrt(np.maximum(squares / window - mean * mean, 0.0))
-    else:
-        raise ValueError(f"unknown statistic {statistic!r}")
-    out[finite[window - 1:]] = result
-    return out
-
-
-def regime_inputs(one_bar_returns: np.ndarray, volume: np.ndarray, window: int) -> np.ndarray:
-    """(n, 3) float64: one-bar log return, realised volatility, volume z-score — each row
-    from bars at or before it; NaN where unknown (row 0, a session gap, the warmup)."""
-    returns = np.asarray(one_bar_returns, dtype=np.float64)
-    volume = np.asarray(volume, dtype=np.float64)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        log_volume = np.where(volume > 0, np.log(np.where(volume > 0, volume, 1.0)), np.nan)
-    realised = _trailing_on_finite(returns, window, "root_mean_square")
-    mean = _trailing_on_finite(log_volume, window, "mean")
-    deviation = _trailing_on_finite(log_volume, window, "deviation")
-    with np.errstate(divide="ignore", invalid="ignore"):
-        zscore = np.where(deviation > 0, (log_volume - mean) / deviation, 0.0)
-    zscore[~np.isfinite(mean)] = np.nan
-    return np.column_stack([returns, realised, zscore])
-
-
-def contiguous_lengths(rows: np.ndarray) -> list[int]:
-    """Lengths of the runs of consecutive row numbers in sorted ``rows``."""
-    rows = np.asarray(rows, dtype=np.int64)
-    if rows.size == 0:
-        return []
-    breaks = np.flatnonzero(np.diff(rows) != 1) + 1
-    edges = np.concatenate([[0], breaks, [rows.size]])
-    return [int(b - a) for a, b in zip(edges[:-1], edges[1:])]
-
-
 # ─── the regime model ──────────────────────────────────────────────────────
 
 
-class RegimeModel:
-    """A fitted Gaussian hidden Markov model in plain arrays (regime 1 = calmest),
-    its input scaler and the Student-t of the one-bar log return in each regime."""
+def regime_features(view, swing_confirmation_bars: int) -> np.ndarray:
+    """(n, 8) the structural regime features of every bar of ``view`` (``cycle.regime_hmm``):
+    each row from bars at or before it, NaN while a window fills."""
+    if view.open is None or view.high is None or view.low is None:
+        raise RuntimeError(
+            "the structural regime model reads each bar's open, high and low, and this market view does not carry "
+            "them (the explainer's saved arrays hold only closes)"
+        )
+    return structural_features(view.open, view.high, view.low, view.close, view.move_scale, int(swing_confirmation_bars))
 
-    def __init__(self, start: np.ndarray, transition: np.ndarray, means: np.ndarray, covariances: np.ndarray,
-                 scaler_mean: np.ndarray, scaler_deviation: np.ndarray, student: np.ndarray,
-                 regime_bar_counts: np.ndarray, pooled: np.ndarray, log_likelihood: float | None = None) -> None:
-        self.start = np.asarray(start, dtype=np.float64)
-        self.transition = np.asarray(transition, dtype=np.float64)
-        self.means = np.asarray(means, dtype=np.float64)
-        self.covariances = np.asarray(covariances, dtype=np.float64)
-        self.scaler_mean = np.asarray(scaler_mean, dtype=np.float64)
-        self.scaler_deviation = np.asarray(scaler_deviation, dtype=np.float64)
-        self.student = np.asarray(student, dtype=np.float64)          # (K, 3): degrees of freedom, location, scale
+
+class RegimeModel:
+    """The fitted structural regime hidden Markov model (``flat``, ``uptrend``, ``downtrend``)
+    and the Student-t of the one-bar log return in each of its regimes."""
+
+    def __init__(self, hmm: StructuralRegimeHMM, student: np.ndarray, regime_bar_counts: np.ndarray,
+                 pooled: np.ndarray) -> None:
+        self.hmm = hmm
+        self.student = np.asarray(student, dtype=np.float64)          # (3, 3): degrees of freedom, location, scale
         self.regime_bar_counts = np.asarray(regime_bar_counts, dtype=np.int64)
         self.pooled = np.asarray(pooled, dtype=bool)
-        self.log_likelihood = log_likelihood
-        self.regime_count = int(self.start.shape[0])
-        self._cholesky = [np.linalg.cholesky(c) for c in self.covariances]
-        self._log_determinant = np.array([2.0 * np.sum(np.log(np.diag(c))) for c in self._cholesky])
+        self.regime_count = len(REGIME_NAMES)
+        self.regime_names = REGIME_NAMES
 
-    def scale(self, inputs: np.ndarray) -> np.ndarray:
-        return (np.asarray(inputs, dtype=np.float64) - self.scaler_mean) / self.scaler_deviation
+    @property
+    def transition(self) -> np.ndarray:
+        return self.hmm.transition
 
-    def log_emission(self, scaled: np.ndarray) -> np.ndarray:
-        """(n, K) Gaussian log density of each scaled input row under each regime (NaN rows stay NaN)."""
-        n, dimension = scaled.shape
-        out = np.empty((n, self.regime_count), dtype=np.float64)
-        constant = dimension * math.log(2.0 * math.pi)
-        for k in range(self.regime_count):
-            centred = (scaled - self.means[k]).T
-            solved = np.linalg.solve(self._cholesky[k], np.nan_to_num(centred))
-            out[:, k] = -0.5 * (constant + self._log_determinant[k] + np.sum(solved * solved, axis=0))
-        out[~np.all(np.isfinite(scaled), axis=1)] = np.nan
-        return out
+    @property
+    def log_likelihood(self) -> float | None:
+        return self.hmm.log_likelihood
 
-    def forward_filter(self, inputs: np.ndarray, start_row: int, end_row: int,
-                       state: tuple[int, np.ndarray] | None = None) -> tuple[np.ndarray, tuple[int, np.ndarray]]:
-        """Filtered regime probabilities for rows ``start_row..end_row`` (inclusive), (rows, K);
-        NaN before the first row with inputs. ``state`` = (last filtered row, its probabilities)
-        continues an earlier pass instead of starting at ``start_row``. Returns the
-        probabilities of the rows filtered in this call and the new state."""
-        first = start_row if state is None else state[0] + 1
-        alpha = None if state is None else state[1]
-        rows = max(0, end_row - first + 1)
-        out = np.full((rows, self.regime_count), np.nan, dtype=np.float64)
-        if rows == 0:
-            return out, state if state is not None else (start_row - 1, None)
-        emission = self.log_emission(self.scale(inputs[first:end_row + 1]))
-        transition = self.transition
-        for position in range(rows):
-            log_density = emission[position]
-            if alpha is None:
-                if not np.all(np.isfinite(log_density)):
-                    continue
-                prior = self.start
-            else:
-                prior = alpha @ transition
-            if np.all(np.isfinite(log_density)):
-                weights = prior * np.exp(log_density - np.max(log_density))
-                total = weights.sum()
-                alpha = prior if not (total > 0 and math.isfinite(total)) else weights / total
-            else:
-                alpha = prior
-            out[position] = alpha
-        return out, (end_row, alpha)
+    def forward_filter(self, features: np.ndarray, start_row: int, end_row: int, state=None):
+        """``StructuralRegimeHMM.forward_filter``: filtered probabilities of rows ``start_row..end_row``."""
+        return self.hmm.forward_filter(features, start_row, end_row, state)
 
     def arrays(self) -> dict:
-        return {"start": self.start, "transition": self.transition, "means": self.means,
-                "covariances": self.covariances, "scaler_mean": self.scaler_mean,
-                "scaler_deviation": self.scaler_deviation, "student": self.student,
-                "regime_bar_counts": self.regime_bar_counts, "pooled": self.pooled}
+        return {**self.hmm.arrays(), "student": self.student, "regime_bar_counts": self.regime_bar_counts,
+                "pooled": self.pooled}
 
     @classmethod
     def from_arrays(cls, arrays) -> RegimeModel:
-        return cls(arrays["start"], arrays["transition"], arrays["means"], arrays["covariances"],
-                   arrays["scaler_mean"], arrays["scaler_deviation"], arrays["student"],
-                   arrays["regime_bar_counts"], arrays["pooled"])
+        return cls(StructuralRegimeHMM.from_arrays(arrays), arrays["student"], arrays["regime_bar_counts"],
+                   arrays["pooled"])
 
     def summaries(self) -> list[dict]:
-        """One plain record per regime (1-based), the numbers the panel and the log show."""
+        """One plain record per regime in ``REGIME_NAMES`` order: the hidden Markov model's own
+        summary (name, feature means in words, stay probability, expected bars per visit) and the
+        regime's Student-t of the one-bar log return."""
         out = []
-        for k in range(self.regime_count):
+        for k, summary in enumerate(self.hmm.summaries()):
             degrees, location, scale = (float(v) for v in self.student[k])
             # a Student-t's standard deviation exists for degrees of freedom above 2
             deviation = scale * math.sqrt(degrees / (degrees - 2.0)) if degrees > 2.0 else None
             out.append({
-                "regime": k + 1,
+                **summary,
                 "meanLogReturn": location,
                 "volatilityLogReturn": deviation,
                 "degreesOfFreedom": degrees,
                 "scale": scale,
                 "trainingBarCount": int(self.regime_bar_counts[k]),
                 "pooled": bool(self.pooled[k]),
-                "stayProbability": float(self.transition[k, k]),
             })
         return out
 
@@ -335,46 +270,28 @@ def student_t_fit(values: np.ndarray) -> tuple[float, float, float]:
     return float(degrees), float(location), float(scale)
 
 
-def fit_regime_model(inputs: np.ndarray, returns: np.ndarray, fit_rows: np.ndarray, regime_count: int,
+def fit_regime_model(features: np.ndarray, returns: np.ndarray, fit_rows: np.ndarray, adx_threshold: float,
                      iteration_count: int, seed: int) -> RegimeModel:
-    """Fit the hidden Markov model on ``fit_rows`` with finite inputs (as their contiguous
-    runs), renumber the regimes by mean realised volatility, and fit each regime's
-    Student-t on the returns the smoothed posterior gives it."""
-    from hmmlearn.hmm import GaussianHMM
-
+    """Fit the structural hidden Markov model on ``fit_rows`` (those with every feature known,
+    as their contiguous runs), then fit each regime's Student-t on the one-bar log returns of
+    the training bars the FORWARD filter puts in it."""
     rows = np.asarray(fit_rows, dtype=np.int64)
-    rows = rows[np.all(np.isfinite(inputs[rows]), axis=1)]
-    if rows.size < max(MINIMUM_FIT_ROWS, 10 * regime_count):
-        raise ValueError(
-            f"the regime model needs at least {max(MINIMUM_FIT_ROWS, 10 * regime_count)} training bars with a return, "
-            f"a realised volatility and a volume z-score; it has {rows.size}"
-        )
-    raw = inputs[rows]
-    scaler_mean = raw.mean(axis=0)
-    scaler_deviation = raw.std(axis=0)
-    scaler_deviation[scaler_deviation <= 0] = 1.0
-    scaled = (raw - scaler_mean) / scaler_deviation
-    lengths = contiguous_lengths(rows)
-    model = GaussianHMM(n_components=int(regime_count), covariance_type="full", n_iter=int(iteration_count),
-                        tol=1e-4, min_covar=COVARIANCE_FLOOR, random_state=int(seed))
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        model.fit(scaled, lengths)
-        posterior = model.predict_proba(scaled, lengths)
-        log_likelihood = float(model.score(scaled, lengths))
-    order = np.argsort(model.means_[:, 1], kind="stable")      # calmest regime first
-    start = model.startprob_[order]
-    transition = model.transmat_[np.ix_(order, order)]
-    means = model.means_[order]
-    covariances = np.asarray(model.covars_)[order]
-    posterior = posterior[:, order]
-    assigned = np.argmax(posterior, axis=1)
-    fit_returns = np.asarray(returns, dtype=np.float64)[rows]
+    hmm = StructuralRegimeHMM(adx_threshold, iteration_count, seed).fit(features, rows)
+    known_rows = rows[np.all(np.isfinite(features[rows]), axis=1)]
+    filtered, _ = hmm.forward_filter(features, int(known_rows[0]), int(known_rows[-1]))
+    probabilities = filtered[known_rows - int(known_rows[0])]
+    returns = np.asarray(returns, dtype=np.float64)
+    usable = np.all(np.isfinite(probabilities), axis=1) & np.isfinite(returns[known_rows])
+    assigned = np.argmax(probabilities[usable], axis=1)
+    fit_returns = returns[known_rows][usable]
+    if fit_returns.size < MINIMUM_REGIME_RETURNS:
+        raise ValueError(f"the regime Monte Carlo needs at least {MINIMUM_REGIME_RETURNS} training bars with a one-bar "
+                         f"return and regime probabilities; it has {fit_returns.size}")
     pooled_fit = student_t_fit(fit_returns)
-    student = np.empty((int(regime_count), 3), dtype=np.float64)
-    counts = np.zeros(int(regime_count), dtype=np.int64)
-    pooled = np.zeros(int(regime_count), dtype=bool)
-    for k in range(int(regime_count)):
+    student = np.empty((len(REGIME_NAMES), 3), dtype=np.float64)
+    counts = np.zeros(len(REGIME_NAMES), dtype=np.int64)
+    pooled = np.zeros(len(REGIME_NAMES), dtype=bool)
+    for k in range(len(REGIME_NAMES)):
         mine = fit_returns[assigned == k]
         counts[k] = mine.size
         if mine.size >= MINIMUM_REGIME_RETURNS and float(np.ptp(mine)) > 0:
@@ -383,13 +300,7 @@ def fit_regime_model(inputs: np.ndarray, returns: np.ndarray, fit_rows: np.ndarr
             degrees, location, scale = pooled_fit
             pooled[k] = True
         student[k] = (degrees, location, max(scale, 1e-12))
-    # a transition row of exact zeros (a state never left in the data) becomes "stay"
-    for k in range(int(regime_count)):
-        total = transition[k].sum()
-        transition[k] = transition[k] / total if total > 0 else np.eye(int(regime_count))[k]
-    start = start / start.sum() if start.sum() > 0 else np.full(int(regime_count), 1.0 / regime_count)
-    return RegimeModel(start, transition, means, covariances, scaler_mean, scaler_deviation, student,
-                       counts, pooled, log_likelihood)
+    return RegimeModel(hmm, student, counts, pooled)
 
 
 # ─── the Monte Carlo simulator ─────────────────────────────────────────────
@@ -633,6 +544,20 @@ def _finite_or_none(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def gate_threshold(out_of_fold_probabilities: np.ndarray, gate_open_fraction: float) -> float:
+    """The absolute gate threshold: the (1 − ``gate_open_fraction``) quantile of |P − 0.5| over the
+    finite out-of-fold probabilities, so that share of them is at or beyond it; 0 when the fraction
+    is 1 (every bar open) or no probability is known."""
+    fraction = float(gate_open_fraction)
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError(f"gate_open_fraction must be above 0 and at most 1, got {fraction}")
+    distance = np.abs(np.asarray(out_of_fold_probabilities, dtype=np.float64) - 0.5)
+    distance = distance[np.isfinite(distance)]
+    if fraction >= 1.0 or distance.size == 0:
+        return 0.0
+    return float(np.quantile(distance, 1.0 - fraction))
+
+
 def purged_blocks(rows: np.ndarray, block_count: int, purge: int) -> list[tuple[np.ndarray, int, int]]:
     """Cut sorted ``rows`` into ``block_count`` contiguous blocks; for each, (the block's rows,
     the first and last row number the regime fit must leave out: the block widened by
@@ -678,6 +603,8 @@ class RegimeMonteCarloDecisionAdapter:
         self.feature_count: int | None = None
         self.filter_start: int | None = None
         self.feature_weights: dict[str, float] = {}
+        # the fold's absolute gate threshold, derived at fit from gate_open_fraction (see the module docstring)
+        self.decision_threshold: float | None = None
         self.fit_summary: dict = {}
         self._inputs: np.ndarray | None = None
         self._filter_state = None
@@ -695,13 +622,14 @@ class RegimeMonteCarloDecisionAdapter:
     def _require_market(self):
         if self.market is None:
             raise RuntimeError(
-                f"{self.key}: needs the run's market view (closes, volume, candles); the engine binds it "
+                f"{self.key}: needs the run's market view (candles and volume); the engine binds it "
                 "through bind_market(view) when it builds the model — a direct caller must bind it too"
             )
         if self.market.volume is None:
             raise RuntimeError(
-                f"{self.label}: its regime model reads each bar's volume and Kronos reads whole candles, and this "
-                "market view carries neither (the explainer's saved arrays hold only closes); this model is "
+                f"{self.label}: its regime model reads each bar's open, high and low and Kronos reads whole candles "
+                "and volume, and this market view carries none of them (the explainer's saved arrays hold only "
+                "closes); this model is "
                 "explained by its run's own regime forecasts, not by a reload"
             )
         return self.market
@@ -718,7 +646,7 @@ class RegimeMonteCarloDecisionAdapter:
     def _regime_inputs(self) -> np.ndarray:
         if self._inputs is None:
             view = self._require_market()
-            self._inputs = regime_inputs(view.one_bar_returns(), view.volume, int(self.parameters["volatility_window_bars"]))
+            self._inputs = regime_features(view, int(self.parameters["swing_confirmation_bars"]))
         return self._inputs
 
     # ── contract ─────────────────────────────────────────────────────────
@@ -738,27 +666,40 @@ class RegimeMonteCarloDecisionAdapter:
         self._row_details = {}
         watch = Stopwatch()
         inputs = self._regime_inputs()
-        returns = inputs[:, 0]
+        returns = view.one_bar_returns()
         fit_rows = view.fit_rows(train_index)
         self.filter_start = max(0, int(train_index[0]) - REGIME_FILTER_BURN_IN_BARS)
-        regime_count = int(self.parameters["regime_count"])
+        threshold = float(self.parameters["adx_threshold"])
         iterations = int(self.parameters["regime_fit_iteration_count"])
         reporter.log(
-            f"{self.label} ({'direction' if self.task == 'classification' else 'price'} model): regime model = Gaussian "
-            f"hidden Markov model, {regime_count} regimes, over {', '.join(n.replace('_', ' ') for n in REGIME_INPUT_NAMES)} "
-            f"({int(self.parameters['volatility_window_bars'])}-bar windows) on the {fit_rows.size:,} bars of the training span"
+            f"{self.label} ({'direction' if self.task == 'classification' else 'price'} model): regime model = structural "
+            f"hidden Markov model, three regimes ({', '.join(REGIME_NAMES)}), diagonal Gaussian over ADX 14, body-to-range, "
+            f"range compression, {int(self.parameters['swing_confirmation_bars'])}-bar confirmed swing distances, bars since "
+            f"the last pivot, the higher-high / higher-low score and the last two pivots' sign; Baum-Welch seeded at "
+            f"ADX < {threshold:g} = flat, up to {iterations} iterations, on the {fit_rows.size:,} bars of the training span"
         )
         self.regime_model = run_single_fit(
-            lambda: fit_regime_model(inputs, returns, fit_rows, regime_count, iterations, self.seed), reporter,
+            lambda: fit_regime_model(inputs, returns, fit_rows, threshold, iterations, self.seed), reporter,
             name=f"{self.key} regime model")
         self.simulator = MonteCarloSimulator(self.regime_model, int(self.parameters["simulation_count"]), self.horizon, self.seed)
+        hmm = self.regime_model.hmm
+        reporter.log(
+            f"{self.label}: Baum-Welch ran {hmm.iterations_run} iterations ({'converged' if hmm.converged else 'stopped at the limit'}); "
+            f"heuristic seed labels flat {int(hmm.seed_label_counts[0]):,}, uptrend {int(hmm.seed_label_counts[1]):,}, "
+            f"downtrend {int(hmm.seed_label_counts[2]):,} bars"
+        )
         for summary in self.regime_model.summaries():
             volatility = summary["volatilityLogReturn"]
+            means = {item["name"]: item["value"] for item in summary["featureMeans"]}
+            expected = summary["expectedBarsPerVisit"]
             reporter.log(
-                f"{self.label}: regime {summary['regime']}: {summary['trainingBarCount']:,} training bars, one-bar log return "
-                f"mean {summary['meanLogReturn']:+.2e}, deviation {('n/a' if volatility is None else f'{volatility:.2e}')}, "
-                f"Student-t degrees of freedom {summary['degreesOfFreedom']:.1f}, stays with probability "
-                f"{summary['stayProbability']:.3f}" + (" (too few bars: pooled training returns)" if summary["pooled"] else "")
+                f"{self.label}: {summary['name']}: {summary['trainingBarCount']:,} training bars, mean ADX "
+                f"{means['average_directional_index']:.1f}, higher-high / higher-low score {means['higher_high_higher_low_score']:+.2f}, "
+                f"stays with probability {summary['stayProbability']:.3f} (about "
+                f"{('n/a' if expected is None else f'{expected:.0f}')} bars a visit); one-bar log return mean "
+                f"{summary['meanLogReturn']:+.2e}, deviation {('n/a' if volatility is None else f'{volatility:.2e}')}, "
+                f"Student-t degrees of freedom {summary['degreesOfFreedom']:.1f}"
+                + (" (too few bars: pooled training returns)" if summary["pooled"] else "")
             )
         if self.task == "regression":
             self._fit_price_model(labels, train_index, validation_index, timestamps, reporter, watch)
@@ -821,7 +762,7 @@ class RegimeMonteCarloDecisionAdapter:
                         "kronos_candles": kronos_candles, "close": close}
 
     def _signal_names(self, regime_count: int) -> list[str]:
-        return ([f"regime_{k + 1}_probability" for k in range(regime_count)]
+        return ([f"{name}_regime_probability" for name in REGIME_NAMES[:regime_count]]
                 + ["monte_carlo_probability_up", "monte_carlo_expected_move_scaled",
                    "monte_carlo_percentile_spread_scaled", "kronos_predicted_move_scaled", "kronos_predicted_direction"]
                 + list(self.finbert_names))
@@ -835,7 +776,7 @@ class RegimeMonteCarloDecisionAdapter:
 
         view = self._require_market()
         horizon = self.horizon
-        regime_count = int(self.parameters["regime_count"])
+        regime_count = len(REGIME_NAMES)
         self.finbert_names = [name for name in view.feature_names if name.startswith(FINBERT_PREFIX)]
         if not self.finbert_names:
             reporter.log(f"{self.label}: this run's features carry no finbert_* columns; the decision model reads no news", "warn")
@@ -856,6 +797,7 @@ class RegimeMonteCarloDecisionAdapter:
 
         # out-of-fold regime and Monte Carlo signals for the stacking rows
         inputs = self._regime_inputs()
+        returns = view.one_bar_returns()
         fit_rows = view.fit_rows(train_index)
         blocks = purged_blocks(stacking_rows, int(self.parameters["stacking_fold_count"]), horizon)
         stacking_signals = np.full((stacking_rows.size, len(self.signal_names)), np.nan)
@@ -865,7 +807,7 @@ class RegimeMonteCarloDecisionAdapter:
             matrices = []
             for block_rows, low, high in blocks:
                 kept = fit_rows[(fit_rows < low) | (fit_rows > high)]
-                model = fit_regime_model(inputs, inputs[:, 0], kept, regime_count,
+                model = fit_regime_model(inputs, returns, kept, float(self.parameters["adx_threshold"]),
                                          int(self.parameters["regime_fit_iteration_count"]), self.seed)
                 simulator = MonteCarloSimulator(model, int(self.parameters["simulation_count"]), horizon, self.seed)
                 offset = int(np.searchsorted(stacking_rows, block_rows[0]))
@@ -949,12 +891,47 @@ class RegimeMonteCarloDecisionAdapter:
         ranked = sorted(self.feature_weights.items(), key=lambda item: -item[1])
         reporter.log(f"{self.label}: decision model weights (share of total gain): "
                      + ", ".join(f"{name} {share:.3f}" for name, share in ranked[:8]))
+        # the quantile gate: purged out-of-fold decision probabilities of the stacking rows set the threshold
+        fraction = float(self.parameters["gate_open_fraction"])
+        kept_rounds = self.best_iteration + 1
+
+        def out_of_fold_probabilities() -> np.ndarray:
+            scored = np.full(stacking_rows.size, np.nan)
+            for block_rows, low, high in blocks:
+                inside = (stacking_rows >= block_rows[0]) & (stacking_rows <= block_rows[-1])
+                outside = (stacking_rows < low) | (stacking_rows > high)
+                if not inside.any() or np.unique(stacking_labels[outside]).size < 2:
+                    continue
+                part = xgb.DMatrix(stacking_signals[outside], label=stacking_labels[outside],
+                                   feature_names=self.signal_names, missing=np.nan)
+                block_model = xgb.train(training_parameters, part, num_boost_round=kept_rounds, verbose_eval=False)
+                scored[inside] = block_model.predict(xgb.DMatrix(stacking_signals[inside], feature_names=self.signal_names,
+                                                                 missing=np.nan))
+            return scored
+
+        out_of_fold = run_single_fit(out_of_fold_probabilities, reporter, name=f"{self.key} gate")
+        out_of_fold_threshold = gate_threshold(out_of_fold, fraction)
+        known = np.isfinite(out_of_fold)
         validation_probability = (self._booster_probability(validation_signals) if validation_index.size
                                   else np.empty(0))
-        gate = np.abs(validation_probability - 0.5) >= float(self.parameters["decision_threshold"])
+        # The threshold has to sit on the KEPT model's own probability scale. The block models are other
+        # boosters (other leaf values); the validation rows are the bars the kept model's trees were not
+        # fitted on, so their |P - 0.5| is that scale. With no validation rows the out-of-fold quantile stands.
+        gate_source = "validation" if validation_probability.size >= MINIMUM_GATE_ROWS else "out_of_fold"
+        self.decision_threshold = (gate_threshold(validation_probability, fraction) if gate_source == "validation"
+                                   else out_of_fold_threshold)
+        gate = np.abs(validation_probability - 0.5) >= self.decision_threshold
+        out_of_fold_share = float(np.mean(np.abs(out_of_fold[known] - 0.5) >= self.decision_threshold)) if known.any() else None
         reporter.log(
-            f"{self.label}: on the validation rows the trade gate (|P(up) - 0.5| >= {float(self.parameters['decision_threshold']):g}) "
-            f"opens on {int(gate.sum()):,} of {gate.size:,} bars"
+            f"{self.label}: trade gate set to open on the {fraction * 100:.0f}% most confident bars: the "
+            f"{(1 - fraction) * 100:.0f}th percentile of |P - 0.5| over "
+            + (f"the kept model's {validation_probability.size:,} validation probabilities (bars its trees were not fitted on)"
+               if gate_source == "validation" else
+               f"{int(known.sum()):,} purged out-of-fold training probabilities ({len(blocks)} blocks, {kept_rounds} rounds each)")
+            + f" is {self.decision_threshold:.4f}; the gate opens on {int(gate.sum()):,} of {gate.size:,} validation bars "
+            f"({(float(gate.mean()) * 100 if gate.size else 0.0):.1f}%) and on "
+            f"{('n/a' if out_of_fold_share is None else f'{out_of_fold_share * 100:.1f}%')} of the {int(known.sum()):,} purged "
+            f"out-of-fold training probabilities (their own {(1 - fraction) * 100:.0f}th percentile is {out_of_fold_threshold:.4f})"
         )
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
@@ -966,6 +943,12 @@ class RegimeMonteCarloDecisionAdapter:
             "feature_weights": self.feature_weights,
             "regimes": self.regime_model.summaries(),
             "regime_log_likelihood": self.regime_model.log_likelihood,
+            "gate_open_fraction": fraction,
+            "decision_threshold": self.decision_threshold,
+            "gate_threshold_source": gate_source,
+            "gate_out_of_fold_row_count": int(known.sum()),
+            "gate_out_of_fold_threshold": out_of_fold_threshold,
+            "gate_out_of_fold_open_share": out_of_fold_share,
             "validation_gate_open_share": float(gate.mean()) if gate.size else None,
             "kronos_model": KRONOS_MODELS[kronos.size][0],
             "kronos_revision": KRONOS_MODELS[kronos.size][1],
@@ -1019,7 +1002,9 @@ class RegimeMonteCarloDecisionAdapter:
         candles = self._kronos().forecast(self._require_market(), rows)
         signals, pieces = self._signals(features, rows, self.regime_model, self.simulator, candles)
         probability = self._booster_probability(signals)
-        threshold = float(self.parameters["decision_threshold"])
+        if self.decision_threshold is None:
+            raise RuntimeError(f"{self.key}: the trade gate's threshold is derived at fit; this model has none")
+        threshold = float(self.decision_threshold)
         for position, row in enumerate(rows):
             self._row_details[int(row)] = {
                 "probabilities": pieces["probabilities"][position],
@@ -1037,7 +1022,8 @@ class RegimeMonteCarloDecisionAdapter:
         return probability
 
     def trade_gate(self, features, index) -> np.ndarray:
-        """True where the decision model is sure enough to trade: |P(up) − 0.5| >= decision_threshold."""
+        """True where the decision model is sure enough to trade: |P − 0.5| >= the fold's threshold
+        (the (1 − gate_open_fraction) quantile of the out-of-fold |P − 0.5|, derived at fit)."""
         rows = _as_index(index)
         missing = [int(row) for row in rows if int(row) not in self._row_details]
         if missing:
@@ -1055,8 +1041,10 @@ class RegimeMonteCarloDecisionAdapter:
         return {
             "horizon_bars": self.horizon,
             "simulation_count": int(self.parameters["simulation_count"]),
-            "decision_threshold": float(self.parameters["decision_threshold"]),
+            "gate_open_fraction": float(self.parameters["gate_open_fraction"]),
+            "decision_threshold": float(self.decision_threshold if self.decision_threshold is not None else 0.0),
             "kronos_model": KRONOS_MODELS[str(self.parameters["kronos_model_size"])][0],
+            "regime_names": list(REGIME_NAMES),
             "regimes": self.regime_model.summaries(),
             "transition_matrix": self.regime_model.transition.tolist(),
             "feature_weights": self.feature_weight_list(),
@@ -1103,6 +1091,7 @@ class RegimeMonteCarloDecisionAdapter:
         metadata.update({
             "regime_model_file": REGIME_MODEL_FILE,
             "best_iteration": self.best_iteration,
+            "decision_threshold": self.decision_threshold,
             "signal_names": list(self.signal_names),
             "finbert_names": list(self.finbert_names),
             "filter_start": self.filter_start,
@@ -1127,6 +1116,7 @@ class RegimeMonteCarloDecisionAdapter:
             adapter.booster = xgb.Booster(model_file=str(Path(directory) / DECISION_MODEL_FILE))
             adapter.booster.set_param({"nthread": 1})
         adapter.best_iteration = metadata.get("best_iteration")
+        adapter.decision_threshold = metadata.get("decision_threshold")
         adapter.signal_names = list(metadata.get("signal_names") or [])
         adapter.finbert_names = list(metadata.get("finbert_names") or [])
         adapter.filter_start = metadata.get("filter_start")
@@ -1143,6 +1133,7 @@ def _last(values):
 
 
 __all__ = [
-    "KRONOS_MODELS", "KronosForecaster", "MonteCarloSimulator", "RegimeModel", "RegimeMonteCarloDecisionAdapter",
-    "contiguous_lengths", "fit_regime_model", "purged_blocks", "regime_inputs", "time_features",
+    "KRONOS_MODELS", "REGIME_NAMES", "KronosForecaster", "MonteCarloSimulator", "RegimeModel",
+    "RegimeMonteCarloDecisionAdapter", "contiguous_lengths", "fit_regime_model", "gate_threshold", "purged_blocks", "regime_features",
+    "student_t_fit", "time_features",
 ]

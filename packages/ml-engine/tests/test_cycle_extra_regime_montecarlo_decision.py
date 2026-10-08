@@ -1,12 +1,14 @@
 """The regime Monte Carlo decision stack (``cycle/adapters_extra/regime_montecarlo_decision.py``).
 
 On a synthetic MNQ-like market with two planted volatility regimes (quiet and
-wild, each with its own volume level), checked against what the module claims:
+wild, each with its own volume level), checked against what the module claims
+(the structural regime model itself — features, pivots, planted flat / uptrend /
+downtrend recovery, forward-filter-only inference — is tested in
+``test_cycle_regime_hmm.py``):
 
-- the regime inputs and the forward filter read only bars at or before the bar
-  they speak for (the same numbers on a view cut right after it), the filtered
-  probabilities sum to one, regime 1 is the calmest, and the planted regimes
-  are recovered;
+- the regime model behind the stack is the three-state structural model, its
+  regimes named flat, uptrend and downtrend, its filtered probabilities summing
+  to one and unchanged when later bars are cut;
 - the Monte Carlo fan has the shapes it promises, probabilities in [0, 1],
   ordered percentiles, a drift that moves P(up) the right way, and costs less
   than 5 ms per bar at 2,000 paths;
@@ -14,10 +16,11 @@ wild, each with its own volume level), checked against what the module claims:
   label horizon out on both sides;
 - the adapter fits and predicts through the registry like every other model
   (Kronos on the GPU when there is one), its trade gate is |P(up) − 0.5| against
-  the threshold, its predictions do not move when later bars are removed, and a
+  the fold's threshold — the quantile of the purged out-of-fold |P − 0.5| that
+  ``gate_open_fraction`` asks for, opening on about that share of unseen bars — its predictions do not move when later bars are removed, and a
   saved fold reloads to the same predictions;
-- the engine walks it end to end: one ``cycle_regime_forecast`` row per scored
-  test bar, the file beside the artifacts equals what was streamed, and every
+- the engine walks it end to end under both label kinds (direction and reversal):
+  one ``cycle_regime_forecast`` row per scored test bar, the three regimes named, the file beside the artifacts equals what was streamed, and every
   trade entered on a bar whose gate was open.
 """
 
@@ -43,6 +46,7 @@ from cycle.adapters_extra import regime_montecarlo_decision as stack  # noqa: E4
 from cycle.labels import horizon_crosses_gap  # noqa: E402
 from cycle.market import MarketView  # noqa: E402
 from cycle.models import build_adapter, load_adapter  # noqa: E402
+from cycle.regime_hmm import REGIME_NAMES, StructuralRegimeHMM  # noqa: E402
 from shared import (
     protocol,  # noqa: E402  (core/shared, bound before the test tree's own shared/ can shadow it)
 )
@@ -55,9 +59,9 @@ FINBERT_NAMES = (
     "finbert_minutes_since_article_log", "finbert_macro_sentiment_decayed_short", "finbert_news_coverage_flag",
 )
 QUICK = {
-    "regime_count": 2, "regime_fit_iteration_count": 50, "volatility_window_bars": 20, "simulation_count": 500,
+    "adx_threshold": 20.0, "swing_confirmation_bars": 5, "regime_fit_iteration_count": 50, "simulation_count": 500,
     "kronos_model_size": "mini", "kronos_context_bars": 64, "stacking_fold_count": 3, "maximum_training_bars": 600,
-    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "decision_threshold": 0.02,
+    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "gate_open_fraction": 0.4,
 }
 
 
@@ -185,32 +189,22 @@ def test_the_module_under_test_is_this_worktrees():
 
 
 @pytest.mark.parametrize("cut", [500, 1234, 2999])
-def test_regime_inputs_read_no_later_bar(market, cut):
-    full = stack.regime_inputs(market.view().one_bar_returns(), market.volume, 20)
-    short_view = market.view(cut + 1)
-    short = stack.regime_inputs(short_view.one_bar_returns(), short_view.volume, 20)
-    np.testing.assert_array_equal(full[: cut + 1], short)
-    assert np.all(np.isnan(full[:20, 1]))             # warmup rows are unknown, never 0
-
-
-def test_the_forward_filter_is_causal_normalised_and_finds_the_planted_regimes(market):
-    inputs = stack.regime_inputs(market.view().one_bar_returns(), market.volume, 20)
-    fit_rows = np.arange(300, 2200)
-    model = stack.fit_regime_model(inputs, inputs[:, 0], fit_rows, 2, 100, 3)
-    summaries = model.summaries()
-    assert summaries[0]["volatilityLogReturn"] < summaries[1]["volatilityLogReturn"]   # regime 1 is the calmest
-    filtered, _ = model.forward_filter(inputs, 0, inputs.shape[0] - 1)
+def test_the_stacks_regime_model_is_the_structural_one_and_reads_no_later_bar(market, cut):
+    features = stack.regime_features(market.view(), 5)
+    short = stack.regime_features(market.view(cut + 1), 5)
+    np.testing.assert_array_equal(features[: cut + 1], short)
+    model = stack.fit_regime_model(features, market.view().one_bar_returns(), np.arange(300, 2200), 20.0, 50, 3)
+    assert model.regime_names == REGIME_NAMES == ("flat", "uptrend", "downtrend")
+    assert [summary["name"] for summary in model.summaries()] == list(REGIME_NAMES)
+    filtered, _ = model.forward_filter(features, 0, features.shape[0] - 1)
     known = np.all(np.isfinite(filtered), axis=1)
     np.testing.assert_allclose(filtered[known].sum(axis=1), 1.0, atol=1e-9)
-    truncated, _ = model.forward_filter(inputs[:1501], 0, 1500)
-    np.testing.assert_allclose(truncated, filtered[:1501], atol=0, rtol=0)
+    truncated, _ = model.forward_filter(short, 0, cut)
+    np.testing.assert_allclose(truncated, filtered[: cut + 1], atol=0, rtol=0)
     # continuing a pass gives the same numbers as one pass
-    first, state = model.forward_filter(inputs, 0, 999)
-    second, _ = model.forward_filter(inputs, 0, 1999, state)
+    first, state = model.forward_filter(features, 0, 999)
+    second, _ = model.forward_filter(features, 0, 1999, state)
     np.testing.assert_allclose(np.vstack([first, second]), filtered[:2000])
-    rows = np.arange(2200, 3000)
-    agreement = np.mean(np.argmax(filtered[rows], axis=1) == market.regime[rows])
-    assert agreement > 0.85, agreement
 
 
 def test_contiguous_lengths_and_purged_blocks():
@@ -227,18 +221,20 @@ def test_contiguous_lengths_and_purged_blocks():
 
 
 def _manual_model(location_quiet: float, location_wild: float) -> stack.RegimeModel:
+    """Flat is the quiet regime, uptrend and downtrend the wild ones (their locations are ``location_wild``)."""
+    hmm = StructuralRegimeHMM.from_parameters(
+        start=np.full(3, 1 / 3), transition=np.array([[0.95, 0.025, 0.025], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]),
+        means=np.zeros((3, 8)), variances=np.ones((3, 8)), scaler_mean=np.zeros(8), scaler_deviation=np.ones(8),
+    )
     return stack.RegimeModel(
-        start=np.array([0.5, 0.5]), transition=np.array([[0.95, 0.05], [0.1, 0.9]]),
-        means=np.zeros((2, 3)), covariances=np.stack([np.eye(3), np.eye(3)]),
-        scaler_mean=np.zeros(3), scaler_deviation=np.ones(3),
-        student=np.array([[5.0, location_quiet, 0.0005], [4.0, location_wild, 0.002]]),
-        regime_bar_counts=np.array([100, 100]), pooled=np.array([False, False]),
+        hmm, student=np.array([[5.0, location_quiet, 0.0005], [4.0, location_wild, 0.002], [4.0, location_wild, 0.002]]),
+        regime_bar_counts=np.array([100, 100, 100]), pooled=np.array([False, False, False]),
     )
 
 
 def test_the_fan_has_its_shapes_bounds_and_order():
     simulator = stack.MonteCarloSimulator(_manual_model(0.0, 0.0), 2000, HORIZON, 1)
-    probabilities = np.array([[1.0, 0.0], [0.0, 1.0], [0.5, 0.5], [np.nan, np.nan]])
+    probabilities = np.array([[1.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.25, 0.25], [np.nan, np.nan, np.nan]])
     result = simulator.simulate(probabilities, np.array([18_000.0, 18_000.0, 18_000.0, 18_000.0]))
     assert result["percentile_10_points"].shape == (4, HORIZON)
     up = result["probability_up"]
@@ -256,7 +252,7 @@ def test_the_fan_has_its_shapes_bounds_and_order():
 def test_drift_moves_the_probability_the_right_way():
     rising = stack.MonteCarloSimulator(_manual_model(0.0004, 0.0004), 2000, HORIZON, 1)
     falling = stack.MonteCarloSimulator(_manual_model(-0.0004, -0.0004), 2000, HORIZON, 1)
-    probabilities = np.array([[0.7, 0.3]])
+    probabilities = np.array([[0.7, 0.15, 0.15]])
     close = np.array([18_000.0])
     assert rising.simulate(probabilities, close)["probability_up"][0] > 0.6
     assert falling.simulate(probabilities, close)["probability_up"][0] < 0.4
@@ -265,7 +261,7 @@ def test_drift_moves_the_probability_the_right_way():
 
 def test_one_bar_costs_less_than_five_milliseconds_at_two_thousand_paths():
     simulator = stack.MonteCarloSimulator(_manual_model(0.0, 0.0), 2000, HORIZON, 1)
-    probabilities = np.array([[0.6, 0.4]])
+    probabilities = np.array([[0.6, 0.2, 0.2]])
     close = np.array([18_000.0])
     simulator.simulate(probabilities, close)
     started = time.perf_counter()
@@ -282,10 +278,20 @@ def test_the_registry_entry_and_the_dispatch_table():
     entry = catalog.entry(KEY)
     assert entry["adapter"] == KEY and entry["runnable"] and entry["implementation"] == "torch"
     assert models.ADAPTER_CLASSES[KEY] == "cycle.adapters_extra.regime_montecarlo_decision:RegimeMonteCarloDecisionAdapter"
-    search = entry["parameters"]["regime_count"]["search"]
-    assert (search["low"], search["high"]) == (2, 5)
-    assert entry["parameters"]["simulation_count"]["default"] == 2000
-    assert set(catalog.searchable_parameters(KEY)) == {"regime_count", "max_depth", "learning_rate", "decision_threshold"}
+    parameters = entry["parameters"]
+    assert "regime_count" not in parameters and "volatility_window_bars" not in parameters    # three regimes, always
+    assert parameters["adx_threshold"]["default"] == 20.0
+    assert (parameters["adx_threshold"]["search"]["low"], parameters["adx_threshold"]["search"]["high"]) == (15.0, 30.0)
+    assert parameters["swing_confirmation_bars"]["default"] == 5
+    assert (parameters["swing_confirmation_bars"]["search"]["low"], parameters["swing_confirmation_bars"]["search"]["high"]) == (3, 10)
+    assert parameters["simulation_count"]["default"] == 2000
+    assert set(catalog.searchable_parameters(KEY)) == {
+        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate", "gate_open_fraction"}
+    gate = parameters["gate_open_fraction"]
+    assert "decision_threshold" not in parameters
+    assert (gate["default"], gate["min"], gate["max"]) == (0.3, 0.05, 1.0)
+    assert (gate["search"]["low"], gate["search"]["high"]) == (0.05, 1.0)
+    assert gate["label"] == "Share of bars the trade gate opens on, most confident first"
 
 
 def test_fitting_and_predicting_keep_the_contract(market, fitted):
@@ -295,20 +301,59 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert probability.shape == (40,) and np.all((probability >= 0) & (probability <= 1))
     gate = adapter.trade_gate(market.features, test[:40])
     assert gate.dtype == bool
-    np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= QUICK["decision_threshold"])
+    np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= adapter.decision_threshold)
+    assert adapter.decision_threshold == adapter.fit_summary["decision_threshold"] > 0
+    assert adapter.fit_summary["gate_open_fraction"] == QUICK["gate_open_fraction"]
+    assert adapter.fit_summary["gate_threshold_source"] == "validation"
+    assert any("most confident bars" in line and "out-of-fold" in line for line in reporter.logs)
     said = adapter.regime_forecast(int(test[0]))
-    assert len(said["probabilities"]) == 2 and abs(sum(said["probabilities"]) - 1) < 1e-9
+    assert len(said["probabilities"]) == 3 and abs(sum(said["probabilities"]) - 1) < 1e-9
     assert said["percentile_10_points"].shape == (HORIZON,) and said["kronos_candles"].shape == (HORIZON, 4)
     assert np.all(np.isfinite(said["kronos_candles"]))             # Kronos forecast every one of these bars
     # the decision model reads every signal it promised, the news among them
     names = adapter.signal_names
-    assert names[:2] == ["regime_1_probability", "regime_2_probability"]
+    assert names[:3] == ["flat_regime_probability", "uptrend_regime_probability", "downtrend_regime_probability"]
     assert {"monte_carlo_probability_up", "kronos_predicted_move_scaled", *FINBERT_NAMES} <= set(names)
     assert abs(sum(adapter.feature_weights.values()) - 1.0) < 1e-9
     assert reporter.epochs and reporter.epochs[-1].validation_loss is not None
     assert any("out-of-fold" in line for line in reporter.logs)
     blocks = adapter.fit_summary["stacking_blocks"]
     assert len(blocks) == QUICK["stacking_fold_count"] and all(block["purge_bars"] == HORIZON for block in blocks)
+
+
+def test_the_gate_threshold_is_the_quantile_of_the_out_of_fold_distance():
+    probabilities = np.r_[np.linspace(0.3, 0.7, 101), np.nan]
+    assert stack.gate_threshold(probabilities, 1.0) == 0.0
+    threshold = stack.gate_threshold(probabilities, 0.25)
+    distance = np.abs(probabilities[:-1] - 0.5)
+    assert threshold == pytest.approx(np.quantile(distance, 0.75))
+    assert np.mean(distance >= threshold) == pytest.approx(0.25, abs=0.02)
+    assert stack.gate_threshold(np.array([np.nan]), 0.3) == 0.0
+    with pytest.raises(ValueError, match="gate_open_fraction"):
+        stack.gate_threshold(probabilities, 0.0)
+
+
+@pytest.mark.parametrize("fraction", [0.2, 0.6, 1.0])
+def test_the_gate_opens_on_about_its_share_of_bars_it_was_not_fitted_on(market, fraction):
+    adapter = build_adapter(KEY, {**QUICK, "gate_open_fraction": fraction}, "auto", 7)
+    adapter.bind_market(market.view())
+    train, validation, test = market.spans()
+    adapter.fit(market.features, market.labels, train, validation, market.timestamps, Reporter())
+    unseen = test                                   # neither fitted on nor used to place the threshold
+    realised = float(adapter.trade_gate(market.features, unseen).mean())
+    distance = np.abs(adapter.predict_probability(market.features, unseen) - 0.5)
+    beyond = float(np.mean(distance > adapter.decision_threshold))       # without the bars tied at the threshold
+    print(f"gate_open_fraction {fraction}: threshold {adapter.decision_threshold:.4f}, open on {realised:.3f} of {unseen.size} "
+          f"unseen bars ({beyond:.3f} strictly beyond it; kept model of {adapter.best_iteration + 1} round(s), "
+          f"{np.unique(distance.round(9)).size} distinct probabilities)")
+    if fraction == 1.0:
+        assert adapter.decision_threshold == 0.0 and realised == 1.0
+    else:
+        # the gate opens at or beyond the threshold, so bars tied at it all open: a kept model of one
+        # tree has a handful of probability values, and the setting then sits between the share strictly
+        # beyond the threshold and the share at or beyond it; with distinct probabilities the two are equal
+        assert beyond - 0.15 <= fraction <= realised + 0.15, (beyond, realised)
+        assert realised > 0, "the gate never opens on unseen bars"
 
 
 def test_a_prediction_does_not_move_when_later_bars_are_removed(market, fitted, tmp_path):
@@ -351,12 +396,14 @@ def test_the_wire_payload_carries_every_bar(market, fitted):
     records = [{**adapter.regime_forecast(int(row)), "timestamp": int(market.timestamps[row])} for row in rows]
     payload = protocol.cycle_regime_forecast_payload(fold_index=0, model_role="direction", rows=records,
                                                      **adapter.regime_forecast_context())
-    assert payload["regimeCount"] == 2 and payload["horizonBars"] == HORIZON
+    assert payload["regimeCount"] == 3 and payload["horizonBars"] == HORIZON
+    assert payload["regimeNames"] == ["flat", "uptrend", "downtrend"]
+    assert [regime["name"] for regime in payload["regimes"]] == payload["regimeNames"]
     for name in ("timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
                  "monteCarloPercentile90Points", "kronosClose", "decisionProbabilityUp", "gateOpen"):
         assert len(payload[name]) == 5, name
     assert all(len(path) == HORIZON for path in payload["monteCarloPercentile10Points"])
-    assert payload["mostLikelyRegime"][0] in (1, 2)
+    assert all(name in REGIME_NAMES for name in payload["mostLikelyRegime"])
     assert abs(sum(item["gainShare"] for item in payload["featureWeights"]) - 1.0) < 1e-5
     json.dumps(payload, allow_nan=False)            # nothing on the wire is NaN
 
@@ -377,7 +424,8 @@ class Capture:
         return [event for event in self.events if event["type"] == kind]
 
 
-def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_path, monkeypatch):
+@pytest.mark.parametrize("label_kind", ["direction", "reversal"])
+def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_path, monkeypatch, label_kind):
     from cycle.engine import CycleEngine, CycleSettings, MarketData  # noqa: PLC0415
     from cycle.features import FeatureSet  # noqa: PLC0415
     from cycle.simulate import load_cost_model  # noqa: PLC0415
@@ -385,7 +433,7 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     source = Market(days=40, seed=5)
     data = MarketData(source.timestamps, source.open, source.high, source.low, source.close, source.volume)
     features = FeatureSet(source.features.copy(), list(source.feature_names))
-    parameters = {**QUICK, "maximum_training_bars": 400, "decision_threshold": 0.03}
+    parameters = {**QUICK, "maximum_training_bars": 400, "gate_open_fraction": 0.5}
 
     def factory(values, task="classification"):
         return build_adapter(KEY, values, "auto", 42, task=task)
@@ -394,7 +442,7 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
         symbol="MNQ", timeframe="5m", model_id="regime_montecarlo_decision_test", model_family=KEY,
         model_parameters=parameters, artifact_directory=str(tmp_path), train_days=14, validation_fraction=0.2,
         test_days=4, step_days=0, fold_limit=2, expanding_window=False, label_horizon_bars=HORIZON,
-        label_threshold_ticks=0.0, embargo_bars=0, long_only=False, holding_bars=0, stop_loss_ticks=0.0,
+        label_threshold_ticks=0.0, label_kind=label_kind, embargo_bars=0, long_only=False, holding_bars=0, stop_loss_ticks=0.0,
         take_profit_ticks=0.0, contracts=1, tuning_trials=0, tuning_mode="reviewed_defaults", bars_per_second=0.0,
         start_paused=False, quiet_bars=True, log_every_batches=1, device="cpu", seed=42, land_in_lake=False,
     )
@@ -404,6 +452,13 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     engine.run()
     streamed = capture.of("cycle_regime_forecast")
     assert streamed, "no cycle_regime_forecast event"
+    for event in streamed:
+        # three named regimes under either label kind, the per-bar regime by name, P(up) on the wire
+        assert event["regimeNames"] == ["flat", "uptrend", "downtrend"] and event["regimeCount"] == 3
+        assert event["gateOpenFraction"] == 0.5 and event["decisionThreshold"] >= 0
+        assert all(name in REGIME_NAMES for name in event["mostLikelyRegime"])
+        assert all(len(row) == 3 and abs(sum(row) - 1) < 1e-3 for row in event["regimeProbabilities"])
+        assert all(value is None or 0.0 <= value <= 1.0 for value in event["decisionProbabilityUp"])
     by_fold: dict[int, list[int]] = {}
     for event in streamed:
         by_fold.setdefault(event["foldIndex"], []).extend(event["timestamps"])

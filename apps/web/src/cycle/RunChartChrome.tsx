@@ -13,6 +13,9 @@
 
 import { useState } from "react";
 
+import { REGIME_DEFINITIONS, REGIME_NAMES, REGIME_STYLES, regimeLabel } from "@shared/runs/regimeDefinitions";
+
+import { regimeShares, regimeStyleOfBar } from "./regimes";
 import { useCycleStore } from "./store";
 import {
   CYCLE_COLORS,
@@ -200,6 +203,7 @@ function ReadoutBox({
   const labelTone =
     readout.labelWord === "right" ? CYCLE_COLORS.up : readout.labelWord === "wrong" ? CYCLE_COLORS.neutral : undefined;
   const pinned = pinnedTimestamp !== null && pinnedTimestamp === readout.timestamp;
+  const regime = regimeStyleOfBar(useCycleStore.getState().regimes, readout.timestamp);
   return (
     <div className={className} style={style} data-testid="cycle-chart-readout">
       <div className="text-foreground">{readout.timeText}</div>
@@ -224,6 +228,14 @@ function ReadoutBox({
               {readout.predictedDirectionWord === "up" ? "▲ " : readout.predictedDirectionWord === "down" ? "▼ " : ""}
               {readout.predictedDirectionWord}
             </span>
+            {regime && (
+              <>
+                <span className="text-muted-foreground">regime</span>
+                <span style={{ color: regime.color }} data-testid="cycle-chart-readout-regime">
+                  {regimeLabel(regime)}
+                </span>
+              </>
+            )}
             <span className="text-muted-foreground">position</span>
             <span>{readout.positionWord}</span>
             <span className="text-muted-foreground">equity</span>
@@ -249,6 +261,45 @@ function ReadoutBox({
 
 function Swatch({ color, border }: { color: string; border?: string }) {
   return <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: color, border: border ? `1px solid ${border}` : undefined }} />;
+}
+
+/**
+ * The regimes of the walked bars: one chip per regime (its colour, glyph, word and
+ * the share of walked bars it holds) and the switch that paints the candles with
+ * them. Renders nothing for a model that sends no regimes.
+ */
+function RegimeLegend() {
+  // the version is what changes; the regimes object is appended in place
+  useCycleStore((state) => state.regimesVersion);
+  const regimes = useCycleStore((state) => state.regimes);
+  const shown = useCycleStore((state) => state.showRegimeColors);
+  const setShown = useCycleStore((state) => state.setShowRegimeColors);
+  if (regimes.byTimestamp.size === 0) return null;
+  const how = REGIME_DEFINITIONS.regime_most_likely!;
+  return (
+    <div
+      className="pointer-events-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 rounded border border-white/10 bg-[rgba(11,15,22,0.82)] px-2 py-0.5 font-mono text-[10px] text-foreground/90"
+      data-testid="run-chart-regimes"
+      title={`Most likely regime per walked bar\n\nHow it is computed: ${how.how}\n\nFormula: ${how.formula}`}
+    >
+      <button
+        type="button"
+        onClick={() => setShown(!shown)}
+        className="rounded border border-white/15 px-1.5 hover:bg-white/10"
+        aria-pressed={shown}
+        data-testid="run-chart-regimes-toggle"
+      >
+        {shown ? "◼ candles by regime" : "◻ candles by regime"}
+      </button>
+      {regimeShares(regimes).map(({ style, share, barCount }) => (
+        <span key={style.word} className="flex items-center gap-1" title={`${style.meaning} Most likely on ${barCount.toLocaleString()} of ${regimes.byTimestamp.size.toLocaleString()} walked bars.`}>
+          <Swatch color={style.color} />
+          <span style={{ color: style.color }}>{regimeLabel(style)}</span>
+          <span className="text-muted-foreground">{(share * 100).toFixed(0)}%</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function ChartKey() {
@@ -283,6 +334,16 @@ function ChartKey() {
             call triangle)
           </div>
           <div>● exit (orange = profit, blue = loss, amount shown)</div>
+          <div>
+            a regime model&apos;s walked candles are painted by their most likely regime:{" "}
+            {REGIME_NAMES.map((name, position) => (
+              <span key={name}>
+                {position > 0 ? " · " : ""}
+                <span style={{ color: REGIME_STYLES[name].color }}>{regimeLabel(REGIME_STYLES[name])}</span>
+              </span>
+            ))}{" "}
+            (the &quot;candles by regime&quot; switch above turns it off)
+          </div>
           <div>the candles are the bars the model read, roll-adjusted; your indicators are computed on the same bars</div>
           <div>zoomed in (bars 14 px apart or wider): the forecast price is printed beyond each ▲ / ▼</div>
           <div>
@@ -361,6 +422,7 @@ export function RunChartChrome({ hover }: { hover: RunHoverState | null }) {
             ◎ Follow the model
           </button>
         )}
+        <RegimeLegend />
         <ChartKey />
         <button
           type="button"

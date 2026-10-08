@@ -385,17 +385,35 @@ export type CycleGateRouting = z.infer<typeof cycleGateRoutingSchema>;
 
 // ─── cycle_regime_forecast ──────────────────────────────────────────────────
 
+/** The mean of one observation feature of the structural regime model in one regime, in the feature's own units. */
+export const cycleRegimeFeatureMeanSchema = z.object({
+  /** The feature's column name in full words (`cycle.regime_hmm.FEATURE_NAMES`). */
+  name: z.string(),
+  /** The feature in plain words. */
+  words: z.string(),
+  value: z.number(),
+});
+export type CycleRegimeFeatureMean = z.infer<typeof cycleRegimeFeatureMeanSchema>;
+
 /** One regime as the regime Monte Carlo decision model fitted it on the fold's training span. */
 export const cycleRegimeSummarySchema = z.object({
-  /** 1-based; regime 1 is always the calmest (lowest mean realised volatility). */
+  /** 1-based position in `regimeNames`: 1 flat, 2 uptrend, 3 downtrend (before 2026-10-07: numbered by volatility, 1 the calmest). */
   regime: z.number().int().positive(),
+  /** `flat`, `uptrend` or `downtrend`; absent on runs recorded before the regimes had names. */
+  name: z.string().optional(),
+  /** 1 / (1 − stayProbability): the mean length of a visit, in bars; null when the regime is never left. */
+  expectedBarsPerVisit: nullableNumber.optional(),
+  /** The mean of every observation feature in this regime, in the feature's own units. */
+  featureMeans: z.array(cycleRegimeFeatureMeanSchema).optional(),
+  /** The regime in one sentence: its name and every feature mean in words. */
+  description: z.string().optional(),
   /** Location of the Student-t of the one-bar log return in this regime. */
   meanLogReturn: z.number(),
   /** Standard deviation of that Student-t (scale × √(ν / (ν − 2))); null when ν ≤ 2. */
   volatilityLogReturn: nullableNumber,
   degreesOfFreedom: z.number(),
   scale: z.number(),
-  /** Training bars the smoothed posterior assigned to the regime. */
+  /** Training bars the forward filter put in the regime (before 2026-10-07: the smoothed posterior). */
   trainingBarCount: z.number().int().nonnegative(),
   /** True when the regime had too few bars and uses the pooled training returns. */
   pooled: z.boolean(),
@@ -416,8 +434,25 @@ export const cycleRegimeForecastSchema = cycleEnvelopeSchema.extend({
   foldIndex: z.number().int().nonnegative().nullable(),
   modelRole: z.enum(["direction", "price"]),
   regimeCount: z.number().int().positive(),
+  /**
+   * The regimes' names in probability order: `flat`, `uptrend`, `downtrend`
+   * (`@shared/runs/regimeDefinitions` holds their colours and glyphs). Absent on
+   * runs recorded before 2026-10-07, whose regimes were numbered.
+   */
+  regimeNames: z.array(z.string()).optional(),
   horizonBars: z.number().int().positive(),
   simulationCount: z.number().int().positive(),
+  /**
+   * The gate's setting: the share of bars it should open on, most confident
+   * first. Absent on runs recorded before 2026-10-07, whose threshold was set directly.
+   */
+  gateOpenFraction: z.number().min(0).max(1).optional(),
+  /**
+   * The fold's absolute gate threshold: the (1 − gateOpenFraction) quantile of
+   * |P − 0.5| over the kept decision model's probabilities on the validation rows
+   * (its purged out-of-fold training probabilities when a fold has under 50
+   * validation rows), derived at fit.
+   */
   decisionThreshold: z.number().min(0),
   kronosModel: z.string(),
   regimes: z.array(cycleRegimeSummarySchema),
@@ -430,8 +465,12 @@ export const cycleRegimeForecastSchema = cycleEnvelopeSchema.extend({
   close: z.array(nullableNumber),
   /** `regimeProbabilities[bar][regime]`, the forward filter's (never the smoother's). */
   regimeProbabilities: z.array(z.array(nullableNumber)),
-  /** 1-based regime with the highest filtered probability; null before the filter has a bar. */
-  mostLikelyRegime: z.array(z.number().int().positive().nullable()),
+  /**
+   * The NAME of the regime with the highest filtered probability (one of
+   * `regimeNames`); null before the filter has a bar. Runs recorded before
+   * 2026-10-07 carry the regime's 1-based number instead.
+   */
+  mostLikelyRegime: z.array(z.union([z.string(), z.number().int().positive()]).nullable()),
   monteCarloProbabilityUp: z.array(nullableNumber),
   monteCarloExpectedMovePoints: z.array(nullableNumber),
   /** `[bar][step]`: the 10th percentile simulated move in points after step + 1 bars. */

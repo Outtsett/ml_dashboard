@@ -1089,20 +1089,30 @@ def _number_or_none(value, digits: int):
 
 
 def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: int, simulation_count: int,
-                                  decision_threshold: float, kronos_model: str, regimes: list[dict],
-                                  transition_matrix, feature_weights: list[dict], rows: list[dict]) -> dict:
+                                  decision_threshold: float, gate_open_fraction: float, kronos_model: str,
+                                  regime_names: list[str],
+                                  regimes: list[dict], transition_matrix, feature_weights: list[dict],
+                                  rows: list[dict]) -> dict:
     """The wire shape of a regime Monte Carlo decision model's per-bar forecasts
     over a stretch of its test walk (``regime_montecarlo_decision``): for every
     bar, the filtered regime probabilities, the Monte Carlo fan (10th / 50th /
     90th percentile move paths in points to the horizon, P(up) and the expected
     move), Kronos' predicted candles, the decision model's P(up) and whether
     its trade gate was open. ``rows`` are the adapter's ``regime_forecast(row)``
-    records plus ``timestamp``. The fold's constants (regimes, transition
-    matrix, feature weights) travel with every stretch, so any one event is
-    readable on its own. Other model kinds send none."""
+    records plus ``timestamp``. ``regime_names`` name the regimes in probability
+    order (``flat``, ``uptrend``, ``downtrend``); ``gate_open_fraction`` is the
+    gate's setting (the share of bars it should open on) and ``decision_threshold``
+    the fold's absolute threshold derived from it at fit; ``mostLikelyRegime`` carries the
+    NAME of the regime with the highest filtered probability at each bar. The
+    fold's constants (regime names, regimes, transition matrix, feature weights)
+    travel with every stretch, so any one event is readable on its own. Other
+    model kinds send none."""
     if model_role not in ("direction", "price"):
         raise ValueError(f"cycle_regime_forecast: model role must be direction or price, got {model_role!r}")
     regime_count = len(regimes)
+    names = [str(name) for name in regime_names]
+    if len(names) != regime_count:
+        raise ValueError(f"cycle_regime_forecast: {len(names)} regime names for {regime_count} regimes")
 
     def path(values):
         return [_number_or_none(value, 4) for value in values]
@@ -1119,13 +1129,15 @@ def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: 
             raise ValueError(f"cycle_regime_forecast: {len(values)} regime probabilities for {regime_count} regimes")
         probabilities.append(values)
         known = [value for value in values if value is not None]
-        most_likely.append(int(max(range(regime_count), key=lambda k: values[k] or -1.0)) + 1 if known else None)
+        most_likely.append(names[max(range(regime_count), key=lambda k: values[k] or -1.0)] if known else None)
     return {
         "foldIndex": None if fold_index is None else int(fold_index),
         "modelRole": model_role,
         "regimeCount": regime_count,
+        "regimeNames": names,
         "horizonBars": int(horizon_bars),
         "simulationCount": int(simulation_count),
+        "gateOpenFraction": float(gate_open_fraction),
         "decisionThreshold": float(decision_threshold),
         "kronosModel": str(kronos_model),
         "regimes": [dict(regime) for regime in regimes],
