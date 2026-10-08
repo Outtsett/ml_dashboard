@@ -4,6 +4,7 @@ import express, { type Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import crypto from 'crypto';
+import fs from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { createServer } from 'http';
@@ -35,10 +36,23 @@ import { closeAllConnections as closeStreamMux } from './stream/mux';
 import { isSidecarPath, registerSidecarProxies } from './sidecar/proxy';
 import { startSidecars, stopAllSidecars } from './sidecar/supervisor';
 import { stopCycleExplainer } from './training/cycleExplainer';
+import { startPgAdminSupervisor, stopPgAdmin } from './infrastructure/database/pgadmin.supervisor';
 
 // Re-export for backward compat
 export { log } from './infrastructure/lib/log';
 export { getNestApp } from './infrastructure/lib/nest-context';
+
+// Names a non-zero exit of this process on standard error, synchronously, with the stack that
+// asked for it. `node --watch` prints only "Failed running" for a child that exits non-zero, and
+// a line written through console just before an exit is lost when the output is a pipe. Measured
+// 2026-10-08: boots died after "[DatabaseHealth] Health monitoring started" with no reason in
+// the log. If a boot dies and this line is ABSENT, the process did not exit through JavaScript
+// at all: a native crash or a kill from outside.
+process.on('exit', (code) => {
+  if (code === 0) return;
+  const requestedFrom = new Error('exit requested from').stack ?? '';
+  fs.writeSync(2, `[exit] the server process is exiting with code ${code}\n${requestedFrom}\n`);
+});
 
 declare module 'http' {
   interface IncomingMessage {
@@ -419,13 +433,31 @@ async function bootstrap() {
   // ── Listen (with EADDRINUSE detection) ──
   const port = config.get<number>('port') || 5000;
 
-  httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      log(`[FATAL] Port ${port} is already in use. Kill the process on that port or set a different PORT in .env`, 'express');
-      process.exit(1);
-    }
-    log(`[FATAL] Server error: ${err.message}`, 'express');
+  // After a `tsx --watch` restart the previous child can still hold the port for a few seconds
+  // (its shutdown waits on Nest and the databases). Exiting at once left the dashboard down until
+  // the next save: 12 of 67 boots on 2026-10-07 ended that way, each with no line in the log,
+  // because a line written through `log` just before `process.exit` is lost when stdout is a pipe.
+  // So: retry the listen once a second for 30 seconds, and write the final reason synchronously.
+  const LISTEN_RETRY_MILLISECONDS = 1_000;
+  const LISTEN_GIVE_UP_MILLISECONDS = 30_000;
+  const listenStartedAt = Date.now();
+  const exitWith = (reason: string): never => {
+    fs.writeSync(2, `[FATAL] ${reason}\n`);
     process.exit(1);
+  };
+
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE' && !serverReady) {
+      const waitedMilliseconds = Date.now() - listenStartedAt;
+      if (waitedMilliseconds < LISTEN_GIVE_UP_MILLISECONDS) {
+        log(`Port ${port} is still held (${Math.round(waitedMilliseconds / 1000)} s waited); trying again in 1 s`, 'express');
+        // the listening callback registered below is still attached, so it runs when a retry succeeds
+        setTimeout(() => httpServer.listen({ port, host: '127.0.0.1' }), LISTEN_RETRY_MILLISECONDS);
+        return;
+      }
+      exitWith(`Port ${port} was still in use after ${LISTEN_GIVE_UP_MILLISECONDS / 1000} s. Stop the process on that port or set a different PORT in .env`);
+    }
+    exitWith(`Server error: ${err.message}`);
   });
 
   httpServer.listen({ port, host: '127.0.0.1' }, () => {
@@ -439,6 +471,11 @@ async function bootstrap() {
     // Notebook groups holding a pinned notebook start (or are adopted) now, and
     // an idle sweep stops a group nobody has had open for idleStopMinutes.
     startMarimoBackground();
+
+    // pgAdmin 4 supervisor: auto-starts pgAdmin in Desktop mode (zero login) on port 5055
+    startPgAdminSupervisor().catch(err => {
+      console.warn('[startup] pgAdmin supervisor failed to start:', err.message);
+    });
 
     // Fire-and-forget cache warming — don't block startup
     warmSymbolsCatalog().catch(err => {
@@ -458,6 +495,7 @@ async function bootstrap() {
     closeStreamMux();
     await stopAllMarimoGroups();
     await stopAllSidecars();
+    await stopPgAdmin();
     // The Model Cycle's warm explainer is a Python child: stop it so it is not orphaned.
     await stopCycleExplainer();
 

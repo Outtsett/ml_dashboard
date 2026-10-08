@@ -283,5 +283,65 @@ router.post('/cache/invalidate/:symbol', (req: Request, res: Response) => {
   });
 });
 
+// ============================================================
+// PGADMIN 4 SUPERVISOR (ZERO-LOGIN DESKTOP INTEGRATION)
+// ============================================================
+
+type PgAdminSupervisor = typeof import('../infrastructure/database/pgadmin.supervisor');
+
+/** The supervisor's functions, whether the loader returns them as named exports or under `default`. */
+async function loadPgAdminSupervisor(): Promise<PgAdminSupervisor> {
+  const loaded = (await import('../infrastructure/database/pgadmin.supervisor')) as PgAdminSupervisor & { default?: PgAdminSupervisor };
+  return typeof loaded.getPgAdminStatus === 'function' ? loaded : (loaded.default ?? loaded);
+}
+
+const handlePgAdminStatus = async (_req: Request, res: Response) => {
+  try {
+    const mod = await loadPgAdminSupervisor();
+    const getStatus = mod.getPgAdminStatus;
+    const status = await getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+const handlePgAdminStart = async (_req: Request, res: Response) => {
+  try {
+    const mod = await loadPgAdminSupervisor();
+    const start = mod.startPgAdminSupervisor;
+    const getStatus = mod.getPgAdminStatus;
+    await start();
+    const status = await getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+const handlePgAdminRestart = async (_req: Request, res: Response) => {
+  try {
+    const mod = await loadPgAdminSupervisor();
+    const restart = mod.restartPgAdmin;
+    const getStatus = mod.getPgAdminStatus;
+    await restart();
+    const status = await getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+
+router.get('/pgadmin/status', handlePgAdminStatus);
+router.get('/database/pgadmin/status', handlePgAdminStatus);
+
+router.post('/pgadmin/start', handlePgAdminStart);
+router.post('/database/pgadmin/start', handlePgAdminStart);
+
+router.post('/pgadmin/restart', handlePgAdminRestart);
+router.post('/database/pgadmin/restart', handlePgAdminRestart);
+
 export default router;
+
 

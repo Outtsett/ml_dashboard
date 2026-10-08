@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { 
   Activity, Cpu, Eye, Zap, Layers, GitBranch, 
-  TrendingUp, BarChart2, ShieldCheck, CheckCircle2, Clock
+  TrendingUp, BarChart2, CheckCircle2
 } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 
@@ -19,7 +19,7 @@ interface ModelFamilyAnalyticsProps {
     subcategory?: string;
     family?: string;
     tags?: string[];
-    hyperparameters?: any[];
+    hyperparameters?: unknown[];
   };
 }
 
@@ -34,7 +34,8 @@ export type ModelArchetype =
   | "generative";
 
 export function detectModelArchetype(model: ModelFamilyAnalyticsProps["model"]): ModelArchetype {
-  const text = `${model.id} ${model.name} ${model.category || ""} ${model.subcategory || ""} ${model.family || ""} ${(model.tags || []).join(" ")}`.toLowerCase();
+  const m = model as { family?: string; tags?: string[] };
+  const text = `${model.id} ${model.name} ${model.category || ""} ${model.subcategory || ""} ${m.family || ""} ${(m.tags || []).join(" ")}`.toLowerCase();
 
   if (text.includes("vision") || text.includes("candle_vision") || text.includes("cnn") || text.includes("vit") || text.includes("pattern")) {
     return "computer_vision";
@@ -130,7 +131,7 @@ function ArchetypeBadge({ archetype }: { archetype: ModelArchetype }) {
 
 // ─── 1. TRANSFORMER / ATTENTION SUITE ──────────────────────────────────────────
 
-function TransformerAnalyticsSuite({ modelId }: { modelId: string }) {
+function TransformerAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const attentionData = Array.from({ length: 24 }).map((_, i) => ({
     lag: `T-${24 - i}`,
     layer1: Math.max(0.05, Math.sin(i / 3) * 0.4 + 0.5),
@@ -194,7 +195,7 @@ function TransformerAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 2. GRADIENT BOOSTING / TREE SUITE ─────────────────────────────────────────
 
-function TreeBoostingAnalyticsSuite({ modelId }: { modelId: string }) {
+function TreeBoostingAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const shapData = [
     { feature: "micro_velocity", shap: 0.184, positive: 0.12, negative: -0.064 },
     { feature: "roc_10", shap: 0.142, positive: 0.09, negative: -0.052 },
@@ -265,7 +266,7 @@ function TreeBoostingAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 3. COMPUTER VISION / CANDLESTICK SUITE ────────────────────────────────────
 
-function ComputerVisionAnalyticsSuite({ modelId }: { modelId: string }) {
+function ComputerVisionAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const patternRecognition = [
     { pattern: "Hammer / Pinbar", frequency: 1420, precision: 0.62 },
     { pattern: "Engulfing Bullish", frequency: 980, precision: 0.58 },
@@ -316,7 +317,7 @@ function ComputerVisionAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 4. ONLINE & STREAMING CONTINUOUS SUITE ───────────────────────────────────
 
-function OnlineStreamingAnalyticsSuite({ modelId }: { modelId: string }) {
+function OnlineStreamingAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const coefficientDrift = Array.from({ length: 30 }).map((_, i) => ({
     bar: i * 500,
     w_233m: 0.45 + Math.sin(i / 4) * 0.12,
@@ -356,7 +357,7 @@ function OnlineStreamingAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 5. PROBABILISTIC & HMM SUITE ─────────────────────────────────────────────
 
-function ProbabilisticHmmAnalyticsSuite({ modelId }: { modelId: string }) {
+function ProbabilisticHmmAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const regimeProbabilities = Array.from({ length: 40 }).map((_, i) => ({
     time: `14:${i < 10 ? "0" + i : i}`,
     trending: Math.max(0, Math.sin(i / 6) * 60 + 20),
@@ -396,7 +397,7 @@ function ProbabilisticHmmAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 6. REINFORCEMENT LEARNING SUITE ──────────────────────────────────────────
 
-function ReinforcementLearningAnalyticsSuite({ modelId }: { modelId: string }) {
+function ReinforcementLearningAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const episodeData = Array.from({ length: 25 }).map((_, i) => ({
     episode: i + 1,
     meanReward: -5 + (i * 1.8) + (Math.sin(i) * 2),
@@ -434,7 +435,7 @@ function ReinforcementLearningAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 7. STATISTICAL TIME-SERIES SUITE ──────────────────────────────────────────
 
-function StatisticalTimeSeriesAnalyticsSuite({ modelId }: { modelId: string }) {
+function StatisticalTimeSeriesAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const stlData = Array.from({ length: 30 }).map((_, i) => ({
     bar: i,
     trend: 100 + i * 0.8,
@@ -474,7 +475,7 @@ function StatisticalTimeSeriesAnalyticsSuite({ modelId }: { modelId: string }) {
 
 // ─── 8. GENERATIVE & AUTOENCODER SUITE ─────────────────────────────────────────
 
-function GenerativeAnalyticsSuite({ modelId }: { modelId: string }) {
+function GenerativeAnalyticsSuite({ modelId: _modelId }: { modelId: string }) {
   const lossData = Array.from({ length: 20 }).map((_, i) => ({
     epoch: i + 1,
     reconLoss: 1.2 / (1 + i * 0.15),

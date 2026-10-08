@@ -28,7 +28,15 @@
  */
 import type { SeriesMarker, Time, UTCTimestamp } from "lightweight-charts";
 
-import { findBarIndex, type CycleBarColumns, type CycleCursor, type CyclePlan, type CycleTrade } from "@shared/cycle/schema";
+import {
+  findBarIndex,
+  isScoredBar,
+  type CycleBarColumns,
+  type CycleBarSpan,
+  type CycleCursor,
+  type CyclePlan,
+  type CycleTrade,
+} from "@shared/cycle/schema";
 
 // ─── Palette (Okabe-Ito) ────────────────────────────────────────────────────
 
@@ -51,6 +59,12 @@ export const CYCLE_COLORS = {
 
 /** Alpha of a bar the model has not been tested on (context). */
 export const CONTEXT_ALPHA = 0.4;
+/**
+ * Alpha of a validation-replay bar. The replay animates on the chart on purpose, so its
+ * bars are drawn — at a lower alpha than a scored test bar, and never in the equity line
+ * or the run's markers, because the model was fitted and selected on those bars.
+ */
+export const REPLAY_ALPHA = 0.6;
 /** Faintest a prediction-strip bar gets, so a coin-flip prediction is still visible. */
 export const STRIP_MINIMUM_ALPHA = 0.25;
 
@@ -68,6 +82,8 @@ export function withAlpha(hex: string, alpha: number): string {
 // build strings it can look up.
 const PROCESSED_UP = CYCLE_COLORS.up;
 const PROCESSED_DOWN = CYCLE_COLORS.down;
+const REPLAY_UP = withAlpha(CYCLE_COLORS.up, REPLAY_ALPHA);
+const REPLAY_DOWN = withAlpha(CYCLE_COLORS.down, REPLAY_ALPHA);
 const CONTEXT_UP = withAlpha(CYCLE_COLORS.up, CONTEXT_ALPHA);
 const CONTEXT_DOWN = withAlpha(CYCLE_COLORS.down, CONTEXT_ALPHA);
 
@@ -124,11 +140,15 @@ export function isUpBar(columns: CycleBarColumns, index: number): boolean {
   return close >= columns.close[index - 1]!;
 }
 
-/** Candle for bar `index`: full colour when the model was tested on it, 40% alpha for context. */
+/** Candle for bar `index`: full colour for a scored test bar, dimmed for context and replay. */
 export function candlePointAt(columns: CycleBarColumns, index: number): CycleCandlePoint {
   const up = isUpBar(columns, index);
-  const processed = columns.role[index] === "processed";
-  const color = processed ? (up ? PROCESSED_UP : PROCESSED_DOWN) : up ? CONTEXT_UP : CONTEXT_DOWN;
+  const role = columns.role[index];
+  const color = role === "processed"
+    ? (columns.span[index] === "replay"
+      ? (up ? REPLAY_UP : REPLAY_DOWN)
+      : (up ? PROCESSED_UP : PROCESSED_DOWN))
+    : (up ? CONTEXT_UP : CONTEXT_DOWN);
   return {
     time: columns.timestamps[index]! as UTCTimestamp,
     open: columns.open[index]!,
@@ -170,11 +190,18 @@ export function probabilityPointAt(columns: CycleBarColumns, index: number): Lin
   return { time, value };
 }
 
-/** Equity point (USD); whitespace for context bars. */
+/**
+ * Equity point (USD); whitespace for context bars.
+ *
+ * The run's equity line is the SCORED out-of-sample walk's. The validation replay runs
+ * its own simulator on its own equity that nothing gates and nothing reports, so its bars
+ * never contribute a point here — otherwise the line would jump back to zero at every
+ * replay and the chart would show two accounts as one.
+ */
 export function equityPointAt(columns: CycleBarColumns, index: number): LinePoint {
   const time = columns.timestamps[index]! as UTCTimestamp;
   const value = columns.equityUsd[index];
-  if (columns.role[index] !== "processed" || value === null || value === undefined) return { time };
+  if (!isScoredBar(columns, index) || value === null || value === undefined) return { time };
   return { time, value };
 }
 
@@ -239,9 +266,18 @@ export function glyphSize(barSpacing: number): number | null {
   return Math.max(GLYPH_MINIMUM_SIZE, Math.min(GLYPH_MAXIMUM_SIZE, barSpacing * 0.8));
 }
 
-/** The glyph for bar `index`: null for context bars and bars with no directional call. */
+/**
+ * The glyph for bar `index`: null for context bars, for bars with no directional call,
+ * and for the validation replay's bars.
+ *
+ * The glyph's fill IS the run's verdict — solid right, hollow wrong — so it is drawn on
+ * the scored out-of-sample walk only. A replay bar resolves its own labels, and drawing
+ * that verdict on bars the model was fitted on would report an accuracy the run never
+ * earned. The replay is watched on the candles, the strip, the probability line and the
+ * forecast instead.
+ */
 export function predictionGlyphAt(columns: CycleBarColumns, index: number): PredictionGlyph | null {
-  if (columns.role[index] !== "processed") return null;
+  if (!isScoredBar(columns, index)) return null;
   const direction = columns.predictedDirection[index];
   if (direction !== 1 && direction !== -1) return null;
   const correct = columns.correct[index];
@@ -542,6 +578,7 @@ function fraction(current: number | null, total: number | null): string {
 
 /** Label for the block the model is working on, by phase and step unit. */
 export function activeSpanLabel(cursor: CycleCursor): string {
+  if (cursor.phase === "replaying") return "Validation replay — in sample, not scored";
   if (cursor.phase === "validating") return "Validating";
   if (cursor.phase === "tuning") {
     const trial = cursor.trial === null ? null : trialNumber(cursor.trial);
@@ -621,7 +658,8 @@ export function buildBands(plan: CyclePlan | null, cursor: CycleCursor | null, l
     }
   }
 
-  if (cursor && (cursor.phase === "training" || cursor.phase === "validating" || cursor.phase === "tuning")) {
+  if (cursor && (cursor.phase === "training" || cursor.phase === "validating" || cursor.phase === "tuning"
+      || cursor.phase === "replaying")) {
     let start = cursor.spanStart;
     let end = cursor.spanEnd;
     if ((start === null || end === null) && cursor.phase === "tuning" && plan.tuning) {
@@ -634,10 +672,14 @@ export function buildBands(plan: CyclePlan | null, cursor: CycleCursor | null, l
   }
 
   let mark: CursorMark | null = null;
-  if (cursor && cursor.phase === "testing" && cursor.barTimestamp !== null) {
+  // the replay walks bars too, so the "model is here" mark follows it — otherwise the
+  // mark sits on the test span while the model is actually trading the validation one
+  if (cursor && (cursor.phase === "testing" || cursor.phase === "replaying") && cursor.barTimestamp !== null) {
     mark = {
       time: cursor.barTimestamp,
-      label: cursor.paused ? "model is here · paused" : "model is here",
+      label: cursor.paused
+        ? "model is here · paused"
+        : cursor.phase === "replaying" ? "replay is here · in sample" : "model is here",
       paused: cursor.paused,
     };
   }
@@ -840,6 +882,8 @@ export interface BarReadout {
   timestamp: number;
   timeText: string;
   role: "context" | "processed";
+  /** Which walk walked this bar. `test` is the scored out-of-sample walk, `replay` the validation replay. */
+  span: CycleBarSpan;
   open: number;
   high: number;
   low: number;
@@ -1158,6 +1202,10 @@ export function readoutAt(
 ): BarReadout | null {
   if (index < 0 || index >= columns.timestamps.length) return null;
   const processed = columns.role[index] === "processed";
+  const span: CycleBarSpan = processed ? (columns.span[index] ?? "test") : "test";
+  // the run's position and equity come from the scored walk only; the replay runs its own
+  // simulator on its own equity, so quoting it here would read as the run's account
+  const scored = processed && span === "test";
   const correct = columns.correct[index];
   const actual = columns.actualDirection[index];
   let labelWord: string;
@@ -1165,6 +1213,10 @@ export function readoutAt(
   if (!processed) {
     labelWord = "not tested";
     labelGlyph = "·";
+  } else if (span === "replay") {
+    // in sample: the model was fitted and selected on these bars, so no verdict is claimed
+    labelWord = "validation replay — in sample, not scored";
+    labelGlyph = "~";
   } else if (correct === true) {
     labelWord = "correct";
     labelGlyph = "✓";
@@ -1183,14 +1235,15 @@ export function readoutAt(
     timestamp: columns.timestamps[index]!,
     timeText: formatBarTime(columns.timestamps[index]!),
     role: processed ? "processed" : "context",
+    span,
     open: columns.open[index]!,
     high: columns.high[index]!,
     low: columns.low[index]!,
     close: columns.close[index]!,
     probabilityUp: processed ? (columns.probabilityUp[index] ?? null) : null,
     predictedDirectionWord: processed ? directionWord(columns.predictedDirection[index], "up", "down", "no call") : "none",
-    positionWord: processed ? directionWord(columns.position[index], "long", "short", "flat") : "none",
-    equityUsd: processed ? (columns.equityUsd[index] ?? null) : null,
+    positionWord: scored ? directionWord(columns.position[index], "long", "short", "flat") : "none",
+    equityUsd: scored ? (columns.equityUsd[index] ?? null) : null,
     labelWord,
     labelGlyph,
     actualDirectionWord: actual === null || actual === undefined ? null : directionWord(actual, "up", "down", "flat"),
@@ -1445,6 +1498,7 @@ const PHASE_WORDS: Record<CycleCursor["phase"], string> = {
   tuning: "tuning",
   training: "training",
   validating: "validating",
+  replaying: "replaying the validation span",
   testing: "testing bar by bar",
   complete: "complete",
   stopped: "stopped",

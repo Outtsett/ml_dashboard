@@ -2,6 +2,8 @@ import { memo } from "react";
 import { Badge } from "@/shared/ui/badge";
 import { Brain, Layers, Loader2, Play, RefreshCw } from "lucide-react";
 import type { RegimeInfo } from "@/ml/components/RegimeLegend";
+import { FeatureOverIndicationHUD } from "@/market/components/FeatureOverIndicationHUD";
+import type { FeatureOverIndicationResult } from "@/market/lib/useFeatureOverIndication";
 
 interface AnalyticsStripProps {
   symbol: string;
@@ -23,6 +25,9 @@ interface AnalyticsStripProps {
   regimeIsTraining: boolean;
   regimeQualityScore: number | null | undefined;
   isTrainingActive: boolean;
+  /** Quantitative feature over-indication and multicollinearity diagnostic */
+  featureOverIndication?: FeatureOverIndicationResult;
+  onClearAllIndicators?: () => void;
   /**
    * Refetch the bars for this symbol and timeframe.
    *
@@ -41,6 +46,7 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
   tradeMetrics, modelCount,
   matchedModelId, regimeLegendInfo, regimeIsTraining, regimeQualityScore,
   isTrainingActive,
+  featureOverIndication, onClearAllIndicators,
   onReloadBars, isReloadingBars = false,
 }: AnalyticsStripProps) {
   return (
@@ -66,6 +72,14 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
             aria-hidden="true"
           />
         </button>
+      )}
+
+      {/* Feature Engineering & Over-Indication Diagnostic Badge */}
+      {featureOverIndication && (
+        <FeatureOverIndicationHUD
+          metrics={featureOverIndication}
+          onClearAll={onClearAllIndicators}
+        />
       )}
 
       <div className="flex-1" />
