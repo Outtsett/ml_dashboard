@@ -80,8 +80,13 @@ registry `packages/config/cycle_models/regime_montecarlo_decision.json`, family 
   return by maximum likelihood (degrees of freedom
   held inside 2.05–200, location and scale refitted when held). At every bar, `simulation_count` (default 2,000)
   paths of the label horizon start from the filtered regime probabilities and re-draw the regime every bar from the
-  transition matrix, with common random numbers. Out: P(up), the expected move in points, and the 10th / 50th /
-  90th percentile move after every step. About 1 ms a bar at 2,000 paths × 6 bars (measured 2026-10-07).
+  transition matrix, with common random numbers. Out, read off the simulated paths: P(up) and the 10th / 50th /
+  90th percentile move after every step. Out, computed exactly: the expected move in points, the expected total
+  log return Σ over steps s of (α·Aˢ)·location times the close (`expected_log_move`). The mean of the simulated
+  moves is not used: each regime's returns are Student-t with about 2 to 3 degrees of freedom, so that mean is set
+  by its largest few draws. About 1 ms a bar at 2,000 paths × 6 bars (measured 2026-10-07). The per-regime
+  "deviation" on the panel is the sample standard deviation of the regime's training returns, not the fitted
+  Student-t's own (which read 1.26×, 2.85× and 1.47× the sample deviation on MNQ, 2026-10-08).
 - **Kronos** — the pretrained K-line model in `Kronos/` (weights `NeoQuasar/Kronos-mini|small|base` at pinned
   revisions from the Hugging Face cache, on the GPU, loaded once per process) reads the last `kronos_context_bars`
   candles and decodes the next horizon candles greedily. A git worktree reads its main checkout's `Kronos/`;

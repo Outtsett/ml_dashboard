@@ -259,6 +259,51 @@ def test_drift_moves_the_probability_the_right_way():
     assert rising.simulate(probabilities, close)["expected_move_points"][0] > 0
 
 
+def test_the_expected_move_is_the_exact_expected_log_move_times_the_close():
+    # not the mean of the simulated moves: with about 2 to 3 degrees of freedom that mean is set by its
+    # largest few draws. The regime distribution s bars ahead is alpha A^s; a bar in regime k expects location_k
+    model = _manual_model(0.0001, -0.0003)
+    simulator = stack.MonteCarloSimulator(model, 2000, HORIZON, 1)
+    probabilities = np.array([[1.0, 0.0, 0.0], [0.2, 0.5, 0.3]])
+    close = np.array([18_000.0, 25_000.0])
+    location = np.array([0.0001, -0.0003, -0.0003])
+    expected = []
+    for alpha in probabilities:
+        ahead, total = alpha, 0.0
+        for _ in range(HORIZON):
+            ahead = ahead @ model.transition
+            total += float(ahead @ location)
+        expected.append(total)
+    result = simulator.simulate(probabilities, close)
+    assert result["expected_move_points"] == pytest.approx(close * np.array(expected), rel=1e-12)
+    # the same number whatever the paths: another seed and a tenth of the paths change nothing
+    other = stack.MonteCarloSimulator(model, 200, HORIZON, 99).simulate(probabilities, close)
+    assert other["expected_move_points"] == pytest.approx(result["expected_move_points"], rel=1e-12)
+    # a row with unknown probabilities stays unknown
+    unknown = simulator.simulate(np.array([[np.nan, np.nan, np.nan]]), np.array([18_000.0]))
+    assert np.isnan(unknown["expected_move_points"][0])
+
+
+def test_a_regime_reports_the_deviation_measured_on_its_training_returns(market):
+    train, validation, _ = market.spans()
+    adapter = build_adapter(KEY, QUICK, "auto", 7)
+    adapter.bind_market(market.view())
+    adapter.fit(market.features, market.labels, train, validation, market.timestamps, Reporter())
+    model = adapter.regime_model
+    assert model.sample_deviation.shape == (3,) and np.all(np.isfinite(model.sample_deviation)) and np.all(model.sample_deviation > 0)
+    for k, summary in enumerate(model.summaries()):
+        assert summary["volatilityLogReturn"] == pytest.approx(float(model.sample_deviation[k]))
+        degrees, scale = summary["degreesOfFreedom"], summary["scale"]
+        if 2.0 < degrees < 3.0:
+            # near 2 degrees of freedom the fitted distribution's own deviation runs far above what was measured
+            assert scale * math.sqrt(degrees / (degrees - 2.0)) > summary["volatilityLogReturn"]
+    # it survives a save and a load, and a model saved without it reports none
+    arrays = model.arrays()
+    assert stack.RegimeModel.from_arrays(arrays).sample_deviation == pytest.approx(model.sample_deviation)
+    older = {name: value for name, value in arrays.items() if name != "sample_deviation"}
+    assert all(s["volatilityLogReturn"] is None for s in stack.RegimeModel.from_arrays(older).summaries())
+
+
 def test_one_bar_costs_less_than_five_milliseconds_at_two_thousand_paths():
     simulator = stack.MonteCarloSimulator(_manual_model(0.0, 0.0), 2000, HORIZON, 1)
     probabilities = np.array([[0.6, 0.2, 0.2]])
@@ -291,7 +336,7 @@ def test_the_registry_entry_and_the_dispatch_table():
     assert "decision_threshold" not in parameters
     assert (gate["default"], gate["min"], gate["max"]) == (0.3, 0.05, 1.0)
     assert (gate["search"]["low"], gate["search"]["high"]) == (0.05, 1.0)
-    assert gate["label"] == "Share of bars the trade gate opens on, most confident first"
+    assert gate["label"] == "Largest share of bars the trade gate opens on, most confident first"
 
 
 def test_fitting_and_predicting_keep_the_contract(market, fitted):

@@ -206,11 +206,15 @@ class RegimeModel:
     and the Student-t of the one-bar log return in each of its regimes."""
 
     def __init__(self, hmm: StructuralRegimeHMM, student: np.ndarray, regime_bar_counts: np.ndarray,
-                 pooled: np.ndarray) -> None:
+                 pooled: np.ndarray, sample_deviation: np.ndarray | None = None) -> None:
         self.hmm = hmm
         self.student = np.asarray(student, dtype=np.float64)          # (3, 3): degrees of freedom, location, scale
         self.regime_bar_counts = np.asarray(regime_bar_counts, dtype=np.int64)
         self.pooled = np.asarray(pooled, dtype=bool)
+        # the standard deviation of the one-bar log returns of each regime's training bars, as
+        # measured; NaN for a model saved before 2026-10-08, which did not keep it
+        self.sample_deviation = (np.full(len(REGIME_NAMES), np.nan) if sample_deviation is None
+                                 else np.asarray(sample_deviation, dtype=np.float64))
         self.regime_count = len(REGIME_NAMES)
         self.regime_names = REGIME_NAMES
 
@@ -228,12 +232,16 @@ class RegimeModel:
 
     def arrays(self) -> dict:
         return {**self.hmm.arrays(), "student": self.student, "regime_bar_counts": self.regime_bar_counts,
-                "pooled": self.pooled}
+                "pooled": self.pooled, "sample_deviation": self.sample_deviation}
 
     @classmethod
     def from_arrays(cls, arrays) -> RegimeModel:
+        try:
+            sample_deviation = arrays["sample_deviation"]
+        except KeyError:
+            sample_deviation = None
         return cls(StructuralRegimeHMM.from_arrays(arrays), arrays["student"], arrays["regime_bar_counts"],
-                   arrays["pooled"])
+                   arrays["pooled"], sample_deviation)
 
     def summaries(self) -> list[dict]:
         """One plain record per regime in ``REGIME_NAMES`` order: the hidden Markov model's own
@@ -242,8 +250,12 @@ class RegimeModel:
         out = []
         for k, summary in enumerate(self.hmm.summaries()):
             degrees, location, scale = (float(v) for v in self.student[k])
-            # a Student-t's standard deviation exists for degrees of freedom above 2
-            deviation = scale * math.sqrt(degrees / (degrees - 2.0)) if degrees > 2.0 else None
+            # The deviation reported is the one MEASURED on the regime's training returns. The fitted
+            # Student-t's own standard deviation, scale * sqrt(df / (df - 2)), grows without bound as
+            # the degrees of freedom approach 2 (real 5-minute returns fit near 2.0-2.8): measured
+            # 2026-10-08 on MNQ it read 1.26x, 2.85x and 1.47x the sample deviation of the same bars.
+            measured = float(self.sample_deviation[k])
+            deviation = measured if math.isfinite(measured) else None
             out.append({
                 **summary,
                 "meanLogReturn": location,
@@ -311,16 +323,19 @@ def fit_regime_model(features: np.ndarray, returns: np.ndarray, fit_rows: np.nda
     student = np.empty((len(REGIME_NAMES), 3), dtype=np.float64)
     counts = np.zeros(len(REGIME_NAMES), dtype=np.int64)
     pooled = np.zeros(len(REGIME_NAMES), dtype=bool)
+    sample_deviation = np.empty(len(REGIME_NAMES), dtype=np.float64)
     for k in range(len(REGIME_NAMES)):
         mine = fit_returns[assigned == k]
         counts[k] = mine.size
         if mine.size >= MINIMUM_REGIME_RETURNS and float(np.ptp(mine)) > 0:
             degrees, location, scale = student_t_fit(mine)
+            sample_deviation[k] = float(np.std(mine))
         else:
             degrees, location, scale = pooled_fit
             pooled[k] = True
+            sample_deviation[k] = float(np.std(fit_returns))
         student[k] = (degrees, location, max(scale, 1e-12))
-    return RegimeModel(hmm, student, counts, pooled)
+    return RegimeModel(hmm, student, counts, pooled, sample_deviation)
 
 
 # ─── the Monte Carlo simulator ─────────────────────────────────────────────
@@ -344,9 +359,30 @@ class MonteCarloSimulator:
         self.location = regime_model.student[:, 1]
         self.scale = regime_model.student[:, 2]
 
+    def expected_log_move(self, probabilities: np.ndarray) -> np.ndarray:
+        """The exact expected total log return over the horizon from each row's filtered regime
+        probabilities: the regime distribution s bars ahead is alpha_t A^s, and a bar in regime k
+        has expected log return location_k (a Student-t's mean, which exists above 1 degree of
+        freedom), so the total is the sum over s = 1..horizon of (alpha_t A^s) . location."""
+        probabilities = np.asarray(probabilities, dtype=np.float64)
+        ahead = probabilities @ self.model.transition
+        total = ahead @ self.location
+        for _ in range(1, self.horizon):
+            ahead = ahead @ self.model.transition
+            total = total + ahead @ self.location
+        return total
+
     def simulate(self, probabilities: np.ndarray, close: np.ndarray) -> dict:
         """For each row: P(up), the expected move in points and the 10/50/90 percentile
-        move paths in points (rows x horizon). Rows whose probabilities are unknown get NaN."""
+        move paths in points (rows x horizon). Rows whose probabilities are unknown get NaN.
+
+        P(up) and the percentiles are read off the simulated paths: a share and three order
+        statistics, which a few extreme draws cannot move. The expected move is NOT the mean of
+        the simulated moves. Each regime's returns are Student-t with about 2 to 3 degrees of
+        freedom, so the mean of 2,000 such paths is set by its largest few draws, and
+        E[exp(return)] does not exist for a Student-t at all. It is computed exactly instead: the
+        expected total log return over the horizon, sum over steps s of (alpha_t A^s) . location,
+        times the close (``expected_log_move``)."""
         probabilities = np.asarray(probabilities, dtype=np.float64)
         close = np.asarray(close, dtype=np.float64)
         rows = probabilities.shape[0]
@@ -361,6 +397,7 @@ class MonteCarloSimulator:
         known = np.flatnonzero(np.all(np.isfinite(probabilities), axis=1) & np.isfinite(close))
         if known.size == 0:
             return result
+        result["expected_move_points"][known] = close[known] * self.expected_log_move(probabilities[known])
         chunk = max(1, SIMULATION_CHUNK_VALUES // (self.simulation_count * horizon))
         paths = np.arange(self.simulation_count)
         regime_count = self.model.regime_count
@@ -381,7 +418,6 @@ class MonteCarloSimulator:
             cumulative_returns = np.cumsum(log_returns, axis=2)
             moves = close[positions, None, None] * np.expm1(cumulative_returns)
             result["probability_up"][positions] = np.mean(cumulative_returns[:, :, -1] > 0.0, axis=1)
-            result["expected_move_points"][positions] = np.mean(moves[:, :, -1], axis=1)
             quantiles = np.quantile(moves, (0.1, 0.5, 0.9), axis=1)          # (3, R, horizon)
             result["percentile_10_points"][positions] = quantiles[0]
             result["percentile_50_points"][positions] = quantiles[1]

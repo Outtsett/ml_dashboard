@@ -124,8 +124,8 @@ export const REGIME_DEFINITIONS: Record<string, MetricDefinition> = {
     formula: `P_MC(up) = (1/S) Σ_s [ Σ_(i≤h) r_(s,i) > 0 ]`,
   },
   monte_carlo_expected_move_points: {
-    how: `The mean simulated move h bars ahead, in points: this bar's close times the mean over paths of exp(total log return) − 1. It is also the price model's forecast (divided by the run's causal move scale, which the engine multiplies back). (MonteCarloSimulator.simulate, predict_value)`,
-    formula: `E[move] = close_t · (1/S) Σ_s (exp(Σ_(i≤h) r_(s,i)) − 1)`,
+    how: `The expected move h bars ahead, in points, computed exactly and not from the simulated paths: the regime distribution s bars ahead is the filtered probabilities times the transition matrix s times, a bar in regime k has expected log return equal to that regime's fitted location, and the expected total log return is the sum of those over the h steps; it is multiplied by this bar's close. The mean of the simulated moves is not used because each regime's returns are Student-t with about 2 to 3 degrees of freedom, so the mean of S such paths is set by its largest few draws. It is also the price model's forecast (divided by the run's causal move scale, which the engine multiplies back). (MonteCarloSimulator.expected_log_move, simulate, predict_value)`,
+    formula: `E[move] = close_t · Σ_(s=1..h) (α_t · A^s) · μ, with α_t the filtered regime probabilities, A the transition matrix and μ_k the location of regime k's Student-t`,
   },
   kronos_candles: {
     how: `Kronos, the pretrained K-line foundation model (NeoQuasar/Kronos-<size> at a pinned revision), reads the last C candles ending at this bar (C = kronos_context_bars: open, high, low, close, volume and amount = volume × mean price, each normalised by the window's own mean and deviation, clipped at ±5) and decodes the next h candles one by one, greedily (top-k 1, one sample), so the forecast is deterministic. Kronos is not fitted on this run. (KronosForecaster.forecast)`,
@@ -148,7 +148,7 @@ export const REGIME_DEFINITIONS: Record<string, MetricDefinition> = {
     formula: `weight_f = Σ_(splits on f) gain / Σ_(all splits) gain`,
   },
   regime_summary: {
-    how: `Per regime, on the fold's training span: the mean of each of the eight observation features (the fitted Gaussian's mean, back in the feature's own units), the probability that the next bar stays in the regime (the transition matrix's diagonal), the expected bars per visit (1 / (1 − stay probability), the mean of a geometric run), the training bars the forward filter put in it, and the Student-t of its one-bar log return fitted by scipy.stats.t.fit on those bars (a regime with fewer than 50 bars uses the pooled training returns, marked pooled); deviation = scale × √(ν / (ν − 2)). (regime_hmm.py StructuralRegimeHMM.summaries; fit_regime_model, RegimeModel.summaries)`,
+    how: `Per regime, on the fold's training span: the mean of each of the eight observation features (the fitted Gaussian's mean, back in the feature's own units), the probability that the next bar stays in the regime (the transition matrix's diagonal), the expected bars per visit (1 / (1 − stay probability), the mean of a geometric run), the training bars the forward filter put in it, and the Student-t of its one-bar log return fitted by scipy.stats.t.fit on those bars (a regime with fewer than 50 bars uses the pooled training returns, marked pooled); deviation is the standard deviation of the one-bar log returns of those same bars as measured, not the fitted Student-t's own (scale × √(ν / (ν − 2)) grows without bound as the degrees of freedom ν approach 2, and real 5-minute returns fit near 2 to 3). (regime_hmm.py StructuralRegimeHMM.summaries; fit_regime_model, RegimeModel.summaries)`,
     formula: `mean_kj = μ_kj · deviation_j + mean_j; stay_k = A_kk; bars per visit = 1 / (1 − A_kk); r | regime k ~ μ_k + σ_k · t(ν_k)`,
   },
   transition_matrix: {
