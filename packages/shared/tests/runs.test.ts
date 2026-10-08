@@ -204,6 +204,46 @@ describe("tuning and fold verdicts", () => {
     expect(found?.title).toContain("1 of 3");
     expect(found?.evidence).toBe("Net profit per fold: -$2,086, -$1,281, $1,175.");
   });
+
+  it("names a window with no trade as no trade, never as a loss", () => {
+    // the fusion run of 2026-10-07: one window traded and lost, two never opened the gate
+    const folds = [
+      { foldIndex: 0, metrics: { net_profit_usd: -930.78, trade_count: 251 } },
+      { foldIndex: 1, metrics: { net_profit_usd: 0, trade_count: 0 } },
+      { foldIndex: 2, metrics: { net_profit_usd: 0, trade_count: 0 } },
+    ];
+    const verdicts = judgeRun(input({ folds }));
+    const idle = verdicts.find((verdict) => verdict.rule === "folds_without_trades");
+    expect(idle?.severity).toBe("warning");
+    expect(idle?.title).toBe("It placed no trade in 2 of 3 test windows.");
+    expect(idle?.evidence).toContain("Closed trades per fold: 251, 0, 0.");
+    // one traded window is not enough to speak about stability, and it is never "lost in all 3"
+    expect(verdicts.some((verdict) => verdict.rule === "every_fold_lost")).toBe(false);
+    expect(verdicts.some((verdict) => verdict.rule === "unstable_across_folds")).toBe(false);
+  });
+
+  it("counts profit only over the windows it traded in, and says so", () => {
+    const folds = [
+      { foldIndex: 0, metrics: { net_profit_usd: -400, trade_count: 12 } },
+      { foldIndex: 1, metrics: { net_profit_usd: 0, trade_count: 0 } },
+      { foldIndex: 2, metrics: { net_profit_usd: -150, trade_count: 7 } },
+    ];
+    const verdicts = judgeRun(input({ folds }));
+    const lost = verdicts.find((verdict) => verdict.rule === "every_fold_lost");
+    expect(lost?.title).toBe("It lost money in all 2 test windows it traded in.");
+    expect(lost?.evidence).toBe("Net profit per traded fold: -$400, -$150.");
+    expect(verdicts.find((verdict) => verdict.rule === "folds_without_trades")?.title).toBe("It placed no trade in 1 of 3 test windows.");
+  });
+
+  it("is critical when no window traded at all", () => {
+    const folds = [
+      { foldIndex: 0, metrics: { net_profit_usd: 0, trade_count: 0 } },
+      { foldIndex: 1, metrics: { net_profit_usd: 0, trade_count: 0 } },
+    ];
+    const idle = judgeRun(input({ folds })).find((verdict) => verdict.rule === "folds_without_trades");
+    expect(idle?.severity).toBe("critical");
+    expect(idle?.title).toBe("It placed no trade in any of the 2 test windows.");
+  });
 });
 
 describe("headlineOf", () => {

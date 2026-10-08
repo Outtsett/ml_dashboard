@@ -408,44 +408,63 @@ function tuningVerdicts(trials: readonly CycleTrial[]): RunVerdict[] {
 // ─── folds ──────────────────────────────────────────────────────────────────
 
 function foldVerdicts(folds: readonly RunFoldRow[]): RunVerdict[] {
-  const profits = folds.map((fold) => fold.metrics.net_profit_usd).filter(known);
-  if (profits.length < 2) return [];
+  const scored = folds.filter((fold) => known(fold.metrics.net_profit_usd));
+  if (scored.length < 2) return [];
+  const out: RunVerdict[] = [];
+  // a window with no closed trade made and lost nothing: it is neither a winning nor a losing
+  // window, so it is named on its own and left out of the profit count below
+  const idle = scored.filter((fold) => fold.metrics.trade_count === 0);
+  const traded = scored.filter((fold) => fold.metrics.trade_count !== 0);
+  if (idle.length > 0) {
+    const everywhere = idle.length === scored.length;
+    out.push({
+      rule: "folds_without_trades",
+      severity: everywhere ? "critical" : "warning",
+      category: "folds",
+      title: everywhere
+        ? `It placed no trade in any of the ${scored.length} test windows.`
+        : `It placed no trade in ${idle.length} of ${scored.length} test windows.`,
+      evidence: `Closed trades per fold: ${scored.map((fold) => (known(fold.metrics.trade_count) ? String(Math.round(fold.metrics.trade_count)) : "unknown")).join(", ")}. A window with no trade is neither a win nor a loss.`,
+      action:
+        "A model with its own trade gate never opened it in those windows: the threshold chosen on the training bars is wider than the probabilities the model produced out of sample. Narrow the threshold's search range, or measure the gate from the model's own typical probability.",
+    });
+  }
+  if (traded.length < 2) return out;
+  const profits = traded.map((fold) => fold.metrics.net_profit_usd as number);
   const winning = profits.filter((value) => value > 0).length;
   const listed = profits.map((value) => usd(value)).join(", ");
+  // the count is over the windows it traded in; say so only when some windows had no trade
+  const windows = idle.length > 0 ? `${profits.length} test windows it traded in` : `${profits.length} test windows`;
+  const evidence = idle.length > 0 ? `Net profit per traded fold: ${listed}.` : `Net profit per fold: ${listed}.`;
   if (winning === profits.length) {
-    return [
-      {
-        rule: "every_fold_profitable",
-        severity: "pass",
-        category: "folds",
-        title: `Profitable in all ${profits.length} test windows.`,
-        evidence: `Net profit per fold: ${listed}.`,
-        action: "",
-      },
-    ];
-  }
-  if (winning === 0) {
-    return [
-      {
-        rule: "every_fold_lost",
-        severity: "critical",
-        category: "folds",
-        title: `It lost money in all ${profits.length} test windows.`,
-        evidence: `Net profit per fold: ${listed}.`,
-        action: "The loss is consistent, not bad luck in one window.",
-      },
-    ];
-  }
-  return [
-    {
+    out.push({
+      rule: "every_fold_profitable",
+      severity: "pass",
+      category: "folds",
+      title: `Profitable in all ${windows}.`,
+      evidence,
+      action: "",
+    });
+  } else if (winning === 0) {
+    out.push({
+      rule: "every_fold_lost",
+      severity: "critical",
+      category: "folds",
+      title: `It lost money in all ${windows}.`,
+      evidence,
+      action: "The loss is consistent, not bad luck in one window.",
+    });
+  } else {
+    out.push({
       rule: "unstable_across_folds",
       severity: "warning",
       category: "folds",
-      title: `Profitable in ${winning} of ${profits.length} test windows: the result depends on which window you look at.`,
-      evidence: `Net profit per fold: ${listed}.`,
+      title: `Profitable in ${winning} of ${windows}: the result depends on which window you look at.`,
+      evidence,
       action: "Run more folds before trusting the total. One good window is carrying it.",
-    },
-  ];
+    });
+  }
+  return out;
 }
 
 // ─── the run ────────────────────────────────────────────────────────────────
