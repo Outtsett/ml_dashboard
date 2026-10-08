@@ -3,12 +3,8 @@ import { Button } from "@/shared/ui/button";
 import { Badge } from "@/shared/ui/badge";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { RunConfigurator } from "./RunConfigurator";
-import { Responsive } from "react-grid-layout";
-import { WidthProvider } from "react-grid-layout/legacy";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
 
-import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, X, GripHorizontal, Activity } from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, Activity, Gauge } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
@@ -17,9 +13,8 @@ import { useEntityStore } from "@/shared/contexts/EntityContext";
 import type { CatalogLifecycle } from "@shared/catalogLifecycle";
 import { LifecyclePanel } from "./LifecycleStrip";
 import { ArchitecturePreview } from "./architecture/ArchitecturePreview";
-import { ModelFamilyAnalytics } from "./analytics/ModelFamilyAnalytics";
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
+import { ModelRunsPanel } from "./metrics/ModelRunsPanel";
+import { SpecificationMetricsPanel } from "./metrics/panels";
 
 interface ModelDetailViewProps {
   model: CatalogModelDetail;
@@ -30,8 +25,11 @@ interface ModelDetailViewProps {
 }
 
 const PANELS = [
+  // how this model is judged: its metrics, their types and roles, and why each applies
+  { id: "metrics", label: "Metrics", icon: Gauge },
   { id: "spec", label: "Blueprint", icon: FileText },
-  { id: "analytics", label: "Model Analytics", icon: Activity },
+  // the model's measured results: its real runs, or a statement that it has none
+  { id: "analytics", label: "Runs", icon: Activity },
   { id: "train", label: "Pipeline", icon: Play },
   { id: "evaluate", label: "Evaluate", icon: LineChart },
   { id: "rl", label: "RL Console", icon: Bot },
@@ -50,53 +48,8 @@ export function ModelDetailView({
   const { setEntity, activeEntity } = useEntityStore();
   const isActive = activeEntity?.type === 'model' && activeEntity?.id === model.id;
 
-  const [activePanels, setActivePanels] = useState<string[]>(["spec", "analytics"]);
-  
-  // Default grid layouts dictionary for responsive breakpoints
-  const [layouts, setLayouts] = useState<any>({
-    lg: [
-      { i: "spec", x: 0, y: 0, w: 6, h: 22 },
-      { i: "analytics", x: 6, y: 0, w: 6, h: 22 }
-    ]
-  });
-
-  const togglePanel = (id: string) => {
-    setActivePanels(current => {
-      let nextPanels;
-      if (current.includes(id)) {
-        nextPanels = current.filter(p => p !== id);
-      } else {
-        nextPanels = [...current, id];
-      }
-      
-      if (nextPanels.length > 0) {
-        const count = nextPanels.length;
-        const w = Math.floor(12 / count) || 1;
-        
-        setLayouts(prev => ({
-          ...prev,
-          lg: nextPanels.map((p, index) => ({
-            i: p,
-            x: (index * w) % 12,
-            y: 0,
-            w: w,
-            h: 20
-          }))
-        }));
-      }
-      
-      return nextPanels;
-    });
-  };
-
-  const removePanel = (id: string) => {
-    setActivePanels(current => current.filter(p => p !== id));
-  };
-
-  const onLayoutChange = (currentLayout: any[], allLayouts: any) => {
-    // Deep clone to prevent React bail-out from RGL's object mutation
-    setLayouts(JSON.parse(JSON.stringify(allLayouts)));
-  };
+  // One panel at a time, in place: the tab strip picks it.
+  const [activePanel, setActivePanel] = useState<string>("metrics");
 
   const renderPanelContent = (id: string) => {
     switch (id) {
@@ -212,8 +165,22 @@ export function ModelDetailView({
             </div>
           </ScrollArea>
         );
+      case "metrics":
+        return (
+          <ScrollArea className="h-full w-full">
+            <div className="p-4">
+              <SpecificationMetricsPanel specificationId={model.id} name={model.name} />
+            </div>
+          </ScrollArea>
+        );
       case "analytics":
-        return <ModelFamilyAnalytics model={model} />;
+        return (
+          <ScrollArea className="h-full w-full">
+            <div className="p-4">
+              <ModelRunsPanel specificationId={model.id} name={model.name} />
+            </div>
+          </ScrollArea>
+        );
       case "train":
         return (
           <div className="h-full w-full overflow-y-auto p-4">
@@ -255,6 +222,19 @@ export function ModelDetailView({
           </div>
           
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-[#E69F00]/50 bg-[#E69F00]/10 hover:bg-[#E69F00]/20 text-[#E69F00] hover:text-white font-mono text-xs transition-colors"
+              onClick={() => {
+                setEntity("model", model.id, model.name);
+                navigate(`/training?tab=analytics&model=${encodeURIComponent(model.id)}`);
+              }}
+              title="Open full 4-stage DIKW telemetry in Model Analytics"
+            >
+              <Activity className="h-3.5 w-3.5 text-[#E69F00]" />
+              <span>Model Analytics</span>
+            </Button>
             <Button 
               variant={isActive ? "secondary" : "default"}
               size="sm"
@@ -279,19 +259,21 @@ export function ModelDetailView({
         </div>
       </div>
 
-      {/* Tiling Controls */}
-      <div className="px-6 py-2 border-b border-border/50 bg-muted/10 flex flex-wrap items-center gap-2 shrink-0">
+      {/* Panel tabs */}
+      <div role="tablist" aria-label="Model panels" className="px-6 py-2 border-b border-border/50 bg-muted/10 flex flex-wrap items-center gap-2 shrink-0">
         {PANELS.map(panel => {
           const disabled = panel.id === "train" && !trainableKey;
-          const isActive = activePanels.includes(panel.id);
+          const isSelected = activePanel === panel.id;
           const Icon = panel.icon;
           return (
             <Button
               key={panel.id}
-              variant={isActive ? "secondary" : "ghost"}
+              role="tab"
+              aria-selected={isSelected}
+              variant={isSelected ? "secondary" : "ghost"}
               size="sm"
               disabled={disabled}
-              onClick={() => togglePanel(panel.id)}
+              onClick={() => setActivePanel(panel.id)}
               className="h-7 text-xs px-2"
             >
               <Icon className="h-3.5 w-3.5 mr-1.5" />
@@ -301,59 +283,9 @@ export function ModelDetailView({
         })}
       </div>
 
-      {/* 2D Window Grid Area */}
-      <div className="flex-1 overflow-auto bg-neutral-950/20 relative">
-        {activePanels.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
-            Select a panel above to open a window.
-          </div>
-        ) : (
-          <ResponsiveGridLayout
-            className="layout w-full min-h-full"
-            layouts={layouts}
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={30}
-            onLayoutChange={onLayoutChange}
-            draggableHandle=".panel-drag-handle"
-            margin={[16, 16]}
-          >
-            {activePanels.map((panelId) => {
-              const panelDef = PANELS.find(p => p.id === panelId);
-              const Icon = panelDef?.icon || Info;
-              return (
-                <div 
-                  key={panelId} 
-                  className="bg-background border border-border/40 rounded-xl shadow-lg flex flex-col overflow-hidden"
-                >
-                  {/* Panel Window Header */}
-                  <div className="panel-drag-handle flex items-center justify-between px-3 py-2 bg-muted/10 border-b border-border/20 cursor-move hover:bg-muted/20 transition-colors">
-                    <div className="flex items-center gap-2 text-xs font-medium text-foreground select-none">
-                      <GripHorizontal className="h-3.5 w-3.5 text-muted-foreground/50" />
-                      <Icon className="h-3.5 w-3.5 text-primary" />
-                      {panelDef?.label}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 rounded-full hover:bg-destructive/10 hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePanel(panelId);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  {/* Panel Content */}
-                  <div className="flex-1 min-h-0 relative">
-                    {renderPanelContent(panelId)}
-                  </div>
-                </div>
-              );
-            })}
-          </ResponsiveGridLayout>
-        )}
+      {/* The selected panel, filling the page */}
+      <div role="tabpanel" className="flex-1 min-h-0 overflow-hidden bg-background relative">
+        {renderPanelContent(activePanel)}
       </div>
     </div>
   );

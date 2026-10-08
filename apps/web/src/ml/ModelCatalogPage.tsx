@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useEntityStore } from "@/shared/contexts/EntityContext";
 import { Search, Layers, RefreshCw, Brain } from "lucide-react";
@@ -30,27 +30,28 @@ export default function ModelCatalogPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const urlModelId = searchParams.get("model");
   
-  const selectedModelId = (activeEntity?.type === "model" ? activeEntity.id : null) || urlModelId;
+  const selectedModelId = urlModelId || (activeEntity?.type === "model" ? activeEntity.id : null);
 
   const setSelectedModelId = (id: string | null) => {
+    // The catalog is a Knowledge tab: a selection stays on this page.
     if (id) {
       setEntity("model", id, id);
-      navigate("/models?model=" + encodeURIComponent(id));
+      navigate("/model-catalog?model=" + encodeURIComponent(id));
     } else {
       setEntity(null, "", "");
-      navigate("/models");
+      navigate("/model-catalog");
     }
   };
-  const [stageFilter, setStageFilter] = useState<StageFilter>("all");
+  const [stageFilter] = useState<StageFilter>("all");
 
   const { data: stats } = useCatalogStats();
   const { data: taxonomy } = useCatalogTaxonomy();
-  const { data: catalog, isLoading, isError, error, refetch } = useCatalogList({
+  const { data: catalog, isLoading } = useCatalogList({
     category: selectedCategory,
     subcategory: selectedSubcategory,
     search,
   });
-  const { data: modelDetail } = useCatalogDetail(selectedModelId);
+  const { data: modelDetail, isLoading: isLoadingDetail } = useCatalogDetail(selectedModelId);
   const { mutate: refreshCatalog, isPending: refreshing } = useRefreshCatalog();
   const { data: lifecycleData } = useCatalogLifecycle();
   const lifecycle = lifecycleData?.lifecycle ?? {};
@@ -150,6 +151,12 @@ export default function ModelCatalogPage() {
             onBack={() => setSelectedModelId(null)}
             categoryLabels={categoryLabels}
           />
+        ) : selectedModelId && isLoadingDetail ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 text-center bg-neutral-950/50">
+            <RefreshCw className="w-10 h-10 mb-4 animate-spin text-primary opacity-60" />
+            <h3 className="text-base font-display font-semibold mb-1 text-neutral-300">Loading Blueprint Specification...</h3>
+            <p className="text-xs font-mono text-neutral-500">{selectedModelId}</p>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 text-center bg-neutral-950/50">
             <Brain className="w-16 h-16 mb-4 opacity-10 text-primary" />

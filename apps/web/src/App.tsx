@@ -7,6 +7,7 @@ import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
+import { KnowledgeShell } from "@/shared/quant-layout/KnowledgeTabs";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
 import { DuckDBProvider } from "@/shared/contexts/DuckDBContext";
@@ -69,7 +70,7 @@ const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
 
 // Analytics lives inside AI Studio since 2026-10-07 (the run page's Versions view);
-// the model catalog is its own page at /model-catalog. The old analytics page
+// the model catalog is a Knowledge tab at /model-catalog. The old analytics page
 // (`@/analytics/AnalyticsPage`) stays importable but nothing routes to it.
 function AnalyticsRoute() {
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "catalog") return <Redirect to="/model-catalog" />;
@@ -201,9 +202,9 @@ function Router() {
           <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
           <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
           <Route path="/models"><Redirect to="/model-catalog" /></Route>
-          <Route path="/model-catalog"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+          <Route path="/model-catalog"><KnowledgeShell><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></KnowledgeShell></Route>
           <Route path="/catalog"><Redirect to="/model-catalog" /></Route>
-          <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
+          <Route path="/glossary"><KnowledgeShell><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></KnowledgeShell></Route>
           <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
           <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
           <Route path="/terminals"><ErrorBoundary><Suspense fallback={<PageLoader />}><Terminals /></Suspense></ErrorBoundary></Route>
@@ -212,8 +213,8 @@ function Router() {
           <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
           <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
           <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
-          <Route path="/studies"><ErrorBoundary><Suspense fallback={<PageLoader />}><Studies /></Suspense></ErrorBoundary></Route>
-          <Route path="/studies/:slug"><ErrorBoundary><Suspense fallback={<PageLoader />}><Study /></Suspense></ErrorBoundary></Route>
+          <Route path="/studies"><KnowledgeShell><ErrorBoundary><Suspense fallback={<PageLoader />}><Studies /></Suspense></ErrorBoundary></KnowledgeShell></Route>
+          <Route path="/studies/:slug"><KnowledgeShell><ErrorBoundary><Suspense fallback={<PageLoader />}><Study /></Suspense></ErrorBoundary></KnowledgeShell></Route>
           <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
           <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
           <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>

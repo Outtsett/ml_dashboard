@@ -12,12 +12,11 @@
 
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { Database, BookMarked, BarChart3, BrainCircuit, Settings, Layers,
-} from "lucide-react";
+import { BookMarked, BarChart3, BrainCircuit, Settings, Layers } from "lucide-react";
+import { isKnowledgeRoute } from "./KnowledgeTabs";
 
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
-  { label: "Catalog", href: "/model-catalog", icon: Database },
   { label: "AI Studio", href: "/training", icon: BrainCircuit },
   { label: "Data", href: "/databases", icon: Layers },
   { label: "Knowledge", href: "/studies", icon: BookMarked },
@@ -39,12 +38,10 @@ export function ActivityBar({}: ActivityBarProps = {}) {
           let isActive = false;
           if (item.href === "/") {
             isActive = pathname === "/";
-          } else if (item.href === "/model-catalog") {
-            isActive = pathname.startsWith("/models") || pathname.startsWith("/model-catalog") || pathname.startsWith("/catalog");
           } else if (item.href === "/training") {
             isActive = pathname.startsWith("/training");
           } else if (item.href === "/studies") {
-            isActive = pathname.startsWith("/studies") || pathname.startsWith("/glossary") || pathname.startsWith("/knowledge");
+            isActive = isKnowledgeRoute(pathname);
           } else {
             isActive = pathname.startsWith(item.href);
           }
