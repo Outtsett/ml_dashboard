@@ -26,6 +26,8 @@ import {
   type CycleLogLine,
   type CycleLossSurface,
   type CycleGateRouting,
+  type CycleRegimeForecast,
+  mergeRegimeForecast,
   type CyclePlan,
   type CycleRunStatus,
   type CycleRunSummary,
@@ -78,6 +80,8 @@ interface CycleRunState {
   lossSurfaces: CycleLossSurface[];
   /** One per fold of a mixture of experts (`cycle_gate_routing`). */
   gateRoutings: CycleGateRouting[];
+  /** One per fold of a regime Monte Carlo decision model (`cycle_regime_forecast` stretches, merged). */
+  regimeForecasts: CycleRegimeForecast[];
   /** Latest state per (fold, trial number) — a trial reports running, then complete; numbering restarts every fold. */
   trials: Map<string, CycleTrial>;
   /** Per fold: the hyperparameters its models were fitted with (`cycle_parameters`). */
@@ -108,6 +112,7 @@ function newRunState(modelId: string, modelType: string, startedAt: number): Cyc
     epochs: [],
     lossSurfaces: [],
     gateRoutings: [],
+    regimeForecasts: [],
     trials: new Map(),
     parameters: new Map(),
     logs: [],
@@ -174,6 +179,9 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
       return;
     case "cycle_gate_routing":
       run.gateRoutings.push(data as unknown as CycleGateRouting);
+      return;
+    case "cycle_regime_forecast":
+      mergeRegimeForecast(run.regimeForecasts, data as unknown as CycleRegimeForecast);
       return;
     case "cycle_trial": {
       const trial = data as unknown as CycleTrial;
@@ -333,6 +341,7 @@ function toSnapshot(run: CycleRunState): CycleSnapshot {
     epochs: run.epochs,
     lossSurfaces: run.lossSurfaces,
     gateRoutings: run.gateRoutings,
+    regimeForecasts: run.regimeForecasts,
     trials: [...run.trials.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1) || a.trial - b.trial),
     parameters: [...run.parameters.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1)),
     logs: run.logs,

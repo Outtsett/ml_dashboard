@@ -96,6 +96,7 @@ export const cycleModelEntrySchema = z
     adapter: z.enum([
       "legacy", "scikit_learn", "catboost", "statsmodels", "neural",
       "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid",
+      "regime_montecarlo_decision",
       // the bridge families (packages/ml-engine/src/cycle/adapters_extra/<family>/, sharing packages/ml-engine/src/cycle/bridges/)
       "discrete_state_agent", "deep_value_agent", "policy_agent", "hierarchical_agent", "meta_agent",
       "world_model_agent", "planning_agent", "signal_program", "policy_search", "path_simulator",

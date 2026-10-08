@@ -21,7 +21,12 @@ dependencies = [
     "optuna>=4.8,<5",
     "nevergrad>=1.0",
     "numba>=0.64,<1",
-    "hmmlearn>=0.3",
+    "hmmlearn>=0.3",            # Model Cycle: regime_montecarlo_decision regime model (GaussianHMM, 0.3.3 in .venv)
+    # Kronos (repository Kronos/, read by cycle/adapters_extra/regime_montecarlo_decision.py); versions measured in .venv 2026-10-07
+    "einops==0.8.2",
+    "huggingface-hub==1.32.0",  # Kronos weights NeoQuasar/Kronos-* at pinned revisions, through the Hugging Face cache
+    "safetensors==0.8.0",
+    "tqdm==4.67.3",
     "gymnasium>=1.0",
     "joblib>=1.4",
     "catboost>=1.2.10",         # Model Cycle: cycle/catboost_adapter.py

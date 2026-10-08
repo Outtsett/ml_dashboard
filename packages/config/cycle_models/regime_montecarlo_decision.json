@@ -1,0 +1,172 @@
+{
+  "models": {
+    "regime_montecarlo_decision": {
+      "catalogSpecId": null,
+      "alsoCatalogSpecIds": [],
+      "displayName": "Regime Monte Carlo decision stack",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Regime-conditioned decision stacks",
+      "kind": "Regime simulation decision stack",
+      "summary": "A hidden Markov model learns the market's regimes and tracks the current one bar by bar; a Monte Carlo simulation runs the current regime forward; Kronos forecasts the next candles; FinBERT reads the news; gradient-boosted trees weigh all four and decide whether to trade.",
+      "implementationNote": "Regime model: hmmlearn GaussianHMM (full covariance, regime_count states) over the one-bar log return, its realised volatility and a volume z-score (volatility_window_bars windows), standardised on the training span, fitted on the training span only; the walk uses the forward filter, never the smoother. Monte Carlo: per regime a Student-t of the one-bar log return (scipy maximum likelihood on the bars the smoothed posterior assigns it); simulation_count paths of the label horizon start from the filtered regime probabilities and re-draw the regime each bar from the transition matrix, with common random numbers. Kronos: the pretrained foundation model (kronos_model_size, pinned Hugging Face revision) reads the last kronos_context_bars candles and decodes the next horizon candles greedily. FinBERT: the nine finbert_* columns. Decision model: xgboost over the regime probabilities, the simulation's P(up), expected move and 10-90 percentile spread, Kronos' move and direction and the FinBERT columns, the regime and simulation signals of the last maximum_training_bars training rows made out of fold (stacking_fold_count blocks, each purged by the label horizon on both sides), early-stopped on validation. The trade gate opens when |P(up) - 0.5| >= decision_threshold. The price model is the simulation's expected move. Expect: regimes describe volatility well; direction is close to the base rate.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "regime_montecarlo_decision",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_round",
+      "stepUnit": "boosting_round",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "10-60 min (paced replay; Kronos reads every test bar on the GPU)",
+      "gpu": true,
+      "parameters": {
+        "regime_count": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 8,
+          "label": "Regimes",
+          "group": "Model",
+          "description": "How many hidden market regimes the hidden Markov model learns (regime 1 is always the calmest).",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "regime_fit_iteration_count": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 2000,
+          "label": "Regime fit iterations",
+          "group": "Model",
+          "description": "Expectation-maximisation iterations of the hidden Markov model fit."
+        },
+        "volatility_window_bars": {
+          "type": "int",
+          "default": 20,
+          "min": 5,
+          "max": 400,
+          "label": "Volatility and volume window (bars)",
+          "group": "Model",
+          "description": "Bars of finite one-bar returns the realised volatility is measured over, and of log volumes the volume z-score is measured against."
+        },
+        "simulation_count": {
+          "type": "int",
+          "default": 2000,
+          "min": 100,
+          "max": 50000,
+          "label": "Simulated paths",
+          "group": "Model",
+          "description": "Monte Carlo paths of the label horizon simulated at every bar from the current regime probabilities."
+        },
+        "kronos_model_size": {
+          "type": "categorical",
+          "default": "mini",
+          "choices": [
+            "mini",
+            "small",
+            "base"
+          ],
+          "label": "Kronos model",
+          "group": "Model",
+          "description": "Which pretrained Kronos forecasts the next candles: mini (4.1 million parameters, fastest), small (24.7 million) or base (102.3 million)."
+        },
+        "kronos_context_bars": {
+          "type": "int",
+          "default": 128,
+          "min": 16,
+          "max": 512,
+          "label": "Kronos context (bars)",
+          "group": "Model",
+          "description": "Candles ending at the bar that Kronos reads before it forecasts the next ones."
+        },
+        "stacking_fold_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 10,
+          "label": "Out-of-fold blocks",
+          "group": "Model",
+          "description": "Contiguous blocks the stacking rows are cut into; each block's regime and simulation signals come from a regime model fitted without it (purged by the label horizon)."
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 3000,
+          "min": 200,
+          "max": 200000,
+          "label": "Stacking rows",
+          "group": "Model",
+          "description": "The most recent training rows the decision model is fitted on (each needs a Kronos forecast and a simulation)."
+        },
+        "boosting_rounds": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 5000,
+          "label": "Decision model boosting rounds",
+          "group": "Model",
+          "description": "Most boosting rounds of the decision model (early stopping ends sooner when validation stops improving)."
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 12,
+          "label": "Decision model tree depth",
+          "group": "Model",
+          "description": "Deepest split chain of each decision tree.",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 1.0,
+          "label": "Decision model learning rate",
+          "group": "Model",
+          "description": "Shrinkage of each boosting round.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.2,
+            "log": true
+          }
+        },
+        "decision_threshold": {
+          "type": "float",
+          "default": 0.02,
+          "min": 0.0,
+          "max": 0.5,
+          "label": "Trade gate threshold",
+          "group": "Model",
+          "description": "The decision model's P(up) must be at least this far from 0.5 for the engine to enter a trade; closer, it stands aside.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.1
+          }
+        }
+      }
+    }
+  }
+}

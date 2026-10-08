@@ -289,6 +289,8 @@ ADAPTER_CLASSES: dict[str, str] = {
     "tree_boosted_neural_embedding": "cycle.adapters_extra.tree_boosted_neural_embedding:TreeBoostedNeuralEmbeddingAdapter",
     "attention_weighted_forecast_stack": "cycle.adapters_extra.attention_weighted_forecast_stack:AttentionWeightedForecastStackAdapter",
     "bayesian_neural_hybrid": "cycle.adapters_extra.bayesian_neural_hybrid:BayesianNeuralHybridAdapter",
+    # hidden Markov regimes + regime Monte Carlo + Kronos + FinBERT into a gradient-boosted decision model (2026-10-07)
+    "regime_montecarlo_decision": "cycle.adapters_extra.regime_montecarlo_decision:RegimeMonteCarloDecisionAdapter",
     # the bridge families, one package each (cycle/adapters_extra/<family>/adapter.py), built on
     # cycle/bridges/ and bound to the run's cycle.market.MarketView (2026-09-29)
     "discrete_state_agent": "cycle.adapters_extra.discrete_state_agent.adapter:DiscreteStateAgentAdapter",

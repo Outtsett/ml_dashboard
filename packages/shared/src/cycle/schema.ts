@@ -381,6 +381,102 @@ export const cycleGateRoutingSchema = cycleEnvelopeSchema.extend({
 });
 export type CycleGateRouting = z.infer<typeof cycleGateRoutingSchema>;
 
+// ─── cycle_regime_forecast ──────────────────────────────────────────────────
+
+/** One regime as the regime Monte Carlo decision model fitted it on the fold's training span. */
+export const cycleRegimeSummarySchema = z.object({
+  /** 1-based; regime 1 is always the calmest (lowest mean realised volatility). */
+  regime: z.number().int().positive(),
+  /** Location of the Student-t of the one-bar log return in this regime. */
+  meanLogReturn: z.number(),
+  /** Standard deviation of that Student-t (scale × √(ν / (ν − 2))); null when ν ≤ 2. */
+  volatilityLogReturn: nullableNumber,
+  degreesOfFreedom: z.number(),
+  scale: z.number(),
+  /** Training bars the smoothed posterior assigned to the regime. */
+  trainingBarCount: z.number().int().nonnegative(),
+  /** True when the regime had too few bars and uses the pooled training returns. */
+  pooled: z.boolean(),
+  /** Probability the next bar stays in this regime (the transition matrix's diagonal). */
+  stayProbability: z.number(),
+});
+export type CycleRegimeSummary = z.infer<typeof cycleRegimeSummarySchema>;
+
+/**
+ * A stretch of a regime Monte Carlo decision model's test walk, bar by bar: the
+ * forward-filtered regime probabilities, the Monte Carlo fan (10th / 50th / 90th
+ * percentile move in points, step by step to the horizon), Kronos' predicted
+ * candles, the decision model's P(up) and its trade gate. The fold's constants
+ * (regimes, transition matrix, feature weights) travel with every stretch. Sent
+ * as the walk goes; consumers merge the stretches of a fold in arrival order.
+ */
+export const cycleRegimeForecastSchema = cycleEnvelopeSchema.extend({
+  foldIndex: z.number().int().nonnegative().nullable(),
+  modelRole: z.enum(["direction", "price"]),
+  regimeCount: z.number().int().positive(),
+  horizonBars: z.number().int().positive(),
+  simulationCount: z.number().int().positive(),
+  decisionThreshold: z.number().min(0),
+  kronosModel: z.string(),
+  regimes: z.array(cycleRegimeSummarySchema),
+  /** `transitionMatrix[from][to]`, each row summing to 1. */
+  transitionMatrix: z.array(z.array(nullableNumber)),
+  /** The decision model's total gain per signal, as shares of the total, largest first. */
+  featureWeights: z.array(z.object({ name: z.string(), gainShare: nullableNumber })),
+  /** Epoch seconds of each scored test bar, in the chart's own stamps, in walk order. */
+  timestamps: z.array(epochSeconds),
+  close: z.array(nullableNumber),
+  /** `regimeProbabilities[bar][regime]`, the forward filter's (never the smoother's). */
+  regimeProbabilities: z.array(z.array(nullableNumber)),
+  /** 1-based regime with the highest filtered probability; null before the filter has a bar. */
+  mostLikelyRegime: z.array(z.number().int().positive().nullable()),
+  monteCarloProbabilityUp: z.array(nullableNumber),
+  monteCarloExpectedMovePoints: z.array(nullableNumber),
+  /** `[bar][step]`: the 10th percentile simulated move in points after step + 1 bars. */
+  monteCarloPercentile10Points: z.array(z.array(nullableNumber)),
+  monteCarloPercentile50Points: z.array(z.array(nullableNumber)),
+  monteCarloPercentile90Points: z.array(z.array(nullableNumber)),
+  /** `[bar][step]`: Kronos' predicted candle prices (absolute) for the next bars. */
+  kronosOpen: z.array(z.array(nullableNumber)),
+  kronosHigh: z.array(z.array(nullableNumber)),
+  kronosLow: z.array(z.array(nullableNumber)),
+  kronosClose: z.array(z.array(nullableNumber)),
+  kronosPredictedMovePoints: z.array(nullableNumber),
+  decisionProbabilityUp: z.array(nullableNumber),
+  /** True when |decision P(up) − 0.5| ≥ decisionThreshold: the engine may enter on this bar. */
+  gateOpen: z.array(z.boolean()),
+});
+export type CycleRegimeForecast = z.infer<typeof cycleRegimeForecastSchema>;
+
+/** The per-bar columns of a regime forecast stretch; everything else is the fold's constants. */
+export const REGIME_FORECAST_COLUMNS = [
+  "timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
+  "monteCarloExpectedMovePoints", "monteCarloPercentile10Points", "monteCarloPercentile50Points",
+  "monteCarloPercentile90Points", "kronosOpen", "kronosHigh", "kronosLow", "kronosClose",
+  "kronosPredictedMovePoints", "decisionProbabilityUp", "gateOpen",
+] as const satisfies readonly (keyof CycleRegimeForecast)[];
+
+/**
+ * Fold one stretch into the per-fold list (in place): a new fold is appended, a
+ * known fold gets the stretch's bars appended and its constants replaced —
+ * exactly what the engine writes to `regime_forecasts.json`.
+ */
+export function mergeRegimeForecast(folds: CycleRegimeForecast[], stretch: CycleRegimeForecast): CycleRegimeForecast[] {
+  const known = folds.find((fold) => fold.foldIndex === stretch.foldIndex);
+  if (!known) {
+    folds.push({ ...stretch, ...Object.fromEntries(REGIME_FORECAST_COLUMNS.map((name) => [name, [...stretch[name]]])) } as CycleRegimeForecast);
+    return folds;
+  }
+  for (const [name, value] of Object.entries(stretch) as [keyof CycleRegimeForecast, unknown][]) {
+    if ((REGIME_FORECAST_COLUMNS as readonly string[]).includes(name)) {
+      (known[name] as unknown[]).push(...(value as unknown[]));
+    } else {
+      (known as Record<string, unknown>)[name] = value;
+    }
+  }
+  return folds;
+}
+
 // ─── cycle_trial ────────────────────────────────────────────────────────────
 
 export const cycleTrialSchema = cycleEnvelopeSchema.extend({
@@ -513,6 +609,7 @@ export const CYCLE_EVENT_SCHEMAS = {
   cycle_epoch: cycleEpochSchema,
   cycle_loss_surface: cycleLossSurfaceSchema,
   cycle_gate_routing: cycleGateRoutingSchema,
+  cycle_regime_forecast: cycleRegimeForecastSchema,
   cycle_trial: cycleTrialSchema,
   cycle_parameters: cycleParametersSchema,
   cycle_trade: cycleTradeSchema,
@@ -529,6 +626,7 @@ export interface CycleEventPayloads {
   cycle_epoch: CycleEpoch;
   cycle_loss_surface: CycleLossSurface;
   cycle_gate_routing: CycleGateRouting;
+  cycle_regime_forecast: CycleRegimeForecast;
   cycle_trial: CycleTrial;
   cycle_parameters: CycleParameters;
   cycle_trade: CycleTrade;
@@ -607,6 +705,8 @@ export interface CycleSnapshot {
   lossSurfaces?: CycleLossSurface[];
   /** One per fold of a mixture of experts; absent on snapshots rebuilt from the lake alone. */
   gateRoutings?: CycleGateRouting[];
+  /** One per fold of a regime Monte Carlo decision model, its stretches merged; absent on snapshots rebuilt from the lake alone. */
+  regimeForecasts?: CycleRegimeForecast[];
   logs: CycleLogLine[];
 }
 

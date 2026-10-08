@@ -6,7 +6,7 @@
  * It carries no bars: the chart of the run lives on the Market page. What is
  * here is what answers "how is this run doing and what is wrong with it".
  */
-import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CyclePhase, CycleRunStatus, CycleTrial } from "../cycle/schema";
+import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CyclePhase, CycleRegimeForecast, CycleRunStatus, CycleTrial } from "../cycle/schema";
 
 /** The six fixed sections every run page shows, in this order. */
 export const RUN_CATEGORIES = ["configuration", "learning", "prediction", "trading", "tuning", "folds", "verdict"] as const;
@@ -82,6 +82,8 @@ export interface RunEpochPoint {
 export type RunLossSurface = Omit<CycleLossSurface, "seq" | "ts">;
 /** A fold's gate routing as the engine sent it (`cycle_gate_routing`), without the envelope. */
 export type RunGateRouting = Omit<CycleGateRouting, "seq" | "ts">;
+/** A fold's regime forecasts as the engine sent them (`cycle_regime_forecast`, stretches merged), without the envelope. */
+export type RunRegimeForecast = Omit<CycleRegimeForecast, "seq" | "ts" | "run_id">;
 
 export interface RunFoldRow {
   foldIndex: number;
@@ -195,6 +197,8 @@ export interface RunView {
   lossSurfaces: RunLossSurface[];
   /** One per fold of a mixture of experts; empty for every other kind. */
   gateRoutings: RunGateRouting[];
+  /** One per fold of a regime Monte Carlo decision model; empty for every other kind. */
+  regimeForecasts: RunRegimeForecast[];
   trials: CycleTrial[];
   folds: RunFoldRow[];
   daily: RunDailyRow[];

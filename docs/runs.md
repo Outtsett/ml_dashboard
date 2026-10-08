@@ -39,6 +39,8 @@ the one rebuilt from the lake) and the run's report tables into a `RunView`:
   F1, learning rate, gradient norm, the kept step), `trials`, `folds`, `daily`, `calibration`,
   `confusion`: what the charts draw.
 - `lossSurfaces`: one per final neural fit (below). Empty for a tree or linear model.
+- `gateRoutings`: one per fold of a mixture of experts. `regimeForecasts`: one per fold of the regime Monte Carlo
+  decision stack (below), its live stretches merged.
 - `logs`: terminal lines after the caller's cursor.
 
 It carries no bars. The chart of a run is on the Market page (`cycle/useRunOverlay.ts`); the
@@ -56,6 +58,53 @@ reads that file back. The lake record does not carry it. The grid size is the cy
 `--loss-surface-resolution` (default 21, so 441 points × 4 validation batches, under a second for
 a feedforward network; 0 turns it off); a tuning trial's fit never computes one. A tree model has
 no weights to perturb and the page says so.
+
+### The regime Monte Carlo decision stack (`regime_montecarlo_decision`, `cycle_regime_forecast`)
+
+One Cycle model built from four: `packages/ml-engine/src/cycle/adapters_extra/regime_montecarlo_decision.py`,
+registry `packages/config/cycle_models/regime_montecarlo_decision.json`, family `regime` on the run page.
+
+- **Regime model** — a Gaussian hidden Markov model (`hmmlearn`, full covariance, `regime_count` states, searched
+  2–5) over three causal inputs per bar: the one-bar log return, its realised volatility over the last
+  `volatility_window_bars` finite returns, and a volume z-score over the same window, standardised on the training
+  span. Fitted on the training span only; regime 1 is always the calmest. The walk reads the **forward filter**
+  (never the smoother), one bar at a time, starting 1,000 bars before the training span.
+- **Monte Carlo** — per regime, a Student-t of the one-bar log return by maximum likelihood (degrees of freedom
+  held inside 2.05–200, location and scale refitted when held). At every bar, `simulation_count` (default 2,000)
+  paths of the label horizon start from the filtered regime probabilities and re-draw the regime every bar from the
+  transition matrix, with common random numbers. Out: P(up), the expected move in points, and the 10th / 50th /
+  90th percentile move after every step. About 1 ms a bar at 2,000 paths × 6 bars (measured 2026-10-07).
+- **Kronos** — the pretrained K-line model in `Kronos/` (weights `NeoQuasar/Kronos-mini|small|base` at pinned
+  revisions from the Hugging Face cache, on the GPU, loaded once per process) reads the last `kronos_context_bars`
+  candles and decodes the next horizon candles greedily. A git worktree reads its main checkout's `Kronos/`;
+  `KRONOS_ROOT` overrides.
+- **FinBERT** — the nine `finbert_*` columns of the feature matrix, by name.
+- **Decision model** — xgboost over [regime probabilities, simulation P(up), expected move and 10–90 spread over
+  the move scale, Kronos' move over the move scale and its sign, the FinBERT columns]; the regime and simulation
+  signals of the last `maximum_training_bars` training rows are out of fold (`stacking_fold_count` contiguous
+  blocks, each purged by the label horizon on both sides); early stopping on validation. Its P(up) is the run's
+  direction probability; its total-gain shares are the feature weights.
+- **Trade gate** — open when |P(up) − 0.5| ≥ `decision_threshold`. The engine (`_walk_span`) and tuning
+  (`tuning.simulate_block`) read `adapter.trade_gate`: every bar's direction is still scored, but a closed gate
+  stands aside (signal 0: no entry; a held position runs to its holding period). Any adapter that defines
+  `trade_gate` gets this; none other does.
+- **Price model** — the simulation's expected move over the move scale (the forecast line on the chart).
+- **Live** — during each fold's test walk the engine asks `adapter.regime_forecast(row)` for every scored bar and
+  sends what accumulated with every bar frame as one `cycle_regime_forecast` stretch (regime probabilities, most
+  likely regime, the fan, Kronos' predicted candles and move, decision P(up), gate state, plus the fold's regimes,
+  transition matrix and feature weights). `apps/api/training/cycle.ts` merges the stretches per fold
+  (`mergeRegimeForecast`, `packages/shared/src/cycle/schema.ts`); at fold end the engine writes every fold to
+  `data/models/<id>/regime_forecasts.json` (plain JSON on this branch; the reader in `runs.router.ts` takes the
+  `.zst` form first). `RunView.regimeForecasts` carries it.
+- **Panel** — `apps/web/src/runs/analytics/RegimePanel.tsx`: stacked regime-probability bands (click a band's
+  legend to hide it), decision P(up) against the gate's closed band, a scrubber with step buttons linked to the
+  page's focus time, the fan with Kronos' candles over it at the chosen bar (one price scale, hollow orange =
+  rising, filled blue = falling), the bar's readouts, the feature weights coloured by source, each regime's
+  Student-t and the transition matrix. Every number's hover is its computation
+  (`packages/shared/src/runs/regimeDefinitions.ts`, `howComputedRegime`).
+- **Explainer** — Kronos reads open, high, low and volume and the regime model reads volume at predict time;
+  `MarketView` carries `volume` in the engine's view only (like open / high / low), so the explainer's reload is
+  refused with a sentence (`explainKind: "opaque"`). The run's own `regime_forecasts.json` is its record.
 
 ### Transparency
 
