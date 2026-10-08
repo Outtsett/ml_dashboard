@@ -1563,18 +1563,25 @@ class CycleEngine:
                 direction, signal = 0, None
             else:
                 direction = signal = 1 if probability >= 0.5 else -1
-                # the model's own gate and its per-bar regime forecast apply whichever label kind it predicts
+                # the model's own gate applies whichever label kind it predicts
                 # (|P(turn) - 0.5| = |P(up) - 0.5|, so the gate is the same either way)
                 if trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
                     signal = 0
-                if regime_forecast is not None:
-                    said = regime_forecast(i)
-                    if said is not None:
-                        row = {**said, "timestamp": int(d.timestamps[i])}
-                        if self.reversal and "decision_probability_up" in row:
-                            # the decision model spoke in P(turn); the panel is told P(up) like everything else
-                            row["decision_probability_up"] = probability
-                        self._regime_rows.append(row)
+            # the regime forecast is recorded for every bar the model scored, call or no call: the
+            # regime, the simulated fan and Kronos' candles do not depend on whether the bar is traded
+            if regime_forecast is not None and valid[i]:
+                said = regime_forecast(i)
+                if said is not None:
+                    row = {**said, "timestamp": int(d.timestamps[i])}
+                    if self.reversal and "decision_probability_up" in row:
+                        # the decision model spoke in P(turn); the panel is told P(up) like everything else
+                        row["decision_probability_up"] = probability
+                    if probability is None:
+                        # no call on this bar (a reversal bar with no trailing move to turn against, or a
+                        # non-finite answer): nothing can be entered on it, so its gate reads closed
+                        row["decision_probability_up"] = None
+                        row["gate_open"] = False
+                    self._regime_rows.append(row)
             # the price model: its output times the causal scale at this bar, in points
             predicted_move: float | None = None
             scale = float(self.move_scale[i])

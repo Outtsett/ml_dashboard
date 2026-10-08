@@ -234,9 +234,10 @@ for row in live_rows:                                    # as each bar closes
   filter puts in that regime, and re-draws the regime every simulated bar from this transition matrix.
 - The **decision model** reads the three filtered probabilities as `flat_regime_probability`,
   `uptrend_regime_probability`, `downtrend_regime_probability`.
-- The **trade gate** is a quantile gate: `gate_open_fraction` (default 0.3) is the share of bars it should open on;
-  the fold's threshold is the (1 − `gate_open_fraction`) quantile of |P − 0.5| over the kept decision model's
-  validation probabilities (`docs/runs.md` has the full rule and its out-of-fold fallback).
+- The **trade gate** is a share gate: `gate_open_fraction` (default 0.3) is the largest share of bars it opens on;
+  the fold's threshold is the smallest |P − 0.5| with at most that share of the kept decision model's
+  validation probabilities at or beyond it, so tied probabilities open together or not at all (`docs/runs.md` has
+  the full rule and its out-of-fold fallback).
 - The **wire** (`cycle_regime_forecast`): `regimeNames` = `["flat", "uptrend", "downtrend"]`,
   `regimeProbabilities[bar]` in that order, `mostLikelyRegime[bar]` = the name; `regimes[k]` carries `name`,
   `featureMeans` (each feature's mean in words), `stayProbability`, `expectedBarsPerVisit`.

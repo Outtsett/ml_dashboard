@@ -269,7 +269,10 @@ function Swatch({ color, border }: { color: string; border?: string }) {
  * them. Renders nothing for a model that sends no regimes.
  */
 function RegimeLegend() {
-  // the version is what changes; the regimes object is appended in place
+  // The regimes object is appended in place, so its identity never changes; only the version does.
+  // The React Compiler memoises on identity and would keep the shares of the first render through
+  // a whole live run, so this component opts out and recomputes on every version (as InsidePanel does).
+  "use no memo";
   useCycleStore((state) => state.regimesVersion);
   const regimes = useCycleStore((state) => state.regimes);
   const shown = useCycleStore((state) => state.showRegimeColors);

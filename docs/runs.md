@@ -92,10 +92,13 @@ registry `packages/config/cycle_models/regime_montecarlo_decision.json`, family 
   signals of the last `maximum_training_bars` training rows are out of fold (`stacking_fold_count` contiguous
   blocks, each purged by the label horizon on both sides); early stopping on validation. Its P(up) is the run's
   direction probability; its total-gain shares are the feature weights.
-- **Trade gate** — a quantile gate. `gate_open_fraction` (default 0.3, searched 0.05–1.0) is the share of bars the
-  gate should open on, most confident first. At fit the fold's absolute threshold (`decisionThreshold` on the
-  wire, beside `gateOpenFraction`) is the (1 − `gate_open_fraction`) quantile of |P − 0.5| over the kept decision
-  model's probabilities on the validation rows — bars its trees were not fitted on, on its own probability scale;
+- **Trade gate** — a share gate. `gate_open_fraction` (default 0.3, searched 0.05–1.0) is the largest share of bars
+  the gate opens on, most confident first. At fit the fold's absolute threshold (`decisionThreshold` on the
+  wire, beside `gateOpenFraction`) is the smallest |P − 0.5| with at most that share of the kept decision
+  model's probabilities at or beyond it (`gate_threshold`): bars with the same probability open together or not
+  at all, so a model kept after one round (a handful of distinct probabilities) can open on less than the share,
+  and the gate stays shut when its most confident group alone is larger than the share. The probabilities are
+  those on the validation rows — bars its trees were not fitted on, on its own probability scale;
   a fold with fewer than 50 validation rows uses the decision model's purged out-of-fold probabilities on the
   stacking rows (refitted once per block without it and the label horizon either side), which are always
   computed and logged beside it. The gate is open when |P − 0.5| ≥ that threshold; 1.0 opens every bar. Distance

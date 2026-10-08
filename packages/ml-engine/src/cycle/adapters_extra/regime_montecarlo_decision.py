@@ -85,7 +85,11 @@ the gate should open on, most confident first. At fit the fold's absolute
 threshold is the (1 − ``gate_open_fraction``) quantile of ``|P − 0.5|`` over the
 kept decision model's probabilities on the validation rows — bars its trees were
 not fitted on, on the kept model's own probability scale (0 at
-``gate_open_fraction`` = 1: every bar is open). The decision model is also
+``gate_open_fraction`` = 1: every bar is open). The threshold is the smallest
+|P − 0.5| with at most that share of those probabilities at or beyond it, so the
+gate opens on AT MOST the share: bars with the same probability are admitted
+together or not at all, and when the most confident group alone is larger than
+the share the gate stays shut (``gate_threshold``). The decision model is also
 refitted ``stacking_fold_count`` times, each time without one stacking block and
 without ``horizon`` bars either side of it, scoring that block (purged
 out-of-fold probabilities, the same rounds as the kept model): their quantile is
@@ -254,20 +258,36 @@ class RegimeModel:
 
 def student_t_fit(values: np.ndarray) -> tuple[float, float, float]:
     """(degrees of freedom, location, scale) of a Student-t by maximum likelihood
-    (``scipy.stats.t.fit``). When the free fit's degrees of freedom fall outside
-    ``STUDENT_DEGREES_OF_FREEDOM_BOUNDS`` (5-minute returns with many zero ticks push
-    it below 2, where the variance is infinite), the degrees of freedom are held at
-    the nearer bound and location and scale are refitted by maximum likelihood with
-    them fixed, so the three numbers always belong to one fitted distribution."""
+    (``scipy.stats.t.fit``).
+
+    The values are fitted STANDARDISED (minus their mean, over their standard deviation)
+    and the location and scale are mapped back. One-bar log returns are about 1e-4 in
+    size, and on raw values that small scipy's optimiser stops before it converges: it
+    returns degrees of freedom just under 2 whatever the data (measured 2026-10-07 on
+    7,000 draws from a Student-t with 6 degrees of freedom and scale 8e-4: the raw fit
+    gave 2.05 with a scale 19% too small, the standardised fit 5.96 and 7.95e-4). The
+    degrees of freedom do not depend on the units, so the standardised fit is the same
+    maximum-likelihood problem on a scale the optimiser handles.
+
+    When the fitted degrees of freedom still fall outside
+    ``STUDENT_DEGREES_OF_FREEDOM_BOUNDS`` (below 2 the variance is infinite), they are
+    held at the nearer bound and location and scale are refitted with them fixed, so the
+    three numbers always belong to one fitted distribution."""
     from scipy import stats
 
     values = np.asarray(values, dtype=np.float64)
-    degrees, location, scale = stats.t.fit(values)
+    center = float(np.mean(values))
+    spread = float(np.std(values))
+    if not math.isfinite(spread) or spread <= 0.0:
+        # no variation to fit: the caller pools such a regime before it gets here
+        return float(STUDENT_DEGREES_OF_FREEDOM_BOUNDS[1]), center, 0.0
+    standardised = (values - center) / spread
+    degrees, location, scale = stats.t.fit(standardised)
     low, high = STUDENT_DEGREES_OF_FREEDOM_BOUNDS
     if not (low <= degrees <= high) or not math.isfinite(degrees):
         held = low if not math.isfinite(degrees) or degrees < low else high
-        degrees, location, scale = stats.t.fit(values, fdf=held)
-    return float(degrees), float(location), float(scale)
+        degrees, location, scale = stats.t.fit(standardised, fdf=held)
+    return float(degrees), float(location) * spread + center, float(scale) * spread
 
 
 def fit_regime_model(features: np.ndarray, returns: np.ndarray, fit_rows: np.ndarray, adx_threshold: float,
@@ -545,9 +565,18 @@ def _finite_or_none(value) -> float | None:
 
 
 def gate_threshold(out_of_fold_probabilities: np.ndarray, gate_open_fraction: float) -> float:
-    """The absolute gate threshold: the (1 − ``gate_open_fraction``) quantile of |P − 0.5| over the
-    finite out-of-fold probabilities, so that share of them is at or beyond it; 0 when the fraction
-    is 1 (every bar open) or no probability is known."""
+    """The absolute gate threshold: the smallest value of |P − 0.5| among the finite probabilities
+    such that the share of them AT OR BEYOND it is at most ``gate_open_fraction``. The gate opens
+    where |P − 0.5| >= the threshold, so it opens on at most that share of these probabilities,
+    the most confident first; 0 when the fraction is 1 (every bar open) or no probability is known.
+
+    Bars with the same probability are admitted together or not at all. A booster kept after one
+    or two rounds gives only a handful of distinct probabilities (at most 8 per round at depth 3),
+    and a plain quantile then lands on a value shared by a whole leaf: `>=` let all of it through
+    (measured 2026-10-07: a setting of 0.3 opened on 73% of bars). When even the most confident
+    group is larger than the share, no group fits and the threshold is the next number above the
+    largest distance: the gate stays shut, which is what "the model cannot tell these bars apart"
+    means for a gate on confidence."""
     fraction = float(gate_open_fraction)
     if not 0.0 < fraction <= 1.0:
         raise ValueError(f"gate_open_fraction must be above 0 and at most 1, got {fraction}")
@@ -555,7 +584,12 @@ def gate_threshold(out_of_fold_probabilities: np.ndarray, gate_open_fraction: fl
     distance = distance[np.isfinite(distance)]
     if fraction >= 1.0 or distance.size == 0:
         return 0.0
-    return float(np.quantile(distance, 1.0 - fraction))
+    values, counts = np.unique(distance, return_counts=True)            # ascending distinct distances
+    at_or_beyond = np.cumsum(counts[::-1])[::-1] / distance.size       # share with distance >= values[k]
+    fitting = np.nonzero(at_or_beyond <= fraction + 1e-12)[0]
+    if fitting.size == 0:
+        return float(np.nextafter(values[-1], np.inf))
+    return float(values[fitting[0]])
 
 
 def purged_blocks(rows: np.ndarray, block_count: int, purge: int) -> list[tuple[np.ndarray, int, int]]:
@@ -922,16 +956,19 @@ class RegimeMonteCarloDecisionAdapter:
                                    else out_of_fold_threshold)
         gate = np.abs(validation_probability - 0.5) >= self.decision_threshold
         out_of_fold_share = float(np.mean(np.abs(out_of_fold[known] - 0.5) >= self.decision_threshold)) if known.any() else None
+        gate_basis = validation_probability if gate_source == "validation" else out_of_fold[known]
+        distinct_probability_count = int(np.unique(gate_basis[np.isfinite(gate_basis)]).size)
         reporter.log(
-            f"{self.label}: trade gate set to open on the {fraction * 100:.0f}% most confident bars: the "
-            f"{(1 - fraction) * 100:.0f}th percentile of |P - 0.5| over "
+            f"{self.label}: trade gate set to open on at most the {fraction * 100:.0f}% most confident bars (bars with the "
+            f"same probability are admitted together or not at all; {distinct_probability_count:,} distinct probabilities): "
+            f"the smallest |P - 0.5| with at most that share at or beyond it, over "
             + (f"the kept model's {validation_probability.size:,} validation probabilities (bars its trees were not fitted on)"
                if gate_source == "validation" else
                f"{int(known.sum()):,} purged out-of-fold training probabilities ({len(blocks)} blocks, {kept_rounds} rounds each)")
             + f" is {self.decision_threshold:.4f}; the gate opens on {int(gate.sum()):,} of {gate.size:,} validation bars "
             f"({(float(gate.mean()) * 100 if gate.size else 0.0):.1f}%) and on "
             f"{('n/a' if out_of_fold_share is None else f'{out_of_fold_share * 100:.1f}%')} of the {int(known.sum()):,} purged "
-            f"out-of-fold training probabilities (their own {(1 - fraction) * 100:.0f}th percentile is {out_of_fold_threshold:.4f})"
+            f"out-of-fold training probabilities (their own threshold by the same rule is {out_of_fold_threshold:.4f})"
         )
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
@@ -950,6 +987,7 @@ class RegimeMonteCarloDecisionAdapter:
             "gate_out_of_fold_threshold": out_of_fold_threshold,
             "gate_out_of_fold_open_share": out_of_fold_share,
             "validation_gate_open_share": float(gate.mean()) if gate.size else None,
+            "gate_distinct_probability_count": distinct_probability_count,
             "kronos_model": KRONOS_MODELS[kronos.size][0],
             "kronos_revision": KRONOS_MODELS[kronos.size][1],
             "fit_seconds": watch.seconds(),

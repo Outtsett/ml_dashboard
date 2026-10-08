@@ -321,16 +321,43 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert len(blocks) == QUICK["stacking_fold_count"] and all(block["purge_bars"] == HORIZON for block in blocks)
 
 
-def test_the_gate_threshold_is_the_quantile_of_the_out_of_fold_distance():
+def test_the_gate_threshold_admits_at_most_its_share_and_ties_together():
     probabilities = np.r_[np.linspace(0.3, 0.7, 101), np.nan]
     assert stack.gate_threshold(probabilities, 1.0) == 0.0
     threshold = stack.gate_threshold(probabilities, 0.25)
     distance = np.abs(probabilities[:-1] - 0.5)
-    assert threshold == pytest.approx(np.quantile(distance, 0.75))
-    assert np.mean(distance >= threshold) == pytest.approx(0.25, abs=0.02)
+    assert np.mean(distance >= threshold) <= 0.25
+    # it is the SMALLEST such value: the next distance down would admit more than the share
+    below = np.unique(distance)
+    below = below[below < threshold]
+    assert np.mean(distance >= below[-1]) > 0.25
+    assert np.mean(distance >= threshold) == pytest.approx(0.25, abs=0.03)
+    # a kept model of one round: seven probabilities, each shared by a whole leaf. A plain quantile
+    # landed on a tied value and `>=` let the leaf through (0.3 opened on 73% of bars, 2026-10-07)
+    tied = np.repeat([0.497, 0.498, 0.499, 0.500, 0.501, 0.502, 0.503], [30, 60, 120, 180, 120, 60, 30])
+    for fraction in (0.05, 0.1, 0.3, 0.5, 0.9):
+        assert np.mean(np.abs(tied - 0.5) >= stack.gate_threshold(tied, fraction)) <= fraction + 1e-9
+    assert np.mean(np.abs(tied - 0.5) >= stack.gate_threshold(tied, 0.3)) == pytest.approx(0.30)
+    # one probability for every bar: no group fits the share, so the gate stays shut
+    same = np.full(200, 0.52)
+    assert np.mean(np.abs(same - 0.5) >= stack.gate_threshold(same, 0.3)) == 0.0
     assert stack.gate_threshold(np.array([np.nan]), 0.3) == 0.0
     with pytest.raises(ValueError, match="gate_open_fraction"):
         stack.gate_threshold(probabilities, 0.0)
+
+
+@pytest.mark.parametrize(("degrees", "scale"), [(6, 8e-4), (4, 4e-4), (3, 8e-4)])
+def test_the_student_t_fit_converges_on_values_the_size_of_one_bar_returns(degrees, scale):
+    # on raw values this small scipy's fit stopped just under 2 degrees of freedom whatever the
+    # data (2026-10-07: 2.05 and a scale 19% too small for a true 6 and 8e-4); the fit is standardised
+    for seed in range(4):
+        draws = np.random.default_rng(seed).standard_t(degrees, 7000) * scale + 1e-5
+        fitted_degrees, location, fitted_scale = stack.student_t_fit(draws)
+        assert abs(fitted_degrees - degrees) < 1.0, (seed, fitted_degrees)
+        assert fitted_scale == pytest.approx(scale, rel=0.06), (seed, fitted_scale)
+        assert location == pytest.approx(1e-5, abs=4 * scale / np.sqrt(7000))
+    # nothing to fit: no variation
+    assert stack.student_t_fit(np.zeros(100))[2] == 0.0
 
 
 @pytest.mark.parametrize("fraction", [0.2, 0.6, 1.0])
@@ -349,11 +376,16 @@ def test_the_gate_opens_on_about_its_share_of_bars_it_was_not_fitted_on(market, 
     if fraction == 1.0:
         assert adapter.decision_threshold == 0.0 and realised == 1.0
     else:
-        # the gate opens at or beyond the threshold, so bars tied at it all open: a kept model of one
-        # tree has a handful of probability values, and the setting then sits between the share strictly
-        # beyond the threshold and the share at or beyond it; with distinct probabilities the two are equal
-        assert beyond - 0.15 <= fraction <= realised + 0.15, (beyond, realised)
-        assert realised > 0, "the gate never opens on unseen bars"
+        # the gate opens on AT MOST its share: bars with the same probability are admitted together or
+        # not at all. On the rows the threshold was placed on that is exact; on unseen bars it holds up
+        # to how much the probabilities' spread moves between the two spans.
+        summary = adapter.fit_summary
+        if summary["gate_threshold_source"] == "validation":
+            assert summary["validation_gate_open_share"] <= fraction + 1e-9
+        assert realised <= fraction + 0.15, (beyond, realised)
+        if summary["gate_distinct_probability_count"] >= 50:
+            # enough distinct probabilities for the share to be reached, not only bounded
+            assert realised >= fraction - 0.15, (beyond, realised)
 
 
 def test_a_prediction_does_not_move_when_later_bars_are_removed(market, fitted, tmp_path):
@@ -468,7 +500,19 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
         for stamp, probability in zip(event["timestamps"], event["probabilityUp"]):
             if probability is not None:
                 scored.setdefault(event["foldIndex"], []).append(stamp)
-    assert {fold: sorted(stamps) for fold, stamps in by_fold.items()} == {fold: sorted(s) for fold, s in scored.items()}
+    streamed_by_fold = {fold: sorted(stamps) for fold, stamps in by_fold.items()}
+    called = {fold: sorted(stamps) for fold, stamps in scored.items()}
+    if label_kind == "direction":
+        assert streamed_by_fold == called
+    else:
+        # a reversal bar with no trailing move to turn against has no call, but the model still
+        # scored it: its regime, fan and candles are streamed, with no decision probability and the gate closed
+        for fold, stamps in called.items():
+            assert set(stamps) <= set(streamed_by_fold[fold])
+    for event in streamed:
+        for probability, gate in zip(event["decisionProbabilityUp"], event["gateOpen"]):
+            if probability is None:
+                assert gate is False
     written = compressed.read_json(str(tmp_path / "regime_forecasts.json"))  # written as regime_forecasts.json.zst
     assert [entry["foldIndex"] for entry in written] == sorted(by_fold)
     for entry in written:
@@ -483,4 +527,6 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
         if decided_at in gate_at:
             assert gate_at[decided_at], trade
     assert any(not value for value in gate_at.values()), "the gate never closed: the threshold test is empty"
+    open_share = sum(1 for value in gate_at.values() if value) / len(gate_at)
+    print(f"{label_kind}: gate open on {open_share:.3f} of {len(gate_at)} streamed bars, {len(trades)} trades")
     assert any(gate_at.values()) and trades, "the gate never opened: nothing was traded"

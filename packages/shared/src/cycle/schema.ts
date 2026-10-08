@@ -448,10 +448,10 @@ export const cycleRegimeForecastSchema = cycleEnvelopeSchema.extend({
    */
   gateOpenFraction: z.number().min(0).max(1).optional(),
   /**
-   * The fold's absolute gate threshold: the (1 − gateOpenFraction) quantile of
-   * |P − 0.5| over the kept decision model's probabilities on the validation rows
-   * (its purged out-of-fold training probabilities when a fold has under 50
-   * validation rows), derived at fit.
+   * The fold's absolute gate threshold: the smallest |P − 0.5| with at most
+   * gateOpenFraction of the kept decision model's probabilities on the validation rows
+   * at or beyond it (its purged out-of-fold training probabilities when a fold has under
+   * 50 validation rows), derived at fit. Tied probabilities open together or not at all.
    */
   decisionThreshold: z.number().min(0),
   kronosModel: z.string(),

@@ -292,6 +292,15 @@ export function useRunOverlay({ onChartReady }: RunOverlayInput): RunHoverState 
     const state = useCycleStore.getState();
     if (!runIsShown(state)) {
       wasHiddenRef.current = true;
+      // Hidden: the chart is back on the market's own candles, so the primitive must draw nothing.
+      // Left with its last bars and regimes it kept repainting regime colours over those candles
+      // at the same logical indices. A rendered count of 0 makes every layer return early.
+      if (!wasHiddenRef.current) {
+        bands.setRegimes(null, state.regimesVersion);
+        bands.setBars(state.bars, 0);
+        bands.setHover(null);
+        drawnCountRef.current = 0;
+      }
       return;
     }
     if (wasHiddenRef.current) {

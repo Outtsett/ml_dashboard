@@ -367,7 +367,7 @@ function BarReadout({ fold, bar, regimeNow }: { fold: RunRegimeForecast; bar: nu
       <div className="text-[10px] leading-snug text-muted-foreground">
         {fold.gateOpenFraction === undefined
           ? ""
-          : `The gate is set to open on the ${share(fold.gateOpenFraction, 0)} most confident bars: this fold's threshold is the ${share(1 - fold.gateOpenFraction, 0)} quantile of |P − 0.5| over the decision model's probabilities on its validation rows. `}
+          : `The gate is set to open on at most the ${share(fold.gateOpenFraction, 0)} most confident bars: this fold's threshold is the smallest |P − 0.5| with at most that share of the decision model's probabilities at or beyond it, taken over its validation rows (over its purged out-of-fold training rows when a fold has fewer than 50 validation rows). Bars with the same probability open together or not at all. `}
         The gate opens when the decision model's P(up) is at least {share(fold.decisionThreshold, 2)} away from 0.5 ({decision === null ? "no probability at this bar" : `here ${share(Math.abs(decision - 0.5))} away`}).
       </div>
     </div>
