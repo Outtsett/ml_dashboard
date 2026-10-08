@@ -18,6 +18,40 @@ const TIMEFRAMES = [
   { label: "1h", minutes: 60 },
 ];
 
+interface LaunchPreferences {
+  followChart: boolean;
+  symbol: string;
+  timeframe: string;
+  target: "direction" | "reversal";
+}
+
+const LAUNCH_PREFERENCES_KEY = "run-launch-v1";
+const DEFAULT_LAUNCH: LaunchPreferences = { followChart: false, symbol: "MNQ", timeframe: "5m", target: "direction" };
+
+function readLaunchPreferences(): LaunchPreferences {
+  try {
+    const raw = window.localStorage.getItem(LAUNCH_PREFERENCES_KEY);
+    if (!raw) return DEFAULT_LAUNCH;
+    const parsed = JSON.parse(raw) as Partial<LaunchPreferences>;
+    return {
+      followChart: parsed.followChart === true,
+      symbol: typeof parsed.symbol === "string" && parsed.symbol ? parsed.symbol : DEFAULT_LAUNCH.symbol,
+      timeframe: typeof parsed.timeframe === "string" && parsed.timeframe ? parsed.timeframe : DEFAULT_LAUNCH.timeframe,
+      target: parsed.target === "reversal" ? "reversal" : "direction",
+    };
+  } catch {
+    return DEFAULT_LAUNCH;
+  }
+}
+
+function writeLaunchPreferences(next: LaunchPreferences): void {
+  try {
+    window.localStorage.setItem(LAUNCH_PREFERENCES_KEY, JSON.stringify(next));
+  } catch {
+    // storage can be unavailable; the form still works for the session
+  }
+}
+
 const FIELD = "h-7 w-full rounded border border-border bg-transparent px-2 font-mono text-[12px] text-foreground outline-none focus:border-foreground/50";
 
 function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => void }) {
@@ -32,19 +66,34 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
       return "";
     }
   });
-  const [symbol, setSymbol] = useState(selection.symbol || "MNQ");
-  const [timeframe, setTimeframe] = useState(TIMEFRAMES.find((entry) => entry.minutes === selection.timeframeMinutes)?.label ?? "5m");
+  // the launcher keeps its own series (MNQ 5m until changed here); "Follow chart" makes it
+  // track the Market chart's selection instead. Remembered in localStorage.
+  const remembered = readLaunchPreferences();
+  const [followChart, setFollowChartState] = useState(remembered.followChart);
+  const [symbol, setSymbolState] = useState(remembered.symbol);
+  const [timeframe, setTimeframeState] = useState(remembered.timeframe);
+  const [target, setTargetState] = useState<"direction" | "reversal">(remembered.target);
   const [trials, setTrials] = useState(20);
   const [folds, setFolds] = useState(3);
+  const chartTimeframe = TIMEFRAMES.find((entry) => entry.minutes === selection.timeframeMinutes)?.label ?? timeframe;
+  const effectiveSymbol = followChart ? selection.symbol || symbol : symbol;
+  const effectiveTimeframe = followChart ? chartTimeframe : timeframe;
+  function remember(next: Partial<LaunchPreferences>) {
+    writeLaunchPreferences({ followChart, symbol, timeframe, target, ...next });
+  }
+  const setSymbol = (value: string) => { setSymbolState(value); remember({ symbol: value }); };
+  const setTimeframe = (value: string) => { setTimeframeState(value); remember({ timeframe: value }); };
+  const setTarget = (value: "direction" | "reversal") => { setTargetState(value); remember({ target: value }); };
+  const setFollowChart = (value: boolean) => { setFollowChartState(value); remember({ followChart: value }); };
 
   const known = models.data?.find((entry) => entry.key === model || entry.displayName === model);
   const body = {
     model: known?.key ?? model,
-    symbol: symbol.toUpperCase(),
-    timeframe,
-    parameters: { tuning_budget_trials: trials, fold_limit: folds },
+    symbol: effectiveSymbol.toUpperCase(),
+    timeframe: effectiveTimeframe,
+    parameters: { tuning_budget_trials: trials, fold_limit: folds, label_kind: target },
   };
-  const preflight = usePreflight({ model: body.model, symbol: body.symbol, timeframe });
+  const preflight = usePreflight({ model: body.model, symbol: body.symbol, timeframe: effectiveTimeframe });
   const blocked = preflight.data ? !preflight.data.ready : false;
 
   return (
@@ -66,14 +115,25 @@ function Launcher({ onStarted }: { onStarted: (response: StartRunResponse) => vo
         ))}
       </datalist>
       <div className="grid grid-cols-2 gap-1.5">
-        <input value={symbol} onChange={(event) => setSymbol(event.target.value)} className={FIELD} aria-label="Symbol" />
-        <select value={timeframe} onChange={(event) => setTimeframe(event.target.value)} className={FIELD} aria-label="Timeframe">
+        <input value={effectiveSymbol} disabled={followChart} onChange={(event) => setSymbol(event.target.value)} className={`${FIELD} disabled:opacity-60`} aria-label="Symbol" />
+        <select value={effectiveTimeframe} disabled={followChart} onChange={(event) => setTimeframe(event.target.value)} className={`${FIELD} disabled:opacity-60`} aria-label="Timeframe">
           {TIMEFRAMES.map((entry) => (
             <option key={entry.label} value={entry.label} className="bg-background">
               {entry.label}
             </option>
           ))}
         </select>
+        <label className="col-span-2 flex cursor-pointer items-center gap-1.5 font-mono text-[10px] text-muted-foreground" title="On: the symbol and timeframe follow the Market chart's selection. Off: the launcher keeps its own (MNQ 5m until changed here).">
+          <input type="checkbox" checked={followChart} onChange={(event) => setFollowChart(event.target.checked)} data-testid="launch-follow-chart" />
+          Follow the Market chart's symbol and timeframe
+        </label>
+        <label className="col-span-2 font-mono text-[10px] text-muted-foreground" title="Direction: will the close N bars ahead be above or below this bar's close. Reversal: will the next N bars turn against the previous N bars.">
+          What the model predicts
+          <select value={target} onChange={(event) => setTarget(event.target.value as "direction" | "reversal")} className={FIELD} aria-label="Target" data-testid="launch-target">
+            <option value="direction" className="bg-background">Direction: up or down over the horizon</option>
+            <option value="reversal" className="bg-background">Reversal: the next bars turn against the previous bars</option>
+          </select>
+        </label>
         <label className="font-mono text-[10px] text-muted-foreground">
           Search trials per fold
           <input type="number" min={0} max={500} value={trials} onChange={(event) => setTrials(Number(event.target.value))} className={FIELD} />

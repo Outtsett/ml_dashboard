@@ -80,6 +80,8 @@ export interface PurposeInput {
   directionMode?: "classifier" | "from_price" | null;
   hasPriceModel?: boolean | null;
   labelHorizonBars?: number | null;
+  /** "direction" (the default) or "reversal": what the direction model predicts. */
+  labelKind?: "direction" | "reversal" | null;
   tuningObjective?: string | null;
   tuningTrialCount?: number | null;
 }
@@ -125,9 +127,17 @@ export function runPurpose(input: PurposeInput): string {
   if (input.directionMode === "from_price") {
     sentences.push(`${input.modelLabel} forecasts ${series}: for every bar it predicts where ${close} will be, in points, and the direction it trades is the sign of that forecast.`);
   } else if (input.hasPriceModel) {
-    sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up), and a second model predicts how far it will move, in points.`);
+    if (input.labelKind === "reversal") {
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the walk trades against the previous move when that probability is at or above 0.5 and with it below), and a second model predicts how far the price will move, in points.`);
+    } else {
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up), and a second model predicts how far it will move, in points.`);
+    }
   } else if (input.directionMode === "classifier") {
-    sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up).`);
+    if (input.labelKind === "reversal") {
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the walk trades against the previous move when that probability is at or above 0.5 and with it below).`);
+    } else {
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up).`);
+    }
   } else {
     sentences.push(`${input.modelLabel} on ${series}, predicting ${close}.`);
   }

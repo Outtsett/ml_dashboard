@@ -333,7 +333,7 @@ export function VersionsView({ run, runs }: { run: RunView; runs: RunListItem[] 
     <div className="flex h-full min-h-0 flex-col" data-testid="versions-view">
       <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card/40 px-3 py-1.5">
         <span className="font-mono text-[11px] font-bold uppercase text-foreground">{run.id === "" ? "Versions of one model on one series" : `Versions of ${label} on ${run.setup?.symbol ?? "?"} ${run.setup?.timeframe ?? ""}`}</span>
-        <span className="text-[11px] text-muted-foreground">· {line.length} run{line.length === 1 ? "" : "s"} in this line; pick up to {MAX_RUNS}. Only runs of this same model on this same series are compared.</span>
+        <span className="text-[11px] text-muted-foreground">· {line.length} run{line.length === 1 ? "" : "s"} of this model on this series so far; pick up to {MAX_RUNS} to see them side by side. Every time this model runs again on the same symbol and timeframe it becomes the next version (v1, v2, …); this view shows whether a later version did better than an earlier one. Different models are never compared here, because they answer different questions.</span>
         <div className="ml-auto flex flex-wrap items-center gap-1">
           {line.map((entry) => {
             const on = chosen.includes(entry.id);

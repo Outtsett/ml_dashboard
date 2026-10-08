@@ -122,6 +122,8 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
   featureNames: z.array(z.string()),
   labelHorizonBars: z.number().int().positive(),
   labelThresholdTicks: z.number().nonnegative(),
+  // what the direction model predicts; a run recorded before 2026-10-07 has no field and is "direction"
+  labelKind: z.enum(["direction", "reversal"]).optional(),
   /** Session-gap rule: a bar whose horizon crosses a gap over this many typical bar intervals has no label, target or forecast (0 = off). */
   labelGapMultiple: z.number().nonnegative().optional(),
   /** Bars the gap rule left unlabelled. */

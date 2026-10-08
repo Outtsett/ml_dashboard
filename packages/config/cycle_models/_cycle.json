@@ -54,12 +54,27 @@
     },
     "validation_fraction": {
       "type": "float",
-      "default": 0.2,
-      "min": 0.05,
+      "default": 0.1,
+      "min": 0.02,
       "max": 0.5,
-      "step": 0.05,
-      "label": "Validation fraction of the training window",
-      "group": "Walk-forward"
+      "step": 0.01,
+      "label": "Validation share of each fold's bars",
+      "group": "Train / validation / test"
+    },
+    "test_fraction": {
+      "type": "float",
+      "default": 0.1,
+      "min": 0.02,
+      "max": 0.5,
+      "step": 0.01,
+      "label": "Test share of each fold's bars (train is 1 - validation - test)",
+      "group": "Train / validation / test"
+    },
+    "replay_validation": {
+      "type": "bool",
+      "default": true,
+      "label": "Replay the validation span bar by bar after the fit",
+      "group": "Train / validation / test"
     },
     "test_days": {
       "type": "int",
@@ -106,6 +121,16 @@
       "max": 100,
       "step": 0.5,
       "label": "Label threshold (ticks)",
+      "group": "Labels"
+    },
+    "label_kind": {
+      "type": "categorical",
+      "default": "direction",
+      "choices": [
+        "direction",
+        "reversal"
+      ],
+      "label": "What is predicted: the direction over the horizon, or a reversal against the previous horizon bars",
       "group": "Labels"
     },
     "embargo_bars": {

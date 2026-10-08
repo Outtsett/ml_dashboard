@@ -107,6 +107,16 @@ function statusOf(value: unknown): CycleRunStatus {
   return value === "failed" || value === "stopped" || value === "running" ? value : "complete";
 }
 
+/** A run is read from the lake only when it is not live in this server; a record still
+ * saying "running" is a run whose process died under it (the dev server restarts on a
+ * server-file save and tree-kills its children), so it is reported as stopped, with the reason. */
+const ORPHANED_RUN_ERROR = "The server restarted while this run was in progress (a server-file save restarts it and ends its process). The record holds the folds that finished; relaunch to continue.";
+
+function archivedStatusOf(value: unknown): CycleRunStatus {
+  const status = statusOf(value);
+  return status === "running" ? "stopped" : status;
+}
+
 async function rows<T>(sql: string): Promise<T[]> {
   try {
     return await queryLake<T>(sql, 60_000);
@@ -159,7 +169,7 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
         symbol: run.symbol,
         timeframe: run.timeframe,
         modelFamily: run.model_key as CycleRunSummary["modelFamily"],
-        status: statusOf(run.status),
+        status: archivedStatusOf(run.status),
         startedAt: startedAtOf(run.started_at_timestamp, run.model_id),
         finishedAt: numberOrNull(run.finished_at_timestamp) === null ? null : numberOrNull(run.finished_at_timestamp)! * 1000,
         barCount: intOrNull(run.bars_processed) ?? 0,
@@ -396,7 +406,8 @@ export async function loadArchivedCycleSnapshot(modelId: string): Promise<CycleS
   }
   const startedAt = startedAtOf(run?.started_at_timestamp, modelId);
   const finishedAt = numberOrNull(run?.finished_at_timestamp);
-  const status = run ? statusOf(run.status) : "complete";
+  const status = run ? archivedStatusOf(run.status) : "complete";
+  const orphaned = run ? statusOf(run.status) === "running" : false;
   const barsEvaluated = predictions.length;
   return {
     modelId,
@@ -404,7 +415,7 @@ export async function loadArchivedCycleSnapshot(modelId: string): Promise<CycleS
     status,
     startedAt,
     finishedAt: finishedAt === null ? null : finishedAt * 1000,
-    error: run && typeof run.error === "string" ? run.error : null,
+    error: orphaned ? ORPHANED_RUN_ERROR : run && typeof run.error === "string" ? run.error : null,
     lastSequence: seq,
     plan,
     cursor: null,

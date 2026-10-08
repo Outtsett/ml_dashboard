@@ -88,6 +88,49 @@ def make_labels(close: np.ndarray, horizon: int, threshold_ticks: float, tick_si
     return labels
 
 
+def trailing_direction(close: np.ndarray, index: int, horizon: int, threshold_ticks: float, tick_size: float) -> int:
+    """1 if the ``horizon`` bars up to ``index`` rose by more than the threshold, -1 if they
+    fell, 0 inside it (or before the first ``horizon`` bars): the move a reversal turns against."""
+    if index < horizon:
+        return 0
+    move = float(close[index]) - float(close[index - horizon])
+    threshold = float(threshold_ticks) * float(tick_size)
+    if move > threshold:
+        return 1
+    if move < -threshold:
+        return -1
+    return 0
+
+
+def make_reversal_labels(close: np.ndarray, horizon: int, threshold_ticks: float, tick_size: float,
+                         crosses_gap: np.ndarray | None = None) -> np.ndarray:
+    """float32 reversal labels, one per bar: 1 when the next ``horizon`` bars move
+    against the previous ``horizon`` bars (a turn), 0 when they continue in the same
+    direction. A bar is unlabelled (NaN) when either move is inside the threshold,
+    when fewer than ``horizon`` bars precede it, or when its horizon crosses a
+    session gap. Causal: the trailing move is known at the bar; the forward move is
+    the label, known ``horizon`` bars later like the direction label."""
+    if horizon < 1:
+        raise ValueError(f"label horizon must be >= 1 bar, got {horizon}")
+    if threshold_ticks < 0:
+        raise ValueError(f"label threshold must be >= 0 ticks, got {threshold_ticks}")
+    close = np.asarray(close, dtype=np.float64)
+    n = close.shape[0]
+    labels = np.full(n, np.nan, dtype=np.float32)
+    if n <= 2 * horizon:
+        return labels
+    threshold = float(threshold_ticks) * float(tick_size)
+    trailing = close[horizon:n - horizon] - close[: n - 2 * horizon]        # bars horizon .. n-horizon-1
+    forward = close[2 * horizon:] - close[horizon:n - horizon]
+    known = (np.abs(trailing) > threshold) & (np.abs(forward) > threshold)
+    head = labels[horizon: n - horizon]
+    head[known & (np.sign(forward) != np.sign(trailing))] = 1.0
+    head[known & (np.sign(forward) == np.sign(trailing))] = 0.0
+    if crosses_gap is not None:
+        labels[np.asarray(crosses_gap, dtype=bool)] = np.nan
+    return labels
+
+
 def actual_direction(close: np.ndarray, index: int, horizon: int, threshold_ticks: float, tick_size: float) -> int:
     """1 up, -1 down, 0 inside the threshold, for bar ``index`` (needs index + horizon in range)."""
     move = float(close[index + horizon]) - float(close[index])

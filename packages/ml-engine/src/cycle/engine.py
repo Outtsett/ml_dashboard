@@ -69,7 +69,14 @@ from cycle import catalog, compressed
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
-from cycle.labels import actual_direction, horizon_crosses_gap, make_labels, price_target
+from cycle.labels import (
+    actual_direction,
+    horizon_crosses_gap,
+    make_labels,
+    make_reversal_labels,
+    price_target,
+    trailing_direction,
+)
 from cycle.market import MarketView, bind_market
 from cycle.metrics import ScoreInputs, bars_per_year, buy_and_hold_usd, scoreboard
 from cycle.simulate import CostModel, Simulator, Trade, round_to_tick
@@ -140,6 +147,9 @@ class CycleSettings:
     expanding_window: bool = False
     label_horizon_bars: int = 6
     label_threshold_ticks: float = 0.0
+    # what the direction model predicts: "direction" (up or down over the horizon) or
+    # "reversal" (whether the next horizon bars turn against the previous horizon bars)
+    label_kind: str = "direction"
     embargo_bars: int = 0
     long_only: bool = False
     holding_bars: int = 0
@@ -444,7 +454,13 @@ class CycleEngine:
         self.horizon = settings.label_horizon_bars
         # a bar whose horizon spans a session gap (break, weekend, outage) gets no label, target or forecast
         self.crosses_gap = horizon_crosses_gap(data.timestamps, self.horizon, float(settings.label_gap_multiple))
-        self.labels = make_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
+        if settings.label_kind not in ("direction", "reversal"):
+            raise ValueError(f"label_kind must be 'direction' or 'reversal', got {settings.label_kind!r}")
+        self.reversal = settings.label_kind == "reversal"
+        if self.reversal:
+            self.labels = make_reversal_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
+        else:
+            self.labels = make_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
         # the price model's target, and the causal scale that turns its output back into points
         self.volatility_window = int(features.lookback)
         self.price_targets, self.move_scale, self.forward_moves = price_target(
@@ -800,6 +816,7 @@ class CycleEngine:
             "barsPerYear": float(self.periods_per_year),
             "featureNames": list(self.feature_set.names),
             "labelHorizonBars": int(self.horizon),
+            "labelKind": s.label_kind,
             "labelThresholdTicks": float(s.label_threshold_ticks),
             "labelGapMultiple": float(s.label_gap_multiple),
             "gapCrossingBarCount": int(self.crosses_gap.sum()),
@@ -914,6 +931,9 @@ class CycleEngine:
             f"long at P(up) >= 0.5, {'flat' if s.long_only else 'short'} below, cost {format_usd(self.cost.round_trip * s.contracts, False)} per round trip"
         )
         gap_bars = int(self.crosses_gap.sum())
+        if self.reversal:
+            self.log(f"[plan] label: reversal — 1 when the next {self.horizon} bars move against the previous {self.horizon} bars, 0 when they continue; "
+                     "the walk trades against the trailing move at P(turn) >= 0.5 and with it below")
         if s.label_gap_multiple > 0:
             self.log(
                 f"[plan] session-gap rule: a bar whose {self.horizon}-bar horizon crosses a gap over {s.label_gap_multiple:g}× the typical "
@@ -1508,9 +1528,16 @@ class CycleEngine:
                     warned_non_finite = True
                     self.log(f"{prefix}[{span.label}] the model returned a non-finite probability at {format_time(d.timestamps[i])}; such bars are not traded", "warn")
             # every prediction is traded: long at P(up) >= 0.5, short below (flat
-            # below when long only — the simulator maps it)
+            # below when long only — the simulator maps it). A reversal model's probability
+            # is P(turn): at or above 0.5 it trades against the trailing move, below it
+            # trades with it; a bar with no trailing move outside the threshold is not traded.
             if probability is None:
                 direction, signal = 0, None
+            elif self.reversal:
+                trailing = trailing_direction(d.close, i, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
+                direction = signal = (-trailing if probability >= 0.5 else trailing)
+                if direction == 0:
+                    signal = None
             else:
                 direction = signal = 1 if probability >= 0.5 else -1
                 if trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):

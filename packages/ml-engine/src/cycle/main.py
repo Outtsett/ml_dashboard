@@ -106,6 +106,7 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("expanding_window", bool, False, "anchor every training window at the first bar"),
     ("label_horizon_bars", int, 6, "bars ahead the direction label looks"),
     ("label_threshold_ticks", float, 0.0, "moves within this many ticks are unlabelled"),
+    ("label_kind", str, "direction", "direction (up or down over the horizon) | reversal (the next horizon bars turn against the previous ones)"),
     ("embargo_bars", int, 0, "bars dropped from the start of each test window"),
     ("replay_validation", bool, True, "replay the validation span bar by bar after the fit (in sample; never a test result)"),
     ("label_gap_multiple", float, 3.0, "a bar whose horizon crosses a gap over this many typical bar intervals gets no label (0 = off)"),
