@@ -38,6 +38,12 @@ const latestCacheBySymbol = new Map<string, Record<string, unknown>>();
 // In-memory ring buffer for recent history per symbol (up to 100 steps)
 const historyBufferBySymbol = new Map<string, Record<string, unknown>[]>();
 
+// Both maps are keyed by a symbol a request supplies, so the key is checked and the number of
+// symbols held is bounded: without that, posting records under ever-new symbols grows the
+// process's memory (and the tracking table) without limit.
+const SYMBOL_PATTERN = /^[A-Z0-9._/-]{1,24}$/;
+const MAXIMUM_TRACKED_SYMBOLS = 64;
+
 /** Default baseline state backed by verified model artifacts if no live tracking steps have run yet */
 function generateDefaultBaseline(symbol: string) {
   const now = Date.now();
@@ -151,7 +157,7 @@ function generateDefaultBaseline(symbol: string) {
 
 // ─── POST /api/ml/tri-core/track ─────────────────────────────────────────────
 
-router.post("/ml/tri-core/track", async (req: Request, res: Response) => {
+router.post("/ml/tri-core/track", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     const parseResult = insertTriCoreTrackingSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -163,6 +169,17 @@ router.post("/ml/tri-core/track", async (req: Request, res: Response) => {
 
     const record = parseResult.data;
     const symbolKey = record.symbol.toUpperCase();
+    if (!SYMBOL_PATTERN.test(symbolKey)) {
+      return res.status(400).json({ error: "symbol must be 1 to 24 characters of A-Z, 0-9, dot, underscore, slash or hyphen" });
+    }
+    // the symbol written longest ago leaves memory when a new one would exceed the bound (its rows stay in the table)
+    if (!latestCacheBySymbol.has(symbolKey) && latestCacheBySymbol.size >= MAXIMUM_TRACKED_SYMBOLS) {
+      const oldest = latestCacheBySymbol.keys().next().value;
+      if (oldest !== undefined) {
+        latestCacheBySymbol.delete(oldest);
+        historyBufferBySymbol.delete(oldest);
+      }
+    }
 
     // Persist to database
     await db.insert(triCoreTracking).values(record);

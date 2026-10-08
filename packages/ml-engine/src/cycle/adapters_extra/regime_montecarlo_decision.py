@@ -67,8 +67,13 @@ before the bar it speaks for.
 ``binary:logistic``) over the stacked signals: the regime probabilities, the
 simulation's P(up), its expected move and its 10–90 percentile spread (both
 divided by the run's causal move scale), Kronos' predicted move (divided by the
-same scale) and direction, and the FinBERT columns. Its P(up) is the adapter's
-direction probability. The regime and Monte Carlo signals of the training rows
+same scale) and direction, the trailing move (close now minus the close
+``horizon`` bars ago, divided by the same scale) and the FinBERT columns. The
+trailing move is what a reversal label turns against: without it the model
+cannot say "the simulation points up and the last bars fell, so a turn", only
+"up" or "down" (added 2026-10-08; a model saved before then has no such column
+and is scored without it). Its probability is the adapter's direction
+probability. The regime and Monte Carlo signals of the training rows
 are made OUT OF FOLD: the most recent ``maximum_training_bars`` training rows
 are cut into ``stacking_fold_count`` contiguous blocks, and each block's signals
 come from a regime model and return distributions fitted on the training span
@@ -80,34 +85,62 @@ come from the regime model fitted on the whole training span, and stop the
 boosting early. Feature weights are the decision model's total gain per signal,
 as shares of the total (``feature_weights``).
 
-**Trade gate** — a quantile gate. ``gate_open_fraction`` is the share of bars
-the gate should open on, most confident first. At fit the fold's absolute
-threshold is the (1 − ``gate_open_fraction``) quantile of ``|P − 0.5|`` over the
-kept decision model's probabilities on the validation rows — bars its trees were
-not fitted on, on the kept model's own probability scale (0 at
-``gate_open_fraction`` = 1: every bar is open). The threshold is the smallest
-|P − 0.5| with at most that share of those probabilities at or beyond it, so the
-gate opens on AT MOST the share: bars with the same probability are admitted
-together or not at all, and when the most confident group alone is larger than
-the share the gate stays shut (``gate_threshold``). The decision model is also
-refitted ``stacking_fold_count`` times, each time without one stacking block and
-without ``horizon`` bars either side of it, scoring that block (purged
-out-of-fold probabilities, the same rounds as the kept model): their quantile is
-the threshold when a fold has fewer than ``MINIMUM_GATE_ROWS`` validation rows,
-and is logged beside the validation one otherwise. It is not the first choice
-because the block models are other boosters: measured 2026-10-07 on the test
-market, a kept model of one round topped out at |P − 0.5| = 0.0977 while the
-out-of-fold 80th percentile was 0.1029, so that threshold opened on no bar.
-Distance is measured from 0.5 because the engine trades long at P(up) >= 0.5 and
-short below, so "far from 0.5" is conviction in the traded direction; under
-reversal labels |P(turn) − 0.5| = |P(up) − 0.5|, so the gate is the same.
-``trade_gate(features, index)`` is open when ``|P − 0.5| >= decision_threshold``
-(the derived threshold, ``self.decision_threshold``). An absolute threshold tuned
-on training bars did not carry over between folds (2026-10-07: 95.9%, 0.0% and
-0.0% of test bars open in three folds), which is why the setting is a share.
-The engine still scores every bar's
-direction; it enters only where the gate is open, and a closed gate stands
-aside (signal 0: no new entry, the held position runs to its holding period).
+**Trade gate** — a cost floor behind an evidence certificate, all in points and
+all measured (no gate setting, nothing for the search to open). The engine fills
+a call at the next bar's open and holds it ``horizon`` bars, so a call pays for
+itself only when its expected gain exceeds one round trip
+(``view.round_trip_cost_points``). At fit:
+
+1. ``move_ratio`` = mean |open[t + h + 1] − open[t + 1]| ÷ mean ``move_scale[t]``
+   over the training span's rows whose trade is filled by ``train_index[-1] + h``
+   and crosses no session gap: the traded move as a multiple of the engine's
+   causal move scale (``trade_moves``).
+2. The decision model is refitted ``stacking_fold_count`` times, each time
+   without one stacking block and without ``horizon + 1`` bars either side of
+   it, and scores that block (purged out-of-fold probabilities, the kept
+   model's rounds). For each such row the model's CLAIMED gain is
+   ``2 × |P − 0.5| × move_ratio × move_scale[t]`` points — what a calibrated
+   call would earn, (2q − 1) × the expected absolute move with q = 0.5 + |P − 0.5|
+   — and its REALISED gain is the traded move in the direction the call takes:
+   ``s × d × (open[t + h + 1] − open[t + 1])``, s = +1 when P >= 0.5 else −1, and
+   d the price direction label 1 stands for at that row (+1 or −1, read off the
+   row's label and its realised close move, so the same code serves direction
+   and reversal labels; a row whose close did not move is left out).
+3. The REALISATION SLOPE is Σ(claimed × realised) ÷ Σ(claimed²): the points that
+   arrived per point claimed (a regression through the origin). Its standard
+   error is Newey–West over ``horizon`` lags, because the h-bar outcomes of
+   neighbouring rows overlap, and never smaller than the uncorrelated one
+   (``realisation_slope``).
+4. The fold is CERTIFIED when slope − 1.645 × standard error > 0 (a one-sided
+   95% bound) on at least ``MINIMUM_EVIDENCE_ROWS`` rows.
+
+``trade_gate(features, index)`` is open on a bar when the fold is certified AND
+``slope × 2 × |P − 0.5| × move_ratio × move_scale[bar] > round_trip_cost_points``
+(the slope is the calibration: a model that under-states its gain is scaled up,
+one that over-states it down). A fold that is not certified stands aside on
+every bar. The engine still scores every bar's direction; it enters only where
+the gate is open, and a closed gate stands aside (signal 0: no new entry, the
+held position runs to its holding period). |P(turn) − 0.5| = |P(up) − 0.5|, so
+the gate is the same under reversal labels.
+
+The booster's base score is pinned at 0.5. Left free, xgboost sets it to the
+share of label 1 among the stacking rows, and with one kept round the trees move
+the probability by less than that share sits from 0.5: every bar of a fold then
+gets the same call (measured 2026-10-08 on the first run: fold 1 called WITH the
+trailing move on 100% of its test bars, fold 2 AGAINST it on 100%, from stacking
+turn rates of 49.4% and 52.7%). Pinned, the distance from 0.5 comes from the
+trees, which is the per-bar evidence the gate reads.
+
+What this replaced (2026-10-08): a share gate, ``gate_open_fraction``, searched
+between 0.05 and 1. The first run's search chose 0.22, 0.98 and 0.72; the model
+flipped its position on 570 of 607 trades, earned 2.48 US dollars gross per
+trade against the 2.78 it paid, and its gross was not distinguishable from zero
+(t = 0.9). A cost floor on the raw probability was measured too and was worse
+(410 trades, −1,692 US dollars), because the raw distance from 0.5 was the base
+score, not skill. Because this gate opens only on out-of-fold evidence, the
+model's search is scored on log loss (``required_tuning_objective``): a Sharpe
+search scores a trial that stands aside 0.0 and so picks whichever trial traded
+by luck.
 
 **Price model** (``task="regression"``) — the regime model and the Monte Carlo
 simulator alone: the expected move of the simulation divided by the move scale,
@@ -160,12 +193,15 @@ DECISION_MODEL_FILE = "decision_model.ubj"
 REGIME_MODEL_FILE = "regime_model.npz"
 
 FINBERT_PREFIX = "finbert_"
+# close[t] - close[t - horizon], divided by the move scale: the move a reversal label turns against
+TRAILING_MOVE_SIGNAL = "trailing_move_scaled"
 REGIME_FILTER_BURN_IN_BARS = 1000
 MINIMUM_REGIME_RETURNS = 50
 STUDENT_DEGREES_OF_FREEDOM_BOUNDS = (2.05, 200.0)
 EARLY_STOPPING_ROUNDS = 30
-# fewer validation probabilities than this cannot place a quantile; the out-of-fold ones do then
-MINIMUM_GATE_ROWS = 50
+# the trade gate's certificate: purged out-of-fold rows it needs, and the one-sided 95% normal quantile
+MINIMUM_EVIDENCE_ROWS = 300
+CERTIFICATE_QUANTILE = 1.645
 KRONOS_BATCH_ROWS = 128
 KRONOS_CLIP = 5.0
 # simulated values held in memory at once (rows x paths x horizon) before the walk is chunked
@@ -600,32 +636,57 @@ def _finite_or_none(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def gate_threshold(out_of_fold_probabilities: np.ndarray, gate_open_fraction: float) -> float:
-    """The absolute gate threshold: the smallest value of |P − 0.5| among the finite probabilities
-    such that the share of them AT OR BEYOND it is at most ``gate_open_fraction``. The gate opens
-    where |P − 0.5| >= the threshold, so it opens on at most that share of these probabilities,
-    the most confident first; 0 when the fraction is 1 (every bar open) or no probability is known.
+def trade_moves(view, rows: np.ndarray, horizon: int) -> np.ndarray:
+    """The move the engine trades for a call made at the close of each row, in points:
+    open[row + horizon + 1] − open[row + 1] (filled at the next open, closed at the open after
+    ``horizon`` held bars). NaN where those bars are not in the view or a session gap lies
+    between the row and its exit bar."""
+    rows = _as_index(rows)
+    moves = np.full(rows.size, np.nan)
+    if rows.size == 0 or view.open is None:
+        return moves
+    opens = np.asarray(view.open, dtype=np.float64)
+    usable = (rows >= 0) & (rows + horizon + 1 < opens.size)
+    inside = rows[usable]
+    crosses = (np.asarray(view.crosses_gap, dtype=bool)[inside]
+               | np.asarray(view.one_bar_crosses_gap, dtype=bool)[inside + horizon])
+    usable[np.nonzero(usable)[0][crosses]] = False
+    inside = rows[usable]
+    moves[usable] = opens[inside + horizon + 1] - opens[inside + 1]
+    return moves
 
-    Bars with the same probability are admitted together or not at all. A booster kept after one
-    or two rounds gives only a handful of distinct probabilities (at most 8 per round at depth 3),
-    and a plain quantile then lands on a value shared by a whole leaf: `>=` let all of it through
-    (measured 2026-10-07: a setting of 0.3 opened on 73% of bars). When even the most confident
-    group is larger than the share, no group fits and the threshold is the next number above the
-    largest distance: the gate stays shut, which is what "the model cannot tell these bars apart"
-    means for a gate on confidence."""
-    fraction = float(gate_open_fraction)
-    if not 0.0 < fraction <= 1.0:
-        raise ValueError(f"gate_open_fraction must be above 0 and at most 1, got {fraction}")
-    distance = np.abs(np.asarray(out_of_fold_probabilities, dtype=np.float64) - 0.5)
-    distance = distance[np.isfinite(distance)]
-    if fraction >= 1.0 or distance.size == 0:
-        return 0.0
-    values, counts = np.unique(distance, return_counts=True)            # ascending distinct distances
-    at_or_beyond = np.cumsum(counts[::-1])[::-1] / distance.size       # share with distance >= values[k]
-    fitting = np.nonzero(at_or_beyond <= fraction + 1e-12)[0]
-    if fitting.size == 0:
-        return float(np.nextafter(values[-1], np.inf))
-    return float(values[fitting[0]])
+
+def realisation_slope(claimed: np.ndarray, realised: np.ndarray, rows: np.ndarray, lags: int) -> tuple[float, float, int]:
+    """How much of the gain a model claimed showed up: (slope, standard error, row count).
+
+    slope = Σ(claimed × realised) ÷ Σ(claimed²), a regression of the realised gain on the
+    claimed gain through the origin: 1 for a calibrated model, 0 for one whose calls earn
+    nothing, negative for one that loses. The standard error is Newey–West with Bartlett
+    weights over ``lags`` lags of the score claimed × residual, summed only over pairs of rows
+    exactly that many bars apart (the outcomes of rows within ``lags`` bars of each other
+    overlap), and never smaller than the one that ignores the overlap. Non-finite pairs are
+    left out; (NaN, NaN, n) when nothing was claimed."""
+    x = np.asarray(claimed, dtype=np.float64)
+    y = np.asarray(realised, dtype=np.float64)
+    index = _as_index(rows)
+    keep = np.isfinite(x) & np.isfinite(y)
+    x, y, index = x[keep], y[keep], index[keep]
+    order = np.argsort(index, kind="stable")
+    x, y, index = x[order], y[order], index[order]
+    total = float(np.dot(x, x))
+    if x.size == 0 or total <= 0.0:
+        return float("nan"), float("nan"), int(x.size)
+    slope = float(np.dot(x, y)) / total
+    scores = x * (y - slope * x)
+    uncorrelated = float(np.dot(scores, scores))
+    variance = uncorrelated
+    for lag in range(1, int(lags) + 1):
+        if lag >= scores.size:
+            break
+        adjacent = (index[lag:] - index[:-lag]) == lag
+        weight = 1.0 - lag / (int(lags) + 1.0)
+        variance += 2.0 * weight * float(np.dot(scores[lag:][adjacent], scores[:-lag][adjacent]))
+    return slope, math.sqrt(max(variance, uncorrelated)) / total, int(x.size)
 
 
 def purged_blocks(rows: np.ndarray, block_count: int, purge: int) -> list[tuple[np.ndarray, int, int]]:
@@ -645,6 +706,10 @@ class RegimeMonteCarloDecisionAdapter:
     """See the module docstring."""
 
     available = True
+    # The gate opens only on out-of-fold evidence, so most search trials take no trade. A Sharpe
+    # search scores those 0.0 and picks whichever trial traded by luck; log loss ranks every trial
+    # on the same footing. The engine reads this and scores the model's search on it.
+    required_tuning_objective = "log_loss"
 
     def __init__(self, key: str, entry: dict, parameters: dict, device: str, seed: int,
                  task: str = "classification") -> None:
@@ -673,8 +738,12 @@ class RegimeMonteCarloDecisionAdapter:
         self.feature_count: int | None = None
         self.filter_start: int | None = None
         self.feature_weights: dict[str, float] = {}
-        # the fold's absolute gate threshold, derived at fit from gate_open_fraction (see the module docstring)
-        self.decision_threshold: float | None = None
+        # the trade gate's evidence, measured at fit on purged out-of-fold rows (see the module docstring)
+        self.gate_certified: bool = False
+        self.gate_realisation_slope: float | None = None
+        self.gate_realisation_standard_error: float | None = None
+        self.gate_evidence_row_count: int = 0
+        self.gate_move_ratio: float | None = None
         self.fit_summary: dict = {}
         self._inputs: np.ndarray | None = None
         self._filter_state = None
@@ -824,6 +893,11 @@ class RegimeMonteCarloDecisionAdapter:
                    (spread / scale)[:, None],
                    (kronos_move / scale)[:, None],
                    np.sign(kronos_move)[:, None]]
+        if TRAILING_MOVE_SIGNAL in self.signal_names:
+            closes = np.asarray(view.close, dtype=np.float64)
+            earlier = np.asarray(rows, dtype=np.int64) - self.horizon
+            trailing = np.where(earlier >= 0, close - closes[np.maximum(earlier, 0)], np.nan)
+            columns.append((trailing / scale)[:, None])
         if self.finbert_names:
             names = list(view.feature_names)
             columns.append(np.asarray(features[rows][:, [names.index(n) for n in self.finbert_names]], dtype=np.float64))
@@ -834,7 +908,8 @@ class RegimeMonteCarloDecisionAdapter:
     def _signal_names(self, regime_count: int) -> list[str]:
         return ([f"{name}_regime_probability" for name in REGIME_NAMES[:regime_count]]
                 + ["monte_carlo_probability_up", "monte_carlo_expected_move_scaled",
-                   "monte_carlo_percentile_spread_scaled", "kronos_predicted_move_scaled", "kronos_predicted_direction"]
+                   "monte_carlo_percentile_spread_scaled", "kronos_predicted_move_scaled", "kronos_predicted_direction",
+                   TRAILING_MOVE_SIGNAL]
                 + list(self.finbert_names))
 
     def _kronos(self) -> KronosForecaster:
@@ -904,6 +979,9 @@ class RegimeMonteCarloDecisionAdapter:
             "objective": "binary:logistic", "eval_metric": "logloss", "tree_method": "hist", "device": "cpu",
             "max_depth": int(self.parameters["max_depth"]), "eta": float(self.parameters["learning_rate"]),
             "subsample": 0.8, "colsample_bytree": 0.8, "min_child_weight": 5.0, "lambda": 1.0,
+            # pinned: left free it is the stacking rows' share of label 1, and with few kept rounds
+            # that share, not the trees, decides every bar's call (see the module docstring)
+            "base_score": 0.5,
             "seed": self.seed,
         }
         train_matrix = xgb.DMatrix(stacking_signals, label=stacking_labels, feature_names=self.signal_names, missing=np.nan)
@@ -961,15 +1039,15 @@ class RegimeMonteCarloDecisionAdapter:
         ranked = sorted(self.feature_weights.items(), key=lambda item: -item[1])
         reporter.log(f"{self.label}: decision model weights (share of total gain): "
                      + ", ".join(f"{name} {share:.3f}" for name, share in ranked[:8]))
-        # the quantile gate: purged out-of-fold decision probabilities of the stacking rows set the threshold
-        fraction = float(self.parameters["gate_open_fraction"])
+        # the trade gate: certify the fold on purged out-of-fold rows, then a cost floor (module docstring)
         kept_rounds = self.best_iteration + 1
+        gate_purge = horizon + 1          # the traded move ends one bar after the label's horizon
 
         def out_of_fold_probabilities() -> np.ndarray:
             scored = np.full(stacking_rows.size, np.nan)
-            for block_rows, low, high in blocks:
+            for block_rows, _, _ in blocks:
                 inside = (stacking_rows >= block_rows[0]) & (stacking_rows <= block_rows[-1])
-                outside = (stacking_rows < low) | (stacking_rows > high)
+                outside = (stacking_rows < int(block_rows[0]) - gate_purge) | (stacking_rows > int(block_rows[-1]) + gate_purge)
                 if not inside.any() or np.unique(stacking_labels[outside]).size < 2:
                     continue
                 part = xgb.DMatrix(stacking_signals[outside], label=stacking_labels[outside],
@@ -980,31 +1058,60 @@ class RegimeMonteCarloDecisionAdapter:
             return scored
 
         out_of_fold = run_single_fit(out_of_fold_probabilities, reporter, name=f"{self.key} gate")
-        out_of_fold_threshold = gate_threshold(out_of_fold, fraction)
-        known = np.isfinite(out_of_fold)
-        validation_probability = (self._booster_probability(validation_signals) if validation_index.size
-                                  else np.empty(0))
-        # The threshold has to sit on the KEPT model's own probability scale. The block models are other
-        # boosters (other leaf values); the validation rows are the bars the kept model's trees were not
-        # fitted on, so their |P - 0.5| is that scale. With no validation rows the out-of-fold quantile stands.
-        gate_source = "validation" if validation_probability.size >= MINIMUM_GATE_ROWS else "out_of_fold"
-        self.decision_threshold = (gate_threshold(validation_probability, fraction) if gate_source == "validation"
-                                   else out_of_fold_threshold)
-        gate = np.abs(validation_probability - 0.5) >= self.decision_threshold
-        out_of_fold_share = float(np.mean(np.abs(out_of_fold[known] - 0.5) >= self.decision_threshold)) if known.any() else None
-        gate_basis = validation_probability if gate_source == "validation" else out_of_fold[known]
-        distinct_probability_count = int(np.unique(gate_basis[np.isfinite(gate_basis)]).size)
+        scale = np.asarray(view.move_scale, dtype=np.float64)
+        close = np.asarray(view.close, dtype=np.float64)
+        last_filled = int(train_index[-1]) - 1          # a trade from this row is closed by train_index[-1] + horizon
+        span_rows = fit_rows[fit_rows <= last_filled]
+        span_moves = np.abs(trade_moves(view, span_rows, horizon))
+        span_scale = scale[span_rows]
+        measured = np.isfinite(span_moves) & np.isfinite(span_scale) & (span_scale > 0)
+        self.gate_move_ratio = (float(span_moves[measured].mean() / span_scale[measured].mean())
+                                if measured.any() and span_scale[measured].mean() > 0 else None)
+
+        evidence = np.isfinite(out_of_fold) & (stacking_rows <= last_filled)
+        evidence_rows = stacking_rows[evidence]
+        probability = out_of_fold[evidence]
+        close_move = close[np.minimum(evidence_rows + horizon, close.size - 1)] - close[evidence_rows]
+        # the price direction label 1 stands for at each row: +1 where a 1 was an up move, -1 where it was a down move
+        label_direction = (2.0 * stacking_labels[evidence] - 1.0) * np.sign(close_move)
+        called = np.where(probability >= 0.5, 1.0, -1.0)
+        realised = called * label_direction * trade_moves(view, evidence_rows, horizon)
+        realised[label_direction == 0] = np.nan
+        claimed = (2.0 * np.abs(probability - 0.5) * self.gate_move_ratio * scale[evidence_rows]
+                   if self.gate_move_ratio is not None else np.full(evidence_rows.size, np.nan))
+        slope, standard_error, evidence_count = realisation_slope(claimed, realised, evidence_rows, horizon)
+        self.gate_realisation_slope = slope if math.isfinite(slope) else None
+        self.gate_realisation_standard_error = standard_error if math.isfinite(standard_error) else None
+        self.gate_evidence_row_count = evidence_count
+        lower_bound = (slope - CERTIFICATE_QUANTILE * standard_error
+                       if self.gate_realisation_slope is not None and self.gate_realisation_standard_error is not None else None)
+        self.gate_certified = bool(lower_bound is not None and lower_bound > 0.0 and evidence_count >= MINIMUM_EVIDENCE_ROWS)
+        cost_points = float(view.round_trip_cost_points)
+        used = np.isfinite(claimed) & np.isfinite(realised)
+        mean_claimed = float(claimed[used].mean()) if used.any() else None
+        mean_realised = float(realised[used].mean()) if used.any() else None
+        validation_open_share = None
+        if validation_index.size:
+            validation_probability = self._booster_probability(validation_signals)
+            validation_open_share = float(np.mean(self._gate_open(validation_probability, validation_index)))
+        if self.gate_realisation_slope is None:
+            verdict = ("not certified: the out-of-fold rows carry no claimed gain to measure"
+                       if evidence_count else "not certified: no purged out-of-fold row could be measured")
+        else:
+            verdict = (
+                f"the model claimed {mean_claimed:.2f} points a call and {mean_realised:.2f} arrived; realisation slope "
+                f"{slope:.3f} (standard error {standard_error:.3f}, Newey-West over {horizon} lags), one-sided 95% lower bound "
+                f"{lower_bound:.3f}: "
+                + ("CERTIFIED, the gate opens where slope x claimed gain exceeds the cost" if self.gate_certified
+                   else ("not certified, too few rows" if lower_bound > 0.0 else "not certified, the bound is not above zero")
+                   + ": the model stands aside on every bar of this fold")
+            )
         reporter.log(
-            f"{self.label}: trade gate set to open on at most the {fraction * 100:.0f}% most confident bars (bars with the "
-            f"same probability are admitted together or not at all; {distinct_probability_count:,} distinct probabilities): "
-            f"the smallest |P - 0.5| with at most that share at or beyond it, over "
-            + (f"the kept model's {validation_probability.size:,} validation probabilities (bars its trees were not fitted on)"
-               if gate_source == "validation" else
-               f"{int(known.sum()):,} purged out-of-fold training probabilities ({len(blocks)} blocks, {kept_rounds} rounds each)")
-            + f" is {self.decision_threshold:.4f}; the gate opens on {int(gate.sum()):,} of {gate.size:,} validation bars "
-            f"({(float(gate.mean()) * 100 if gate.size else 0.0):.1f}%) and on "
-            f"{('n/a' if out_of_fold_share is None else f'{out_of_fold_share * 100:.1f}%')} of the {int(known.sum()):,} purged "
-            f"out-of-fold training probabilities (their own threshold by the same rule is {out_of_fold_threshold:.4f})"
+            f"{self.label}: trade gate = certified cost floor. Round trip {cost_points:.2f} points; the traded {horizon}-bar move "
+            f"is {('n/a' if self.gate_move_ratio is None else f'{self.gate_move_ratio:.3f}')} x the move scale; "
+            f"{evidence_count:,} purged out-of-fold training rows ({len(blocks)} blocks, {gate_purge} bars purged either side, "
+            f"{kept_rounds} rounds each): {verdict}"
+            + ("" if validation_open_share is None else f"; open on {validation_open_share * 100:.1f}% of the validation bars")
         )
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
@@ -1016,14 +1123,17 @@ class RegimeMonteCarloDecisionAdapter:
             "feature_weights": self.feature_weights,
             "regimes": self.regime_model.summaries(),
             "regime_log_likelihood": self.regime_model.log_likelihood,
-            "gate_open_fraction": fraction,
-            "decision_threshold": self.decision_threshold,
-            "gate_threshold_source": gate_source,
-            "gate_out_of_fold_row_count": int(known.sum()),
-            "gate_out_of_fold_threshold": out_of_fold_threshold,
-            "gate_out_of_fold_open_share": out_of_fold_share,
-            "validation_gate_open_share": float(gate.mean()) if gate.size else None,
-            "gate_distinct_probability_count": distinct_probability_count,
+            "gate_certified": self.gate_certified,
+            "gate_realisation_slope": self.gate_realisation_slope,
+            "gate_realisation_standard_error": self.gate_realisation_standard_error,
+            "gate_realisation_lower_bound": lower_bound,
+            "gate_evidence_row_count": evidence_count,
+            "gate_purge_bars": gate_purge,
+            "gate_move_ratio": self.gate_move_ratio,
+            "gate_mean_claimed_gain_points": mean_claimed,
+            "gate_mean_realised_gain_points": mean_realised,
+            "round_trip_cost_points": cost_points,
+            "validation_gate_open_share": validation_open_share,
             "kronos_model": KRONOS_MODELS[kronos.size][0],
             "kronos_revision": KRONOS_MODELS[kronos.size][1],
             "fit_seconds": watch.seconds(),
@@ -1063,6 +1173,31 @@ class RegimeMonteCarloDecisionAdapter:
         return np.clip(np.asarray(self.booster.predict(matrix, iteration_range=(0, self.best_iteration + 1)),
                                   dtype=np.float64), 0.0, 1.0)
 
+    def _claimed_gain_points(self, probability: np.ndarray, rows: np.ndarray) -> np.ndarray:
+        """What each call claims to earn, in points: 2 x |P - 0.5| x move ratio x the bar's move scale
+        (NaN where the move ratio or the bar's scale is unknown)."""
+        probability = np.asarray(probability, dtype=np.float64)
+        if self.gate_move_ratio is None:
+            return np.full(probability.size, np.nan)
+        scale = np.asarray(self._require_market().move_scale, dtype=np.float64)[_as_index(rows)]
+        scale = np.where(scale > 0, scale, np.nan)
+        return 2.0 * np.abs(probability - 0.5) * float(self.gate_move_ratio) * scale
+
+    def _expected_gain_points(self, probability: np.ndarray, rows: np.ndarray) -> np.ndarray:
+        """The claimed gain times the fold's realisation slope (NaN where either is unknown)."""
+        claimed = self._claimed_gain_points(probability, rows)
+        if self.gate_realisation_slope is None:
+            return np.full(claimed.size, np.nan)
+        return float(self.gate_realisation_slope) * claimed
+
+    def _gate_open(self, probability: np.ndarray, rows: np.ndarray) -> np.ndarray:
+        """Open where the fold is certified and the expected gain exceeds one round trip."""
+        expected = self._expected_gain_points(probability, rows)
+        if not self.gate_certified:
+            return np.zeros(expected.size, dtype=bool)
+        with np.errstate(invalid="ignore"):
+            return np.isfinite(expected) & (expected > float(self._require_market().round_trip_cost_points))
+
     def predict_probability(self, features, index) -> np.ndarray:
         if self.task != "classification":
             raise _wrong_task_error(self.key, self.task, "predict_probability")
@@ -1076,9 +1211,9 @@ class RegimeMonteCarloDecisionAdapter:
         candles = self._kronos().forecast(self._require_market(), rows)
         signals, pieces = self._signals(features, rows, self.regime_model, self.simulator, candles)
         probability = self._booster_probability(signals)
-        if self.decision_threshold is None:
-            raise RuntimeError(f"{self.key}: the trade gate's threshold is derived at fit; this model has none")
-        threshold = float(self.decision_threshold)
+        claimed = self._claimed_gain_points(probability, rows)
+        expected = self._expected_gain_points(probability, rows)
+        opened = self._gate_open(probability, rows)
         for position, row in enumerate(rows):
             self._row_details[int(row)] = {
                 "probabilities": pieces["probabilities"][position],
@@ -1091,13 +1226,15 @@ class RegimeMonteCarloDecisionAdapter:
                 "kronos_candles": pieces["kronos_candles"][position],
                 "kronos_move": float(pieces["kronos_move"][position]),
                 "decision_probability_up": float(probability[position]),
-                "gate_open": bool(abs(probability[position] - 0.5) >= threshold),
+                "claimed_gain_points": float(claimed[position]),
+                "expected_gain_points": float(expected[position]),
+                "gate_open": bool(opened[position]),
             }
         return probability
 
     def trade_gate(self, features, index) -> np.ndarray:
-        """True where the decision model is sure enough to trade: |P − 0.5| >= the fold's threshold
-        (the (1 − gate_open_fraction) quantile of the out-of-fold |P − 0.5|, derived at fit)."""
+        """True where the fold is certified and the call's expected gain (realisation slope x claimed
+        gain, in points) exceeds one round trip; False on every bar of a fold that is not certified."""
         rows = _as_index(index)
         missing = [int(row) for row in rows if int(row) not in self._row_details]
         if missing:
@@ -1115,8 +1252,12 @@ class RegimeMonteCarloDecisionAdapter:
         return {
             "horizon_bars": self.horizon,
             "simulation_count": int(self.parameters["simulation_count"]),
-            "gate_open_fraction": float(self.parameters["gate_open_fraction"]),
-            "decision_threshold": float(self.decision_threshold if self.decision_threshold is not None else 0.0),
+            "gate_certified": bool(self.gate_certified),
+            "gate_realisation_slope": self.gate_realisation_slope,
+            "gate_realisation_standard_error": self.gate_realisation_standard_error,
+            "gate_evidence_row_count": int(self.gate_evidence_row_count),
+            "gate_move_ratio": self.gate_move_ratio,
+            "round_trip_cost_points": float(self._require_market().round_trip_cost_points),
             "kronos_model": KRONOS_MODELS[str(self.parameters["kronos_model_size"])][0],
             "regime_names": list(REGIME_NAMES),
             "regimes": self.regime_model.summaries(),
@@ -1165,7 +1306,11 @@ class RegimeMonteCarloDecisionAdapter:
         metadata.update({
             "regime_model_file": REGIME_MODEL_FILE,
             "best_iteration": self.best_iteration,
-            "decision_threshold": self.decision_threshold,
+            "gate_certified": self.gate_certified,
+            "gate_realisation_slope": self.gate_realisation_slope,
+            "gate_realisation_standard_error": self.gate_realisation_standard_error,
+            "gate_evidence_row_count": self.gate_evidence_row_count,
+            "gate_move_ratio": self.gate_move_ratio,
             "signal_names": list(self.signal_names),
             "finbert_names": list(self.finbert_names),
             "filter_start": self.filter_start,
@@ -1190,7 +1335,13 @@ class RegimeMonteCarloDecisionAdapter:
             adapter.booster = xgb.Booster(model_file=str(Path(directory) / DECISION_MODEL_FILE))
             adapter.booster.set_param({"nthread": 1})
         adapter.best_iteration = metadata.get("best_iteration")
-        adapter.decision_threshold = metadata.get("decision_threshold")
+        # a model saved before 2026-10-08 carries a share gate's threshold and none of these: it reloads
+        # with the gate shut, because its evidence was never measured
+        adapter.gate_certified = bool(metadata.get("gate_certified", False))
+        adapter.gate_realisation_slope = metadata.get("gate_realisation_slope")
+        adapter.gate_realisation_standard_error = metadata.get("gate_realisation_standard_error")
+        adapter.gate_evidence_row_count = int(metadata.get("gate_evidence_row_count") or 0)
+        adapter.gate_move_ratio = metadata.get("gate_move_ratio")
         adapter.signal_names = list(metadata.get("signal_names") or [])
         adapter.finbert_names = list(metadata.get("finbert_names") or [])
         adapter.filter_start = metadata.get("filter_start")
@@ -1208,6 +1359,6 @@ def _last(values):
 
 __all__ = [
     "KRONOS_MODELS", "REGIME_NAMES", "KronosForecaster", "MonteCarloSimulator", "RegimeModel",
-    "RegimeMonteCarloDecisionAdapter", "contiguous_lengths", "fit_regime_model", "gate_threshold", "purged_blocks", "regime_features",
+    "RegimeMonteCarloDecisionAdapter", "contiguous_lengths", "fit_regime_model", "purged_blocks", "realisation_slope", "regime_features", "trade_moves",
     "student_t_fit", "time_features",
 ]

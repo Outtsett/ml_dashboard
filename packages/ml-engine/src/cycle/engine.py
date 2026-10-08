@@ -936,6 +936,12 @@ class CycleEngine:
         s = self.settings
         self.set_phase("loading")
         probe = self.adapter_factory(dict(self.parameters))
+        # a model whose trade gate makes one search objective meaningless names the one to use
+        required_objective = getattr(probe, "required_tuning_objective", None)
+        self.tuning_objective_replaced: str | None = None
+        if s.tuning_enabled and required_objective and s.tuning_objective != required_objective:
+            self.tuning_objective_replaced = s.tuning_objective
+            s.tuning_objective = str(required_objective)
         minimum = int(probe.minimum_history())
         self.minimum_history = minimum
         self.folds = self.plan_folds(minimum)
@@ -969,6 +975,10 @@ class CycleEngine:
                       else f"{s.resolved_tuning_trials} trials or {s.tuning_budget_seconds} s")
             self.log(f"[plan] hyperparameters: tuned inside every fold on its own training window, {budget} per fold, "
                      f"objective {s.tuning_objective}" + (f", pinned {', '.join(s.pinned_parameters)}" if s.pinned_parameters else ""))
+            if self.tuning_objective_replaced:
+                self.log(f"[plan] search objective: {s.tuning_objective} in place of the run's {self.tuning_objective_replaced}. "
+                         "This model's trade gate opens only on out-of-fold evidence, so most trials take no trade; a "
+                         f"{self.tuning_objective_replaced} search scores those 0 and would pick whichever trial traded by luck")
         else:
             self.log(f"[plan] hyperparameters: {'the values given for the run' if s.given_parameters else 'the reviewed defaults'}, no search")
         self.price_forecasts_on_grid = True
@@ -1259,7 +1269,7 @@ class CycleEngine:
         "timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
         "monteCarloExpectedMovePoints", "monteCarloPercentile10Points", "monteCarloPercentile50Points",
         "monteCarloPercentile90Points", "kronosOpen", "kronosHigh", "kronosLow", "kronosClose",
-        "kronosPredictedMovePoints", "decisionProbabilityUp", "gateOpen",
+        "kronosPredictedMovePoints", "decisionProbabilityUp", "claimedGainPoints", "expectedGainPoints", "gateOpen",
     )
 
     def _flush_regime_forecasts(self) -> None:
@@ -1580,6 +1590,8 @@ class CycleEngine:
                         # no call on this bar (a reversal bar with no trailing move to turn against, or a
                         # non-finite answer): nothing can be entered on it, so its gate reads closed
                         row["decision_probability_up"] = None
+                        row["claimed_gain_points"] = None
+                        row["expected_gain_points"] = None
                         row["gate_open"] = False
                     self._regime_rows.append(row)
             # the price model: its output times the causal scale at this bar, in points

@@ -60,8 +60,16 @@ describe("cycle_regime_forecast", () => {
     expect(forecast.regimes[0]!.featureMeans).toHaveLength(8);
     expect(forecast.regimes[0]!.expectedBarsPerVisit).toBeCloseTo(1 / (1 - forecast.regimes[0]!.stayProbability), 9);
     expect(forecast.regimes[0]!.description).toMatch(/^flat: on average/);
-    expect(forecast.gateOpenFraction).toBe(0.3);
-    expect(forecast.decisionThreshold).toBe(0.02);
+    // the certified cost floor: the fold's evidence, and per bar the claimed and the expected gain
+    expect(forecast.gateCertified).toBe(true);
+    expect(forecast.gateRealisationSlope).toBe(0.8);
+    expect(forecast.gateEvidenceRowCount).toBe(2900);
+    expect(forecast.roundTripCostPoints).toBe(1.39);
+    expect(forecast.claimedGainPoints).toEqual([2.1, 0.4]);
+    expect(forecast.expectedGainPoints).toEqual([1.68, 0.32]);
+    expect(forecast.gateOpen).toEqual(forecast.expectedGainPoints!.map((gain) => gain! > forecast.roundTripCostPoints!));
+    expect(forecast.gateOpenFraction).toBeUndefined();
+    expect(forecast.decisionThreshold).toBeUndefined();
     expect(forecast.timestamps).toHaveLength(2);
     expect(forecast.monteCarloPercentile10Points[0]).toHaveLength(forecast.horizonBars);
     expect(forecast.kronosHigh[1]![2]).toBeNull();
@@ -77,6 +85,20 @@ describe("cycle_regime_forecast", () => {
     expect(regimeStyleAt(parsed.data!.regimeNames, 2).word).toBe("regime 3");
   });
 
+  it("still reads a run recorded with the share gate (a threshold, no certificate, no gain columns)", () => {
+    const legacy: Record<string, unknown> = { ...fixtureForecast(), gateOpenFraction: 0.3, decisionThreshold: 0.02 };
+    for (const key of ["gateCertified", "gateRealisationSlope", "gateRealisationStandardError", "gateEvidenceRowCount", "gateMoveRatio",
+      "roundTripCostPoints", "claimedGainPoints", "expectedGainPoints"]) delete legacy[key];
+    const parsed = cycleRegimeForecastSchema.safeParse(legacy);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data!.decisionThreshold).toBe(0.02);
+    expect(parsed.data!.gateCertified).toBeUndefined();
+    // merging it does not invent the columns it never carried
+    const folds = mergeRegimeForecast([], parsed.data!);
+    expect(folds[0]!.expectedGainPoints).toBeUndefined();
+    expect(folds[0]!.gateOpen).toHaveLength(2);
+  });
+
   it("refuses a stretch whose gate column is not a list of booleans", () => {
     const broken = { ...fixtureForecast(), gateOpen: [1, 0] };
     expect(cycleRegimeForecastSchema.safeParse(broken).success).toBe(false);
@@ -86,7 +108,7 @@ describe("cycle_regime_forecast", () => {
     const first = fixtureForecast();
     const second: CycleRegimeForecast = {
       ...first,
-      decisionThreshold: 0.05,
+      gateRealisationSlope: 0.5,
       timestamps: [1735701900],
       close: [21510],
       regimeProbabilities: [[0.1, 0.8, 0.1]],
@@ -102,6 +124,8 @@ describe("cycle_regime_forecast", () => {
       kronosClose: [[1, 2, 3]],
       kronosPredictedMovePoints: [-1],
       decisionProbabilityUp: [0.45],
+      claimedGainPoints: [3.2],
+      expectedGainPoints: [1.6],
       gateOpen: [true],
     };
     const otherFold: CycleRegimeForecast = { ...first, foldIndex: 1 };
@@ -112,7 +136,7 @@ describe("cycle_regime_forecast", () => {
     expect(folds).toHaveLength(2);
     for (const column of REGIME_FORECAST_COLUMNS) expect(folds[0]![column]).toHaveLength(3);
     expect(folds[0]!.timestamps).toEqual([...first.timestamps, 1735701900]);
-    expect(folds[0]!.decisionThreshold).toBe(0.05); // constants follow the latest stretch
+    expect(folds[0]!.gateRealisationSlope).toBe(0.5); // constants follow the latest stretch
     expect(first.timestamps).toHaveLength(2); // the first stretch itself is never mutated
   });
 
@@ -134,7 +158,7 @@ describe("cycle_regime_forecast", () => {
   it("writes down how every number on the panel is computed", () => {
     for (const name of [
       "regime_probability", "regime_most_likely", "regime_features", "regime_training", "monte_carlo_fan", "monte_carlo_probability_up", "monte_carlo_expected_move_points",
-      "kronos_candles", "kronos_predicted_move_points", "decision_probability_up", "trade_gate", "feature_weight",
+      "kronos_candles", "kronos_predicted_move_points", "decision_probability_up", "trade_gate", "gate_certificate", "expected_gain_points", "feature_weight",
       "regime_summary", "transition_matrix",
     ]) {
       expect(REGIME_DEFINITIONS[name]?.how.length ?? 0).toBeGreaterThan(80);

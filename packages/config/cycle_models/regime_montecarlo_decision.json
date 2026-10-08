@@ -8,7 +8,7 @@
       "subcategory": "Regime-conditioned decision stacks",
       "kind": "Regime simulation decision stack",
       "summary": "A three-state hidden Markov model (flat, uptrend, downtrend) reads ADX, candle bodies, range compression, confirmed swing highs and lows and higher-high / higher-low structure and tracks the current regime bar by bar; a Monte Carlo simulation runs the current regime forward; Kronos forecasts the next candles; FinBERT reads the news; gradient-boosted trees weigh all four and decide whether to trade.",
-      "implementationNote": "Regime model: cycle/regime_hmm.py StructuralRegimeHMM (docs/regime-hmm.md), exactly three states named and ordered flat, uptrend, downtrend, over eight causal features: Wilder ADX 14, the 14-bar mean candle body-to-range ratio, 14-bar over 100-bar mean true range, the close's distance from the last swing high and low confirmed swing_confirmation_bars bars after it formed (shared.zones.structural_pivots) over the move scale, bars since the last pivot, a decayed higher-high / higher-low counter (half-life 48 bars) and the sign of the last two pivots. Diagonal Gaussian emissions over the features standardised on the training span; hmmlearn GaussianHMM Baum-Welch seeded from a heuristic labelling (flat where ADX < adx_threshold, else up / down by the counter's sign), transition diagonal initialised at 0.95 with a sticky Dirichlet prior, a variance floor and a Gaussian prior holding each state's mean near its seed after every iteration, up to regime_fit_iteration_count iterations, states ordered by the counter's mean; the walk uses the forward filter, never the smoother. Monte Carlo: per regime a Student-t of the one-bar log return (scipy maximum likelihood on the training bars the forward filter puts in it); simulation_count paths of the label horizon start from the filtered regime probabilities and re-draw the regime each bar from the transition matrix, with common random numbers. Kronos: the pretrained foundation model (kronos_model_size, pinned Hugging Face revision) reads the last kronos_context_bars candles and decodes the next horizon candles greedily. FinBERT: the nine finbert_* columns. Decision model: xgboost over the three regime probabilities, the simulation's P(up), expected move and 10-90 percentile spread, Kronos' move and direction and the FinBERT columns, the regime and simulation signals of the last maximum_training_bars training rows made out of fold (stacking_fold_count blocks, each purged by the label horizon on both sides), early-stopped on validation. The trade gate is a share gate: gate_open_fraction is the largest share of bars it opens on, most confident first; the fold's absolute threshold is the smallest |P - 0.5| with at most that share of the kept decision model's validation probabilities at or beyond it (its purged out-of-fold training probabilities when a fold has fewer than 50 validation rows), and the gate opens when |P - 0.5| is at or beyond it. Bars with the same probability are admitted together or not at all, so when the model gives one probability to more bars than the share allows the gate stays shut. The price model is the simulation's expected move. Expect: regimes describe trend and range well; direction is close to the base rate.",
+      "implementationNote": "Regime model: cycle/regime_hmm.py StructuralRegimeHMM (docs/regime-hmm.md), exactly three states named and ordered flat, uptrend, downtrend, over eight causal features: Wilder ADX 14, the 14-bar mean candle body-to-range ratio, 14-bar over 100-bar mean true range, the close's distance from the last swing high and low confirmed swing_confirmation_bars bars after it formed (shared.zones.structural_pivots) over the move scale, bars since the last pivot, a decayed higher-high / higher-low counter (half-life 48 bars) and the sign of the last two pivots. Diagonal Gaussian emissions over the features standardised on the training span; hmmlearn GaussianHMM Baum-Welch seeded from a heuristic labelling (flat where ADX < adx_threshold, else up / down by the counter's sign), transition diagonal initialised at 0.95 with a sticky Dirichlet prior, a variance floor and a Gaussian prior holding each state's mean near its seed after every iteration, up to regime_fit_iteration_count iterations, states ordered by the counter's mean; the walk uses the forward filter, never the smoother. Monte Carlo: per regime a Student-t of the one-bar log return (scipy maximum likelihood on the training bars the forward filter puts in it); simulation_count paths of the label horizon start from the filtered regime probabilities and re-draw the regime each bar from the transition matrix, with common random numbers. Kronos: the pretrained foundation model (kronos_model_size, pinned Hugging Face revision) reads the last kronos_context_bars candles and decodes the next horizon candles greedily. FinBERT: the nine finbert_* columns. Decision model: xgboost over the three regime probabilities, the simulation's P(up), expected move and 10-90 percentile spread, Kronos' move and direction, the trailing move (close now minus the close one horizon ago, over the move scale: the move a reversal label turns against) and the FinBERT columns, the regime and simulation signals of the last maximum_training_bars training rows made out of fold (stacking_fold_count blocks, each purged by the label horizon on both sides), early-stopped on validation, with the booster's base score pinned at 0.5 so that a bar's distance from 0.5 comes from the trees and not from the label share of the training rows. The trade gate has no setting; it is a certified cost floor measured at fit. On purged out-of-fold training rows (the decision model refitted once per stacking block without that block and without the horizon plus one bars either side) the gain each call claims, 2 x |P - 0.5| x the traded move's ratio to the move scale x the move scale, in points, is regressed through the origin on the gain that arrived at the engine's fills (open of the bar after the horizon minus the next open, in the call's direction), with a Newey-West standard error over the horizon. The fold is certified when the slope's one-sided 95 percent lower bound is above zero on at least 300 rows; the gate opens on a bar only in a certified fold and only when slope x claimed gain exceeds one round trip of costs in points. A fold that is not certified stands aside on every bar. The search is scored on log loss, because a Sharpe search scores a trial that stands aside as zero and picks whichever trial traded by luck. The price model is the simulation's expected move. Expect: regimes describe trend and range well; direction is close to the base rate.",
       "runnable": true,
       "unavailableReason": null,
       "implementation": "torch",
@@ -156,20 +156,6 @@
             "high": 0.2,
             "log": true
           }
-        },
-        "gate_open_fraction": {
-          "type": "float",
-          "default": 0.3,
-          "min": 0.05,
-          "max": 1.0,
-          "label": "Largest share of bars the trade gate opens on, most confident first",
-          "group": "Model",
-          "description": "The engine enters a trade only on the bars where the decision model's probability is furthest from 0.5. This is the largest share of bars that may qualify: at fit, the fold's threshold is the smallest distance |P - 0.5| with at most this share of the kept decision model's probabilities on the validation rows at or beyond it (the purged out-of-fold training probabilities when a fold has fewer than 50 validation rows). Bars with the same probability qualify together or not at all, so the gate can open on less than this share, and stays shut when the model gives one probability to more bars than the share allows. 1.0 opens the gate on every bar.",
-          "search": {
-            "kind": "float",
-            "low": 0.05,
-            "high": 1.0
-          }
         }
       },
       "metrics": {
@@ -271,7 +257,7 @@
               "metricId": "trade_gate_open_fraction",
               "type": "interpretability_and_behaviour",
               "role": "diagnostic",
-              "why": "The stack only enters on bars where the trees' probability of up is among the most confident share set by gate_open_fraction, and it can open on fewer bars than that share because bars with equal probability are admitted together or not at all, so the share of bars with an open gate says how often this model has an opinion strong enough to act on at all.",
+              "why": "The stack enters only on bars where its gate is open, which needs the fold to be certified on out-of-fold evidence and the call's expected gain to exceed one round trip of costs, so the share of bars with an open gate says how often this model had a call it could show was worth paying for; it is zero for a whole fold that is not certified.",
               "baseline": null,
               "groupKind": null,
               "availability": "not_computed"
@@ -324,7 +310,7 @@
               "metricId": "net_profit_usd",
               "type": "decision_return",
               "role": "primary",
-              "why": "This stack carries its own entry rule, the gate that stands aside on bars where the trees' probability of up is not among the most confident share set by gate_open_fraction, so the money earned after costs tests the direction call and the model's choice of when to act together."
+              "why": "This stack carries its own entry rule, the gate that stands aside wherever the call's expected gain, scaled by what out-of-fold evidence showed arriving, does not exceed one round trip of costs, so the money earned after costs tests the direction call and the model's choice of when to act together."
             },
             {
               "metricId": "area_under_receiver_operating_characteristic_curve",
@@ -354,7 +340,7 @@
               "metricId": "sharpe_ratio",
               "type": "risk_adjusted_return",
               "role": "secondary",
-              "why": "Per-bar net money over its spread for the gated calls of this stack, with bars on which the closed gate left it flat counted as zero, so a wider gate lowers both the return and the risk it is divided by."
+              "why": "Per-bar net money over its spread for the gated calls of this stack, with bars on which the closed gate left it flat counted as zero, so the fewer bars the gate opens on, the smaller both the return and the risk it is divided by."
             },
             {
               "metricId": "maximum_drawdown_usd",
@@ -408,7 +394,7 @@
               "metricId": "probability_up_sharpness",
               "type": "calibration_and_sharpness",
               "role": "diagnostic",
-              "why": "The spread of the trees' probability around its mean decides how many distinct distances from one half exist for the share gate to rank, so a very small spread or few distinct probabilities leaves the gate shut or nearly shut."
+              "why": "The gate reads each bar's distance from one half as the gain the call claims, so a very small spread means small claimed gains that rarely exceed the round trip even in a certified fold."
             },
             {
               "metricId": "flat_fraction",
@@ -420,7 +406,7 @@
               "metricId": "trade_count",
               "type": "coverage_and_baseline",
               "role": "diagnostic",
-              "why": "The number of closed trades the gate allowed, which is the sample every trade-level number of this stack rests on and grows with gate_open_fraction."
+              "why": "The number of closed trades the gate allowed, which is the sample every trade-level number of this stack rests on and is zero in a fold whose out-of-fold evidence did not certify the model."
             },
             {
               "metricId": "forecast_call_agreement_fraction",
@@ -456,13 +442,13 @@
               "metricId": "hyperparameter_search_objective_value",
               "type": "stability_and_robustness",
               "role": "diagnostic",
-              "why": "The search tunes the flat-regime average directional index seed, the swing confirmation length, the tree depth, the learning rate and the gate's share of bars on blocks of the training span, so this is the selection score that picked them and is optimistic by construction."
+              "why": "The search tunes the flat-regime average directional index seed, the swing confirmation length, the tree depth and the learning rate on blocks of the training span, scored on log loss, so this is the selection score that picked them and is optimistic by construction."
             },
             {
               "metricId": "search_optimism_gap",
               "type": "stability_and_robustness",
               "role": "diagnostic",
-              "why": "How much of the score that chose the regime seed, swing length, tree settings and above all the gate's share of bars survived on the fold's test walk, which matters here because a share chosen on few gated trades is easy to overfit."
+              "why": "How much of the score that chose the regime seed, swing length and tree settings survived on the fold's test walk, which matters here because settings chosen on a few thousand training bars are easy to overfit."
             }
           ],
           "measuredNotMeaningful": [
@@ -478,7 +464,7 @@
           "caveats": [
             "The engine scores the direction call of every bar, but it enters a trade only where this model's own gate is open, and a closed gate makes no new entry while a held position runs to its holding period, so classification numbers cover all scored bars and trading numbers cover only the gated ones.",
             "The price forecast does not come from the decision trees: the engine builds a second copy of the adapter that refits the regime model and reports the mean simulated move, so price-forecast numbers test the regime simulation and never the Kronos or FinBERT signals.",
-            "The gate's threshold is the smallest distance from one half that at most gate_open_fraction of the kept model's validation probabilities reach, so the validation rows both stop the boosting and set the gate; bars with equal probability are admitted together or not at all, and a model that gives few distinct probabilities can leave the gate shut for a whole fold, in which case the trading numbers of that fold are empty.",
+            "The gate opens only in a fold that is certified: the gain the model's calls claim is compared with the gain that arrived on purged out-of-fold training rows, and the fold is certified when the one-sided 95 percent lower bound of that slope is above zero. With about 3,000 such rows only a model right on roughly 57 to 60 bars in 100 can be certified, so a fold with a smaller real edge stands aside too, and the trading numbers of a fold that is not certified are empty.",
             "The reported validation loss is the number that stopped the boosting, so it is optimistic and only the test-bar logarithmic loss is a fair score.",
             "Kronos is a pretrained model loaded at a pinned revision, and the adapter does not check whether its pretraining data overlaps the test bars, so its signal may carry knowledge of the period being walked.",
             "Only the regime and simulation signals of the training rows are made out of fold, in stacking_fold_count blocks purged by the label horizon on both sides; the Kronos and FinBERT signals are used as they are because nothing of theirs is fitted on these bars.",

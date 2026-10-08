@@ -15,10 +15,14 @@ downtrend recovery, forward-filter-only inference — is tested in
 - the out-of-fold blocks are contiguous, cover the stacking rows and leave the
   label horizon out on both sides;
 - the adapter fits and predicts through the registry like every other model
-  (Kronos on the GPU when there is one), its trade gate is |P(up) − 0.5| against
-  the fold's threshold — the quantile of the purged out-of-fold |P − 0.5| that
-  ``gate_open_fraction`` asks for, opening on about that share of unseen bars — its predictions do not move when later bars are removed, and a
-  saved fold reloads to the same predictions;
+  (Kronos on the GPU when there is one), its trade gate is the certified cost
+  floor — shut on every bar of a fold whose purged out-of-fold rows do not show
+  the model's claimed gain arriving, open where the expected gain exceeds one
+  round trip in a fold where they do — its predictions do not move when later
+  bars are removed, and a saved fold reloads to the same predictions;
+- the realisation slope reads 1 for a calibrated claim and 0 for noise, its
+  standard error widens for overlapping outcomes, and it certifies noise no
+  more often than its 5% level;
 - the engine walks it end to end under both label kinds (direction and reversal):
   one ``cycle_regime_forecast`` row per scored test bar, the three regimes named, the file beside the artifacts equals what was streamed, and every
   trade entered on a bar whose gate was open.
@@ -61,7 +65,7 @@ FINBERT_NAMES = (
 QUICK = {
     "adx_threshold": 20.0, "swing_confirmation_bars": 5, "regime_fit_iteration_count": 50, "simulation_count": 500,
     "kronos_model_size": "mini", "kronos_context_bars": 64, "stacking_fold_count": 3, "maximum_training_bars": 600,
-    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "gate_open_fraction": 0.4,
+    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1,
 }
 
 
@@ -97,7 +101,7 @@ class Reporter:
 class Market:
     """Weekday 5-minute bars, 96 a day, two volatility regimes held for 30-200 bars at a time."""
 
-    def __init__(self, days: int = 46, seed: int = 11) -> None:
+    def __init__(self, days: int = 46, seed: int = 11, drift_multiple: float = 1.0) -> None:
         generator = np.random.default_rng(seed)
         first_monday = 1772409600          # 2026-03-02 00:00 UTC, a Monday
         stamps = []
@@ -117,7 +121,9 @@ class Market:
             state = 1 - state
         self.regime = regime
         deviation = np.where(regime == 0, 0.0004, 0.0016)
-        drift = np.where(regime == 0, 0.00004, -0.00004)
+        # ``drift_multiple`` plants the edge: 0 leaves no direction to learn; 10 makes the quiet regime
+        # rise on nearly every 6-bar window and the wild one fall on about seven in ten
+        drift = np.where(regime == 0, 0.00004, -0.00004) * float(drift_multiple)
         log_returns = drift + deviation * generator.standard_t(5, count) / math.sqrt(5 / 3)
         log_returns[0] = 0.0
         self.close = np.round(18_000 * np.exp(np.cumsum(log_returns)) / 0.25) * 0.25
@@ -331,12 +337,10 @@ def test_the_registry_entry_and_the_dispatch_table():
     assert (parameters["swing_confirmation_bars"]["search"]["low"], parameters["swing_confirmation_bars"]["search"]["high"]) == (3, 10)
     assert parameters["simulation_count"]["default"] == 2000
     assert set(catalog.searchable_parameters(KEY)) == {
-        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate", "gate_open_fraction"}
-    gate = parameters["gate_open_fraction"]
-    assert "decision_threshold" not in parameters
-    assert (gate["default"], gate["min"], gate["max"]) == (0.3, 0.05, 1.0)
-    assert (gate["search"]["low"], gate["search"]["high"]) == (0.05, 1.0)
-    assert gate["label"] == "Largest share of bars the trade gate opens on, most confident first"
+        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate"}
+    # the trade gate has no setting: its threshold is the cost, and its evidence is measured at fit
+    assert "gate_open_fraction" not in parameters and "decision_threshold" not in parameters
+    assert stack.RegimeMonteCarloDecisionAdapter.required_tuning_objective == "log_loss"
 
 
 def test_fitting_and_predicting_keep_the_contract(market, fitted):
@@ -346,19 +350,29 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert probability.shape == (40,) and np.all((probability >= 0) & (probability <= 1))
     gate = adapter.trade_gate(market.features, test[:40])
     assert gate.dtype == bool
-    np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= adapter.decision_threshold)
-    assert adapter.decision_threshold == adapter.fit_summary["decision_threshold"] > 0
-    assert adapter.fit_summary["gate_open_fraction"] == QUICK["gate_open_fraction"]
-    assert adapter.fit_summary["gate_threshold_source"] == "validation"
-    assert any("most confident bars" in line and "out-of-fold" in line for line in reporter.logs)
+    summary = adapter.fit_summary
+    assert adapter.gate_certified == summary["gate_certified"]
+    assert summary["gate_evidence_row_count"] >= stack.MINIMUM_EVIDENCE_ROWS
+    assert summary["gate_purge_bars"] == HORIZON + 1 and summary["round_trip_cost_points"] == 0.6
+    assert 0.3 < summary["gate_move_ratio"] < 3.0                    # the traded move is of the order of the move scale
+    # the gate is exactly: certified, and realisation slope x claimed gain above one round trip
+    scale = market.move_scale[test[:40]]
+    claimed = 2.0 * np.abs(probability - 0.5) * summary["gate_move_ratio"] * scale
+    expected = summary["gate_realisation_slope"] * claimed
+    np.testing.assert_array_equal(gate, adapter.gate_certified & (expected > 0.6))
     said = adapter.regime_forecast(int(test[0]))
+    assert said["claimed_gain_points"] == pytest.approx(claimed[0]) and said["expected_gain_points"] == pytest.approx(expected[0])
+    assert any("certified cost floor" in line and "out-of-fold" in line for line in reporter.logs)
+    # the booster's base score is pinned: an untrained booster would answer 0.5, not the label share
+    base_score = json.loads(adapter.booster.save_config())["learner"]["learner_model_param"]["base_score"]
+    assert float(str(base_score).strip("[]")) == 0.5
     assert len(said["probabilities"]) == 3 and abs(sum(said["probabilities"]) - 1) < 1e-9
     assert said["percentile_10_points"].shape == (HORIZON,) and said["kronos_candles"].shape == (HORIZON, 4)
     assert np.all(np.isfinite(said["kronos_candles"]))             # Kronos forecast every one of these bars
     # the decision model reads every signal it promised, the news among them
     names = adapter.signal_names
     assert names[:3] == ["flat_regime_probability", "uptrend_regime_probability", "downtrend_regime_probability"]
-    assert {"monte_carlo_probability_up", "kronos_predicted_move_scaled", *FINBERT_NAMES} <= set(names)
+    assert {"monte_carlo_probability_up", "kronos_predicted_move_scaled", "trailing_move_scaled", *FINBERT_NAMES} <= set(names)
     assert abs(sum(adapter.feature_weights.values()) - 1.0) < 1e-9
     assert reporter.epochs and reporter.epochs[-1].validation_loss is not None
     assert any("out-of-fold" in line for line in reporter.logs)
@@ -366,29 +380,66 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert len(blocks) == QUICK["stacking_fold_count"] and all(block["purge_bars"] == HORIZON for block in blocks)
 
 
-def test_the_gate_threshold_admits_at_most_its_share_and_ties_together():
-    probabilities = np.r_[np.linspace(0.3, 0.7, 101), np.nan]
-    assert stack.gate_threshold(probabilities, 1.0) == 0.0
-    threshold = stack.gate_threshold(probabilities, 0.25)
-    distance = np.abs(probabilities[:-1] - 0.5)
-    assert np.mean(distance >= threshold) <= 0.25
-    # it is the SMALLEST such value: the next distance down would admit more than the share
-    below = np.unique(distance)
-    below = below[below < threshold]
-    assert np.mean(distance >= below[-1]) > 0.25
-    assert np.mean(distance >= threshold) == pytest.approx(0.25, abs=0.03)
-    # a kept model of one round: seven probabilities, each shared by a whole leaf. A plain quantile
-    # landed on a tied value and `>=` let the leaf through (0.3 opened on 73% of bars, 2026-10-07)
-    tied = np.repeat([0.497, 0.498, 0.499, 0.500, 0.501, 0.502, 0.503], [30, 60, 120, 180, 120, 60, 30])
-    for fraction in (0.05, 0.1, 0.3, 0.5, 0.9):
-        assert np.mean(np.abs(tied - 0.5) >= stack.gate_threshold(tied, fraction)) <= fraction + 1e-9
-    assert np.mean(np.abs(tied - 0.5) >= stack.gate_threshold(tied, 0.3)) == pytest.approx(0.30)
-    # one probability for every bar: no group fits the share, so the gate stays shut
-    same = np.full(200, 0.52)
-    assert np.mean(np.abs(same - 0.5) >= stack.gate_threshold(same, 0.3)) == 0.0
-    assert stack.gate_threshold(np.array([np.nan]), 0.3) == 0.0
-    with pytest.raises(ValueError, match="gate_open_fraction"):
-        stack.gate_threshold(probabilities, 0.0)
+def test_the_traded_move_is_the_engines_fills_and_stops_at_a_gap(market):
+    view = market.view()
+    rows = np.array([500, 501, len(market.timestamps) - HORIZON - 2, len(market.timestamps) - HORIZON - 1, len(market.timestamps) - 1])
+    moves = stack.trade_moves(view, rows, HORIZON)
+    # decided at the close of the row, filled at the next open, closed at the open after HORIZON held bars
+    assert moves[0] == pytest.approx(market.open[500 + HORIZON + 1] - market.open[501])
+    assert moves[1] == pytest.approx(market.open[501 + HORIZON + 1] - market.open[502])
+    assert np.isfinite(moves[2]) and np.isnan(moves[3]) and np.isnan(moves[4])     # the exit bar is not in the view
+    gap_row = int(np.flatnonzero(market.crosses)[0])
+    assert np.isnan(stack.trade_moves(view, np.array([gap_row]), HORIZON)[0])        # a session gap lies inside the trade
+    last_before_gap = int(np.flatnonzero(view.one_bar_crosses_gap)[0]) - HORIZON
+    assert np.isnan(stack.trade_moves(view, np.array([last_before_gap]), HORIZON)[0])  # the gap is at the exit bar
+
+
+def test_the_realisation_slope_reads_one_for_a_calibrated_claim_and_zero_for_noise():
+    generator = np.random.default_rng(3)
+    rows = np.arange(6000)
+    claimed = np.abs(generator.normal(2.0, 0.8, rows.size))
+    noise = generator.normal(0.0, 20.0, rows.size)
+    slope, standard_error, count = stack.realisation_slope(claimed, claimed + noise, rows, HORIZON)
+    assert count == rows.size and slope == pytest.approx(1.0, abs=3 * standard_error)
+    slope, standard_error, _ = stack.realisation_slope(claimed, noise, rows, HORIZON)
+    assert abs(slope) < 3 * standard_error
+    # twice the claim arrives: the slope is the calibration, not capped at 1
+    slope, _, _ = stack.realisation_slope(claimed, 2.0 * claimed + noise, rows, HORIZON)
+    assert slope == pytest.approx(2.0, abs=0.5)
+    # non-finite pairs are left out; nothing claimed has no slope
+    holed = claimed.copy()
+    holed[:100] = np.nan
+    assert stack.realisation_slope(holed, claimed + noise, rows, HORIZON)[2] == rows.size - 100
+    assert math.isnan(stack.realisation_slope(np.zeros(50), noise[:50], rows[:50], HORIZON)[0])
+    assert math.isnan(stack.realisation_slope(np.empty(0), np.empty(0), np.empty(0, dtype=np.int64), HORIZON)[0])
+
+
+def test_overlapping_outcomes_widen_the_standard_error_and_noise_is_rarely_certified():
+    # realised gains that overlap HORIZON bars (a moving sum) are serially correlated: the
+    # Newey-West error must be wider than the one that treats rows as independent
+    certified = 0
+    wider = 0
+    seeds = 300
+    for seed in range(seeds):
+        generator = np.random.default_rng(seed)
+        steps = generator.normal(0.0, 8.0, 3000 + HORIZON)
+        overlapping = np.convolve(steps, np.ones(HORIZON), mode="valid")[:3000]       # each outcome shares 5 steps with the next
+        claimed = np.abs(generator.normal(2.0, 0.8, 3000))
+        call = np.where(generator.random(3000) < 0.5, 1.0, -1.0)                     # calls with no skill
+        rows = np.arange(3000)
+        slope, standard_error, _ = stack.realisation_slope(claimed, call * overlapping, rows, HORIZON)
+        independent = stack.realisation_slope(claimed, call * overlapping, rows, 0)[1]
+        wider += standard_error >= independent
+        certified += slope - stack.CERTIFICATE_QUANTILE * standard_error > 0
+        # a persistent call (the same side for long stretches) is where the overlap bites
+        persistent = np.repeat(np.where(generator.random(3000 // 50) < 0.5, 1.0, -1.0), 50)
+        slope_p, standard_error_p, _ = stack.realisation_slope(claimed, persistent * overlapping, rows, HORIZON)
+        independent_p = stack.realisation_slope(claimed, persistent * overlapping, rows, 0)[1]
+        assert standard_error_p >= independent_p
+        if seed == 0:
+            assert standard_error_p > 1.5 * independent_p, (standard_error_p, independent_p)
+    assert wider == seeds                                   # never narrower than the uncorrelated error
+    assert certified / seeds <= 0.08, certified / seeds     # a 5% one-sided level, with sampling room
 
 
 @pytest.mark.parametrize(("degrees", "scale"), [(6, 8e-4), (4, 4e-4), (3, 8e-4)])
@@ -405,32 +456,60 @@ def test_the_student_t_fit_converges_on_values_the_size_of_one_bar_returns(degre
     assert stack.student_t_fit(np.zeros(100))[2] == 0.0
 
 
-@pytest.mark.parametrize("fraction", [0.2, 0.6, 1.0])
-def test_the_gate_opens_on_about_its_share_of_bars_it_was_not_fitted_on(market, fraction):
-    adapter = build_adapter(KEY, {**QUICK, "gate_open_fraction": fraction}, "auto", 7)
-    adapter.bind_market(market.view())
-    train, validation, test = market.spans()
-    adapter.fit(market.features, market.labels, train, validation, market.timestamps, Reporter())
-    unseen = test                                   # neither fitted on nor used to place the threshold
-    realised = float(adapter.trade_gate(market.features, unseen).mean())
-    distance = np.abs(adapter.predict_probability(market.features, unseen) - 0.5)
-    beyond = float(np.mean(distance > adapter.decision_threshold))       # without the bars tied at the threshold
-    print(f"gate_open_fraction {fraction}: threshold {adapter.decision_threshold:.4f}, open on {realised:.3f} of {unseen.size} "
-          f"unseen bars ({beyond:.3f} strictly beyond it; kept model of {adapter.best_iteration + 1} round(s), "
-          f"{np.unique(distance.round(9)).size} distinct probabilities)")
-    if fraction == 1.0:
-        assert adapter.decision_threshold == 0.0 and realised == 1.0
-    else:
-        # the gate opens on AT MOST its share: bars with the same probability are admitted together or
-        # not at all. On the rows the threshold was placed on that is exact; on unseen bars it holds up
-        # to how much the probabilities' spread moves between the two spans.
-        summary = adapter.fit_summary
-        if summary["gate_threshold_source"] == "validation":
-            assert summary["validation_gate_open_share"] <= fraction + 1e-9
-        assert realised <= fraction + 0.15, (beyond, realised)
-        if summary["gate_distinct_probability_count"] >= 50:
-            # enough distinct probabilities for the share to be reached, not only bounded
-            assert realised >= fraction - 0.15, (beyond, realised)
+def _fit_on(source: Market):
+    adapter = build_adapter(KEY, QUICK, "auto", 7)
+    adapter.bind_market(source.view())
+    train, validation, test = source.spans()
+    reporter = Reporter()
+    adapter.fit(source.features, source.labels, train, validation, source.timestamps, reporter)
+    return adapter, reporter, test
+
+
+def test_the_gate_stands_aside_on_a_market_with_nothing_to_learn():
+    source = Market(drift_multiple=0.0)                       # no drift in either regime: direction is a coin flip
+    adapter, reporter, test = _fit_on(source)
+    summary = adapter.fit_summary
+    print(f"no edge planted: slope {summary['gate_realisation_slope']}, standard error {summary['gate_realisation_standard_error']}, "
+          f"lower bound {summary['gate_realisation_lower_bound']}, {summary['gate_evidence_row_count']} rows")
+    assert adapter.gate_certified is False
+    assert not adapter.trade_gate(source.features, test).any()
+    assert summary["validation_gate_open_share"] == 0.0
+    assert any("not certified" in line and "stands aside on every bar" in line for line in reporter.logs)
+
+
+def test_the_gate_opens_where_the_gain_covers_the_cost_on_a_market_with_a_planted_edge():
+    source = Market(drift_multiple=10.0)                      # an edge several times the 0.6-point round trip
+    adapter, reporter, test = _fit_on(source)
+    summary = adapter.fit_summary
+    gate = adapter.trade_gate(source.features, test)
+    probability = adapter.predict_probability(source.features, test)
+    print(f"edge planted: slope {summary['gate_realisation_slope']:.3f}, standard error {summary['gate_realisation_standard_error']:.3f}, "
+          f"lower bound {summary['gate_realisation_lower_bound']:.3f}, {summary['gate_evidence_row_count']} rows; "
+          f"open on {gate.mean():.3f} of {test.size} unseen bars")
+    assert adapter.gate_certified is True and summary["gate_realisation_lower_bound"] > 0
+    assert gate.any()
+    assert any("CERTIFIED" in line for line in reporter.logs)
+    # where it opens, the call's expected gain is above the 0.6-point round trip, and the calls are right more often than not
+    expected = summary["gate_realisation_slope"] * 2.0 * np.abs(probability - 0.5) * summary["gate_move_ratio"] * source.move_scale[test]
+    assert np.all(expected[gate] > 0.6) and np.all(~(expected[~gate] > 0.6))
+    opened = test[gate]
+    move = source.close[np.minimum(opened + HORIZON, source.close.size - 1)] - source.close[opened]
+    assert np.mean(np.sign(probability[gate] - 0.5) == np.sign(move)) > 0.55
+
+
+def test_a_fold_saved_before_the_certificate_reloads_with_the_gate_shut(market, fitted, tmp_path):
+    adapter, _ = fitted
+    adapter.save(str(tmp_path))
+    metadata_path = tmp_path / "model.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    for name in ("gate_certified", "gate_realisation_slope", "gate_realisation_standard_error", "gate_evidence_row_count", "gate_move_ratio"):
+        metadata.pop(name)
+    metadata["decision_threshold"] = 0.02                     # what a share-gate fold carried
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    reloaded = load_adapter(str(tmp_path))
+    reloaded.bind_market(market.view())
+    _, _, test = market.spans()
+    assert reloaded.gate_certified is False and not reloaded.trade_gate(market.features, test[:20]).any()
 
 
 def test_a_prediction_does_not_move_when_later_bars_are_removed(market, fitted, tmp_path):
@@ -477,8 +556,14 @@ def test_the_wire_payload_carries_every_bar(market, fitted):
     assert payload["regimeNames"] == ["flat", "uptrend", "downtrend"]
     assert [regime["name"] for regime in payload["regimes"]] == payload["regimeNames"]
     for name in ("timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
-                 "monteCarloPercentile90Points", "kronosClose", "decisionProbabilityUp", "gateOpen"):
+                 "monteCarloPercentile90Points", "kronosClose", "decisionProbabilityUp", "claimedGainPoints",
+                 "expectedGainPoints", "gateOpen"):
         assert len(payload[name]) == 5, name
+    assert payload["gateCertified"] is adapter.gate_certified and payload["roundTripCostPoints"] == 0.6
+    assert payload["gateEvidenceRowCount"] == adapter.fit_summary["gate_evidence_row_count"]
+    assert payload["gateRealisationSlope"] == pytest.approx(adapter.fit_summary["gate_realisation_slope"], abs=1e-6)
+    assert payload["gateMoveRatio"] == pytest.approx(adapter.fit_summary["gate_move_ratio"], abs=1e-6)
+    assert "gateOpenFraction" not in payload and "decisionThreshold" not in payload
     assert all(len(path) == HORIZON for path in payload["monteCarloPercentile10Points"])
     assert all(name in REGIME_NAMES for name in payload["mostLikelyRegime"])
     assert abs(sum(item["gainShare"] for item in payload["featureWeights"]) - 1.0) < 1e-5
@@ -507,10 +592,10 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     from cycle.features import FeatureSet  # noqa: PLC0415
     from cycle.simulate import load_cost_model  # noqa: PLC0415
 
-    source = Market(days=40, seed=5)
+    source = Market(days=40, seed=5, drift_multiple=10.0)     # an edge worth more than the round trip, so the gate has bars to open on
     data = MarketData(source.timestamps, source.open, source.high, source.low, source.close, source.volume)
     features = FeatureSet(source.features.copy(), list(source.feature_names))
-    parameters = {**QUICK, "maximum_training_bars": 400, "gate_open_fraction": 0.5}
+    parameters = {**QUICK, "maximum_training_bars": 600}
 
     def factory(values, task="classification"):
         return build_adapter(KEY, values, "auto", 42, task=task)
@@ -532,7 +617,8 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     for event in streamed:
         # three named regimes under either label kind, the per-bar regime by name, P(up) on the wire
         assert event["regimeNames"] == ["flat", "uptrend", "downtrend"] and event["regimeCount"] == 3
-        assert event["gateOpenFraction"] == 0.5 and event["decisionThreshold"] >= 0
+        assert isinstance(event["gateCertified"], bool) and event["roundTripCostPoints"] == pytest.approx(1.39)
+        assert event["gateEvidenceRowCount"] >= 0 and len(event["expectedGainPoints"]) == len(event["timestamps"])
         assert all(name in REGIME_NAMES for name in event["mostLikelyRegime"])
         assert all(len(row) == 3 and abs(sum(row) - 1) < 1e-3 for row in event["regimeProbabilities"])
         assert all(value is None or 0.0 <= value <= 1.0 for value in event["decisionProbabilityUp"])
@@ -571,7 +657,6 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
         decided_at = stamps[stamps.index(trade["entryTimestamp"]) - 1]      # decided at the close before the fill
         if decided_at in gate_at:
             assert gate_at[decided_at], trade
-    assert any(not value for value in gate_at.values()), "the gate never closed: the threshold test is empty"
     open_share = sum(1 for value in gate_at.values() if value) / len(gate_at)
     print(f"{label_kind}: gate open on {open_share:.3f} of {len(gate_at)} streamed bars, {len(trades)} trades")
     assert any(gate_at.values()) and trades, "the gate never opened: nothing was traded"

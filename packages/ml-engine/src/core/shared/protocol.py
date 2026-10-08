@@ -1089,24 +1089,35 @@ def _number_or_none(value, digits: int):
 
 
 def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: int, simulation_count: int,
-                                  decision_threshold: float, gate_open_fraction: float, kronos_model: str,
-                                  regime_names: list[str],
+                                  kronos_model: str, regime_names: list[str],
                                   regimes: list[dict], transition_matrix, feature_weights: list[dict],
-                                  rows: list[dict]) -> dict:
+                                  rows: list[dict], gate_certified: bool, gate_realisation_slope: float | None,
+                                  gate_realisation_standard_error: float | None, gate_evidence_row_count: int,
+                                  gate_move_ratio: float | None, round_trip_cost_points: float) -> dict:
     """The wire shape of a regime Monte Carlo decision model's per-bar forecasts
     over a stretch of its test walk (``regime_montecarlo_decision``): for every
     bar, the filtered regime probabilities, the Monte Carlo fan (10th / 50th /
     90th percentile move paths in points to the horizon, P(up) and the expected
-    move), Kronos' predicted candles, the decision model's P(up) and whether
-    its trade gate was open. ``rows`` are the adapter's ``regime_forecast(row)``
-    records plus ``timestamp``. ``regime_names`` name the regimes in probability
-    order (``flat``, ``uptrend``, ``downtrend``); ``gate_open_fraction`` is the
-    gate's setting (the share of bars it should open on) and ``decision_threshold``
-    the fold's absolute threshold derived from it at fit; ``mostLikelyRegime`` carries the
-    NAME of the regime with the highest filtered probability at each bar. The
-    fold's constants (regime names, regimes, transition matrix, feature weights)
-    travel with every stretch, so any one event is readable on its own. Other
-    model kinds send none."""
+    move), Kronos' predicted candles, the decision model's P(up), the gain its
+    call claims and the gain expected of it in points, and whether its trade
+    gate was open. ``rows`` are the adapter's ``regime_forecast(row)`` records
+    plus ``timestamp``. ``regime_names`` name the regimes in probability order
+    (``flat``, ``uptrend``, ``downtrend``); ``mostLikelyRegime`` carries the NAME
+    of the regime with the highest filtered probability at each bar.
+
+    The trade gate's fold constants, all measured at fit on purged out-of-fold
+    training rows: ``gate_realisation_slope`` (points that arrived per point the
+    model claimed) with its ``gate_realisation_standard_error`` over
+    ``gate_evidence_row_count`` rows, ``gate_certified`` (the slope's one-sided
+    95% lower bound is above zero: only then can the gate open),
+    ``gate_move_ratio`` (the traded move as a multiple of the engine's move
+    scale) and ``round_trip_cost_points`` (what a call's expected gain has to
+    exceed). Per bar, ``claimedGainPoints`` = 2 x |P - 0.5| x move ratio x move
+    scale and ``expectedGainPoints`` = slope x claimed gain.
+
+    The fold's constants (regime names, regimes, transition matrix, feature
+    weights, the gate's evidence) travel with every stretch, so any one event is
+    readable on its own. Other model kinds send none."""
     if model_role not in ("direction", "price"):
         raise ValueError(f"cycle_regime_forecast: model role must be direction or price, got {model_role!r}")
     regime_count = len(regimes)
@@ -1137,8 +1148,12 @@ def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: 
         "regimeNames": names,
         "horizonBars": int(horizon_bars),
         "simulationCount": int(simulation_count),
-        "gateOpenFraction": float(gate_open_fraction),
-        "decisionThreshold": float(decision_threshold),
+        "gateCertified": bool(gate_certified),
+        "gateRealisationSlope": _number_or_none(gate_realisation_slope, 6),
+        "gateRealisationStandardError": _number_or_none(gate_realisation_standard_error, 6),
+        "gateEvidenceRowCount": int(gate_evidence_row_count),
+        "gateMoveRatio": _number_or_none(gate_move_ratio, 6),
+        "roundTripCostPoints": float(round_trip_cost_points),
         "kronosModel": str(kronos_model),
         "regimes": [dict(regime) for regime in regimes],
         "transitionMatrix": [[_number_or_none(value, 6) for value in row] for row in transition_matrix],
@@ -1159,6 +1174,8 @@ def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: 
         "kronosClose": [candles(row, 3) for row in rows],
         "kronosPredictedMovePoints": [_number_or_none(row["kronos_move"], 4) for row in rows],
         "decisionProbabilityUp": [_number_or_none(row["decision_probability_up"], 4) for row in rows],
+        "claimedGainPoints": [_number_or_none(row.get("claimed_gain_points"), 4) for row in rows],
+        "expectedGainPoints": [_number_or_none(row.get("expected_gain_points"), 4) for row in rows],
         "gateOpen": [bool(row["gate_open"]) for row in rows],
     }
 
