@@ -1,11 +1,13 @@
 /**
- * The regime Monte Carlo decision model, bar by bar: which hidden regime the
- * forward filter puts each test bar in (stacked bands), the decision model's
+ * The regime Monte Carlo decision model, bar by bar: which of the three regimes
+ * (— flat, ▲ uptrend, ▼ downtrend; fixed colours from
+ * `@shared/runs/regimeDefinitions`) the forward filter puts each test bar in
+ * (stacked bands by name), the decision model's
  * P(up) against its trade gate, and — at the chosen bar — the Monte Carlo fan
  * (10th / 50th / 90th percentile of the simulated moves, step by step to the
  * horizon) with Kronos' predicted candles drawn over it, plus the decision
- * model's feature weights, each regime's return distribution and the
- * transition matrix. Reads the run view (`cycle_regime_forecast`, merged per
+ * model's feature weights, each regime's feature means in words, its return
+ * distribution and the transition matrix labelled flat / uptrend / downtrend. Reads the run view (`cycle_regime_forecast`, merged per
  * fold); nothing here fetches. Every number's hover says how it is computed
  * (`@shared/runs/regimeDefinitions`). Okabe-Ito only; up is orange and hollow,
  * down is blue and filled, so colour is never the only signal.
@@ -14,6 +16,7 @@ import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import type { RunRegimeForecast } from "@shared/runs/types";
+import { REGIME_FEATURE_WORDS, regimeLabel, regimePosition, regimeStyleAt } from "@shared/runs/regimeDefinitions";
 import { Chip } from "@/runs/learning";
 import { formatBarTime } from "@/runs/barTime";
 import { howComputedRegime } from "@/runs/howComputed";
@@ -21,8 +24,6 @@ import { howComputedRegime } from "@/runs/howComputed";
 const AXIS = { fontSize: 10, fill: "hsl(var(--muted-foreground))", fontFamily: "ui-monospace, monospace" } as const;
 const GRID = "hsl(var(--border))";
 const TOOLTIP_STYLE = { backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 11, fontFamily: "ui-monospace, monospace" } as const;
-/** Okabe-Ito, regime 1 (calmest) first; every label also carries the regime's number. */
-const REGIME_COLORS = ["#0072B2", "#56B4E9", "#E69F00", "#CC79A7", "#D55E00", "#F0E442", "#009E73", "#000000"];
 const UP = "#E69F00";
 const DOWN = "#0072B2";
 const FAN = "#56B4E9";
@@ -107,9 +108,15 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
   );
   const threshold = fold.decisionThreshold;
   const opened = fold.gateOpen.filter(Boolean).length;
-  const occupancy = Array.from({ length: fold.regimeCount }, (_, regime) => fold.mostLikelyRegime.filter((value) => value === regime + 1).length);
+  const styles = Array.from({ length: fold.regimeCount }, (_, regime) => regimeStyleAt(fold.regimeNames, regime));
+  const occupancy = Array.from({ length: fold.regimeCount }, () => 0);
+  for (const value of fold.mostLikelyRegime) {
+    const position = regimePosition(fold.regimeNames, value);
+    if (position !== null && position < occupancy.length) occupancy[position]! += 1;
+  }
   const time = fold.timestamps[bar] ?? 0;
   const regimeNow = fold.regimeProbabilities[bar] ?? [];
+  const likelyNow = regimePosition(fold.regimeNames, fold.mostLikelyRegime[bar]);
 
   const clickChart = (state: { activeLabel?: string | number } | null) => {
     const label = state?.activeLabel;
@@ -124,7 +131,8 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
         <div>
           <div className="text-[12px] font-semibold text-foreground">Regimes, the simulated fan, Kronos' candles and the trade gate</div>
           <div className="max-w-3xl text-[11px] leading-snug text-muted-foreground">
-            Think of it as four analysts handing notes to one trader. The hidden Markov model says which kind of market this bar is in; the Monte Carlo
+            Think of it as four analysts handing notes to one trader. The hidden Markov model says whether this bar is {styles.map((style) => regimeLabel(style)).join(", ")}
+            {" "}(from ADX, candle bodies, range compression and the swing highs and lows confirmed so far); the Monte Carlo
             simulation runs that kind of market {fold.horizonBars} bars forward {fold.simulationCount.toLocaleString("en-US")} times; Kronos sketches the next
             {" "}{fold.horizonBars} candles; FinBERT reads the news. The trader (the decision model) weighs the notes and trades only when it is at least
             {" "}{share(threshold)} away from a coin flip. Click a bar or drag the scrubber.
@@ -145,15 +153,15 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
             key={regime}
             type="button"
             className={`flex cursor-pointer items-center gap-1 ${hidden.has(regime) ? "opacity-40" : ""}`}
-            title={`${howComputedRegime("regime_probability", `Regime ${regime + 1}`)}\n\nClick to hide or show this regime's band.`}
+            title={`${howComputedRegime("regime_most_likely", regimeLabel(styles[regime]!))}\n\n${styles[regime]!.meaning}\n\nClick to hide or show this regime's band.`}
             onClick={() => setHidden((previous) => {
               const next = new Set(previous);
               if (next.has(regime)) next.delete(regime); else next.add(regime);
               return next;
             })}
           >
-            <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: REGIME_COLORS[regime % REGIME_COLORS.length] }} />
-            regime {regime + 1}{regime === 0 ? " (calmest)" : ""}: most likely on {share(bars / Math.max(count, 1))} of the fold
+            <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: styles[regime]!.color }} />
+            <span style={{ color: styles[regime]!.color }}>{regimeLabel(styles[regime]!)}</span>: most likely on {share(bars / Math.max(count, 1))} of the fold
           </button>
         ))}
         <span title={howComputedRegime("trade_gate", "Trade gate")}>· gate open on {opened.toLocaleString("en-US")} of {count.toLocaleString("en-US")} bars ({share(opened / Math.max(count, 1))})</span>
@@ -172,7 +180,7 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
                 <YAxis tick={AXIS} width={36} tickFormatter={(value: number) => `${Math.round(value * 100)}%`} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={(value: number) => formatBarTime(value)} formatter={(value: number, name: string) => [share(value), name]} />
                 {Array.from({ length: fold.regimeCount }, (_, regime) => (
-                  <Area key={regime} dataKey={`regime_${regime}`} name={`regime ${regime + 1}`} stackId="regimes" stroke="none" fill={REGIME_COLORS[regime % REGIME_COLORS.length]} fillOpacity={0.85} isAnimationActive={false} />
+                  <Area key={regime} dataKey={`regime_${regime}`} name={regimeLabel(styles[regime]!)} stackId="regimes" stroke="none" fill={styles[regime]!.color} fillOpacity={0.85} isAnimationActive={false} />
                 ))}
                 <ReferenceLine x={time} stroke="hsl(var(--foreground))" strokeDasharray="3 3" />
               </AreaChart>
@@ -213,6 +221,11 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
         />
         <button type="button" className="cursor-pointer rounded border border-border px-2" onClick={() => choose(bar + 1)} aria-label="next bar">▶</button>
         <span className="text-muted-foreground">bar {bar + 1} of {count.toLocaleString("en-US")} · {formatBarTime(time)} · close {fold.close[bar]?.toFixed(2) ?? "n/a"}</span>
+        {likelyNow !== null && styles[likelyNow] && (
+          <span data-testid="regime-now" style={{ color: styles[likelyNow]!.color }} title={howComputedRegime("regime_most_likely", "Most likely regime at this bar")}>
+            · {regimeLabel(styles[likelyNow]!)}
+          </span>
+        )}
       </div>
 
       <div className="mt-2 grid gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -328,9 +341,9 @@ function BarReadout({ fold, bar, regimeNow }: { fold: RunRegimeForecast; bar: nu
         <div className="text-[10px] text-muted-foreground">Regime probability at this bar</div>
         {regimeNow.map((probability, regime) => (
           <div key={regime} className="flex items-center gap-2">
-            <span className="w-16">regime {regime + 1}</span>
+            <span className="w-24" style={{ color: regimeStyleAt(fold.regimeNames, regime).color }}>{regimeLabel(regimeStyleAt(fold.regimeNames, regime))}</span>
             <span className="relative h-2 flex-1 rounded-sm bg-border">
-              <span className="absolute inset-y-0 left-0 rounded-sm" style={{ width: `${Math.max(0, Math.min(1, probability ?? 0)) * 100}%`, backgroundColor: REGIME_COLORS[regime % REGIME_COLORS.length] }} />
+              <span className="absolute inset-y-0 left-0 rounded-sm" style={{ width: `${Math.max(0, Math.min(1, probability ?? 0)) * 100}%`, backgroundColor: regimeStyleAt(fold.regimeNames, regime).color }} />
             </span>
             <span className="w-14 text-right">{share(probability)}</span>
           </div>
@@ -377,44 +390,89 @@ function FeatureWeights({ fold }: { fold: RunRegimeForecast }) {
 }
 
 function RegimeTable({ fold }: { fold: RunRegimeForecast }) {
+  const styles = fold.regimes.map((_, position) => regimeStyleAt(fold.regimeNames, position));
+  const featureNames = fold.regimes[0]?.featureMeans?.map((item) => item.name) ?? [];
   return (
     <div className="font-mono text-[10px]">
-      <div className="text-muted-foreground" title={howComputedRegime("regime_summary", "Regime return distributions")}>Each regime's one-bar log return (Student-t fitted on the training span)</div>
-      <table className="mt-1 w-full">
+      <div className="text-muted-foreground" title={howComputedRegime("regime_summary", "Each regime on the training span")}>
+        Each regime on the training span: how long it lasts and its one-bar log return (Student-t)
+      </div>
+      <table className="mt-1 w-full" data-testid="regime-table">
         <thead className="text-muted-foreground">
           <tr>
             <th className="text-left">regime</th>
-            <th className="text-right">mean</th>
+            <th className="text-right">stays</th>
+            <th className="text-right">bars per visit</th>
+            <th className="text-right">training bars</th>
+            <th className="text-right">mean return</th>
             <th className="text-right">deviation</th>
             <th className="text-right">degrees of freedom</th>
-            <th className="text-right">training bars</th>
-            <th className="text-right">stays</th>
           </tr>
         </thead>
         <tbody>
-          {fold.regimes.map((regime) => (
-            <tr key={regime.regime} title={howComputedRegime("regime_summary", `Regime ${regime.regime}`)}>
+          {fold.regimes.map((regime, position) => (
+            <tr key={regime.regime} title={`${howComputedRegime("regime_summary", regimeLabel(styles[position]!))}${regime.description ? `\n\n${regime.description}` : ""}`}>
               <td>
-                <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: REGIME_COLORS[(regime.regime - 1) % REGIME_COLORS.length] }} />
-                {regime.regime}{regime.pooled ? " (pooled)" : ""}
+                <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: styles[position]!.color }} />
+                <span style={{ color: styles[position]!.color }}>{regimeLabel(styles[position]!)}</span>{regime.pooled ? " (pooled)" : ""}
               </td>
+              <td className="text-right">{share(regime.stayProbability)}</td>
+              <td className="text-right">{regime.expectedBarsPerVisit === null || regime.expectedBarsPerVisit === undefined ? "n/a" : regime.expectedBarsPerVisit.toFixed(0)}</td>
+              <td className="text-right">{regime.trainingBarCount.toLocaleString("en-US")}</td>
               <td className="text-right">{regime.meanLogReturn.toExponential(2)}</td>
               <td className="text-right">{regime.volatilityLogReturn === null ? "n/a" : regime.volatilityLogReturn.toExponential(2)}</td>
               <td className="text-right">{regime.degreesOfFreedom.toFixed(1)}</td>
-              <td className="text-right">{regime.trainingBarCount.toLocaleString("en-US")}</td>
-              <td className="text-right">{share(regime.stayProbability)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {featureNames.length > 0 && (
+        <>
+          <div className="mt-2 text-muted-foreground" title={howComputedRegime("regime_features", "Observation features of the regime model")}>
+            What each regime looks like: the mean of every feature the model reads, on the training span
+            <span title={howComputedRegime("regime_training", "How the regime model is trained")}> · how it is trained ⓘ</span>
+          </div>
+          <table className="mt-1 w-full" data-testid="regime-feature-means">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className="text-left">feature</th>
+                {styles.map((style) => (
+                  <th key={style.word} className="text-right" style={{ color: style.color }}>{regimeLabel(style)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {featureNames.map((name, row) => {
+                const words = REGIME_FEATURE_WORDS[name];
+                return (
+                  <tr key={name} title={howComputedRegime("regime_features", words?.words ?? name)}>
+                    <td>{words?.words ?? fold.regimes[0]?.featureMeans?.[row]?.words ?? name.replace(/_/g, " ")}{words ? ` (${words.unit})` : ""}</td>
+                    {fold.regimes.map((regime) => (
+                      <td key={regime.regime} className="text-right">{regime.featureMeans?.[row]?.value.toFixed(2) ?? "n/a"}</td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
       <div className="mt-2 text-muted-foreground" title={howComputedRegime("transition_matrix", "Transition matrix")}>Transition matrix: row = this bar's regime, column = the next bar's</div>
-      <table className="mt-1">
+      <table className="mt-1" data-testid="regime-transition-matrix">
+        <thead className="text-muted-foreground">
+          <tr>
+            <th />
+            {styles.map((style) => (
+              <th key={style.word} className="px-1 text-center" style={{ color: style.color }}>to {regimeLabel(style)}</th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
           {fold.transitionMatrix.map((row, from) => (
             <tr key={from}>
-              <td className="pr-2 text-muted-foreground">from {from + 1}</td>
+              <td className="pr-2" style={{ color: styles[from]?.color }}>from {styles[from] ? regimeLabel(styles[from]!) : from + 1}</td>
               {row.map((value, to) => (
-                <td key={to} className="px-1 text-center" style={{ backgroundColor: `rgba(0, 114, 178, ${Math.max(0, Math.min(1, value ?? 0)) * 0.6})` }} title={`${howComputedRegime("transition_matrix", `From regime ${from + 1} to regime ${to + 1}`)}\n\nValue: ${share(value)}`}>
+                <td key={to} className="px-1 text-center" style={{ backgroundColor: `rgba(0, 114, 178, ${Math.max(0, Math.min(1, value ?? 0)) * 0.6})` }} title={`${howComputedRegime("transition_matrix", `From ${styles[from]?.word ?? from + 1} to ${styles[to]?.word ?? to + 1}`)}\n\nValue: ${share(value)}`}>
                   {share(value, 0)}
                 </td>
               ))}

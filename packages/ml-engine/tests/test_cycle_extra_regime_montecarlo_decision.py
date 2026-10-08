@@ -1,12 +1,14 @@
 """The regime Monte Carlo decision stack (``cycle/adapters_extra/regime_montecarlo_decision.py``).
 
 On a synthetic MNQ-like market with two planted volatility regimes (quiet and
-wild, each with its own volume level), checked against what the module claims:
+wild, each with its own volume level), checked against what the module claims
+(the structural regime model itself — features, pivots, planted flat / uptrend /
+downtrend recovery, forward-filter-only inference — is tested in
+``test_cycle_regime_hmm.py``):
 
-- the regime inputs and the forward filter read only bars at or before the bar
-  they speak for (the same numbers on a view cut right after it), the filtered
-  probabilities sum to one, regime 1 is the calmest, and the planted regimes
-  are recovered;
+- the regime model behind the stack is the three-state structural model, its
+  regimes named flat, uptrend and downtrend, its filtered probabilities summing
+  to one and unchanged when later bars are cut;
 - the Monte Carlo fan has the shapes it promises, probabilities in [0, 1],
   ordered percentiles, a drift that moves P(up) the right way, and costs less
   than 5 ms per bar at 2,000 paths;
@@ -43,6 +45,7 @@ from cycle.adapters_extra import regime_montecarlo_decision as stack  # noqa: E4
 from cycle.labels import horizon_crosses_gap  # noqa: E402
 from cycle.market import MarketView  # noqa: E402
 from cycle.models import build_adapter, load_adapter  # noqa: E402
+from cycle.regime_hmm import REGIME_NAMES, StructuralRegimeHMM  # noqa: E402
 from shared import (
     protocol,  # noqa: E402  (core/shared, bound before the test tree's own shared/ can shadow it)
 )
@@ -55,7 +58,7 @@ FINBERT_NAMES = (
     "finbert_minutes_since_article_log", "finbert_macro_sentiment_decayed_short", "finbert_news_coverage_flag",
 )
 QUICK = {
-    "regime_count": 2, "regime_fit_iteration_count": 50, "volatility_window_bars": 20, "simulation_count": 500,
+    "adx_threshold": 20.0, "swing_confirmation_bars": 5, "regime_fit_iteration_count": 50, "simulation_count": 500,
     "kronos_model_size": "mini", "kronos_context_bars": 64, "stacking_fold_count": 3, "maximum_training_bars": 600,
     "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "decision_threshold": 0.02,
 }
@@ -185,32 +188,22 @@ def test_the_module_under_test_is_this_worktrees():
 
 
 @pytest.mark.parametrize("cut", [500, 1234, 2999])
-def test_regime_inputs_read_no_later_bar(market, cut):
-    full = stack.regime_inputs(market.view().one_bar_returns(), market.volume, 20)
-    short_view = market.view(cut + 1)
-    short = stack.regime_inputs(short_view.one_bar_returns(), short_view.volume, 20)
-    np.testing.assert_array_equal(full[: cut + 1], short)
-    assert np.all(np.isnan(full[:20, 1]))             # warmup rows are unknown, never 0
-
-
-def test_the_forward_filter_is_causal_normalised_and_finds_the_planted_regimes(market):
-    inputs = stack.regime_inputs(market.view().one_bar_returns(), market.volume, 20)
-    fit_rows = np.arange(300, 2200)
-    model = stack.fit_regime_model(inputs, inputs[:, 0], fit_rows, 2, 100, 3)
-    summaries = model.summaries()
-    assert summaries[0]["volatilityLogReturn"] < summaries[1]["volatilityLogReturn"]   # regime 1 is the calmest
-    filtered, _ = model.forward_filter(inputs, 0, inputs.shape[0] - 1)
+def test_the_stacks_regime_model_is_the_structural_one_and_reads_no_later_bar(market, cut):
+    features = stack.regime_features(market.view(), 5)
+    short = stack.regime_features(market.view(cut + 1), 5)
+    np.testing.assert_array_equal(features[: cut + 1], short)
+    model = stack.fit_regime_model(features, market.view().one_bar_returns(), np.arange(300, 2200), 20.0, 50, 3)
+    assert model.regime_names == REGIME_NAMES == ("flat", "uptrend", "downtrend")
+    assert [summary["name"] for summary in model.summaries()] == list(REGIME_NAMES)
+    filtered, _ = model.forward_filter(features, 0, features.shape[0] - 1)
     known = np.all(np.isfinite(filtered), axis=1)
     np.testing.assert_allclose(filtered[known].sum(axis=1), 1.0, atol=1e-9)
-    truncated, _ = model.forward_filter(inputs[:1501], 0, 1500)
-    np.testing.assert_allclose(truncated, filtered[:1501], atol=0, rtol=0)
+    truncated, _ = model.forward_filter(short, 0, cut)
+    np.testing.assert_allclose(truncated, filtered[: cut + 1], atol=0, rtol=0)
     # continuing a pass gives the same numbers as one pass
-    first, state = model.forward_filter(inputs, 0, 999)
-    second, _ = model.forward_filter(inputs, 0, 1999, state)
+    first, state = model.forward_filter(features, 0, 999)
+    second, _ = model.forward_filter(features, 0, 1999, state)
     np.testing.assert_allclose(np.vstack([first, second]), filtered[:2000])
-    rows = np.arange(2200, 3000)
-    agreement = np.mean(np.argmax(filtered[rows], axis=1) == market.regime[rows])
-    assert agreement > 0.85, agreement
 
 
 def test_contiguous_lengths_and_purged_blocks():
@@ -227,18 +220,20 @@ def test_contiguous_lengths_and_purged_blocks():
 
 
 def _manual_model(location_quiet: float, location_wild: float) -> stack.RegimeModel:
+    """Flat is the quiet regime, uptrend and downtrend the wild ones (their locations are ``location_wild``)."""
+    hmm = StructuralRegimeHMM.from_parameters(
+        start=np.full(3, 1 / 3), transition=np.array([[0.95, 0.025, 0.025], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]),
+        means=np.zeros((3, 8)), variances=np.ones((3, 8)), scaler_mean=np.zeros(8), scaler_deviation=np.ones(8),
+    )
     return stack.RegimeModel(
-        start=np.array([0.5, 0.5]), transition=np.array([[0.95, 0.05], [0.1, 0.9]]),
-        means=np.zeros((2, 3)), covariances=np.stack([np.eye(3), np.eye(3)]),
-        scaler_mean=np.zeros(3), scaler_deviation=np.ones(3),
-        student=np.array([[5.0, location_quiet, 0.0005], [4.0, location_wild, 0.002]]),
-        regime_bar_counts=np.array([100, 100]), pooled=np.array([False, False]),
+        hmm, student=np.array([[5.0, location_quiet, 0.0005], [4.0, location_wild, 0.002], [4.0, location_wild, 0.002]]),
+        regime_bar_counts=np.array([100, 100, 100]), pooled=np.array([False, False, False]),
     )
 
 
 def test_the_fan_has_its_shapes_bounds_and_order():
     simulator = stack.MonteCarloSimulator(_manual_model(0.0, 0.0), 2000, HORIZON, 1)
-    probabilities = np.array([[1.0, 0.0], [0.0, 1.0], [0.5, 0.5], [np.nan, np.nan]])
+    probabilities = np.array([[1.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.25, 0.25], [np.nan, np.nan, np.nan]])
     result = simulator.simulate(probabilities, np.array([18_000.0, 18_000.0, 18_000.0, 18_000.0]))
     assert result["percentile_10_points"].shape == (4, HORIZON)
     up = result["probability_up"]
@@ -256,7 +251,7 @@ def test_the_fan_has_its_shapes_bounds_and_order():
 def test_drift_moves_the_probability_the_right_way():
     rising = stack.MonteCarloSimulator(_manual_model(0.0004, 0.0004), 2000, HORIZON, 1)
     falling = stack.MonteCarloSimulator(_manual_model(-0.0004, -0.0004), 2000, HORIZON, 1)
-    probabilities = np.array([[0.7, 0.3]])
+    probabilities = np.array([[0.7, 0.15, 0.15]])
     close = np.array([18_000.0])
     assert rising.simulate(probabilities, close)["probability_up"][0] > 0.6
     assert falling.simulate(probabilities, close)["probability_up"][0] < 0.4
@@ -265,7 +260,7 @@ def test_drift_moves_the_probability_the_right_way():
 
 def test_one_bar_costs_less_than_five_milliseconds_at_two_thousand_paths():
     simulator = stack.MonteCarloSimulator(_manual_model(0.0, 0.0), 2000, HORIZON, 1)
-    probabilities = np.array([[0.6, 0.4]])
+    probabilities = np.array([[0.6, 0.2, 0.2]])
     close = np.array([18_000.0])
     simulator.simulate(probabilities, close)
     started = time.perf_counter()
@@ -282,10 +277,15 @@ def test_the_registry_entry_and_the_dispatch_table():
     entry = catalog.entry(KEY)
     assert entry["adapter"] == KEY and entry["runnable"] and entry["implementation"] == "torch"
     assert models.ADAPTER_CLASSES[KEY] == "cycle.adapters_extra.regime_montecarlo_decision:RegimeMonteCarloDecisionAdapter"
-    search = entry["parameters"]["regime_count"]["search"]
-    assert (search["low"], search["high"]) == (2, 5)
-    assert entry["parameters"]["simulation_count"]["default"] == 2000
-    assert set(catalog.searchable_parameters(KEY)) == {"regime_count", "max_depth", "learning_rate", "decision_threshold"}
+    parameters = entry["parameters"]
+    assert "regime_count" not in parameters and "volatility_window_bars" not in parameters    # three regimes, always
+    assert parameters["adx_threshold"]["default"] == 20.0
+    assert (parameters["adx_threshold"]["search"]["low"], parameters["adx_threshold"]["search"]["high"]) == (15.0, 30.0)
+    assert parameters["swing_confirmation_bars"]["default"] == 5
+    assert (parameters["swing_confirmation_bars"]["search"]["low"], parameters["swing_confirmation_bars"]["search"]["high"]) == (3, 10)
+    assert parameters["simulation_count"]["default"] == 2000
+    assert set(catalog.searchable_parameters(KEY)) == {
+        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate", "decision_threshold"}
 
 
 def test_fitting_and_predicting_keep_the_contract(market, fitted):
@@ -297,12 +297,12 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert gate.dtype == bool
     np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= QUICK["decision_threshold"])
     said = adapter.regime_forecast(int(test[0]))
-    assert len(said["probabilities"]) == 2 and abs(sum(said["probabilities"]) - 1) < 1e-9
+    assert len(said["probabilities"]) == 3 and abs(sum(said["probabilities"]) - 1) < 1e-9
     assert said["percentile_10_points"].shape == (HORIZON,) and said["kronos_candles"].shape == (HORIZON, 4)
     assert np.all(np.isfinite(said["kronos_candles"]))             # Kronos forecast every one of these bars
     # the decision model reads every signal it promised, the news among them
     names = adapter.signal_names
-    assert names[:2] == ["regime_1_probability", "regime_2_probability"]
+    assert names[:3] == ["flat_regime_probability", "uptrend_regime_probability", "downtrend_regime_probability"]
     assert {"monte_carlo_probability_up", "kronos_predicted_move_scaled", *FINBERT_NAMES} <= set(names)
     assert abs(sum(adapter.feature_weights.values()) - 1.0) < 1e-9
     assert reporter.epochs and reporter.epochs[-1].validation_loss is not None
@@ -351,12 +351,14 @@ def test_the_wire_payload_carries_every_bar(market, fitted):
     records = [{**adapter.regime_forecast(int(row)), "timestamp": int(market.timestamps[row])} for row in rows]
     payload = protocol.cycle_regime_forecast_payload(fold_index=0, model_role="direction", rows=records,
                                                      **adapter.regime_forecast_context())
-    assert payload["regimeCount"] == 2 and payload["horizonBars"] == HORIZON
+    assert payload["regimeCount"] == 3 and payload["horizonBars"] == HORIZON
+    assert payload["regimeNames"] == ["flat", "uptrend", "downtrend"]
+    assert [regime["name"] for regime in payload["regimes"]] == payload["regimeNames"]
     for name in ("timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
                  "monteCarloPercentile90Points", "kronosClose", "decisionProbabilityUp", "gateOpen"):
         assert len(payload[name]) == 5, name
     assert all(len(path) == HORIZON for path in payload["monteCarloPercentile10Points"])
-    assert payload["mostLikelyRegime"][0] in (1, 2)
+    assert all(name in REGIME_NAMES for name in payload["mostLikelyRegime"])
     assert abs(sum(item["gainShare"] for item in payload["featureWeights"]) - 1.0) < 1e-5
     json.dumps(payload, allow_nan=False)            # nothing on the wire is NaN
 

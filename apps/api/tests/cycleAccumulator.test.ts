@@ -101,7 +101,8 @@ describe('cycle accumulator — folding the real fixture into a snapshot', () =>
     expect(snapshot.gateRoutings![0]!.chosenExpert).toEqual([0, 1, 0]);
     expect(snapshot.regimeForecasts).toHaveLength(1);
     expect(snapshot.regimeForecasts![0]!.timestamps).toHaveLength(2);
-    expect(snapshot.regimeForecasts![0]!.mostLikelyRegime).toEqual([1, 2]);
+    expect(snapshot.regimeForecasts![0]!.regimeNames).toEqual(["flat", "uptrend", "downtrend"]);
+    expect(snapshot.regimeForecasts![0]!.mostLikelyRegime).toEqual(["flat", "downtrend"]);
     expect(snapshot.regimeForecasts![0]!.gateOpen).toEqual([true, false]);
     expect(snapshot.lastSequence).toBe(13); // the fixture's highest seq (cycle_regime_forecast)
   });

@@ -1274,11 +1274,12 @@ class CycleEngine:
             self.log(f"{self.fold_prefix(spec.fold_index)}[regime] regime forecasts could not be written: {error}", "warn")
         bars = len(record["timestamps"])
         opened = sum(1 for value in record["gateOpen"] if value)
-        counts = [0] * int(record["regimeCount"])
+        names = list(record.get("regimeNames") or [f"regime {k + 1}" for k in range(int(record["regimeCount"]))])
+        counts = dict.fromkeys(names, 0)
         for regime in record["mostLikelyRegime"]:
-            if regime is not None:
-                counts[int(regime) - 1] += 1
-        occupancy = ", ".join(f"regime {k + 1} {count / max(bars, 1) * 100:.0f}%" for k, count in enumerate(counts))
+            if regime in counts:
+                counts[regime] += 1
+        occupancy = ", ".join(f"{name} {count / max(bars, 1) * 100:.0f}%" for name, count in counts.items())
         self.log(
             f"{self.fold_prefix(spec.fold_index)}[regime] {bars:,} test bars: most likely {occupancy}; "
             f"trade gate open on {opened:,} ({opened / max(bars, 1) * 100:.1f}%)"

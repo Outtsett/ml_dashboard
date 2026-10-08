@@ -14,6 +14,7 @@ import type { CanvasRenderingTarget2D } from "fancy-canvas";
 
 import { findBarIndex, type CycleBarColumns, type CyclePlan } from "@shared/cycle/schema";
 
+import { regimeStyleOfBar, type RunRegimes } from "./regimes";
 import {
   CYCLE_COLORS,
   formatTickPrice,
@@ -36,6 +37,10 @@ import {
  *  - BEHIND the candles: the fold spans (training sky, validation yellow, test
  *    walk orange, earlier folds' test walks very faint) and the ACTIVE block the
  *    model is fitting / validating / tuning right now (reddish-purple);
+ *  - IN FRONT, first: every visible walked candle a regime model spoke for,
+ *    repainted in its most likely regime's colour (flat sky, uptrend orange,
+ *    downtrend blue; `@shared/runs/regimeDefinitions`) on the candle's own
+ *    pixels, so the chart's candle and the regime never disagree by a pixel;
  *  - IN FRONT: each band's label pill along the top edge, the dashed test
  *    cursor ("model is here"), the prediction glyph on every visible test bar
  *    (▲ under the low / ▼ over the high, solid / hollow / faint by label),
@@ -107,6 +112,11 @@ class BandsRenderer implements IPrimitivePaneRenderer {
     const chart = this._source.chart;
     const columns = this._source.columns;
     if (!chart || !columns || this._source.renderedCount === 0) return;
+    if (this._layer === "front" && this._source.regimes !== null && this._source.regimes.byTimestamp.size > 0) {
+      target.useBitmapCoordinateSpace((scope) => {
+        this._drawRegimeCandles(scope.context, chart, columns, this._source.regimes!, scope.horizontalPixelRatio, scope.verticalPixelRatio, scope.bitmapSize.width);
+      });
+    }
     target.useMediaCoordinateSpace((scope) => {
       const context = scope.context;
       const width = scope.mediaSize.width;
@@ -123,6 +133,50 @@ class BandsRenderer implements IPrimitivePaneRenderer {
       }
       context.restore();
     });
+  }
+
+  /**
+   * Every visible walked candle that carries a regime, repainted in the regime's
+   * colour: wick from high to low, body from open to close. Drawn in bitmap
+   * pixels with the candlestick series' own body width (`candleBodyWidth`), so
+   * the repaint covers the chart's candle exactly. The regime is the engine's
+   * most likely one at that bar (forward filter); the word and glyph for each
+   * colour are in the chart's legend line and the crosshair readout.
+   */
+  private _drawRegimeCandles(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, regimes: RunRegimes,
+    horizontalRatio: number, verticalRatio: number, bitmapWidth: number): void {
+    const series = this._source.series;
+    if (!series) return;
+    const timeScale = chart.timeScale();
+    const range = timeScale.getVisibleLogicalRange();
+    if (!range) return;
+    const first = Math.max(0, Math.floor(range.from));
+    const last = Math.min(this._source.renderedCount - 1, Math.ceil(range.to));
+    if (last < first) return;
+    const bodyWidth = candleBodyWidth(timeScale.options().barSpacing, horizontalRatio);
+    const wickWidth = Math.min(bodyWidth, Math.max(1, Math.floor(horizontalRatio)));
+    context.save();
+    for (let index = first; index <= last; index += 1) {
+      const style = regimeStyleOfBar(regimes, columns.timestamps[index]!);
+      if (!style) continue;
+      const x = timeScale.logicalToCoordinate(index as Logical);
+      if (x === null) continue;
+      const centre = Math.round(x * horizontalRatio);
+      if (centre < -bodyWidth || centre > bitmapWidth + bodyWidth) continue;
+      const yHigh = series.priceToCoordinate(columns.high[index]!);
+      const yLow = series.priceToCoordinate(columns.low[index]!);
+      const yOpen = series.priceToCoordinate(columns.open[index]!);
+      const yClose = series.priceToCoordinate(columns.close[index]!);
+      if (yHigh === null || yLow === null || yOpen === null || yClose === null) continue;
+      const top = Math.round(Math.min(yOpen, yClose) * verticalRatio);
+      const bottom = Math.round(Math.max(yOpen, yClose) * verticalRatio);
+      const wickTop = Math.round(yHigh * verticalRatio);
+      const wickBottom = Math.round(yLow * verticalRatio);
+      context.fillStyle = style.color;
+      context.fillRect(centre - Math.floor(wickWidth / 2), wickTop, wickWidth, Math.max(1, wickBottom - wickTop + 1));
+      context.fillRect(centre - Math.floor(bodyWidth / 2), top, bodyWidth, Math.max(1, bottom - top + 1));
+    }
+    context.restore();
   }
 
   /** Pixel extent of a time span over the drawn bars, clamped to the pane; null when off-screen or empty. */
@@ -444,6 +498,18 @@ class BandsRenderer implements IPrimitivePaneRenderer {
   }
 }
 
+/**
+ * The candlestick series' body width in bitmap pixels at `barSpacing` (lightweight-charts'
+ * own `optimalCandlestickWidth`, reproduced so a repainted candle lands on the same pixels).
+ */
+export function candleBodyWidth(barSpacing: number, pixelRatio: number): number {
+  if (barSpacing >= 2.5 && barSpacing <= 4) return Math.floor(3 * pixelRatio);
+  const coefficient = 1 - (0.2 * Math.atan(Math.max(4, barSpacing) - 4)) / (Math.PI * 0.5);
+  const reduced = Math.floor(barSpacing * coefficient * pixelRatio);
+  const scaled = Math.floor(barSpacing * pixelRatio);
+  return Math.max(Math.floor(pixelRatio), Math.min(reduced, scaled));
+}
+
 class BandsPaneView implements IPrimitivePaneView {
   private readonly _renderer: BandsRenderer;
   private readonly _zOrder: PrimitivePaneViewZOrder;
@@ -481,7 +547,10 @@ export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
   public hoverIndex: number | null = null;
   /** The bar pinned for "Inside the model" (epoch seconds), or null. */
   public pinnedTimestamp: number | null = null;
+  /** The walked bars' most likely regimes (the store's, read at draw time), or null when they are not painted. */
+  public regimes: RunRegimes | null = null;
 
+  private _regimesVersion = -1;
   private readonly _paneViews: readonly IPrimitivePaneView[];
   private _requestUpdate: (() => void) | null = null;
 
@@ -532,6 +601,14 @@ export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
   public setPinned(timestamp: number | null): void {
     if (timestamp === this.pinnedTimestamp) return;
     this.pinnedTimestamp = timestamp;
+    this._requestUpdate?.();
+  }
+
+  /** The regimes to paint the walked candles with (null = the chart's own candle colours). */
+  public setRegimes(regimes: RunRegimes | null, version: number): void {
+    if (regimes === this.regimes && version === this._regimesVersion) return;
+    this.regimes = regimes;
+    this._regimesVersion = version;
     this._requestUpdate?.();
   }
 

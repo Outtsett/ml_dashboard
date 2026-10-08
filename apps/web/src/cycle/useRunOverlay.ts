@@ -14,6 +14,10 @@
  *    glyphs, the hover label-move segment and the focus flash, drawn by
  *    `CycleBandsPrimitive` attached to the market chart's candle series;
  *  - the price model's forecast line;
+ *  - the walked candles repainted in their most likely regime's colour, for a
+ *    model that sends `cycle_regime_forecast` (flat sky, uptrend orange,
+ *    downtrend blue), through the same primitive — the candle series' own
+ *    colours are not touched, so the layer is one toggle away from off;
  *  - "follow the model", and the focus jumps a folds or trades table row asks for;
  *  - the crosshair readout, the one thing the market chart's own HUD cannot
  *    express (it knows OHLC, not what the model predicted on this bar).
@@ -361,6 +365,8 @@ export function useRunOverlay({ onChartReady }: RunOverlayInput): RunHoverState 
     }
 
     bands.setPinned(state.inspectSource === "pinned" ? state.inspectTimestamp : null);
+    // the walked candles in their most likely regime's colour, when the model sends regimes and the toggle is on
+    bands.setRegimes(state.showRegimeColors ? state.regimes : null, state.regimesVersion);
 
     applyFocus(state);
     if (state.follow && state.focusTimestamp === null) applyFollow(state, barsChanged || cursorChanged);
@@ -504,6 +510,8 @@ export function useRunOverlay({ onChartReady }: RunOverlayInput): RunHoverState 
           state.cursor !== previous.cursor ||
           state.plan !== previous.plan ||
           state.trades !== previous.trades ||
+          state.regimesVersion !== previous.regimesVersion ||
+          state.showRegimeColors !== previous.showRegimeColors ||
           state.follow !== previous.follow ||
           state.showOnChart !== previous.showOnChart ||
           state.focusTimestamp !== previous.focusTimestamp ||

@@ -37,7 +37,10 @@ import {
   type CycleTrade,
   type CycleTrial,
   type CycleParameters,
+  type CycleRegimeForecast,
 } from "@shared/cycle/schema";
+
+import { appendRegimeForecast, emptyRunRegimes, regimesOf, type RegimeForecastStretch, type RunRegimes } from "./regimes";
 
 /** Terminal lines kept in memory. Older lines drop off the top. */
 export const CYCLE_LOG_CAPACITY = 20_000;
@@ -82,9 +85,19 @@ export interface CycleState {
   logs: CycleLogLine[];
   logsVersion: number;
 
+  /**
+   * The most likely regime of every bar a regime model has walked (`./regimes`):
+   * mutable + a version counter, like `bars`. Empty for a model that sends no
+   * `cycle_regime_forecast`.
+   */
+  regimes: RunRegimes;
+  regimesVersion: number;
+
   /** UI preferences for the run on screen. */
   follow: boolean;
   showOnChart: boolean;
+  /** Paint the walked candles in their most likely regime's colour (flat sky, uptrend orange, downtrend blue). */
+  showRegimeColors: boolean;
   /** A bar a table row asked the chart to jump to (epoch seconds); the chart clears it after scrolling. */
   focusTimestamp: number | null;
   /**
@@ -108,6 +121,9 @@ export interface CycleState {
   reset: () => void;
   setFollow: (follow: boolean) => void;
   setShowOnChart: (show: boolean) => void;
+  setShowRegimeColors: (show: boolean) => void;
+  /** Replace the regimes with a recorded run's forecasts (`RunView.regimeForecasts`). */
+  setRegimeForecasts: (forecasts: readonly RegimeForecastStretch[]) => void;
   setFocusTimestamp: (timestamp: number | null) => void;
   /** Hover or cursor update; ignored while a bar is pinned. */
   setInspect: (timestamp: number | null, source: Exclude<CycleInspectSource, "pinned">) => void;
@@ -144,6 +160,8 @@ type Draft = Pick<
   | "parameters"
   | "logs"
   | "logsVersion"
+  | "regimes"
+  | "regimesVersion"
 >;
 
 function draftOf(state: CycleState): Draft {
@@ -166,6 +184,8 @@ function draftOf(state: CycleState): Draft {
     parameters: state.parameters,
     logs: state.logs,
     logsVersion: state.logsVersion,
+    regimes: state.regimes,
+    regimesVersion: state.regimesVersion,
   };
 }
 
@@ -253,6 +273,9 @@ function reduceCycleEvent<T extends CycleEventType>(draft: Draft, type: T, paylo
     case "cycle_trade":
       draft.trades = upsertTrade(draft.trades, payload as CycleTrade);
       return;
+    case "cycle_regime_forecast":
+      if (appendRegimeForecast(draft.regimes, payload as CycleRegimeForecast) > 0) draft.regimesVersion += 1;
+      return;
     case "cycle_scoreboard": {
       const board = payload as CycleScoreboard;
       if (board.scope === "running") {
@@ -279,6 +302,7 @@ const CYCLE_TYPES: ReadonlySet<string> = new Set([
   "cycle_parameters",
   "cycle_trade",
   "cycle_scoreboard",
+  "cycle_regime_forecast",
 ]);
 
 /** Fold one event into a draft. Events at or below the draft's sequence are ignored. */
@@ -343,12 +367,15 @@ function initialRunState(): Omit<
   | "reset"
   | "setFollow"
   | "setShowOnChart"
+  | "setShowRegimeColors"
+  | "setRegimeForecasts"
   | "setFocusTimestamp"
   | "setInspect"
   | "pinInspect"
   | "setInspectRole"
   | "follow"
   | "showOnChart"
+  | "showRegimeColors"
   | "focusTimestamp"
   | "inspectRole"
 > {
@@ -374,6 +401,8 @@ function initialRunState(): Omit<
     parameters: [],
     logs: [],
     logsVersion: 0,
+    regimes: emptyRunRegimes(),
+    regimesVersion: 0,
     inspectTimestamp: null,
     inspectSource: "cursor",
   };
@@ -383,6 +412,7 @@ export const useCycleStore = create<CycleState>((set, get) => ({
   ...initialRunState(),
   follow: true,
   showOnChart: true,
+  showRegimeColors: true,
   focusTimestamp: null,
   inspectRole: "direction",
 
@@ -427,6 +457,8 @@ export const useCycleStore = create<CycleState>((set, get) => ({
       parameters: snapshot.parameters ?? [],
       logs: snapshot.logs.slice(-CYCLE_LOG_CAPACITY),
       logsVersion: 1,
+      regimes: regimesOf(snapshot.regimeForecasts),
+      regimesVersion: 1,
     });
   },
 
@@ -454,6 +486,8 @@ export const useCycleStore = create<CycleState>((set, get) => ({
 
   setFollow: (follow) => set({ follow }),
   setShowOnChart: (showOnChart) => set({ showOnChart }),
+  setShowRegimeColors: (showRegimeColors) => set({ showRegimeColors }),
+  setRegimeForecasts: (forecasts) => set({ regimes: regimesOf(forecasts), regimesVersion: get().regimesVersion + 1 }),
   setFocusTimestamp: (focusTimestamp) => set({ focusTimestamp, follow: focusTimestamp === null ? get().follow : false }),
   setInspect: (timestamp, source) => {
     const state = get();

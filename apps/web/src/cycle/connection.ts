@@ -18,6 +18,7 @@
  * bare `Event` with none.
  */
 import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
+import { logWarn } from "@/infrastructure/lib/error_logger";
 import { apiRequest } from "@/infrastructure/api/query_client";
 import { toast } from "sonner";
 
@@ -165,6 +166,28 @@ function openSource(modelId: string, generation: number): void {
   });
 }
 
+/**
+ * A snapshot rebuilt from the lake alone carries no regime forecasts (they live
+ * beside the run's artifacts); the run API reads them (`RunView.regimeForecasts`).
+ * Asked once per opened run, and only when the snapshot did not bring them.
+ */
+async function loadRecordedRegimes(snapshot: CycleSnapshot): Promise<void> {
+  if (snapshot.regimeForecasts !== undefined) return;
+  try {
+    const response = await apiRequest("GET", `/api/runs/${encodeURIComponent(snapshot.modelId)}`);
+    const view = (await response.json()) as { regimeForecasts?: CycleSnapshot["regimeForecasts"] };
+    const state = useCycleStore.getState();
+    if (state.modelId === snapshot.modelId && view.regimeForecasts && view.regimeForecasts.length > 0) {
+      state.setRegimeForecasts(view.regimeForecasts);
+    }
+  } catch (error) {
+    logWarn("cycle/connection", "the run's regime forecasts could not be read; its candles keep the chart's own colours", {
+      modelId: snapshot.modelId,
+      error: String(error),
+    });
+  }
+}
+
 function scheduleReconnect(modelId: string, generation: number): void {
   clearReconnectTimer();
   const delaySeconds = RECONNECT_DELAYS_SECONDS[Math.min(reconnectAttempt, RECONNECT_DELAYS_SECONDS.length - 1)]!;
@@ -181,6 +204,7 @@ async function reconnectNow(modelId: string, generation: number): Promise<void> 
     const snapshot = (await response.json()) as CycleSnapshot;
     if (generation !== connectionGeneration) return;
     useCycleStore.getState().loadSnapshot(snapshot);
+    void loadRecordedRegimes(snapshot);
     if (isCycleActive(snapshot.status)) {
       reconnectAttempt = 0;
       openSource(modelId, generation);
@@ -201,6 +225,7 @@ export async function openRun(modelId: string): Promise<void> {
   const response = await apiRequest("GET", `/api/training/cycle/${encodeURIComponent(modelId)}`);
   const snapshot = (await response.json()) as CycleSnapshot;
   useCycleStore.getState().loadSnapshot(snapshot);
+  void loadRecordedRegimes(snapshot);
   if (isCycleActive(snapshot.status)) attach(snapshot.modelId);
 }
 
@@ -291,6 +316,7 @@ export async function attachLatest(signal?: AbortSignal): Promise<void> {
     );
     const snapshot = (await response.json()) as CycleSnapshot;
     useCycleStore.getState().loadSnapshot(snapshot);
+    void loadRecordedRegimes(snapshot);
     if (isCycleActive(snapshot.status)) {
       attach(snapshot.modelId);
     }
