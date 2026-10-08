@@ -223,3 +223,5 @@ The Terminal view lays the engine's lines out as a table: one row per logged ste
 ## A run is a child of the dev server
 
 A run launched through `POST /api/runs` is a child of the `tsx --watch` dev server, so a save to any file in the server's import graph (`apps/api/**`, `packages/shared/src/**`, `packages/config/**`) restarts the server and ends the run. The record keeps the folds that finished; a record still saying "running" with no live process is shown as **Stopped** with that reason (`cycleArchive.ts` `archivedStatusOf`). For a run that must finish, hold saves to those directories in every session until it completes.
+
+On the first run listing after a boot the server reconciles the rows a restart left saying "running" (`@shared/runs/orphans` `classifyOrphanRuns`, applied by `runRecords.reconcileOrphanRuns`): a run with a lake record is marked stopped with the reason; a run that ended before its first fold has nothing to open, so its rows are removed and it holds no version number. It runs only when the lake's run list was really read.

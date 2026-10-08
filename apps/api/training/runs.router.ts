@@ -27,7 +27,7 @@ import { ensureCycleAccumulator, getCycleSnapshot, listCycleRuns } from "./cycle
 import { listArchivedCycleRuns, loadArchivedCycleSnapshot } from "./cycleArchive";
 import { loadCycleReport } from "./cycleReport";
 import { loadCycleRegistry } from "./cycleModels";
-import { baseParametersOf, recordLineage, runRowOf } from "./runRecords";
+import { baseParametersOf, reconcileOrphanRuns, recordLineage, runRowOf } from "./runRecords";
 import { deleteSavedAnalytic, listSavedAnalytics, saveAnalytic } from "./savedAnalytics";
 import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.router";
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
@@ -387,11 +387,26 @@ async function archivedRuns(): Promise<CycleRunSummary[]> {
 }
 
 /** Live runs first, then the lake's, deduped by id, newest first. */
+let orphansReconciled = false;
+
 async function allRuns(): Promise<CycleRunSummary[]> {
   ensureCycleAccumulator();
   const live = listCycleRuns();
   const seen = new Set(live.map((run) => run.modelId));
   const archived = await archivedRuns();
+  // once per boot, and only when the lake's list was really read (a failed read is an empty
+  // list, and an empty list would call every interrupted run recordless)
+  if (!orphansReconciled && listCache) {
+    orphansReconciled = true;
+    try {
+      const actions = reconcileOrphanRuns(seen, new Set(archived.map((run) => run.modelId)));
+      if (actions.stop.length > 0 || actions.remove.length > 0) {
+        console.warn(`[runs] interrupted by a restart: ${actions.stop.length} run(s) marked stopped, ${actions.remove.length} with no record removed`);
+      }
+    } catch (error) {
+      console.warn(`[runs] interrupted runs could not be reconciled: ${String(error)}`);
+    }
+  }
   return [...live, ...archived.filter((run) => !seen.has(run.modelId))].sort((a, b) => b.startedAt - a.startedAt);
 }
 

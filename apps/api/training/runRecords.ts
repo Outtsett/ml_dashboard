@@ -14,6 +14,7 @@ import { db, schema } from "../infrastructure/database/sqlite";
 import type { CycleParameters, CyclePlan, CycleRunStatus, CycleSnapshot } from "@shared/cycle/schema";
 import { configurationOf, buildRunView } from "@shared/runs/view";
 import { runName, runPurpose } from "@shared/runs/naming";
+import { classifyOrphanRuns, ORPHANED_RUN_REASON, type OrphanActions } from "@shared/runs/orphans";
 import type { RunParameterValue } from "@shared/runs/types";
 
 const { cycleRuns, cycleRunConfigurations, cycleRunSettings, cycleRunFeatures, cycleRunVerdicts } = schema;
@@ -193,6 +194,31 @@ export function baseParametersOf(runId: string): { modelKey: string; symbol: str
 }
 
 /** The run row (name, version, lineage) for the view. */
+/**
+ * After a boot: rows still saying "running" whose run is not live (`@shared/runs/orphans`).
+ * One with a lake record is marked stopped with the reason; one with none is removed with
+ * its settings, features, parameters and verdicts, so it holds no version number.
+ */
+export function reconcileOrphanRuns(liveRunIds: ReadonlySet<string>, recordedRunIds: ReadonlySet<string>): OrphanActions {
+  const running = db.select({ runId: cycleRuns.runId }).from(cycleRuns).where(eq(cycleRuns.status, "running")).all();
+  const actions = classifyOrphanRuns(running.map((row) => row.runId), liveRunIds, recordedRunIds);
+  if (actions.stop.length === 0 && actions.remove.length === 0) return actions;
+  db.transaction((tx) => {
+    for (const runId of actions.stop) {
+      tx.update(cycleRuns).set({ status: "stopped", error: ORPHANED_RUN_REASON }).where(eq(cycleRuns.runId, runId)).run();
+    }
+    for (const runId of actions.remove) {
+      // the child rows first: the cascade depends on a pragma this does not assume
+      tx.delete(cycleRunVerdicts).where(eq(cycleRunVerdicts.runId, runId)).run();
+      tx.delete(cycleRunFeatures).where(eq(cycleRunFeatures.runId, runId)).run();
+      tx.delete(cycleRunSettings).where(eq(cycleRunSettings.runId, runId)).run();
+      tx.delete(cycleRunConfigurations).where(eq(cycleRunConfigurations.runId, runId)).run();
+      tx.delete(cycleRuns).where(eq(cycleRuns.runId, runId)).run();
+    }
+  });
+  return actions;
+}
+
 export function runRowOf(runId: string): schema.CycleRunRow | null {
   return db.select().from(cycleRuns).where(eq(cycleRuns.runId, runId)).all()[0] ?? null;
 }

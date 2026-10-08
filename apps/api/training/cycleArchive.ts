@@ -15,6 +15,7 @@
  * with the bars the model was tested on and no plan, which the page draws as a
  * finished run without fold bands. Log lines are not landed; the terminal says so.
  */
+import { ORPHANED_RUN_REASON } from "@shared/runs/orphans";
 import {
 emptyBarColumns,
 type CycleBarColumns,
@@ -110,7 +111,6 @@ function statusOf(value: unknown): CycleRunStatus {
 /** A run is read from the lake only when it is not live in this server; a record still
  * saying "running" is a run whose process died under it (the dev server restarts on a
  * server-file save and tree-kills its children), so it is reported as stopped, with the reason. */
-const ORPHANED_RUN_ERROR = "The server restarted while this run was in progress (a server-file save restarts it and ends its process). The record holds the folds that finished; relaunch to continue.";
 
 function archivedStatusOf(value: unknown): CycleRunStatus {
   const status = statusOf(value);
@@ -415,7 +415,7 @@ export async function loadArchivedCycleSnapshot(modelId: string): Promise<CycleS
     status,
     startedAt,
     finishedAt: finishedAt === null ? null : finishedAt * 1000,
-    error: orphaned ? ORPHANED_RUN_ERROR : run && typeof run.error === "string" ? run.error : null,
+    error: orphaned ? ORPHANED_RUN_REASON : run && typeof run.error === "string" ? run.error : null,
     lastSequence: seq,
     plan,
     cursor: null,
