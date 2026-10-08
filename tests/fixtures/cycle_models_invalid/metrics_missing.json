@@ -1,0 +1,14 @@
+{
+  "description": "Every model carries its metrics record: how it is judged, natively and as run.",
+  "operations": [
+    {
+      "op": "delete",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics"
+      ]
+    }
+  ]
+}

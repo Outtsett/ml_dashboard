@@ -213,7 +213,7 @@ export function buildCatalogLifecycle(inputs: LifecycleInputs): CatalogLifecycle
 
 // ─── Gathering ──────────────────────────────────────────────────────────────
 
-export async function getCatalogLifecycle(): CatalogLifecycleResponse {
+export async function getCatalogLifecycle(): Promise<CatalogLifecycleResponse> {
   const specs = getCatalogModels({ includeEmpty: true }).models.map(m => ({
     id: m.id,
     hasContent: m.hasContent,
@@ -232,7 +232,7 @@ export async function getCatalogLifecycle(): CatalogLifecycleResponse {
     };
   }
 
-  const sessions = listSessions().map(s => ({
+  const sessions = (await listSessions()).map(s => ({
     modelType: s.modelType,
     status: s.status,
     startedAtMilliseconds: s.startedAt ? s.startedAt.getTime() : null,
@@ -246,21 +246,35 @@ export async function getCatalogLifecycle(): CatalogLifecycleResponse {
     return fs.existsSync(manifest);
   };
 
+  // The registry store (model_versions, deployments) is a separate database. When it is not
+  // reachable the stages that need it (deployed) cannot be told, but every stage below them
+  // still can, so the catalog keeps its lifecycle instead of answering 500.
+  const fromRegistryStore = async <Row>(what: string, read: () => Promise<Row[]>): Promise<Row[]> => {
+    try {
+      return await read();
+    } catch (error) {
+      console.warn(`[lifecycle] ${what} not readable, treated as none: ${(error as Error).message}`);
+      return [];
+    }
+  };
+
   return buildCatalogLifecycle({
     specs,
     trainable: getTrainableModels(),
     runners,
     sessions,
-    versions: await db
-          .select({
-            versionId: modelVersions.versionId,
-            catalogId: modelVersions.catalogId,
-            runnerKey: modelVersions.runnerKey,
-          })
-          .from(modelVersions),
-    deployments: await db
-          .select({ versionId: deployments.versionId, status: deployments.status })
-          .from(deployments),
+    versions: await fromRegistryStore('model_versions', () =>
+      db
+        .select({
+          versionId: modelVersions.versionId,
+          catalogId: modelVersions.catalogId,
+          runnerKey: modelVersions.runnerKey,
+        })
+        .from(modelVersions),
+    ),
+    deployments: await fromRegistryStore('deployments', () =>
+      db.select({ versionId: deployments.versionId, status: deployments.status }).from(deployments),
+    ),
     isLensReady,
   });
 }

@@ -123,6 +123,278 @@
           "group": "Model",
           "description": "Propagation sweeps before stopping (tolerance 1e-3)."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "vote_share_or_frequency"
+        ],
+        "native": {
+          "produces": "A label distribution for every node of a similarity graph: labelled nodes keep their one-hot label and each unlabelled node ends with the class shares that flowed to it from labelled nodes along the weighted edges.",
+          "targetVariable": "The class of each data point, for trading a buy or sell signal or a market regime, stated as a share per class on every unlabelled node, with the hard label taken as the class holding the largest share.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Label propagation's version is the harmonic energy, the edge-weighted sum of squared label differences over the whole graph, minimised while the labelled nodes are held fixed at their true labels; as run the unlabelled pool is manufactured by masking labels in blocks of the training span.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Hard clamping pins every labelled node at exactly zero or one, and an unlabelled node whose neighbourhood holds one class inherits that extreme, so the bounded squared-error score is the proper score that can grade the propagated share on every node.",
+              "baseline": "The Brier score of quoting the labelled nodes' up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Propagation is worth its iterations only if labels arriving through chains of unlabelled nodes beat a plain vote of the nearest labelled nodes, so the score is set against the same graph readout with the unlabelled nodes taken out.",
+              "baseline": "The same nearest-node vote over the labelled nodes alone, with no propagation through unlabelled nodes.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The algorithm's last step assigns each unlabelled node the class with the largest propagated share, and since those nodes' labels are hidden rather than unknown, the share of them labelled correctly is the direct measure of the propagation.",
+              "baseline": "The share of the same hidden nodes that match the labelled nodes' majority class.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A node far from any labelled node receives a diluted share close to the average, so the level says little there, while the ordering still tells whether nodes that went up collected more up mass than nodes that went down.",
+              "baseline": "One half, the value of propagated shares that carry no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's prediction is the largest propagated class per node, and this single number grades that hard label across all four hit and miss cells so that labelling everything as the commoner class earns nothing.",
+              "baseline": "Zero, the value of labels unrelated to the outcome.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The propagated share is a blend of neighbouring labels that nothing ever checked against outcomes, and with clamped nodes nearby it tends to be more extreme than the data supports; the slope measures that without bins.",
+              "baseline": "One, the slope of a share whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "On a nearest-neighbour graph a connected piece with no labelled node never receives any label mass, so the share of unlabelled nodes that propagation actually reached shows how much of the pool was labelled by the graph and how much by a fallback.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The label matrix is updated sweep after sweep until it stops changing or an iteration cap ends it, and a run that hit the cap is reading shares that had not yet settled into the harmonic solution.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The Objective section minimises a harmonic energy on the graph; no variance is output and no Gaussian likelihood is ever evaluated."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "Only class labels are propagated, so there is no return forecast whose error could be scaled by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of nodes, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "Hard clamping produces shares of exactly zero or one on and around labelled nodes, and one such miss costs an unbounded amount of logarithmic loss, so the number would be decided by a handful of nodes."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "Label propagation minimises a harmonic energy over a graph with clamped labels and never outputs a mean and a variance, so there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The algorithm propagates one-hot class labels, not move sizes, so there is no forecast in move units for an error to be measured on."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "It grades only the most confident tenth of nodes at a cut chosen after the fact, and the registry holds no such quantity; the propagated share is graded on every scored bar."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Propagating labels never takes a position, so a return per unit of risk measures the Model Cycle's trading rule and costs and belongs to the as-run scoreboard only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the scikit-learn label propagation estimator, with hard clamping, on a nearest-neighbour or radial basis function graph of the training span's bars; the unlabelled pool is manufactured by masking labels in contiguous blocks of the training span with an embargo of the label horizon, a later bar is never added to the graph but reads the mean propagated up share of its nearest training nodes, and no price model exists, so the as-run numbers measure that nearest-node readout of a deliberately handicapped fit.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the plain mean of the propagated up shares of the bar's nearest training nodes under the nearest-neighbour kernel, or the kernel-weighted mean over all nodes under the radial basis function kernel; labelled nodes contribute exactly zero or one and nothing is fitted on validation bars.",
+          "priceForecastSource": "none",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the plain logarithmic loss of the mean propagated probability of up on the validation bars, one value for the single fit; the fit returns no training value, so none is logged, and nothing is fitted on the validation bars",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The readout averages node shares that include hard-clamped zeros and ones, so it reaches exactly zero or one whenever a bar's nearest nodes agree, and this bounded proper score grades that share on unseen bars without a single extreme miss deciding it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Unlabelled nodes hold continuous propagated shares, so the neighbour mean is a graded score, and this tests whether bars that resemble training nodes rich in propagated up mass really go up more often than the rest."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Shows what following the side of one half that the mean propagated up share falls on earned after costs under the engine's trading rule, the only route by which the propagated labels reach the account."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Relates the per-bar result of trading the propagated call to its bar-to-bar swings; the kernel, neighbour count and labelled fraction were themselves chosen on this quantity inside the training span, so only the test value is clean."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "A test bar unlike anything in the training span still receives a confident vote from its nearest nodes, and the deepest fall of the equity shows what a run of such misplaced votes cost."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Sets the dollars won by trades opened on the propagated call against the dollars lost by them after costs, a view of the same calls that does not depend on how many bars each trade lasted."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Counts how often a trade opened when the mean propagated share crossed one half closed in profit, which describes the engine's exit rule as much as the graph and is read beside the average win and loss."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Grades the hard call made by cutting the mean propagated up share at one half; the fit is unweighted, so the call leans toward whichever direction the kept labelled blocks held more of."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit share on up bars and on down bars, so a propagation that flooded the graph with the labelled blocks' commoner direction cannot look good by calling that direction throughout."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Condenses the four hit and miss cells of the propagated call into one number that stays near zero when the nearest-node vote merely repeats the labelled up share."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The propagated share is unweighted and was never checked against outcomes, so the gap between stated share and observed up share per bin shows how far a vote of a few clamped and propagated nodes overstates its case."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows without bins whether the mean over a bar's nearest nodes is more extreme than outcomes justify, the expected fault when hard-clamped zeros and ones sit among the nodes being averaged."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the bars whose nearest nodes were all clamped or propagated to the same class, giving a share of exactly zero or one, the bars that make the logarithmic loss unusable for this model."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Far from any labelled node the propagated shares thin out toward the labelled average, and the spread of the neighbour mean over scored bars shows whether the propagation still tells one bar from another."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Records the training-span score on which the kernel, neighbour count, bandwidth quantile and labelled fraction were chosen, an optimistic selection number shown so the test result can be read against it."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The mean of hard-clamped and propagated node shares can be exactly zero or one, and each miss at such a bar is charged the clipped maximum, so the mean is set by a few bars rather than by the quality of the propagation."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because label propagation has no regression form in the adapter and its registry price block is empty."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: no price model is fitted for label propagation, so there is no forecast move whose error could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: no price model is fitted for label propagation, so there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target the engine is always in the market once the first call is made, so the share of bars held describes the engine's rule and not the propagated labels."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, so the model sees fewer labels than a fully supervised model on the same bars and the result is not a test of using genuinely unlabelled data.",
+            "Validation and test bars are never added to the graph; each is scored by the mean propagated share of its nearest training nodes, so the as-run number tests the inductive extension and not transduction over the scored bars.",
+            "The graph is capped at a maximum node count by taking evenly spaced bars of the training span, so on a long span most training bars are not nodes.",
+            "A node the propagation never reached, in a piece of the graph with no labelled node, is given the labelled up share, and a fit that stopped at the iteration cap is recorded as not converged but is still used.",
+            "Consecutive scored bars share most of the bars inside their label horizon, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Costs for roots other than the Micro Nasdaq contract are that contract's account figures applied as a stated assumption.",
+            "The last bar of a fold exits at its own close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "label_spreading": {
@@ -266,6 +538,285 @@
           "group": "Model",
           "description": "Propagation sweeps before stopping (tolerance 1e-3)."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "vote_share_or_frequency"
+        ],
+        "native": {
+          "produces": "A label distribution for every node of a similarity graph in which labels have spread over the symmetrically normalised edges and even the labelled nodes are allowed to drift from their given label when their neighbours disagree.",
+          "targetVariable": "The class of each data point, for trading a buy or sell signal or a market regime, stated as a share per class on every node, with the hard label taken as the class holding the largest spread share.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Label spreading's version trades a smoothness energy on the degree-normalised graph against a squared penalty for moving any node away from its initial label, with the clamping factor alpha setting how much of each node's value comes from its neighbours; as run the unlabelled pool is manufactured by masking labels in blocks of the training span.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each node's spread shares are renormalised to sum to one, and a pocket of the graph fed by one class alone still ends at exactly zero or one, so the bounded squared-error score is the proper score that grades the spread share on every node safely.",
+              "baseline": "The Brier score of quoting the labelled nodes' up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Spreading earns its place only if label mass travelling through unlabelled nodes, and the freedom to overrule a noisy label, beats a plain vote of the nearest labelled nodes, so the score is set against that vote on the same graph.",
+              "baseline": "The same nearest-node vote over the labelled nodes alone, with no spreading through unlabelled nodes.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The algorithm ends by giving each unlabelled node the class with the largest spread share, and because those labels are hidden rather than unknown, the share of them recovered correctly is the direct measure of what spreading achieved.",
+              "baseline": "The share of the same hidden nodes that match the labelled nodes' majority class.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Degree normalisation damps the pull of heavily connected nodes and so changes the level of every spread share, while the ordering still shows whether nodes that went up collected more up mass than nodes that went down.",
+              "baseline": "One half, the value of spread shares that carry no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's prediction is the largest spread class per node, and this single number grades that hard label across all four hit and miss cells so that labelling every node as the commoner class earns nothing.",
+              "baseline": "Zero, the value of labels unrelated to the outcome.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The clamping factor decides how far a labelled node's value is diluted by its neighbours, so it directly stretches or squeezes the spread shares, and the slope reports whether the chosen dilution left them too timid or too bold.",
+              "baseline": "One, the slope of a share whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A clamping factor close to one lets neighbours wash every node toward the graph-wide average, and a spread share that barely moves from that average is smooth but useless for telling one bar from the next.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The spread label matrix is updated sweep after sweep until it stops changing or an iteration cap ends it, and a run that hit the cap reads shares that had not settled to the closed-form solution of the regularised problem.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The Objective section minimises graph smoothness plus a squared fidelity term on labels; no variance is output and no Gaussian likelihood is evaluated."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "Only class labels are spread in the specification, so there is no return forecast whose error could be scaled by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of nodes, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A pocket of the graph reached by one class only holds a spread share of exactly zero or one, and one such miss costs an unbounded amount of logarithmic loss, so the number would be decided by a few nodes."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "Label spreading minimises a smoothness energy plus a squared label-fidelity penalty and never outputs a mean and a variance, so there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The specification spreads one-hot class labels, not move sizes, so natively there is no forecast in move units for an error to be measured on."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "It grades only the most confident tenth of nodes at a cut chosen after the fact, and the registry holds no such quantity; the spread share is graded on every scored bar."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Spreading labels never takes a position, so a return per unit of risk measures the Model Cycle's trading rule and costs and belongs to the as-run scoreboard only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the scikit-learn label spreading estimator, with the normalised graph and soft clamping set by the clamping factor, on a nearest-neighbour or radial basis function graph of the training span's bars; the unlabelled pool is manufactured by masking labels in contiguous blocks of the training span with an embargo of the label horizon, and a later bar is never added to the graph but reads the mean spread up share of its nearest training nodes, so the as-run numbers measure that nearest-node readout of a deliberately handicapped fit.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the plain mean of the spread up shares of the bar's nearest training nodes under the nearest-neighbour kernel, or the kernel-weighted mean over all nodes under the radial basis function kernel; each node's two class masses are renormalised to sum to one and nothing is fitted on validation bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the plain logarithmic loss of the mean spread probability of up on the validation bars, one value for the single fit; the fit returns no training value, so none is logged, and nothing is fitted on the validation bars",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The readout averages renormalised node shares that still reach exactly zero or one where only one class's mass arrived, and this bounded proper score grades the spread share on unseen bars without a single extreme miss deciding it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Soft clamping leaves every node, labelled or not, with a continuous share, so the neighbour mean is a graded score, and this tests whether bars that resemble nodes rich in spread up mass really go up more often."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Shows what following the side of one half that the mean spread up share falls on earned after costs under the engine's trading rule, the only route by which the spread labels reach the account."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Relates the per-bar result of trading the spread call to its bar-to-bar swings; the clamping factor, kernel, neighbour count and labelled fraction were themselves chosen on this quantity inside the training span, so only the test value is clean."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "A test bar unlike anything in the training span still receives a call from its nearest nodes' spread shares, and the deepest fall of the equity shows what a run of such misplaced votes cost."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Sets the dollars won by trades opened on the spread call against the dollars lost by them after costs, a view of the same calls that does not depend on how many bars each trade lasted."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Counts how often a trade opened when the mean spread share crossed one half closed in profit, which describes the engine's exit rule as much as the graph and is read beside the average win and loss."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Grades the hard call made by cutting the mean spread up share at one half; the fit is unweighted, so the call leans toward whichever direction the kept labelled blocks held more of."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit share on up bars and on down bars, so a spreading that washed the graph toward the labelled blocks' commoner direction cannot look good by calling that direction throughout."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Condenses the four hit and miss cells of the spread call into one number that stays near zero when the nearest-node vote merely repeats the labelled up share."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread share is unweighted and its scale is set by the clamping factor rather than by outcomes, so the gap between stated share and observed up share per bin shows whether that dilution suits the test bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows without bins whether the clamping factor left the neighbour mean of spread shares too bold or too timid, since a larger factor pulls every node further toward its neighbours' average."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the bars whose nearest nodes received mass from one class only, giving a share of exactly zero or one after renormalisation, the bars that make the logarithmic loss unusable for this model."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A clamping factor near one washes every node toward the graph-wide average, and the spread of the neighbour mean over scored bars shows whether the spreading still tells one bar from another."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second spreading fit, the clipped scaled move spread over a heat-kernel graph and divided by the spread labelled mass, read through a heat-weighted nearest-node mean; this compares its absolute error with forecasting no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "States in points how far the spread move, averaged over a bar's nearest training nodes, landed from the realised horizon move, read beside the error of forecasting no change on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Checks the sign of the separately spread move forecast; it does not drive any trade, because the traded call comes from the class spreading, so it is a second opinion from the same kind of graph."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Records the training-span score on which the clamping factor, kernel, neighbour count, bandwidth quantile and labelled fraction were chosen, an optimistic selection number shown so the test result can be read against it."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The mean of renormalised spread shares can be exactly zero or one, and each miss at such a bar is charged the clipped maximum, so the mean is set by a few bars rather than by the quality of the spreading."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target the engine is always in the market once the first call is made, so the share of bars held describes the engine's rule and not the spread labels."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, so the model sees fewer labels than a fully supervised model on the same bars and the result is not a test of using genuinely unlabelled data.",
+            "Validation and test bars are never added to the graph; each is scored by the mean spread share of its nearest training nodes, so the as-run number tests the inductive extension and not transduction over the scored bars.",
+            "The graph is capped at a maximum node count by taking evenly spaced bars of the training span, so on a long span most training bars are not nodes.",
+            "The price forecast is not the scikit-learn estimator: it is a separate normalised spreading of the clipped scaled move on a heat-kernel nearest-neighbour graph, whatever kernel the class model was given.",
+            "A node the spreading never reached is given the labelled up share, and a fit that stopped at the iteration cap is recorded as not converged but is still used.",
+            "Consecutive scored bars share most of the bars inside their label horizon, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Costs for roots other than the Micro Nasdaq contract are that contract's account figures applied as a stated assumption.",
+            "The last bar of a fold exits at its own close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "harmonic_graph_learning": {
@@ -373,6 +924,284 @@
           "label": "Class mass normalization",
           "group": "Model",
           "description": "Re-weight the two classes' harmonic masses to the labelled up-rate (Zhu et al. 2003)."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "vote_share_or_frequency"
+        ],
+        "native": {
+          "produces": "A class share for every node of a similarity graph, labelled or not, obtained by letting the few known labels flow along weighted edges until every unlabelled node holds the smooth blend of its neighbours.",
+          "targetVariable": "The class of each data point, for trading the buy or sell signal or the market regime of a bar, stated as a share between zero and one on every node of the graph including the nodes that never had a label.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "This family's unlabelled term is the graph smoothness energy, the edge-weighted sum of squared differences between the values of connected nodes, added to a fit on the labelled nodes; as run the unlabelled pool is manufactured by masking labels in blocks of the training span.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The harmonic solve clamps labelled nodes at exactly zero or one and a node surrounded by one class inherits that extreme, so the bounded squared-error score is the proper score that can grade every node's share without one clamped miss swamping the rest.",
+              "baseline": "The Brier score of quoting the labelled nodes' up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of the graph family is that edges through unlabelled nodes carry label information further than the labelled nodes reach alone, so the score is compared with the same weighted neighbour vote on a graph built from the labelled nodes only.",
+              "baseline": "The same graph construction and neighbour readout fitted on the labelled nodes alone, with every unlabelled node removed.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Smoothing over the graph compresses every node's value toward the local average, so the level can be wrong while the ordering is right; this asks only whether nodes that turned out up were given higher harmonic values than nodes that turned out down.",
+              "baseline": "One half, the value of a graph whose edges connect bars with unrelated outcomes.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's Evaluation section grades classification by hit-based scores such as accuracy and the F-one score, so this grades the call at the larger propagated class share, the cut-off that class mass normalisation is read at, across all four hit and miss cells in one number that does not reward simply calling the commoner class everywhere.",
+              "baseline": "Zero, the value of labels that carry no relation to the outcome.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The native product is a label for every unlabelled node of the graph, and because those labels are only hidden rather than unknown, the share of unlabelled nodes whose propagated label matches the hidden true label is the direct test of the transduction.",
+              "baseline": "The share of the same hidden nodes that match the labelled nodes' majority class.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Class mass normalisation rescales the two propagated class masses to match the labelled up share, which fixes the overall lean but not the spread, and the slope shows whether the harmonic values are stretched or squeezed relative to what happened.",
+              "baseline": "One, the slope of a share whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The propagated labelling depends on which nodes happened to carry labels and on the neighbour count and bandwidth of the edges, so two fits that differ only in the labelled set should still agree on the unlabelled nodes they share.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A connected piece of the graph that holds no labelled node receives no label information at all and falls back to the labelled average, so the share of unlabelled nodes the labels actually reached says how much of the pool the graph really served.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "No member of the family outputs a variance, and the objective in the Training Methodology section is a supervised loss plus a graph smoothness term."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The propagated quantity is a class share on a node, not a return forecast, so a return error scaled by volatility has nothing to grade natively."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of nodes, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The harmonic solve clamps labelled nodes at exactly zero or one and a node surrounded by one class inherits that extreme, so one miss at such a node costs an unbounded amount of logarithmic loss and the number would be decided by a handful of nodes; the graph-network members the survey mentions are not run by the Model Cycle."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The family minimises a smoothness energy on a graph plus a fit to labelled nodes and never outputs a mean with a variance, so there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The specification's trading use is a buy or sell class per node, not a forecast of the size of the move, so an error in move units belongs to a separately fitted price model and not to the propagated label."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "It grades only the most confident tenth of nodes at a cut chosen after the fact, and the registry holds no such quantity; the propagated share is graded on every scored bar instead."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Propagating labels over a graph never takes a position, so a return per unit of risk measures the Model Cycle's trading rule and costs and belongs to the as-run scoreboard only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements one member of the surveyed family, the harmonic function of Zhu, Ghahramani and Lafferty solved once on a heat-kernel nearest-neighbour graph of the training span's bars, with class mass normalisation and no graph neural network; the unlabelled pool is manufactured by masking labels in contiguous blocks of the training span with an embargo of the label horizon, and a later bar is never added to the graph but reads the heat-weighted mean harmonic value of its nearest training nodes, so the as-run numbers measure that nearest-node readout of a deliberately handicapped fit.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the heat-weighted mean of the harmonic values of the bar's nearest training nodes, clipped to the range zero to one and then passed through class mass normalisation, which rescales the up and down masses so that their totals over the unlabelled nodes match the labelled up share; nothing is fitted on validation bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the plain logarithmic loss of the normalised harmonic probability of up on the validation bars, one value for the single fit; the fit returns no training value, so none is logged, and nothing is fitted on the validation bars",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The readout is a weighted share of clamped and harmonic node values that reaches exactly zero or one when a bar's nearest nodes all sit in one class, and this bounded proper score grades that share on unseen bars without a single extreme miss deciding it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The heat-weighted mean of harmonic values is a continuous score, so this tests the one thing the graph must deliver: that bars resembling training nodes with high harmonic values go up more often than bars resembling nodes with low ones."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Shows what following the side of one half that the normalised harmonic share falls on earned after costs under the engine's trading rule, which is the only way the smoothed neighbour vote reaches the account."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Relates the per-bar result of trading the harmonic call to its bar-to-bar swings; the neighbour count, bandwidth and labelled fraction were themselves chosen on this quantity inside the training span, so only the test value is clean."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "A test bar that resembles no training node still gets a confident call from its nearest nodes, and the deepest fall of the equity shows what a stretch of such misplaced neighbour votes cost."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Sets the dollars won by trades opened on the harmonic call against the dollars lost by them after costs, a view of the same calls that does not depend on how many bars each trade lasted."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Counts how often a trade opened when the normalised harmonic share crossed one half closed in profit, which describes the engine's exit rule as much as the graph and is read beside the average win and loss."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Grades the hard call made by cutting the normalised harmonic share at one half; because class mass normalisation ties the share of up calls to the labelled up share, the call inherits that training prior."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit share on up bars and on down bars, so a harmonic field that class mass normalisation tilted toward the training span's commoner direction cannot look good by calling that direction throughout."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Condenses the four hit and miss cells of the harmonic call into one number that stays near zero when the nearest-node vote merely repeats the labelled up share."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The share is unweighted and class mass normalisation anchors it to the labelled up share, so the gap between stated share and observed up share per bin tests whether that anchoring carried from the training span to the test bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows without bins whether the nearest-node mean of clamped and harmonic values is more extreme than outcomes justify, which is the usual fault of a share built from a handful of neighbours."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the bars whose nearest nodes were so uniformly one class that the normalised share came out at exactly zero or one, the bars that make the logarithmic loss unusable for this model."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "With few labelled nodes the harmonic solve flattens toward the labelled average far from any label, and the spread of the share over scored bars shows whether the field still separates one bar from another."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second harmonic solve of the same kind, on the clipped scaled move instead of the class, read through the same nearest-node mean; this compares its absolute error with forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "States in points how far the harmonic regression's nearest-node mean of training moves landed from the realised horizon move, read beside the error of forecasting no change on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Checks the sign of the separately solved harmonic move forecast; it does not drive any trade, because the traded call comes from the class solve, so it is a second opinion from the same graph."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Records the training-span score on which the labelled fraction, neighbour count and bandwidth quantile of the heat graph were chosen, an optimistic selection number shown so the test result can be read against it."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The normalised harmonic share can be exactly zero or one, and each miss at such a bar is charged the clipped maximum, so the mean is set by a few bars rather than by the quality of the graph."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target the engine is always in the market once the first call is made, so the share of bars held describes the engine's rule and not the harmonic field."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, so the model sees fewer labels than a fully supervised model on the same bars and the result is not a test of using genuinely unlabelled data.",
+            "Validation and test bars are never added to the graph; each is scored by the heat-weighted mean of its nearest training nodes, so the as-run number tests the inductive extension and not transduction over the scored bars.",
+            "The graph is capped at a maximum node count by taking evenly spaced bars of the training span, so on a long span most training bars are not nodes.",
+            "A connected piece of the graph with no labelled node is held solvable by a very small pull toward the labelled mean, so its nodes sit at that mean and carry no information.",
+            "Consecutive scored bars share most of the bars inside their label horizon, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Costs for roots other than the Micro Nasdaq contract are that contract's account figures applied as a stated assumption.",
+            "The last bar of a fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -523,6 +1352,271 @@
             "log": true
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "score_or_margin"
+        ],
+        "native": {
+          "produces": "A decision function defined for any data point, a kernel expansion over labelled and unlabelled training points whose sign gives the class, fitted so that it changes slowly between points joined by strong edges of a similarity graph.",
+          "targetVariable": "The class of each data point, for trading a buy or sell signal or a market regime, stated as a signed real-valued decision value whose sign is the class and whose size is a distance from the boundary rather than a probability.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Manifold regularisation carries two penalties beside the labelled loss: an ambient one that keeps the kernel function simple everywhere and an intrinsic one, the graph Laplacian energy over labelled and unlabelled points, that keeps it flat along the data's own shape; as run the unlabelled pool is manufactured by masking labels in blocks of the training span.",
+          "metrics": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The Laplacian regularised least squares fit regresses onto plus and minus one, so its decision value is a signed score with no claim to be a probability, and what it honestly offers is whether up points receive larger values than down points.",
+              "baseline": "One half, the value of a decision function that orders points no better than chance.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Setting the intrinsic regularisation weight to zero turns the method into an ordinary kernel ridge fit on the labelled points, so comparing against that fit isolates exactly what the Laplacian penalty over unlabelled points bought.",
+              "baseline": "The same kernel machine on the same labelled points with the intrinsic regularisation weight set to zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The class is read from the sign of the kernel expansion, and averaging the hit share of the two classes grades that sign without rewarding a function whose offset simply leans toward the commoner class.",
+              "baseline": "One half, the value of a sign unrelated to the outcome.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The largest positive decision values lie deepest inside the region the manifold penalty marked as up, and this checks whether those most confident points really are up points rather than the product of an over-smoothed function.",
+              "baseline": "The up share of the scored bars, the value an uninformative score achieves.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The function is evaluated on the very unlabelled points that shaped its Laplacian penalty, and since their labels are hidden rather than unknown, the share of those points whose sign matches the hidden label is the direct test of the transductive claim.",
+              "baseline": "The share of the same hidden points that match the labelled points' majority class.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The solution rests on a graph whose edges change with the neighbour count and bandwidth and on which points carry labels, so two fits that differ only in the labelled set should still put the unlabelled points they share on the same side.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The Objective section is a supervised loss plus a manifold smoothness loss; no variance is output and no Gaussian likelihood is evaluated."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The classifier form outputs a signed decision value for a class, not a return forecast, so a return error scaled by volatility has nothing to grade."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of points, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": null,
+              "why": "Natively the kernel machine states no probability, so the Brier score applies only to the as-run output after a logistic curve has been fitted on validation bars."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "Natively the output is a decision value fitted by least squares or a hinge margin, not a probability; as run the logarithmic loss grades that value together with the logistic curve fitted on validation bars."
+            },
+            {
+              "name": "Brier score",
+              "metricId": "brier_score",
+              "why": "A squared gap to a zero or one outcome needs a number that claims to be a probability, and the kernel expansion's value is unbounded and makes no such claim until a curve is fitted to it."
+            },
+            {
+              "name": "Calibration slope",
+              "metricId": "calibration_slope",
+              "why": "There are no stated odds to check on a decision value; any slope measured as run describes the validation-fitted curve and not the regularised kernel machine."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The objective is a labelled loss plus ambient and manifold penalties and the model never outputs a mean and a variance, so there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The specification's trading use is a buy or sell class from the sign of the function, so an error in move units belongs to a separately fitted regression form and not to the classifier."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "It grades only the most confident tenth of points at a cut chosen after the fact, and the registry holds no such quantity; average precision grades the confident end over every scored bar."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements the Laplacian regularised least squares member only, a radial basis function kernel expansion over the training span's nodes solved once with an ambient ridge and a nearest-neighbour graph Laplacian penalty, with no hinge-loss support vector machine or neural variant; the unlabelled pool is manufactured by masking labels in contiguous blocks of the training span with an embargo of the label horizon, and the decision value becomes a probability only through a logistic curve fitted on validation bars, so the as-run numbers measure the kernel machine together with that curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The kernel expansion is solved against targets of plus one for up and minus one for down on the labelled nodes with no class weights, and its decision value for a bar is turned into a probability of up by a logistic curve whose slope and intercept are fitted by maximum likelihood on the fold's validation bars only.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the plain logarithmic loss of the curve-mapped probability of up on the validation bars, one value for the single fit, partly in-sample for the two curve parameters fitted on those same bars; the fit returns no training value, so none is logged",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The logistic curve keeps the probability strictly inside zero and one, so this grades the kernel machine's decision value together with the two curve parameters on test bars that neither the solve nor the curve fit ever saw."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The curve only relabels the decision value in order, so the ranking on test bars is the Laplacian-regularised kernel expansion's own and tests whether bars it places deep on the up side go up more often."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Shows what following the side of one half that the curve-mapped decision value falls on earned after costs under the engine's trading rule; the traded side is set by the validation-fitted intercept and slope, not by the raw sign."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the same curve-mapped decision value on a bounded scale, so a few bars where the kernel expansion ran far from the boundary and was wrong do not dominate the verdict as they do in the logarithmic loss."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Relates the per-bar result of trading the curve-mapped call to its bar-to-bar swings; the ambient and intrinsic regularisation weights and the kernel width were themselves chosen on this quantity inside the training span."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Far from every training node the kernel expansion decays to zero and the call falls to whatever side the curve's intercept favours, and the deepest fall of the equity shows what such stretches cost."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Sets the dollars won by trades opened on the curve-mapped call against the dollars lost by them after costs, a view of the same calls that does not depend on how many bars each trade lasted."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Counts how often a trade opened when the curve-mapped decision value crossed one half closed in profit, which describes the engine's exit rule as much as the kernel machine and is read beside the average win and loss."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Grades the hard call at one half of the curve-mapped probability; the cut on the decision value is therefore wherever the validation-fitted curve crosses one half, a prior taken from validation bars rather than the solve's own zero."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit share on up bars and on down bars, so a curve intercept that pushes nearly every decision value to one side cannot make the kernel machine look good."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Condenses the four hit and miss cells of the curve-mapped call into one number that stays near zero when the call merely repeats the validation bars' commoner direction."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve was fitted to make the decision value's stated odds match outcomes on validation bars, so the per-bin gap on test bars measures whether that two-parameter fit still holds one block later."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Refits on test bars the same kind of slope the validation curve already applied to the decision value, so a value away from one says the scale learned on validation bars did not carry over."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second Laplacian regularised least squares solve of the same kind, on the centred clipped scaled move, with the labelled mean added back; this compares its absolute error with forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "States in points how far the kernel expansion fitted to training moves landed from the realised horizon move, read beside the error of forecasting no change on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Checks the sign of the separately solved move forecast; it does not drive any trade, because the traded call comes from the class solve and its curve, so it is a second opinion from the same kernel and graph."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Records the training-span score on which the ambient and intrinsic regularisation weights, kernel width multiple, neighbour count and labelled fraction were chosen, an optimistic selection number shown beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target the engine is always in the market once the first call is made, so the share of bars held describes the engine's rule and not the kernel machine."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "why": "The logistic curve maps every finite decision value strictly inside zero and one, so the count of bars at exactly zero or one is empty by construction and says nothing about this model."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, so the model sees fewer labels than a fully supervised model on the same bars and the result is not a test of using genuinely unlabelled data.",
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars, so the validation loss is partly in-sample for those two parameters and only the test walk is out of sample.",
+            "The curve's slope is fitted freely, so a negative slope would trade against the sign of the kernel machine's own decision value; the fitted slope and intercept are stored in the fit summary but not shown on the scoreboard.",
+            "Validation and test bars are never added to the graph or the kernel expansion; each is scored against the fitted training nodes only, so the as-run number tests the out-of-sample extension and not transduction over the scored bars.",
+            "The node set is capped at a maximum node count by taking evenly spaced bars of the training span, and the solve is dense over those nodes, so on a long span most training bars are not in the expansion.",
+            "Consecutive scored bars share most of the bars inside their label horizon, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Costs for roots other than the Micro Nasdaq contract are that contract's account figures applied as a stated assumption.",
+            "The last bar of a fold exits at its own close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "semi_supervised_clustering": {
@@ -649,6 +1743,268 @@
           "label": "Max iterations",
           "group": "Model",
           "description": "Lloyd iterations before stopping."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "cluster_partition",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "semi_supervised_classifier"
+        ],
+        "native": {
+          "produces": "A group label for every row, found by clustering all rows while a small set of labelled rows or must-link and cannot-link pairs steers which rows may share a group.",
+          "targetVariable": "the group each row belongs to, where the groups are meant to line up with the few known categories (in the specification, market regimes such as trending or ranging; in the Model Cycle, whether the close a label horizon ahead is above this bar's close); the clustering itself reads no future price",
+          "objectiveId": "clustering_objective",
+          "objectiveNote": "The semi-supervised version adds a supervision term to the within-group spread: seeded centroids start inside the labelled rows of each class, constrained assignment refuses any move that breaks a must-link or cannot-link pair, and the metric-learning variant also reshapes the distance itself.",
+          "metrics": [
+            {
+              "metricId": "adjusted_rand_index_against_held_back_labels",
+              "type": "structure_validity",
+              "role": "primary",
+              "why": "The specification's own evaluation asks whether the groups line up with the known categories, so unseen rows are assigned to the fitted centroids and the chance-corrected agreement between those groups and the up or down labels held back from the fit is read; a grouping that stays compact but ignores the categories scores near zero.",
+              "baseline": "the same clustering with the same cluster count and no seeds or constraints, scored the same way on the same rows",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "silhouette_coefficient",
+              "type": "structure_validity",
+              "role": "primary",
+              "why": "Seeded and constrained k-means still promise compact groups around centroids, so on unseen rows each row should sit closer to its own centroid than to the nearest other one; a constraint that forces labelled rows into a far centroid shows up here as groups that overlap.",
+              "baseline": "the same k-means with the same cluster count and no seeds or constraints, on the same rows",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "For each group the clustering finds, it takes the up share of the scored bars that fall in that group minus the up share of all scored bars of the same series, with a block bootstrap interval, so it shows whether the groups differ in what the price did next; the Model Cycle's only known category is up or down, which makes this its forward-looking companion to cluster purity rather than the purity itself.",
+              "baseline": "the up share of all scored bars of the same series, which a grouping unrelated to the up or down outcome would reproduce in every group",
+              "groupKind": "state",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The claim of this method is that a few labels or pair constraints improve the grouping, so the registry's difference between the full pipeline and the same pipeline with one named part removed is taken on the same folds; the record names the ablation as the seeds and the cannot-link constraints switched off, and the score differenced is the agreement with held-back labels.",
+              "baseline": "the identical clustering algorithm and cluster count run fully unsupervised on the same rows",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_reconstruction_error_fraction",
+              "type": "reconstruction_and_representation",
+              "role": "secondary",
+              "why": "Each centroid is a stand-in for its members, so the squared distance from an unseen row to its centroid, as a share of the features' variance, shows how much detail the grouping throws away and how much extra spread the constraints cost against free k-means.",
+              "baseline": "replacing every row with the overall mean of the features, which loses all of the variance",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Constrained assignment depends on the order rows are visited and on which few rows happen to carry labels, so two fits of this model with different seeds or different labelled subsets should still put the same rows together; this compares two fits with each other, unlike the agreement with held-back labels, which compares one fit with the categories.",
+              "baseline": "zero, the value two unrelated groupings of the same rows reach by chance",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Centroids seeded inside a handful of labelled rows can end up owning almost nothing once the unlabelled rows move freely, so the share of rows in each group shows whether the grouping collapsed onto one or two centroids.",
+              "baseline": "equal shares across the configured cluster count",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Stationarity ADF p-Value",
+              "metricId": null,
+              "why": "A unit-root test describes an input series, not a grouping of rows; nothing in seeded or constrained clustering produces a series whose stationarity could be tested."
+            },
+            {
+              "name": "Memory Retention Ratio",
+              "metricId": null,
+              "why": "It belongs to fractional differencing of a price series, a preprocessing step this specification never describes; the clustering has no transformed series whose memory could be compared."
+            },
+            {
+              "name": "Explained Variance Ratio",
+              "metricId": null,
+              "why": "It is the share of variance kept by the leading directions of a linear projection; a clustering has centroids and no eigenvalue spectrum to add up."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "Natively the method hands back a group label and no probability; the probability scored by the Model Cycle comes from the soft-assignment readout the runnable bridge adds on top of the centroids."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A grouping of rows never takes a position, so a risk-adjusted return can only describe the readout and the trading rule the Model Cycle attaches to it."
+            },
+            {
+              "name": "Density-based clustering validation index",
+              "metricId": "density_based_clustering_validation_index",
+              "why": "That index is for density methods with noise points; the algorithms the specification leads with are centroid methods that assign every row to a compact group."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is one member of the specification's list, seeded and constrained k-means: half of the cluster_count centroids are seeded inside the labelled up bars and half inside the labelled down bars, a labelled bar may only join a centroid of its own class and an unlabelled bar joins the nearest one; there is no must-link pair handling, no metric learning and no deep variant. The unlabelled pool is manufactured by masking labels in contiguous blocks of masking_block_bars with an embargo of the label horizon, and a readout the specification does not describe turns centroids into a probability, so the as-run numbers measure a prototype classifier built on the constrained clusters.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a distance-weighted vote between up-seeded and down-seeded centroids. A labelled bar may only join a centroid of its own class, so every labelled member of an up-seeded centroid went up and every labelled member of a down-seeded centroid went down; each centroid's stored up share is therefore certain up or certain down by construction, and is only pulled toward the overall labelled up share by readout_prior_strength, more for a centroid with few labelled members. The vote weights are a softmax of the bar's negative squared distance to every centroid divided by the feature count times the temperature, so the probability is essentially the softmax weight that falls on up-seeded centroids and the temperature sets how spread out it is.",
+          "priceForecastSource": "readout",
+          "objectiveId": "clustering_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit; the single fit reports epoch one of one with the logarithmic loss of the probability of up on the validation rows only, and the training line holds no number because the constrained clustering returns none",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The probability is a distance-weighted vote between up-seeded and down-seeded centroids that no likelihood fit ever shaped, so the bounded squared-error score is the proper way to grade whether bars with more weight on up-seeded centroids really went up more often; the temperature sets how far the vote moves from the middle."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It asks whether bars that put more softmax weight on up-seeded centroids than on down-seeded ones went up more often than other bars, and it ignores only the overall scale of the probability: the temperature changes the weights bar by bar and the prior strength shrinks centroids by different amounts depending on their labelled member counts, so both searched dials can reorder bars and change this score."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The temperature decides how sharply the nearest centroid dominates the blend and the prior strength shrinks each centroid's up-share toward the overall share, so the slope shows whether those two dials left the stated odds too bold or too timid."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The centroid shares are fixed by the class constraint and the prior strength and are never compared with outcomes during the fit, so the binned gap between stated and observed up share on test bars is the first place the vote's magnitude meets outcomes; a temperature that spreads weight over centroids of both classes keeps the probabilities in the middle bins, so the occupied-bin count is read with it."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A vote whose weight splits evenly between up-seeded and down-seeded centroids sits near the middle for every bar, so the spread of the probability shows how much weight the temperature let fall on one class of centroid and whether the class-seeded clusters separated up bars from down bars at all."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "While readout_prior_strength is above zero no centroid share is exactly zero or one, so a bar can sit at exactly zero or one only if the prior strength is zero and the temperature puts all its weight on centroids of one class; the count confirms the smoothing kept the vote away from certainty."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of test bars where the side of one half the centroid vote fell on matched the direction, read against the majority-class accuracy of the same fold; the vote is between equal numbers of up-seeded and down-seeded centroids, so the cut is not tilted toward the labelled up share except through the prior strength."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Half of the centroids are seeded from up bars and half from down bars whatever the class mix, so averaging the hit rate on up bars and on down bars shows whether both halves of the codebook earn their place."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four confusion cells, which exposes a centroid vote that lands on the same side of one half for nearly every bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what going long when the centroid blend is at least one half and short otherwise earned after costs under the engine's rule of following the latest call; only the side of one half reaches this number, not how far the blend is from it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It sets the prototype classifier's trading result against simply holding the contract over the same folds, which separates clusters that carry direction from a tape that happened to rise."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of the centroid blend's calls over its own variability; zero is an arithmetic marker and not a no-skill line, because calls flipping at random between up and down centroids still pay costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity built from the centroid blend's calls; it describes the path the engine's trading rule produced from them and nothing the constrained clustering optimised."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winners over losers among the trades created when a bar's nearest centroids change from up-heavy to down-heavy; one is an arithmetic marker, and it is read with the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of those trades that closed above zero after costs; it says how often a switch between up-heavy and down-heavy centroids paid, not how large the wins and losses were."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second constrained clustering seeded on positive and non-positive scaled moves, where a labelled bar may only join a centroid of its own sign; each centroid's readout is the mean positive or the mean non-positive scaled move of its labelled members, lightly pulled toward the overall mean, and the forecast is the softmax-weighted blend of those means; skill against the no-change forecast tests whether the blend carries any size information."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The same blend in points after the trailing move scale is applied; because it mixes a positive class mean with a non-positive class mean, it stays close to zero only when the temperature spreads the weight across centroids of both signs, and the no-change error shown beside it says how close that is."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the blended mean move matched the sign of the actual move, on bars where both are non-zero after rounding to the tick; the sign follows which kind of centroid, positive-move or non-positive-move, holds more of the weight, and a diffuse blend often rounds to zero, so the denominator shown with it matters."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The probability is a blend of counted up-shares that no likelihood fit ever shaped, so its logarithmic loss mostly reflects the temperature and prior-strength dials; the Brier score is the proper score read for this model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit reports a logarithmic loss on the validation rows and no training number, so there is no pair of values whose difference could measure overfitting."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "When the run is not long-only and no stop or target is set the engine is always in the market once the first call is made, so exposure describes the engine's rule and not the centroids."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in contiguous blocks of the training span, with an embargo of the label horizon around them, so the model is deliberately handicapped against using every label.",
+            "The nodes are capped at maximum_graph_nodes evenly spaced rows of the training span, so on a long span the centroids are fitted on a thinned sample of bars.",
+            "The model is fitted in a single pass with no validation-based selection; temperature, readout_prior_strength, cluster_count and labeled_fraction are chosen by the fold's hyperparameter search on a trading objective, not on any clustering or probability score.",
+            "The price forecast belongs to a second clustering fitted separately on the scaled move and is not the clustering that makes the direction call.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the costs charged are the MNQ account figures, a stated assumption, and the last bar of each fold exits at its close while every other exit fills at the next open."
+          ]
         }
       }
     }

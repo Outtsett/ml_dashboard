@@ -14,6 +14,7 @@
 import { z } from "zod";
 
 import { cycleDirectionModeSchema, cycleExplainKindSchema, cycleModelFamilySchema, cycleStepUnitSchema } from "./schema";
+import { crossCheckModelMetrics, modelMetricsSchema, type MetricRegistryIndex } from "./metrics";
 
 export const CYCLE_MODEL_KEY_PATTERN = /^[a-z][a-z0-9_]{1,39}$/;
 export const CYCLE_RUNNER_SUFFIX = "+walk_forward_cycle";
@@ -128,6 +129,8 @@ export const cycleModelEntrySchema = z
     estimatedTrainingTime: z.string().min(1),
     gpu: z.boolean(),
     parameters: z.record(cycleParameterSchema),
+    /** How this model is judged, natively and as run (`./metrics.ts`); every id resolves in `packages/config/metric_registry.json`. */
+    metrics: modelMetricsSchema,
   })
   .strict()
   .superRefine((entry, context) => {
@@ -257,3 +260,26 @@ export const cycleModelsResponseSchema = z.object({
   catalogAvailable: z.boolean(),
 });
 export type CycleModelsResponse = z.infer<typeof cycleModelsResponseSchema>;
+
+/**
+ * Checks every model's metrics record against the metric registry
+ * (`packages/config/metric_registry.json`) and against the entry it sits on.
+ * Returns the problems; an empty list means every record is consistent.
+ */
+export function crossCheckCycleRegistryMetrics(registry: CycleRegistry, index: MetricRegistryIndex): string[] {
+  const problems: string[] = [];
+  for (const [key, entry] of Object.entries(registry.models)) {
+    const model = {
+      hasPriceModel: entry.price !== null,
+      directionMode: entry.direction.mode,
+      tuned: Object.values(entry.parameters).some((parameter) => parameter.search !== undefined),
+    };
+    for (const problem of crossCheckModelMetrics(entry.metrics, index, model)) {
+      problems.push(`${key}: metrics: ${problem}`);
+    }
+    if ((entry.metrics.asRun.faithfulToSpecification === "no_specification") !== (entry.catalogSpecId === null)) {
+      problems.push(`${key}: metrics: no_specification is used exactly when the model has no catalogSpecId`);
+    }
+  }
+  return problems;
+}

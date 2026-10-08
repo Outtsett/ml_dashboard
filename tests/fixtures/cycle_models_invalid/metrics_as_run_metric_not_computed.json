@@ -1,0 +1,19 @@
+{
+  "description": "An as-run metric is one the engine computes.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics",
+        "asRun",
+        "meaningful",
+        0,
+        "metricId"
+      ],
+      "value": "continuous_ranked_probability_score_points"
+    }
+  ]
+}

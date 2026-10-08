@@ -97,6 +97,274 @@
           "group": "Model",
           "description": "The fit uses at most this many of the latest training bars (0 = all); fitting time grows with the square of this number."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "score_or_margin",
+        "profileIdAsRun": "score_or_margin",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A signed decision value per feature row, built from kernel similarities to the support vectors, whose sign is the class call and whose size is a distance from the boundary and not a probability.",
+          "targetVariable": "Which side of the widest-margin boundary a feature row falls on, read here as the close label horizon bars ahead finishing above or below this bar's close.",
+          "objectiveId": "hinge_margin",
+          "objectiveNote": "The soft-margin form charges each training row only for the slack by which it sits inside or across the margin, traded against the width of the margin through the regularisation parameter, and the kernel lets that boundary bend without changing the objective.",
+          "metrics": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The decision value is a distance from the separating boundary with no agreed scale, so the honest question is whether rows further on the up side went up more often than rows further on the down side.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The sign of the decision value is the output the hinge loss was fitted to produce, and averaging the hit rate on up rows and on down rows stops a boundary pushed to one side of the cloud from looking skilled.",
+              "baseline": "One half, what calling every row the same class earns.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks the rows deepest on the up side of the margin first, which is where a widest-margin boundary claims to be most sure, and reports how pure that end of the list really was.",
+              "baseline": "The up share of the scored bars of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the classifier outputs a side of the boundary and never a position, so this belongs to the as-run layer where the engine trades the call with costs."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "Downside risk of an equity curve needs trades, and the margin classifier makes none on its own terms; the engine reports it for the traded call."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A drawdown is a property of an equity path produced by the engine's trading rule, not of a boundary between up rows and down rows."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Dollars won over dollars lost exist only once the engine turns the side of the boundary into trades and charges costs, which is the as-run layer."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "Bet sizing needs a trusted probability and a payoff, and the hinge loss supplies neither; the engine also trades a fixed contract count, so no sizing is ever computed."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "It belongs to reinforcement-learning agents with a stochastic policy, and a support vector classifier has a deterministic boundary and no policy."
+            },
+            {
+              "name": "Realized Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The boundary assigns a side to each row and takes no position, so a reward-for-risk number grades the engine's trading rule and costs and exists only on the as-run layer."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A distance from the margin is not a probability, so natively there are no stated odds to punish; a probability appears only after a separate curve is fitted on top."
+            },
+            {
+              "name": "Calibration slope",
+              "metricId": "calibration_slope",
+              "why": "Calibration asks whether stated odds come true, and the hinge loss states none; any slope would describe the added curve and not the support vectors."
+            },
+            {
+              "name": "Policy entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "There is no policy that spreads probability over actions, only a fixed boundary, so there is no action distribution whose entropy could be measured."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The adapter fits the specified soft-margin kernel classifier but with balanced class weights and only on the most recent maximum_training_bars training bars, then turns its decision value into a probability with a two-parameter logistic curve fitted on the validation bars, so every probability number measures the margin plus that curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is a logistic curve with a slope and an intercept applied to the decision value of a scikit-learn support vector classifier with balanced class weights, and the curve is fitted by unweighted maximum likelihood on the fold's validation bars only.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "hinge_margin",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The curve on top is monotone, so this number sees straight through it to the decision value and tests whether bars further on the up side of the margin went up more often, which is all the hinge loss promises."
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks the bars deepest on the up side of the margin first and reports how pure that confident end was, again unchanged by the curve unless its fitted slope is negative."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the decision value after the validation-fitted curve, so it is a test of margin plus curve: the two curve numbers saw the validation bars but never the test bars."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the bounded squared-miss grade of the same margin-plus-curve probability, and it says how much the curve managed to turn a distance from the boundary into usable odds."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve is fitted without class weights, so its output is a frequency claim against the validation base rate, and the binned gap shows whether that mapping still held on the test bars; it is read with the occupied-bin count."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows without bins whether the slope the curve learned on the validation bars is still the right stretch of the decision value on the test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the decision value carries little information the fitted slope goes to nearly zero and every bar gets the validation base rate, which this spread shows directly."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the traded call, which is the curve's output against one half and therefore the decision value against a cut the curve chose on validation, not the margin's own zero line; it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages the hit rate on up bars and on down bars, which matters here because the curve's intercept can move the cut so far that nearly every bar is called the validation majority side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the four cells of the margin-plus-curve calls in one symmetric number that falls to zero when the shifted cut calls a single side."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the support vectors added anything over calling the fold's training majority direction on every scored bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the margin-plus-curve call earned after costs under the engine's rule of following the latest call and filling at the next bar's open, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It is the per-bar reward for risk of trading that call under the engine's rule and costs, and it depends only on which side of the curve's cut the decision value fell."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It is the deepest fall of the equity made by trading the call, which shows the cost of a boundary drawn from only the most recent training bars when the test bars move away from them."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares dollars won with dollars lost over the closed trades the call's flips produced, after costs, as a description of the engine's rule applied to this model's calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades that ended positive, where a trade ends when the decision value crosses the curve's cut, a stop or target is hit or the fold ends, so it is read with the trade count."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the call came out long, which exposes a fold where the curve's intercept pushed the cut past almost every decision value."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the decision value crossed the curve's cut or a trade otherwise ended, which is needed to read every trading number of this model."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second, separately fitted support vector regressor against forecasting no move on the same resolved bars; it shares the kernel idea but none of the classifier's support vectors."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of the separately fitted support vector regressor after tick rounding, read beside the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is how often the sign of the regressor's forecast matched the actual move on bars where both are non-zero after tick rounding; it can disagree with the traded call, which comes from the classifier and its curve."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit logs the logarithmic loss of the margin plus the logistic curve on the training bars and on the validation bars, but the two curve numbers were fitted on those same validation bars and the boundary itself minimised the hinge loss, so the difference is neither an overfitting reading of the objective nor a clean out-of-sample gap."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "Although the margin is fitted with balanced class weights, the curve that makes the probability is fitted unweighted and recentres it on the validation base rate, so the half-and-half score matches neither stage."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the boundary."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "why": "It is the selection score that picked regularization_strength and kernel inside the training span, optimistic by construction and not a result of the fitted boundary."
+            }
+          ],
+          "caveats": [
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so the validation loss is partly in sample and only the test walk is out of sample.",
+            "The training and validation losses logged for the single fit are the logarithmic loss of the margin plus the logistic curve, one value each, and not the hinge loss the boundary minimised, so they must not be read as the training objective or as a curve.",
+            "If the fitted slope is negative the curve inverts the decision value, so the traded call can be the opposite of the side of the margin the classifier chose.",
+            "The fit uses at most the latest maximum_training_bars training bars, and the feature scaler is fitted on exactly those bars, so older training bars in the fold never touch the boundary.",
+            "The price line is a second model, a support vector regressor, so the forecast metrics and the direction metrics grade two different fits.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "On roots other than the Micro Nasdaq future the cost per side is the Micro Nasdaq account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "k_nearest_neighbors": {
@@ -170,6 +438,303 @@
             ]
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "vote_share_or_frequency",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For each bar it looks up the stored historical bars whose normalised feature rows sit closest to the current one and returns the plurality label together with the share of the neighbours' votes, optionally weighted by inverse distance, that went to that label.",
+          "targetVariable": "The share of the nearest stored look-alike bars that were followed by an up move, read as a frequency estimate of the direction of the close a fixed number of bars ahead; in the regression variant, the distance-weighted average of the moves that followed those same look-alike bars.",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is minimised: the stored reference bars are the model, the only fitting is building a spatial index over them, and the neighbour count and the distance are chosen by walk-forward selection instead of by a loss.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The neighbour vote is a counted fraction that lands on exactly zero or exactly one whenever every look-alike bar agrees, and the squared gap between that fraction and what happened stays finite there, so it is the honest score of the vote share itself.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Asks whether bars whose look-alikes mostly went up really go up more often than bars whose look-alikes mostly went down, which tests the distance and the neighbour count without trusting the size of the vote share. With uniform voting the share takes only one more value than the neighbour count, so a small neighbour count turns this curve into a handful of points.",
+              "baseline": "One half, the value of an ordering that carries no information about the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The plurality label among the neighbours is the output the algorithm is defined by, and this single correlation over the four confusion cells grades that hard vote without rewarding a neighbourhood that simply echoes the more common direction.",
+              "baseline": "Zero, the value of a vote unrelated to the outcome on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A small neighbour count gives jumpy, over-confident shares and a large one smooths every share toward the base rate, so the slope shows on which side of that trade-off the chosen neighbour count sits.",
+              "baseline": "One, the slope of a vote share whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression variant replaces the vote with a distance-weighted average of the moves that followed the look-alike bars, and an average aims at the mean move, so its squared error is compared with forecasting no move at all.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "Neither the vote nor the neighbour average states a bell curve with a spread around its answer, so there is no predictive density to evaluate at the realised move."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The classifier described here outputs a vote share and not a size of move; where the regression variant is used, its neighbour average is graded by squared-error skill against the no-change forecast."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry has no decile-restricted hit rate, and whether the most lopsided neighbourhoods are the most often right is already what the area under the receiver operating characteristic curve measures over every bar."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A unanimous neighbourhood states a share of exactly zero or one, and a single miss on such a bar costs an unbounded logarithmic penalty that reflects the clipping constant and not the quality of the lookup."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "There is no gradient fitting and no loss to watch fall; storing the reference bars and building the index is the whole of training."
+            },
+            {
+              "name": "Training fit of the vote",
+              "metricId": "validation_minus_training_objective",
+              "why": "Scored on its own reference bars every bar finds itself as its nearest neighbour, so a training score is perfect by construction and a gap to validation says nothing."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The lookup fits no density over the feature rows, so it assigns no likelihood to an unseen bar."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the algorithm only retrieves look-alike bars and counts their labels; a risk-adjusted return measures the trading rule and the costs wrapped around that count, which exist only as run."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the predict_proba column for the up class of a scikit-learn nearest-neighbours classifier fitted on the fold's standardised training rows, which is the share of the neighbour_count closest training bars that went up, each vote weighted by inverse distance by default or counted equally when neighbor_weighting is uniform, with no class weighting and no calibration curve on top.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the neighbour vote share exactly as the adapter emits it, and it stays finite on the bars where every one of the closest training bars voted the same way."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether test bars with a larger up share among their closest training bars went up more often, which is a fair ranking test under the default inverse-distance weighting because the share is then nearly continuous; with uniform voting and a small neighbour count the level count may be small."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It grades the traded call, which is up whenever at least half of the weighted neighbour votes went up, and because the fit is unweighted that cut carries the up share of the local training neighbourhood and no fitted prior."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the share of scored bars where the plurality of the closest training bars pointed the way the close actually went over the label horizon, read beside the majority-class accuracy of the same fold."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether looking up look-alike bars beats ignoring the features and always calling the fold's training majority direction on the same scored bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages how often the neighbour vote caught the up bars and how often it caught the down bars, so a vote that merely follows the more common direction of its training span earns no credit."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the vote is unweighted, the share is a real frequency claim against the base rate, and the binned gap shows whether a stated share of up neighbours matched the observed up share; it is read with the occupied-bin count."
+            },
+            {
+              "metricId": "brier_reliability_component",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It isolates how much of the Brier score comes from neighbour shares that are mis-scaled, the usual result of a neighbour count too small for bars this noisy."
+            },
+            {
+              "metricId": "brier_resolution_component",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It shows whether different neighbourhoods really led to different up shares afterwards, which is the only way a lookup of similar bars can add anything to the base rate."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks the scale of the neighbour share without bins: a neighbour count that is too small gives shares more extreme than the outcomes support, and a neighbour count that is too large pulls every share toward the training up share, so the slope shows which side the chosen neighbour_count sits on."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the scored bars on which every one of the closest training bars voted the same way, or one bar dominated the inverse-distance weights, so the share is exactly zero or one; these are the bars that decide the logarithmic loss and the reason that loss is not meaningful here."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It records how many different neighbour shares a fold produced, which under uniform voting is at most one more than neighbour_count, and so shows how many points the receiver operating characteristic curve is really drawn from."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the neighbour share moves away from its average, which shrinks toward nothing as neighbour_count grows and every bar is answered by nearly the same crowd."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the neighbours' direction call earned after costs under the engine's rule of following the sign of the latest call and filling at the next bar's open, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It is the per-bar reward for risk of trading the plurality vote under the engine's rule and costs, and it depends only on which side of one half the neighbour share fell, never on its size."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It is the deepest fall of the equity produced by trading the neighbour vote, and it shows what happens when the test bars drift away from every stored training bar and the look-alikes stop being alike."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the dollars won with the dollars lost over the closed trades the vote flips produced, after costs, as a description of the engine's rule applied to this model's calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades that ended positive, where a trade ends when the neighbour vote changes side, a stop or target is hit or the fold ends, so it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second, separately fitted nearest-neighbours regressor that averages the scaled moves that followed the closest training bars, against forecasting no move on the same resolved bars; it says nothing about the vote share."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The separately fitted nearest-neighbours regressor returns a weighted average of the scaled moves that followed the closest training bars, which aims at the mean move, so this is the consistent skill of that average against forecasting no move on the same resolved bars; the absolute-error skill above is the other view of the same forecast."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of the separately fitted neighbour-average regressor after tick rounding, read beside the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is how often the sign of the neighbour-average move matched the actual move on bars where both are non-zero after tick rounding; it belongs to the regressor and can disagree with the traded vote."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the neighbour vote came out long, which exposes a model whose every neighbourhood simply repeats the training span's dominant direction."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the neighbour vote switched side or a trade otherwise ended, which is needed to read every trading number of a vote that can flip from one bar to the next."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A unanimous neighbourhood, or one training bar dominating the inverse-distance weights, gives a share of exactly zero or one, and each miss on such a bar costs a penalty set by the engine's clipping constant, so the mean reports a few unanimous bars and not the model."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The worst bin is usually a thinly filled one at an extreme share, so it reports a handful of unanimous neighbourhoods."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is never flat once the first call is made, so the share describes the engine's rule and not the neighbours."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the scored test bars' own up share, known only in hindsight, which a lookup over training bars could never have quoted."
+            }
+          ],
+          "caveats": [
+            "The adapter does not score the training rows for this model, because a training bar is its own nearest neighbour and would score perfectly, so the training loss is empty and there is no overfit gap to read.",
+            "The single fit reports epoch one of one with one validation logarithmic loss and no training loss; that figure carries the same unanimous-neighbourhood problem as the test figure and selects nothing, because the fit has no checkpoint.",
+            "The reference set is the fold's training span only and is not extended while the test bars are walked, so late test bars are answered by neighbours that are further back in time than the specification's insert-as-you-go description suggests.",
+            "Each bar is one feature row that has already been through the causal rolling standardisation, and the adapter standardises it again with a scaler fitted on the fold's training rows before measuring distance; the appended sentiment columns enter the distance on that training-span scale.",
+            "The price forecast comes from a second nearest-neighbours regressor fitted separately on the scaled move target, so its numbers can disagree with the direction call that is traded.",
+            "The hyperparameter search picks neighbor_count and neighbor_weighting on the shared tuning objective inside the fold's training span, which is a selection score and not a property of the vote share.",
+            "Consecutive scored bars share future bars because the label looks label_horizon_bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "naive_bayes": {
@@ -219,6 +784,285 @@
             "high": 0.001,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A posterior probability per class obtained by multiplying the class prior by one bell-curve likelihood per feature, as if the features were independent once the class is known, then normalising across classes.",
+          "targetVariable": "The probability that a feature row belongs to the positive class, which on this dashboard is the close label horizon bars ahead finishing above this bar's close.",
+          "objectiveId": "class_conditional_likelihood",
+          "objectiveNote": "Nothing is iterated: the per-class mean and variance of each feature and the class frequencies are closed-form maximum-likelihood estimates, with a small smoothing amount added to every variance, and the posterior follows from Bayes' rule.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The posterior is a stated probability, and because correlated features are counted as separate pieces of evidence it tends to shout, which is exactly the fault that a score punishing confident misses most heavily is built to expose.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Multiplying many per-feature bell-curve ratios pushes the posterior to the very edge of zero or one, and the squared miss still gives a finite, fair grade on those rows where the logarithm is ruled by a few of them.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Double counting of overlapping indicators inflates the summed log-likelihood ratio, so a slope well under one is the expected signature of the independence assumption and measures how much the posterior overstates its case.",
+              "baseline": "A slope of one, which is the mathematical value for log-odds on the right scale.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Even when the size of the posterior is exaggerated, the order of the summed evidence can be sound, and this shows whether rows that look more like past up bars feature by feature really went up more often.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A posterior that sits near zero or one on most rows has a very wide spread, so this number shows at a glance how hard the product of per-feature likelihoods is saturating.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The per-class means and variances are simple counts with few free numbers, so a large difference between the logarithmic loss on later rows and on fitted rows points at the feature distributions drifting and not at memorisation.",
+              "baseline": "Zero, meaning the posterior scores the same on rows it was fitted on and rows it never saw.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate of hard calls depends on where the posterior is cut and on the class prior of the span, so natively it does not judge the stated odds; the as-run layer reports it as accuracy beside the majority-class reference."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The Gaussians in this model are over the features within each class, not over the future move, so there is no predictive density of the move to grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "It is an error of a move forecast, and a classifier built from Bayes' rule forecasts no move size."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The posterior saturates so often that its most confident slice is a large and arbitrary set of rows, and the ranking measure with the calibration slope already test the confident end without choosing a cut."
+            },
+            {
+              "name": "Gaussian negative log-likelihood of the move",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The bell curves describe each feature given the class, not the size of the coming move, so the model states no density for the move that could be scored."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The method has no regression form and produces no forecast of move size, so there is no error in points to compute."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "The fit is one pass of counting means, variances and class frequencies, so there are no steps along which a loss could fall."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The posterior is an opinion about the class and takes no position, so a reward-for-risk figure grades the engine's trading rule and costs and exists only on the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the up-class column of predict_proba from scikit-learn Gaussian naive Bayes, the training up share multiplied by one bell-curve likelihood per feature and normalised across the two classes, with no class weighting, no feature scaler and no curve fitted on top.",
+          "priceForecastSource": "none",
+          "objectiveId": "class_conditional_likelihood",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The posterior is the model's own likelihood-based probability, and this score punishes exactly the over-confidence that comes from counting overlapping indicators as independent evidence; it is read with the count of bars whose posterior reached zero or one."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the same posterior as a squared miss that stays bounded on the bars where the product of per-feature likelihoods rounded to exactly zero or one, so it cannot be ruled by a few such bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether bars that look more like past up bars, feature by feature, really went up more often, which can hold even when the size of the posterior is exaggerated; ties at the saturated ends count half."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Because the fit is unweighted and uses the training up share as its prior, the posterior is a real frequency claim, and the binned gap shows how far its near-certain statements were from the observed up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "It measures without bins how much the summed per-feature evidence overstates the log-odds, the direct footprint of the independence assumption on correlated indicators."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the scored bars where the product of bell-curve likelihoods saturated to exactly zero or one, which tells how many bars are deciding the logarithmic loss."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A very wide spread of the posterior shows that most bars are being answered with near certainty, which for this model signals double-counted evidence and not real conviction."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The single fit logs the plain logarithmic loss of the same posterior on the training bars and on the validation bars, so their difference reads how far the per-class feature means and variances learned on the training span drifted by the validation span; it is one number per fold and not a curve."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the share of scored bars where the posterior fell on the right side of one half, a cut that does not move when the evidence is exaggerated, so the hard call is sounder than the stated odds; it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the per-feature likelihoods added anything over the class prior alone, which would call the fold's training majority direction on every bar."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages how often the posterior caught the up bars and how often it caught the down bars, so a fit that one dominant feature tips to a single side earns no credit."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the four cells of the posterior's hard calls in one symmetric number that stays near zero when the calls only echo the class prior."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the side of the posterior earned after costs under the engine's rule of following the latest call and filling at the next bar's open, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It is the per-bar reward for risk of trading the posterior's call under the engine's rule and costs, and it depends only on which side of one half the posterior fell, so the exaggerated confidence does not reach it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It is the deepest fall of the equity made by trading the posterior's call, which shows the cost when the per-class feature averages learned on the training span no longer describe the test bars."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares dollars won with dollars lost over the closed trades the posterior's flips produced, after costs, as a description of the engine's rule applied to this model's calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades that ended positive, where a trade ends when the posterior crosses one half, a stop or target is hit or the fold ends, so it is read with the trade count."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the posterior favoured up, which exposes a fit where one feature with a very small variance drives almost every call to one side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the posterior switched side or a trade otherwise ended, and a saturated posterior can jump from one extreme to the other between neighbouring bars."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the registry price block is null because Gaussian naive Bayes has no regression form, so no forecast line exists to grade."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no price model for this classifier, so there is no forecast move whose miss in points could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the actual move."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The class prior is the training up share and nothing is reweighted, so the posterior is centred on the base rate and the half-and-half score would grade it against a target it never aimed at."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the posterior."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "why": "It is the selection score that picked variance_smoothing inside the training span, optimistic by construction and not a result of the fitted class distributions."
+            }
+          ],
+          "caveats": [
+            "The independence assumption makes the posterior over-confident on correlated indicators, so its size is not validated against outcomes anywhere except the calibration table and the calibration numbers listed here.",
+            "A posterior of exactly zero or one is clipped by the engine before the logarithm is taken, so each miss on such a bar costs a penalty set by that clipping constant.",
+            "The model is fitted once per fold, so it logs one training and one validation logarithmic loss as a single point and not a curve, and no checkpoint is chosen.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "On roots other than the Micro Nasdaq future the cost per side is the Micro Nasdaq account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -284,6 +1128,335 @@
               "isotonic"
             ]
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "combiner_or_calibrator",
+        "profileIdAsRun": "combiner_or_calibrator",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A reshaped probability for each class: a base classifier's raw score is passed through a calibration map, either a fitted logistic curve or a fitted non-decreasing step function, so that the stated odds match how often the outcome occurs.",
+          "targetVariable": "The class of the labelled outcome for each row, a buy or a sell signal, stated as a probability that should equal the observed frequency of that class among rows given the same probability.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The calibrator minimises the negative log-likelihood of the outcome on a held-out calibration set as a function of the base classifier's score only, with the base classifier trained separately on its own loss and then left untouched; the isotonic form replaces the logistic curve with a least-squares fit of a non-decreasing function.",
+          "metrics": [
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The calibration map is an add-on to a base classifier that already states scores, so its worth is the improvement in a proper score of the mapped probabilities over the same base classifier's unmapped output on the same unseen rows.",
+              "baseline": "The same base classifier with the calibration map removed, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "primary",
+              "why": "Platt scaling fits exactly a slope and an offset on the base classifier's score, so refitting that slope on unseen rows and finding it away from one means the map learned on the calibration set did not carry over.",
+              "baseline": "One, the slope of stated odds whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The specification's reliability diagram plots stated probability against observed frequency, and this number is that diagram summed up as the average gap between the two across probability bins for the mapped output.",
+              "baseline": "Zero, stated probabilities that equal observed frequencies in every bin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The isotonic map can output exactly zero or exactly one for a whole stretch of scores, and this bounded squared miss still grades such a step where the logarithmic loss would be decided by a single wrong row.",
+              "baseline": "The Brier score of the same base classifier before the calibration map, on the same rows.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the loss the logistic calibration curve minimised on the calibration set, so measuring it on later rows shows whether the mapped odds stay honest outside the rows the curve was fitted on.",
+              "baseline": "The logarithmic loss of the same base classifier before the calibration map, and of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_reliability_component",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A calibration map can only repair the part of the Brier score that comes from mis-stated odds, and this component isolates that part so the repair can be seen apart from the base classifier's ranking power.",
+              "baseline": "Zero, no gap between stated and observed frequencies.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Both calibration maps are non-decreasing in the base classifier's score, so the ranking should come through unchanged, and a drop here means the isotonic steps merged scores that the base classifier had told apart.",
+              "baseline": "The same ranking score of the base classifier before the calibration map.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the base classifier has no skill the fitted curve flattens and maps every score to nearly the same probability, which is perfectly calibrated and useless, and this spread of the mapped output reveals it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The calibrator fits a curve from a classifier score to a probability and models no hidden market states, so there is no sequence likelihood across regimes to compute."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "No clusters or volatility regimes are produced by a base classifier plus a calibration map, so a distance between regimes describes a different kind of model."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This describes how a hyperparameter search behaved, not what the calibration map outputs, and the specification names no such analysis for the calibrator."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The calibration map reads only the base classifier's score and has no feature attributions of its own, so the stability of feature rankings belongs to the base classifier, not to the calibrator."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": "mean_state_duration_bars",
+              "why": "There is no transition matrix and no state that persists in a calibrated classifier, so a measure of how long a regime lasts has nothing to read."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "The calibrator reshapes the score of one base classifier and has no gate dividing rows among several experts, so there is no usage share to report."
+            },
+            {
+              "name": "Held-out log-likelihood of a regime model",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "A calibrated classifier models no hidden market states and no density of the features, so a likelihood of the data under regimes has nothing to measure here."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A monotone calibration map changes the size of the stated odds, and natively the specification names no position rule or cost, so a return per unit of risk exists only once the Model Cycle trades the call."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model follows the specification's hold-out recipe, a base classifier fitted on the training bars and frozen, then a sigmoid or isotonic map fitted on other bars, but it collapses the specification's separate calibration and validation sets into one, so the fold's validation bars are the calibration set, and the base classifier is one of four choices at fixed small settings with gradient boosting as the default; the as-run numbers therefore measure that fixed base classifier plus a map fitted on the validation bars, and only the test walk is out of sample for the map.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The base classifier, by default a small gradient boosting model without class weights, is fitted on the training bars and frozen, and the probability of up is its score passed through a sigmoid or isotonic calibration map that scikit-learn fits on the fold's validation bars only.",
+          "priceForecastSource": "none",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The calibration map, a fitted logistic curve or a fitted non-decreasing step function, was fitted to make the frozen base classifier's score state honest odds on the validation bars, so this loss on test bars shows whether that map still holds on bars it never saw, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "primary",
+              "why": "A sigmoid map is a slope and an offset on the base classifier's score and an isotonic map is a set of non-decreasing steps, both fitted on the validation bars, so refitting the slope of the mapped odds on test bars and finding it away from one says the map, of either form, did not carry over to the next stretch of the series."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Matching stated odds to observed up share is this model's whole purpose and neither the default base classifier nor the map is class weighted, so this binned gap on test bars is a fair reading of it, shown with the occupied-bin count."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The isotonic map can state exactly zero or one for a stretch of base scores, and this bounded squared miss grades the mapped odds on test bars without being decided by one bar on such a step."
+            },
+            {
+              "metricId": "brier_reliability_component",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The calibration map can only repair mis-stated odds and cannot add ranking power, and this component isolates the mis-statement that is left on test bars after the map fitted on validation bars is applied."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "An isotonic map fitted on a short validation stretch can have one badly placed step, and the worst single-bin gap on test bars shows that where the average gap would hide it."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The offset of a sigmoid map, or the level of the isotonic steps, was set by the up share of the validation bars, so a lean in the mapped odds on test bars shows that the up share moved between the calibration stretch and the test stretch."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Both maps are non-decreasing in the base classifier's score, so this ranking belongs to the frozen base classifier and the map can only lower it by merging scores into the same isotonic step."
+            },
+            {
+              "metricId": "brier_resolution_component",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It shows how much the mapped odds separate bars with different up shares, which is the frozen base classifier's contribution that the calibration map passes through or flattens."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The isotonic map outputs one level per step, so on a short validation stretch the probability of up may take only a few values, and the ranking and calibration tables are then curves of a few points."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts test bars on isotonic steps that state exactly zero or one, each of which costs heavily in the logarithmic loss when wrong, so the loss is read with this count beside it."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the frozen base classifier has no skill on the validation bars the fitted map goes flat and states nearly the same odds everywhere, and this spread of the probability of up shows that calibrated but empty outcome."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the mapped probability is at or above one half, and because the map can shift where the base classifier's score crosses one half, the hit rate tests the base classifier together with the validation-fitted cut."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The map's offset follows the validation up share, so a flat map calls one direction on every bar, and averaging the hit rate on up bars and on down bars shows whether the mapped call does more than that."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It puts into one symmetric number whether the side of one half that the mapped probability falls on moves with the actual direction, with zero meaning the base classifier and its map add nothing beyond a constant call."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when the mapped probability of up is at or above one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of the mapped call earned money per bar after costs; since trading reads only which side of one half the probability is on, better-stated odds help here only where the map moved that crossing point, and it is also the number on which the hyperparameter search chose between the sigmoid and the isotonic map on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the mapped call, which for a flat map is the drawdown of holding one direction through the whole test span."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by the mapped call made with what the losing ones gave back after costs, read with the trade count because an isotonic step near one half can make the call flip rarely."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the mapped call flipped ended in profit after costs, which describes the shape of the trading results and is not the direction hit rate of the bars."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is kept while the mapped probability stays on one side of one half, so this counts how often the base score crossed the map's cut, and every trading number of this model is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the mapped call was up, which exposes a map whose offset, set by the validation up share, has pushed nearly every test bar to one side of one half."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on which the calibration map, sigmoid or isotonic, was chosen inside the training span, so it is optimistic by construction and is read only beside the test value."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The choice between the sigmoid and the isotonic map was made by the best training-block score, so the drop from that score to the fold's test value shows how much of the choice was luck."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "It is not computed for this model: a calibrated classifier has no regression form, so no price model is fitted and no forecast line is drawn."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "It is not computed for this model: there is no price model, so there is no forecast of the move whose error could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "It is not computed for this model: with no price model there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The map is fitted without class weights to the validation up share, so a score that gives each class half the weight grades a target the map was not fitted toward."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The validation loss is computed on the very bars the calibration map was fitted on while the training loss is on bars the map never saw, so their gap mixes the map's in-sample fit with the base classifier's overfit and reads as neither."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is long or short on every bar once the first call is made, so the share of bars in the market describes the engine's rule and not the calibrated classifier."
+            }
+          ],
+          "caveats": [
+            "The calibration map is fitted on the fold's validation bars, so the validation loss, accuracy and F-one score logged for the single fit are in-sample for the map; only the test walk is out of sample.",
+            "The base classifier runs at fixed small settings that the hyperparameter search does not touch; the search chooses only the type of calibration map, sigmoid or isotonic, so the numbers describe that fixed base model plus a map type picked on training blocks and not a tuned base model.",
+            "The gain of the map over the uncalibrated base classifier, which is the calibrator's own native yardstick, is not computed by the engine because the base classifier's unmapped probability is not scored on the test bars.",
+            "Labels of neighbouring bars share future bars because the horizon spans several bars, so the validation bars give the map fewer independent examples than their count suggests and any interval needs a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For instruments other than the micro Nasdaq future the cost figure is the micro Nasdaq account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -443,6 +1616,286 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability per class from a softmax output layer fed by stacked layers of weighted sums and bends, computed from the current feature row alone with no memory of earlier rows.",
+          "targetVariable": "The probability that a feature row belongs to the positive class, which on this dashboard is the close label horizon bars ahead finishing above this bar's close.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification trains the classification form on cross-entropy by backpropagation through every hidden layer with a penalty on weight size and early stopping on a later block, and offers mean squared error only for its separate regression head.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Backpropagation pushes every hidden-layer weight downhill on cross-entropy, so the same quantity on unseen rows is the direct test of whether the bends the network learned describe the market or only its training span.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A network with spare capacity can drive its output layer to near-certain odds on a few rows, and the squared miss grades those rows without letting them swamp the average the way the logarithm does.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "More hidden units and more passes sharpen the output layer's odds faster than they improve them, so the slope shows whether the network's confidence outran its evidence or early stopping left it timid.",
+              "baseline": "A slope of one, which is the mathematical value for log-odds on the right scale.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It shows whether the stack of fully connected layers and their nonlinear activations learned a curved combination of the features that ranks up rows above down rows, whatever scale the final output unit put that ranking on.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The specification's central warning is that the weight count dwarfs the market episodes available, and the cross-entropy of the kept epoch on later rows minus on fitted rows is the measurement of that memorisation.",
+              "baseline": "Zero, meaning the network scores the same on rows it was fitted on and rows it never saw.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Heavy weight decay or a very early stop leaves the output layer quoting nearly the same odds for every row, and the spread of its probabilities shows whether the hidden layers are being used at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate of hard calls depends on where the output probability is cut and on the base rate of the span, so natively it does not judge the fitted odds; the as-run layer reports it as accuracy beside the majority-class reference."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "Neither head of the specified network outputs a spread around its forecast, so a Gaussian likelihood cannot be evaluated."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "It is an error of a move forecast, and the classification network trained on cross-entropy forecasts no move size."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "It grades only the most confident slice at an arbitrary cut, which the ranking measure and the calibration slope already cover across the whole range of the output layer's odds."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The softmax layer states class odds and the regression head states one number, so neither gives a mean and a spread whose density could be read at the realised move."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A move-size error belongs to the regression head, which is a second network trained on squared error and not the classifier whose odds are judged here."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network outputs odds and takes no position, so a reward-for-risk figure grades the engine's trading rule and costs and exists only on the as-run layer."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "A plain stack of fully connected layers has no gate choosing between experts, so there is no usage share to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the up-class column of predict_proba from a scikit-learn multilayer perceptron classifier, the logistic output unit on top of layer_count hidden layers of hidden_size units, trained on unweighted logarithmic loss with no curve fitted on top.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network's weights were moved batch by batch on unweighted logarithmic loss, so on the test walk this is the model's own objective measured on bars that neither the weights nor the kept epoch ever saw."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The output unit is continuous, so this is a fair test of whether the hidden layers found a curved mix of features that puts bars that went up above bars that went down, whatever the scale of the output."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the output unit's odds as a squared miss, which keeps a few bars where the network became nearly certain from deciding the verdict."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Because the loss is unweighted, the output is a real frequency claim against the base rate, and the binned gap shows whether a stated chance of up matched the observed up share; it is read with the occupied-bin count."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "It shows without bins whether the hidden layers made the output more confident than the test bars justify, the usual result of more units and more epochs than the training span can support."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the output moves away from its average, which stays tiny when weight_decay is large or the kept epoch is one of the first."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The training and validation curves both hold the plain logarithmic loss of the same output, so the kept epoch's difference between them is a direct reading of how much the hidden layers memorised the training span."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the share of scored bars where the output unit landed on the right side of one half, and because the fit is unweighted that cut carries the training base rate, so it is read beside the majority-class accuracy of the same fold."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the hidden layers added anything over the output unit's bias alone, which would call the fold's training majority direction on every bar."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages how often the network caught the up bars and how often it caught the down bars, so a network that settled on calling one side nearly always earns no credit."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the four cells of the network's hard calls in one symmetric number that stays near zero when the output only echoes the training base rate."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the sign of the network's call earned after costs under the engine's rule of following the latest call and filling at the next bar's open, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It is the per-bar reward for risk of trading the network's call under the engine's rule and costs, and it depends only on which side of one half the output fell, never on its size."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It is the deepest fall of the equity made by trading the network's call, which shows what happens when bends learned on the training span meet test bars that do not repeat them."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares dollars won with dollars lost over the closed trades the network's flips produced, after costs, as a description of the engine's rule applied to this model's calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades that ended positive, where a trade ends when the network's call changes side, a stop or target is hit or the fold ends, so it is read with the trade count."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the network called up, which exposes a fit whose output bias decides nearly every bar."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the network's call switched side or a trade otherwise ended, which is needed to read every trading number of a model whose output hovers near one half."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second, separately trained multilayer perceptron regressor fitted on squared error against forecasting no move on the same resolved bars; it shares no weights with the classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of the separately trained regression network after tick rounding, read beside the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is how often the sign of the regression network's forecast matched the actual move on bars where both are non-zero after tick rounding; it belongs to the regressor and can disagree with the traded call."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "This network is fitted without class weights, unlike the PyTorch multilayer perceptron, so its odds are centred on the training base rate and the half-and-half score would grade it against a target it never aimed at."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the network."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "why": "It is the selection score that picked hidden_size, layer_count, activation_function, learning_rate, weight_decay and batch_size inside the training span, optimistic by construction and not a result of the fitted network."
+            }
+          ],
+          "caveats": [
+            "The kept epoch is the one with the lowest validation logarithmic loss, so the validation figure is optimistic and only the test walk is out of sample.",
+            "The price line is a second network, a multilayer perceptron regressor whose kept epoch is chosen on validation mean absolute error, so the forecast metrics and the direction metrics grade two different sets of weights.",
+            "The training and validation curves hold the logarithmic loss without the weight-decay term, so they are not the full penalised objective the optimiser followed.",
+            "Gradient norm and loss-surface diagnostics are absent for this model because the scikit-learn adapter does not expose them; they exist only for the PyTorch networks.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "On roots other than the Micro Nasdaq future the cost per side is the Micro Nasdaq account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

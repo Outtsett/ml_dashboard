@@ -99,6 +99,256 @@
             "high": 300
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "time_to_event",
+        "profileIdAsRun": "time_to_event",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "One step-shaped survival curve for the whole population, giving the share of cases whose event has not yet happened by each bar, which drops at every observed event time and stays flat in between.",
+          "targetVariable": "The number of bars until the event happens (a trade closing, an order filling), with cases still open at the cutoff counted as having lasted at least that long.",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is minimised: the curve is the running product, over the observed event times, of the share of cases still at risk that survived each one, which is a closed-form count.",
+          "metrics": [
+            {
+              "metricId": "integrated_brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The estimator's only product is the step curve of the share still open, so the one honest test is how close that share at each bar is to what unseen cases did, with censored cases weighted so they are neither dropped nor counted as survivors forever.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Reading the product-limit curve at the bar where each unseen case actually ended should give evenly spread values, so bunching at one end says later cases end sooner or later than the counted history did; censored cases need the standard adjustment.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "censored_walk_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Each step of the curve divides events by the cases still at risk, so a large censored share leaves few cases at risk in the right tail and the last steps of the curve rest on a handful of observations.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "It scores a hidden-state sequence model and the product-limit estimator has no states and no likelihood to maximise."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It measures distance between volatility clusters and the estimator draws one curve for one population."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It splits validation error among hyperparameter settings and a closed-form count has no settings to split it among."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "It ranks feature contributions and the estimator uses no features at all."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "It compares a stated state probability with a realised state frequency and the native output is a survival curve over bars."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "It reads the diagonal of a transition matrix between regimes and this estimator has no regimes."
+            },
+            {
+              "name": "Concordance index",
+              "metricId": "concordance_index",
+              "why": "The estimator has no covariates, so every case in the population gets the same curve and there is no ordering of cases to test."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The step curve puts no probability on an event time it never observed, so one unseen event at a new bar would make the likelihood undefined."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The estimator describes how long cases last and never forecasts the size of a price move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter keeps the product-limit counting but adds two things the specification does not have: a shallow decision tree, fitted on the training walks that touched a barrier to predict which side they touched, splits the bars into strata, and inside each stratum the competing-risks form of the estimator counts upper and lower barrier touches separately, so the as-run numbers measure a per-stratum count of which barrier came first read as a call on the sign of the horizon move.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the counted share of a stratum's training walks that touched the upper barrier first within the label horizon divided by the share that touched either barrier first within it, so every bar falling in the same tree leaf gets the same value, it can reach exactly zero or one, and one half is returned when no walk in the leaf touched in time.",
+          "priceForecastSource": "none",
+          "objectiveId": "impurity_reduction",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only, because the fit callback returns no training loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each stratum's value is a counted share of barrier touches that can be exactly zero or one, and this bounded score can grade such a share against the sign of the horizon move without being decided by a single extreme bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long in every stratum where upper touches were counted at least as often as lower touches, so this is what trading the tree's long leaves and short leaves earned after costs under the engine's rule."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "With only a few distinct leaf values the binned gap pools every leaf whose value falls in the same equal-width probability bin, so it compares the stated touch share with the observed up share per bin, and read with the occupied-bin count it is a coarse check and not a per-leaf one."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the leaves counted as mostly upper touches are followed by up moves and the leaves counted as mostly lower touches by down moves."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up in every leaf whose counted upper-touch share is at least one half, scored against the sign of the horizon move rather than against which barrier was actually touched."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "If every leaf leans the same way the model is a constant call, and averaging the hit rate over up bars and down bars separately shows that as no better than a coin flip."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "There are only as many distinct values as tree leaves, so the curve is a few points and this number says only whether the leaves are ordered correctly by their up share."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Reports how many leaves the test bars actually landed in, which is the number of different answers the stratified estimator gave in the fold."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the bars that fell in a leaf where only one barrier was ever touched within the horizon, the bars on which the counted share is exactly zero or one."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows what share of test bars landed in long leaves, including leaves with no touch in time whose returned one half is read as a long call."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from being long in the tree's long leaves and short in its short leaves under the engine's hold-until-flip rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the leaf calls, which change only when a bar's features cross one of the tree's few split thresholds."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the bars move from a long leaf to a short leaf or back."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of leaf-switch trades that closed with a gain after costs, to be read with the trade count because a shallow tree changes leaf rarely."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often consecutive bars moved between a long leaf and a short leaf, which is what opens and closes trades here, not the number of predictions made."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search chooses the barrier distance, the maximum hold, the tree depth and the smallest stratum, so this selection score shows that both the strata and the event being counted were shaped by the trading objective on the training span."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A leaf where only one barrier was touched in time gives a share of exactly zero or one, and a single wrong bar there is charged the engine's clipping penalty, so the total is decided by a few bars and not by the counted shares."
+            },
+            {
+              "metricId": "calibration_slope",
+              "why": "The slope is fitted on the logarithm of the odds, which is infinite for a leaf whose counted share is exactly zero or one, and a handful of leaves gives it only a handful of points."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "why": "The spread of a handful of leaf values weighted by how many bars fell in each leaf describes the tree's split sizes more than any commitment by the estimator."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the adapter has no price model, because counting barrier touches says which side came first and not how far price moves."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no forecast of the horizon move in points for an error to be taken on."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price forecast there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once the first call is made, so the figure describes the engine's rule and not the leaf counts."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit reports a validation loss but no training loss, so there is no training value to subtract it from, and the validation figure is the logarithmic loss of the leaf share, which is unrelated to the impurity the tree reduced."
+            }
+          ],
+          "caveats": [
+            "The estimator is fitted on which barrier a close touches first and scored on the sign of the move over the label horizon, and these two outcomes can disagree on the same bar.",
+            "The only part of this model that reads features is the stratifying tree, and it is fitted to the first-touch side, so the result is close to a shallow decision tree with a survival-style count in each leaf.",
+            "Walks start at every sampled training bar and overlap heavily, so each leaf's count rests on far fewer independent stretches of price than its number of walks suggests.",
+            "The level count may be small, because there is one probability per stratum.",
+            "The barrier distance, the maximum hold and the tree depth are chosen by the hyperparameter search on a trading objective, so the strata and the counted event change from fold to fold.",
+            "Consecutive scored bars share future bars, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The fit reads closes up to the label horizon past the last training bar, which is the same stretch the training labels themselves resolve on.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq future the cost figure is the Micro Nasdaq account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "cox_proportional_hazards": {
@@ -187,6 +437,266 @@
             "high": 2.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "time_to_event",
+        "profileIdAsRun": "time_to_event",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A relative risk score for each case, the exponentiated linear combination of its features that multiplies an unspecified baseline hazard, together with hazard ratios per feature and, once a baseline is estimated afterwards, a survival curve.",
+          "targetVariable": "The instantaneous risk that the event happens at each bar given that it has not happened yet (a trade closing, an order filling, a drawdown ending), with still-open cases counted as censored.",
+          "objectiveId": "survival_likelihood",
+          "objectiveNote": "This model's version is the partial likelihood, which at every event time compares the risk score of the case that failed with the scores of all cases still at risk, so the baseline hazard cancels and only the ordering of event times is used.",
+          "metrics": [
+            {
+              "metricId": "concordance_index",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The partial likelihood only ever uses who failed before whom, so the natural test of the fitted risk score is whether the case with the higher exponentiated linear predictor reached its event first among comparable unseen pairs.",
+              "baseline": "One half, the value an ordering by coin flip would give on the same walks.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "integrated_brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Once the Breslow baseline is attached to the risk score the model states a chance of still being open at every bar, and this score checks that curve as a whole, which the ordering test cannot do because it ignores the baseline.",
+              "baseline": "The same fit with every coefficient set to zero, which leaves the baseline survival curve of the training cases for everyone.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "proportional_hazards_schoenfeld_test_p_value",
+              "type": "distributional_assumption_check",
+              "role": "secondary",
+              "why": "Every hazard ratio the model reports assumes that two cases stay a constant multiple apart at all times, and the scaled Schoenfeld residuals show whether a feature's effect drifts with time, which would make a single ratio misleading.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "With the Breslow baseline plugged in the model gives each unseen case a full censored likelihood on the bar grid, and the record must say that this is the baseline-completed likelihood and not the partial likelihood the coefficients were fitted on.",
+              "baseline": "The baseline survival curve alone with every coefficient at zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A hazard ratio above one in one fold and below one in the next is not a finding, so this records how often each feature keeps the same side of one when the partial likelihood is refitted on later training spans.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "censored_walk_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Only cases that actually fail add terms to the partial likelihood while censored cases merely sit in the risk sets, so the censored share says how many events the coefficients really rest on.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "It scores a hidden-state sequence model and the Cox model has neither states nor a full likelihood during fitting."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It measures how far apart volatility clusters sit and proportional hazards regression produces no clusters."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It splits validation error among hyperparameter settings, which is a property of a search and never of the hazard model."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The registry holds no such metric and the recurrence of the hazard ratios across folds answers the same question on the model's own terms."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "It compares a stated state probability with a realised state frequency and the native output is a relative risk score with a survival curve."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "It reads the diagonal of a transition matrix between regimes and this model has no regimes to stay in."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The model ranks cases by risk of an event and never forecasts the size of a price move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits real Cox models with a ridge penalty, but on walks it builds itself: every sampled training bar starts a walk that ends when a close first reaches a barrier set a multiple of the move scale above or below, and two cause-specific models are fitted, one where the upper touch is the event and one where the lower touch is, each with a Breslow baseline, so the as-run numbers measure the cumulative incidence of the upper barrier against the lower one read as a call on the sign of the horizon move.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the cumulative incidence of touching the upper barrier first within the label horizon divided by the sum of the upper and lower incidences, built from the two Breslow baselines each multiplied by the bar's exponentiated risk score, with one half returned when neither barrier is expected in time and no curve fitted on validation rows.",
+          "priceForecastSource": "none",
+          "objectiveId": "survival_likelihood",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only, because the fit callback returns no training loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The incidence share comes straight from the two fitted hazards and their baselines with nothing fitted in between and no class weighting, so this score is a direct out-of-sample test of whether the two cause-specific hazards state honest odds for the sign of the horizon move."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long whenever the hazard of an upper touch, scaled by the bar's risk score, builds up at least as much incidence as the lower one within the horizon, so this is what trading the larger of the two incidences earned after costs."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The partial likelihood only learns an ordering of risk, so ranking bars by the incidence share is the test closest to what the two risk scores were fitted to do, here asked of the sign of the horizon move."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The two baselines are shared by every bar and only the risk scores differ, so the incidence share usually sits close to the training share of upper touches, and this bounded score shows whether its small departures point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve was fitted, so the gap between the stated incidence share and the observed up share tests both the proportional hazards assumption and the step from which barrier is touched first to the sign of the horizon move."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "If a feature's effect on the hazard fades with elapsed time the constant risk score overstates it at the horizon, and a slope below one is the bin-free sign that the hazard ratios are too strong for the odds they imply."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The ridge penalty shrinks both sets of hazard ratios toward one, which leaves every bar with nearly the baseline incidences, and the spread of the incidence share shows whether the risk scores move the odds at all."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up whenever the upper barrier has the larger cumulative incidence within the horizon, scored against the sign of the horizon move rather than against which barrier was actually touched."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A trending training span gives the upper baseline hazard a head start for every bar, and averaging the hit rate over up bars and down bars separately removes the credit that head start earns in a rising fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the side with the larger fitted incidence moves with the realised direction once the lean carried by the two baselines is accounted for."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the upper incidence was the larger one, which reveals a model whose baselines alone decide the call because the risk scores barely differ between the two sides."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from following the side with the larger cumulative incidence under the engine's hold-until-flip rule with costs, a rule that never uses the barriers the hazards were fitted on."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the larger incidence, which keeps one side for as long as the difference between the two risk scores does not cross the gap between the two baselines."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the larger cumulative incidence switches from one barrier to the other."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of larger-incidence trades that closed with a gain after costs, to be read with the trade count because a call anchored on shared baselines flips rarely."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the side with the larger incidence changed, which is what opens and closes trades here, not the number of predictions made."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search chooses the barrier distance, the maximum hold and the penalty strength, so this selection score shows that the event the hazards describe was itself shaped by the trading objective on the training span."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the adapter has no price model, because two hazards say which barrier comes first and not how far price moves."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no forecast of the horizon move in points for an error to be taken on."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price forecast there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once the first call is made, so the figure describes the engine's rule and not the two hazards."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit reports a validation loss but no training loss, so there is no training value to subtract it from, and the validation figure is the logarithmic loss of the incidence share, a different quantity from the partial likelihood that was maximised."
+            }
+          ],
+          "caveats": [
+            "The model is fitted on which barrier a close touches first and scored on the sign of the move over the label horizon, and these two outcomes can disagree on the same bar.",
+            "Walks start at every sampled training bar and overlap heavily, so the partial likelihood counts the same stretch of price many times and the fitted hazard ratios look more certain than they are.",
+            "Durations are whole bars, so many walks end at the same time and the partial likelihood relies on a tie approximation throughout.",
+            "The barrier distance and the maximum hold are chosen by the hyperparameter search on a trading objective, so the event the hazards describe changes from fold to fold.",
+            "Consecutive scored bars share future bars, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The fit reads closes up to the label horizon past the last training bar, which is the same stretch the training labels themselves resolve on.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq future the cost figure is the Micro Nasdaq account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -289,6 +799,266 @@
             "high": 2.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "time_to_event",
+        "profileIdAsRun": "time_to_event",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A full parametric survival curve for each case, giving the probability that the event has not yet happened by each bar, together with acceleration factors that say by what multiple each feature stretches or shrinks the expected time to the event.",
+          "targetVariable": "The number of bars until the event happens (a trade closing, an order filling, a drawdown ending), with cases still open at the cutoff counted as censored rather than dropped.",
+          "objectiveId": "survival_likelihood",
+          "objectiveNote": "This model's version is a fully parametric censored likelihood on the logarithm of the duration, where a finished case contributes the density of the chosen family (Weibull, log-normal or log-logistic) and a still-open case contributes that family's survival function, and the family itself is picked by the Akaike information criterion.",
+          "metrics": [
+            {
+              "metricId": "concordance_index",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The linear predictor on the logarithm of duration orders the cases from fastest to slowest, and this number asks whether the case the acceleration factors called faster really reached its event first among pairs that can be compared despite censoring.",
+              "baseline": "One half, the value an ordering by coin flip would give on the same walks.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "integrated_brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Because the model commits to one named distribution shape, the whole fitted survival curve can be wrong even when the ordering is right, and this score grades the stated chance of still being open at every bar up to the longest watch.",
+              "baseline": "The same fit with every feature removed, which is one pooled survival curve of the chosen family for all training cases.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The censored likelihood of the chosen family is exactly what the fit maximised, so the same quantity on unseen cases shows whether the Weibull, log-normal or log-logistic shape and its scale parameter hold outside the training span.",
+              "baseline": "The same family fitted with an intercept and scale only on the training cases.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Reading each unseen case's fitted duration distribution at the bar where it actually ended should give evenly spread values if the chosen family fits, so a lumpy histogram says the time axis is not stretched the way the family assumes; censored cases need the standard adjustment.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The family is selected by an information criterion and each acceleration factor has a direction, so this records how often the same family wins and the same features keep speeding up or slowing down the clock when the model is refitted on the next fold.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "censored_walk_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A censored case only tells the likelihood that the duration exceeded a bound, so when most cases are censored the right tail of the fitted distribution is an extrapolation of the chosen family rather than something the data showed.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "It is the likelihood of a hidden-state sequence model and this specification fits a single censored duration distribution with no states."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It measures distance between volatility clusters and an accelerated failure time model forms no clusters."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It attributes validation error to hyperparameter settings, which describes a tuning study and never the duration model itself."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The registry holds no such metric and the model's own acceleration factors already state each feature's effect on the time scale."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "It compares a stated state probability with a realised state frequency and the native output is a survival curve over bars, not a class probability."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "It reads the diagonal of a Markov transition matrix and this model has no transition matrix."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The model forecasts how long something takes, not how far price moves, so there is no price forecast to compare with the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits real accelerated failure time models, but on walks it builds itself: every sampled training bar starts a walk that ends when a close first reaches a barrier set a multiple of the move scale above or below, and one model is fitted for the time to the upper barrier and one for the time to the lower barrier, each treating the other side's touch as censoring and the two clocks as independent, so the as-run numbers measure the race between those two fitted clocks read as a call on the sign of the horizon move.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the chance that the upper-barrier clock rings first within the label horizon divided by the chance that either clock rings first within it, computed from the two fitted parametric survival curves as independent clocks, with one half returned when neither barrier is expected in time and no curve fitted on validation rows.",
+          "priceForecastSource": "none",
+          "objectiveId": "survival_likelihood",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only, because the fit callback returns no training loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The race share comes straight from the two fitted duration distributions with nothing fitted in between and no class weighting, so this score is a direct out-of-sample test of whether those two clocks state honest odds for the sign of the horizon move."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long whenever the upper-barrier clock is expected to ring first at least as often as the lower one, so this is what trading the faster of the two fitted clocks earned after costs under the engine's rule."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "When both fitted clocks are slow relative to the horizon the race share sits near one half, and this bounded score shows whether the departures from one half that the acceleration factors produce point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve was fitted, so the gap between the stated race share and the observed up share tests two things at once: the chosen duration family and the step from which barrier is touched first to the sign of the horizon move."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Treating the upper and lower clocks as independent when they are in fact two readings of one price path tends to overstate the race share, and a slope below one is the bin-free sign of that overstatement."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The race share is a smooth function of the feature row through two linear predictors on the logarithm of duration, so ranking bars by it tests whether a faster upper clock is more often followed by an up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The ridge penalty pulls both sets of acceleration factors toward zero, which makes the two clocks nearly identical for every bar, and the spread of the race share shows whether the model ever commits away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up whenever the upper-barrier clock is expected to win the race, scored against the sign of the horizon move rather than against which barrier was actually touched."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A training span that trended leaves the upper clock faster for almost every feature row, and averaging the hit rate over up bars and down bars separately removes the credit that lean earns in a rising fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the winner of the fitted race moves with the realised direction once any lean of both clocks toward one side is accounted for."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the upper clock was the faster one, and it also counts as up every bar where neither barrier was expected in time, because the returned one half is read as a long call."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from following the winner of the two-clock race under the engine's hold-until-flip rule with costs, a rule that never uses the barriers or the hold the model was fitted on."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the faster fitted clock, which stays on one side for as long as the two linear predictors, which move with the feature row, keep the same ordering of the two clocks."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the expected winner of the race switches from one barrier to the other."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of race-winner trades that closed with a gain after costs, to be read with the trade count because a smooth parametric race flips rarely."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the expected winner of the two-clock race changed side, which is what opens and closes trades here, not the number of predictions made."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search chooses the barrier distance and the maximum hold that define what a walk is, so this selection score shows that the survival target itself was shaped by the trading objective on the training span."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the adapter has no price model, because two duration clocks say which barrier comes first and not how far price moves."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no forecast of the horizon move in points for an error to be taken on."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price forecast there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once the first call is made, so the figure describes the engine's rule and not the two clocks."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit reports a validation loss but no training loss, so there is no training value to subtract it from, and the validation figure is the logarithmic loss of the race share, a different quantity from the censored likelihood that was maximised."
+            }
+          ],
+          "caveats": [
+            "The model is fitted on which barrier a close touches first and scored on the sign of the move over the label horizon, and these two outcomes can disagree on the same bar.",
+            "Walks start at every sampled training bar and overlap heavily, so the censored likelihood counts the same stretch of price many times and its information criterion and standard errors are too confident.",
+            "The upper and lower touch times are treated as independent clocks although one price path decides both.",
+            "The barrier distance and the maximum hold are chosen by the hyperparameter search on a trading objective, so the survival target changes from fold to fold.",
+            "Consecutive scored bars share future bars, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The fit reads closes up to the label horizon past the last training bar, which is the same stretch the training labels themselves resolve on.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq future the cost figure is the Micro Nasdaq account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -410,6 +1180,273 @@
             "high": 2.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "time_to_event",
+        "profileIdAsRun": "time_to_event",
+        "additionalProfileIds": [
+          "regime_density"
+        ],
+        "native": {
+          "produces": "A density for a positive waiting time built as a weighted sum of a few exponential clocks, each with its own constant rate, together with the fitted rates, the mixing weights and for every duration the probability that it came from each clock.",
+          "targetVariable": "A positive duration until an event, such as the time between trades or the time until a limit order fills, with a duration still in progress treated as right-censored",
+          "objectiveId": "survival_likelihood",
+          "objectiveNote": "The likelihood is that of a blend of constant-hazard clocks fitted by expectation-maximisation from several random starts, with a minimum mixing weight to stop a clock collapsing onto one outlier and the number of clocks chosen by an information criterion or held-out likelihood.",
+          "metrics": [
+            {
+              "metricId": "integrated_brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fitted blend of fast and slow clocks implies a curve for the chance that the event has not yet happened by each bar, and this score grades that whole curve against what happened while counting the durations that were still running when watching stopped.",
+              "baseline": "The same score for a single exponential clock fitted to the same training durations",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Each expectation-maximisation pass can only raise the training likelihood and adding a clock always raises it further, so the log density the blend gives to durations it never saw is the number that says whether an extra clock found a real regime or carved up noise.",
+              "baseline": "The held-out log-likelihood of a single exponential clock on the same durations",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The specification requires scoring the blend against the one-clock case, and the held-out likelihood of the blend minus that of the single exponential is the direct measure of what the extra rates and mixing weights bought.",
+              "baseline": "The same model with one exponential component",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Unconstrained expectation-maximisation can drive one clock's mixing weight toward zero while its rate runs away to fit a single outlier, and the share of durations each clock is responsible for shows that collapse at once.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The clocks have no built-in order and the likelihood has several peaks, so two random starts can swap names or settle on different rates; agreement of the soft memberships after matching clocks by rate shows whether the fast and slow regimes are the same from one start to the next.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The old row measured a distance between Gaussian volatility clusters; exponential clocks differ only in rate and overlap from zero upward, and the registry has no such index."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It describes how a hyperparameter search behaved and says nothing about a fitted blend of exponential rates, and the registry has no such metric."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The base model reads a vector of durations with no feature columns, so there are no feature attributions whose ranking could be stable or unstable."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "The registry's version is the binned gap of the probability of up, which this density of waiting times does not state natively."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": "mean_state_duration_bars",
+              "why": "It assumed a Markov transition matrix between regimes, and a finite mixture assigns each duration independently with no transitions to persist."
+            },
+            {
+              "name": "Expected calibration error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively the model states a density of waiting times and no probability of an up bar, so the engine's binned gap against the direction outcome has nothing native to grade; the survival curve's honesty is graded by the integrated Brier score."
+            },
+            {
+              "name": "Silhouette coefficient",
+              "metricId": "silhouette_coefficient",
+              "why": "Exponential components all start at zero and overlap heavily by construction, so a tightness and separation index treats a correct fit as poor clustering."
+            },
+            {
+              "name": "Mean state run length",
+              "metricId": "mean_state_duration_bars",
+              "why": "Each duration is assigned to a clock on its own with no link to the duration before it, so the model has no transition matrix and no notion of how long a regime lasts."
+            },
+            {
+              "name": "Concordance index",
+              "metricId": "concordance_index",
+              "why": "The base model has no covariates, so every duration receives the same predicted curve and there is no risk ranking between walks to grade."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A waiting-time density takes no position; the ratio exists only after the bridge races an up clock against a down clock and the engine trades the winner with costs."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits a real mixture of exponential clocks by expectation-maximisation, but on a different duration from the specification's examples: the number of bars until the close first touches a barrier set a chosen number of move scales above or below the starting close, one mixture per side, with the other side's touch, the maximum hold, a session gap or the fold limit treated as censoring. It also uses the specification's covariate-dependent variant, in which a softmax of the bar's feature row sets the mixing weights, and reads the probability of up as the up clock's share in a race between the two clocks within the label horizon. The as-run numbers therefore measure which barrier is expected to be touched first, not the sign of the move at the horizon.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "For each side the feature row sets the weights of the fast and slow exponential clocks and so a curve for not yet having touched that barrier; racing the two curves bar by bar up to the label horizon gives the chance each barrier is touched first, and the probability of up is the up chance divided by the sum of both, set to one half when neither touch is expected, with nothing calibrated afterwards.",
+          "priceForecastSource": "none",
+          "objectiveId": "survival_likelihood",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "survival_likelihood",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The race share moves with the feature row through the softmax weights on the fast and slow clocks, and this number tests whether bars where the up clock is expected to win by more are more often followed by a higher close at the label horizon."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The race share is a number implied by two fitted waiting-time curves with no curve fitted to outcomes, and a bounded squared score tests those implied odds without hinging on the bars where one clock is given almost no chance."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the up barrier is at least as likely as the down barrier to be touched first and short otherwise, and this is what that rule earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "On the test walk it grades the race share as stated odds of a higher close; the expectation-maximisation pass that was kept is the one with the lowest value of this same quantity on validation bars, so the validation figure is optimistic and only the test figure is read."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by trading the side whose barrier the two mixtures expect to be touched first, under the engine's fill and exit rule with costs charged, read beside the predicted up share and the trade count."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of following the winner of the up clock against down clock race to its bumpiness; zero is only an arithmetic marker because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The engine exits by its own holding rule and not at the barrier the model timed, so this shows the deepest loss run when the first touch the race predicted was later reversed before the trade closed."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning with losing trades opened when the race share crossed one half, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the share of trades begun at a flip of the race winner that closed with a profit, and must be read with average win and loss because the trade is not closed at the barrier the clocks were fitted to."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of calling up when the up clock's share of the race is at least one half; the fit uses no class weights, so the cut follows the training mix of up and down touches and the reference is the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "If the softmax weights barely respond to the features, both sides keep their average clocks and every bar gets the same winner, and averaging the hit rate over up bars and down bars exposes that."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It condenses the four counts of called against actual direction into one symmetric number that stays near zero when the race between the two mixtures is decided by their base rates of touching alone."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "No class weights are used and no curve is fitted to outcomes, so the binned gap between the race share and the observed up share shows how far first-touch odds are from odds of a higher close at the label horizon, read with the count of occupied bins."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The race treats the up and down clocks as independent given the features, which can overstate how decisive the faster clock is, and this slope shows whether the resulting odds are too bold or too timid on unseen bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "With one component per side or a strong penalty on the softmax weights every bar gets nearly the same pair of curves, and the spread of the probability shows whether the race share moves at all."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve is the mean censored negative log-likelihood per barrier walk before each expectation-maximisation pass and is expected to fall from pass to pass, while the validation curve is the logarithmic loss of the race share, so the two curves are different quantities and are read separately."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the barrier distance, the maximum hold, the component count and the penalty strength; it is a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the model times barrier touches and states no size of move, so this key has no price model and draws no forecast line."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no price model for this key, so no forecast move exists to take an error on."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training value is a censored waiting-time likelihood per barrier walk and the validation value is the logarithmic loss of the race share against the direction label, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the share of bars held describes the engine's rule and not the mixtures."
+            }
+          ],
+          "caveats": [
+            "The fitted target is which barrier the close touches first and when, not whether the close at the label horizon is higher, so a bar can touch the up barrier first and still finish lower.",
+            "The race treats the up clock and the down clock as independent given the feature row, although one walk can only touch one barrier first.",
+            "Barrier touches are read on closes only, and the race is evaluated at the smaller of the label horizon and the maximum hold.",
+            "Barrier walks start at every bar of the sampling stride and overlap heavily, and consecutive scored bars share most of their horizon, so any interval on these numbers needs a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "The kept expectation-maximisation pass is chosen by validation logarithmic loss with a patience limit, so the validation figure is an optimistic selection score.",
+            "The barrier distance and the maximum hold that define the fitted duration are chosen by the engine's shared search on a trading score, so the target itself changes from fold to fold.",
+            "The trading numbers depend on the run's long-only switch, holding bars, stop, target and contract count, which are recorded with each run; costs for roots other than the Micro Nasdaq contract reuse that contract's account figures as a stated assumption, and the last bar of a fold exits at its close."
+          ]
         }
       }
     }

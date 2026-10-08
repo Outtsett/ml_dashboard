@@ -1,0 +1,29 @@
+{
+  "description": "An adapter that is not faithful to its specification says what runs instead.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics",
+        "asRun",
+        "faithfulToSpecification"
+      ],
+      "value": "stand_in"
+    },
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics",
+        "asRun",
+        "standInNote"
+      ],
+      "value": null
+    }
+  ]
+}

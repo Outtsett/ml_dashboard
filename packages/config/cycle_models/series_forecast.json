@@ -91,6 +91,275 @@
           "group": "Model",
           "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A forecast of the coming values of the series as a centre line with a band that widens the further ahead it looks, built from a weighted echo of the most recent values and the most recent forecast surprises of the differenced series.",
+          "targetVariable": "the future values of the series being modelled, in the specification the log price a stated number of bars ahead, stated as a Gaussian centre and variance",
+          "objectiveId": "gaussian_or_conditional_likelihood_time_series",
+          "objectiveNote": "This model's version is the exact Gaussian likelihood of the differenced series computed by the Kalman filter, with the autoregressive and moving-average orders chosen by the Akaike information criterion and then checked on the residuals.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "ARIMA hands back a centre line and a closed-form band for every bar ahead, and this score charges for both at once: a band from the fitted shock variance that is too tight and a centre that drifts away from the realised price each raise it.",
+              "baseline": "the no-change forecast on the same series with the training span's own spread of moves as its band",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The Kalman filter fit maximises exactly this Gaussian log density on the training bars, so reading it on later bars shows whether the fitted echo weights and shock variance still describe the series once the fit can no longer see it.",
+              "baseline": "the same log density under a zero-mean forecast carrying the training span's variance",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The widening confidence cone is the stated output of the specification, and counting how often the realised value lands inside each plotted band checks the single fitted shock variance against the fat-tailed moves a futures contract really makes.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "secondary",
+              "why": "The Box-Jenkins cycle ends with the Ljung-Box test on the one-step surprises, and a pattern still visible in them means the chosen autoregressive and moving-average orders missed part of the echo.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The centre line is a conditional mean, so its squared-error skill against assuming no change says whether the autoregressive echo and the remembered surprises add anything to a random walk in the log price.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Placing each realised value inside its own forecast bell curve shows whether the Gaussian shock assumption leaves the cone too narrow in volatile sessions and too wide in quiet ones, which a constant shock variance cannot avoid.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "After one difference the fitted constant is a drift added to every step ahead, and a centre line that leans one way on later bars shows that the training span's drift did not carry over.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "ARIMA produces a forecast level and a band and no direction call, so an edge in called direction is not a native property of the model and exists only once the Model Cycle trades the forecast's sign."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The model states no confidence in a direction; its statement of certainty is the width of the forecast band, which interval coverage and the continuous ranked probability score grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A root mean square error of the centre line alone throws away the band that is half of what ARIMA forecasts, and the stamped volatility adjustment is not defined anywhere in the specification."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Ranking bars by a direction confidence presumes a classifier score, and ARIMA natively ranks nothing; it forecasts a value and a variance."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The Brier score grades a probability of an event and ARIMA natively states none; it becomes meaningful only as run, on the tail mass of the forecast bell curve above zero."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "The algorithm forecasts a level with a band and makes no up or down call, so a hit rate belongs to the as-run layer where the sign of the forecast return is traded."
+            },
+            {
+              "name": "Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A forecast cone takes no position, so a return per unit of risk measures the Model Cycle's trading rule and costs applied to the sign of the forecast and not the time-series model."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the specification's Kalman maximum likelihood ARIMA, but on the standardised one-bar log returns of the training span with a session-gap return treated as missing, with the orders searched by the shared tuning objective instead of the Akaike information criterion, and with the parameters frozen while the filter runs over every later bar, so the as-run numbers measure the mass above zero of that frozen model's bell curve for the summed return over the label horizon.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The frozen Kalman filter gives at each bar the mean and the standard deviation of the summed log return over the label horizon, and the probability of up is the standard normal cumulative value of that mean divided by that standard deviation, with no curve fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "gaussian_or_conditional_likelihood_time_series",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only; the fit returns no training value, so none is logged, and nothing is fitted on the validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds are the tail mass of the filter's own forecast bell curve with nothing fitted in between, so this score is a direct test on unseen bars of both the echo weights that set the centre and the shock variance that sets the width."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "A bell curve is symmetric, so the call is long exactly when the filter's forecast of the summed return is at or above zero, and this is what trading the sign of that return echo earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The forecast mean is small beside its standard deviation on almost every bar, so the probabilities sit close to one half, and this bounded score shows whether the small tilts away from one half point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve is applied, so the gap between the stated tail mass and the observed up share tests the Gaussian shock assumption itself, although most bars fall in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A slope away from one says the filter's forecast standard deviation is too narrow or too wide for the size of its forecast mean, which is the bin-free reading of whether the fitted shock variance suits the label horizon."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The filter's forecast variance settles to a nearly constant value, so ranking bars by the probability is ranking them by the forecast mean, and this tests whether a stronger return echo is more often followed by an up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the tail mass ever moves from one half; a spread near zero means the fitted autoregressive and moving-average weights are close to zero and the model is a random walk with drift."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of the sign of the forecast summed return, because the symmetric bell curve crosses one half exactly where its centre crosses zero, read against the majority class of the fold's training bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The fitted constant is the training span's average return and can put every forecast on the long side, and averaging the hit rate over up bars and down bars separately removes the credit that lean earns in a rising fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number over all four confusion cells that falls to zero when the drift constant alone decides every call and the return echo never overrules it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the forecast summed return sat at or above zero, which exposes a fit whose drift constant keeps it long on nearly every bar."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from holding the side the return echo points to; the engine ignores the forecast band, so the model earns nothing here for knowing when its cone is wide."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the sign of the forecast return, which grows when the drift constant learned on a trending training span holds one side through a reversal."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades that open and close when the filter's forecast of the summed return changes sign, readable only when there are enough flips to give both winners and losers."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades opened by a sign change of the return echo that closed with a gain after costs, read with the trade count because a short echo can flip the call many times a session."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the summed-return mean of a second fit of the identical ARIMA turned into points, so this tests the echo of past returns and surprises against assuming no move over the label horizon."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the filter's forecast move after it is scaled by the bar's trailing move scale and rounded to the tick, read beside the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the forecast move is also the traded call, so this repeats the direction hit rate on the bars where the tick-rounded forecast is not zero, which for a weak return echo can be a short list."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The fitted constant adds the training span's average return to every step ahead, so a forecast that leans one way on the test bars shows that drift did not continue."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short after the first call, so the share of bars in a position describes the engine's rule and not the time-series model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit maximises a Gaussian likelihood of one-bar returns and logs no training value, while the validation number is the logarithmic loss of the up probability, so there are no two like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "The model reads only the bar-return series and never the feature matrix, so none of the engine's features or sentiment columns can influence any number on this page.",
+            "A difference order of one is counted on the log price, which makes the fitted model an autoregressive moving-average model with a constant on returns, and the specification's test-driven choice of the difference order is not run.",
+            "The orders are chosen inside each fold by the shared tuning objective, by default the per-bar Sharpe ratio of the simulated trades on inner blocks of the training span, and not by the likelihood or the Akaike information criterion the specification names.",
+            "The price forecast line comes from a second fit of the same ARIMA on the same returns, and because the forecast move is small beside one tick many forecasts can round to zero before they are scored.",
+            "Consecutive scored bars share most of the bars in their label horizon, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption, and the last bar of every fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "seasonal_arima": {
@@ -202,6 +471,277 @@
           "group": "Model",
           "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A forecast of the coming values of the series as a centre line with closed-form bands, built from a short-lag echo of recent values and surprises multiplied by a second echo at the seasonal lag, one full season earlier.",
+          "targetVariable": "the future values of a series with a fixed repeating period, which the specification names as intraday bar volume, session range, volatility or a spread, stated as a Gaussian centre and variance",
+          "objectiveId": "gaussian_or_conditional_likelihood_time_series",
+          "objectiveNote": "The seasonal version multiplies the short-lag polynomial by a polynomial at multiples of the seasonal period and keeps the exact Gaussian likelihood from the Kalman filter, whose state vector grows with the length of the season; the scores in points of price apply when the series is the log price that the Model Cycle feeds it, which the specification does not name as a target.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The seasonal model forecasts every bar of the next season with a centre and a band, and this score charges both a same-time-last-session echo that points the wrong way and a band that is too tight around it.",
+              "baseline": "the seasonal no-change forecast on the same series, repeating the value one season earlier with the training span's spread",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The joint fit of the short-lag and seasonal coefficients maximises this Gaussian log density on the training seasons, and its value on later seasons shows whether the periodic echo was real or fitted to a few sessions.",
+              "baseline": "the same log density from the model with its seasonal terms removed, fitted on the same training span",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "secondary",
+              "why": "The specification asks for the Ljung-Box test at short lags and again near multiples of the seasonal period, because a surprise that still repeats one season later means the seasonal orders are wrong.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The closed-form bands come from one shock variance for the whole season, so counting realised values inside each plotted band shows whether the open and close of a session are wilder than the model allows.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The centre line is a conditional mean, and its squared-error skill against assuming no change says whether the short-lag and seasonal-lag echoes together forecast the level better than doing nothing.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The model assumes the seasonal period and its coefficients are stable, so seasonal coefficients that change sign from one refit to the next show the periodic pattern is not there to be traded.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Placing each realised value inside its forecast bell curve by time of session reveals whether the Gaussian band is too narrow at the busy hours and too wide in the quiet ones.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "The seasonal model forecasts a level with a band and calls no direction, so an edge in called direction is not a native property and appears only when the forecast's sign is traded."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The model's statement of certainty is the width of its forecast band and not a confidence in a direction, and interval coverage is what grades that width."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A root mean square error of the centre line alone discards the band the model also forecasts, and the stamped volatility adjustment is defined nowhere in the specification."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Ranking bars by direction confidence presumes a classifier score, and the seasonal model natively ranks nothing; it forecasts a value and a variance."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The Brier score grades a probability of an event and the seasonal model natively states none; it becomes meaningful only as run, on the forecast bell curve's mass above zero."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "The algorithm forecasts a value with a band and makes no up or down call, so a hit rate exists only once the sign of the forecast return is traded."
+            },
+            {
+              "name": "Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A seasonal forecast takes no position, so a return per unit of risk measures the Model Cycle's trading rule and costs and not the seasonal echo."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits a seasonal ARIMA on the training span's standardised one-bar log returns by conditional sum of squares instead of the specification's Kalman likelihood, with the season set to the bars of one session, no seasonal differencing, seasonal orders of at most one and a logged fallback to fewer seasonal terms when the fit fails, so the as-run numbers measure the mass above zero of that frozen least-squares model's bell curve for the summed return over the label horizon.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The frozen recursion is continued over the label horizon with future shocks at zero to give the mean of the summed log return, its standard deviation comes from the residual variance and the model's moving-average weights and is the same on every bar, and the probability of up is the standard normal cumulative value of the mean divided by that standard deviation, with no curve fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only; the fit returns no training value, so none is logged, and nothing is fitted on the validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds are the tail mass of the model's own forecast bell curve with nothing fitted in between, so this score tests on unseen bars whether the short-lag echo, the same-time-last-session echo and the single residual variance describe the coming move."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The bell curve is symmetric, so the call is long exactly when the forecast summed return is at or above zero, and this is what trading the combined short-lag and session-lag echo earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The forecast mean is small beside its fixed standard deviation, so the probabilities sit close to one half, and this bounded score shows whether the tilts that the session-lag echo adds point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve is applied, so the gap between the stated tail mass and the observed up share tests the one residual variance the model uses for every hour of the session, with most bars in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Every bar shares one forecast standard deviation, so a slope away from one says directly that this single width is too narrow or too wide for the size of the forecast means."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Because the standard deviation is the same on every bar, ranking by the probability is exactly ranking by the forecast mean, and this tests whether a stronger echo from the same time last session is more often followed by an up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the tail mass ever moves from one half; a spread near zero means the fitted short-lag and seasonal coefficients are close to zero or the fit fell back to a model with no seasonal terms."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of the sign of the forecast summed return, because the symmetric bell curve crosses one half exactly where its centre crosses zero, read against the majority class of the fold's training bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The fitted mean of the training returns is added at every step ahead and can put most forecasts on one side, and averaging the hit rate over up bars and down bars separately removes the credit that lean earns in a trending fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number over all four confusion cells that falls to zero when the fitted mean alone decides every call and neither the short-lag nor the session-lag echo ever overrules it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the forecast summed return sat at or above zero, which exposes a fit whose mean term keeps it on one side for nearly every bar of the session."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from holding the side the short-lag and session-lag echoes point to under the engine's hold-until-flip rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the sign of the forecast return, which deepens when yesterday's session shape does not repeat and the seasonal echo keeps calling the wrong side at the same hours."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades that open and close when the forecast summed return changes sign, readable only when there are enough flips to give both winners and losers."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades opened by a sign change of the combined echo that closed with a gain after costs, read with the trade count because the short-lag terms can flip the call many times a session."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the summed-return mean of a second fit of the same seasonal model turned into points, so this tests the short-lag and session-lag echoes against assuming no move over the label horizon."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the recursion's forecast move after it is scaled by the bar's trailing move scale and rounded to the tick, read beside the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the forecast move is also the traded call, so this repeats the direction hit rate on the bars where the tick-rounded forecast is not zero, which for a weak seasonal echo can be a short list."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The mean of the training returns is added to every step of the forecast, so a forecast that leans one way on the test bars shows that the training span's drift did not continue."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short after the first call, so the share of bars in a position describes the engine's rule and not the seasonal model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit minimises a sum of squared one-bar residuals and logs no training value, while the validation number is the logarithmic loss of the up probability, so there are no two like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "The model reads only the bar-return series and never the feature matrix, and a return across a session gap is replaced by the fitted mean because the residual recursion needs a value at every bar.",
+            "The estimator is conditional sum of squares and not the Kalman likelihood the specification names, because a season as long as one session makes the seasonal state too large to filter in a fold's time budget.",
+            "When the least-squares fit fails the adapter falls back first to a model with only the seasonal autoregressive term and then to one with no seasonal terms and logs each step, so a run can carry the seasonal name while trading a plain autoregressive moving-average model.",
+            "The forecast standard deviation is one number for the whole fold, so the probability cannot widen at the open or narrow at midday the way the real spread of moves does.",
+            "The short-lag orders are chosen inside each fold by the shared tuning objective, by default the per-bar Sharpe ratio of the simulated trades on inner blocks of the training span, and not by the Akaike information criterion.",
+            "The price forecast line comes from a second fit of the same model, and because the forecast move is small beside one tick many forecasts can round to zero before they are scored.",
+            "Consecutive scored bars share most of the bars in their label horizon, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption, and the last bar of every fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "generalized_autoregressive_volatility": {
@@ -298,6 +838,275 @@
           "group": "Model",
           "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "volatility_forecast",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "predictive_distribution"
+        ],
+        "native": {
+          "produces": "A forecast path of the conditional variance of the coming returns, driven by the last squared shock and the last variance estimate and pulled back toward a long-run level as the horizon extends.",
+          "targetVariable": "the conditional variance of the next returns of the series, that is how large the coming moves will be and not which way they go",
+          "objectiveId": "gaussian_or_conditional_likelihood_time_series",
+          "objectiveNote": "This model's version is the conditional likelihood of returns under a variance that is itself a recursion on past squared shocks and past variance, usually with Student-t shocks and with positivity and stationarity constraints on the recursion weights.",
+          "metrics": [
+            {
+              "metricId": "quasi_likelihood_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "True variance is never observed, only one squared return per bar, and this loss still orders the variance recursion's forecasts correctly when graded against that noisy squared return.",
+              "baseline": "the training span's constant variance used as the forecast on every bar of the same series",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The fit maximises the log density of each return under the variance the recursion predicted for it, so the same density on later bars tests the fitted shock weight, persistence weight and tail thickness where they were not tuned.",
+              "baseline": "the same log density with the training span's constant variance in place of the recursion",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "quantile_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The specification uses the forecast volatility for Value-at-Risk bands and position sizing, and counting how often returns break a band drawn from the forecast variance checks that use directly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "secondary",
+              "why": "Dividing each shock by its forecast volatility should leave squared values with no memory, and the specification's own diagnostic looks for volatility clustering the recursion failed to absorb.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Placing each return inside the Student-t or Gaussian curve scaled by its forecast volatility shows whether the chosen shock distribution has tails as heavy as the standardised shocks really are.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "GARCH has no discrete regimes; its volatility moves continuously through one recursion, and its own likelihood is graded as the held-out log predictive density of returns."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "There are no separate states to pull apart, because the conditional variance is a single smoothly changing number and not a label per bar."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This describes how much of a tuning score each hyperparameter explains and says nothing about a variance recursion, whose order is almost always fixed at one lag of each term."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "GARCH reads only its own past shocks and past variance, so there are no input features to attribute a forecast to and no attribution to be stable."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively the model states a variance and not a probability of an up bar, so there are no stated odds to compare with an observed up share; band coverage is its calibration check."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "Persistence in GARCH is the sum of the fitted shock and variance weights, a parameter read off the fit, and not a ratio of how long a discrete regime lasts."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The variance recursion says how big the next move will be and nothing about its sign, so natively there is no up or down ordering to rank; as run the ordering comes from the autoregressive mean and the simulated paths."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The specification's mean equation is a constant, so the model makes no forecast of where price goes and an error of a price centre line would grade that constant and not the volatility model."
+            },
+            {
+              "name": "Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A volatility forecast sizes positions but never chooses a side, so a return per unit of risk is a property of whatever direction rule is attached to it."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits an autoregressive mean together with a one-lag GJR-GARCH variance by quasi-maximum likelihood on the training span's standardised returns, then at every bar simulates path_count paths over the label horizon by resampling the training span's standardised shocks through the frozen variance recursion; the specification stops at the variance forecast, so the as-run numbers measure the share of those simulated paths that end higher, which only the autoregressive mean and the shape of the resampled shocks can tilt.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "At each bar the adapter simulates path_count paths of the summed return over the label horizon by filtered historical simulation, and the probability of up is the count of paths with a positive sum plus one half, divided by path_count plus one, with no curve fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "gaussian_or_conditional_likelihood_time_series",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only; the logarithmic loss is taken on the share of simulated paths ending higher, the fit returns no training value so none is logged, and nothing is fitted on the validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds are the share of simulated paths ending higher with nothing fitted on top, so this score tests on unseen bars the whole chain of autoregressive mean, variance recursion and resampled shocks as one forecast distribution."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long when at least half of the simulated paths end higher, so this is what trading the median of the path fan earned after costs, and it shows whether a volatility model with a small mean equation has any direction to sell."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The path share sits near one half because the variance recursion carries no direction, and this bounded score shows whether the small tilts from the autoregressive mean and the asymmetric shocks point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve is applied, so the gap between the share of paths ending higher and the observed up share checks the simulated fan itself, with most bars landing in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The forecast volatility divides the mean in every path, so a slope away from one says the recursion makes the fan too wide or too narrow for the size of the autoregressive mean it carries."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The path share rises with the autoregressive mean and falls toward one half when forecast volatility is high, so ranking bars by it tests whether a calm tape with a positive mean is more often followed by an up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the path share ever leaves one half; part of that spread is counting noise from a finite number of paths, so a small value here means the model has no directional content at all."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The forecast line is the mean of the path sums while the call follows the share of paths above zero, so the two disagree whenever the resampled shocks are skewed, and this share shows how often that happens."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when at least half of the simulated paths end higher, which follows the sign of the autoregressive mean unless skew in the resampled shocks moves the median the other way."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The fitted constant of the mean equation can leave most path fans leaning long, and averaging the hit rate over up bars and down bars separately removes the credit that lean earns in a rising fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number over all four confusion cells that drops to zero when the constant of the mean equation decides every call and the autoregressive lags never overrule it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often at least half of the simulated paths ended higher, which exposes a path fan that leans long on nearly every bar because of the mean equation's constant."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from trading the median of the path fan at a fixed size; the engine never sizes by forecast volatility, so the model's one real skill is left unused in this number."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while holding the side most simulated paths ended on, taken at full size through the high-volatility stretches the recursion itself was forecasting."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades opened when the share of paths ending higher crosses one half, which can flip often because counting noise moves a share that sits near one half."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades opened by the path share crossing one half that closed with a gain after costs, read with the trade count because noisy crossings produce many short trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the mean of the simulated path sums from a second fit of the same model, which is the autoregressive mean equation's forecast, tested against assuming no move over the label horizon."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the mean path sum after it is scaled by the bar's trailing move scale and rounded to the tick, read beside the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the mean path sum against the sign of the actual move on the bars where the tick-rounded forecast is not zero; it can differ from the traded call because that follows the median path."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The constant of the mean equation is added at every simulated step, so a forecast that leans one way on the test bars shows the training span's average return did not continue."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short after the first call, so the share of bars in a position describes the engine's rule and not the volatility model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit maximises a conditional likelihood of returns and logs no training value, while the validation number is the logarithmic loss of the path share, so there are no two like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "The model reads only the bar-return series and never the feature matrix, and a return across a session gap is dropped, so the variance recursion runs from one session straight into the next.",
+            "Nothing on the scoreboard grades the variance forecast itself, which is the model's native output; the quasi-likelihood loss and band coverage that would grade it are not computed by the engine.",
+            "The probability of up is a count over path_count simulated paths, so it moves in steps of one over path_count plus one and carries counting noise that is largest exactly where it matters, near one half.",
+            "The simulation resamples the training span's standardised shocks, so the chosen error_distribution shapes the fitted parameters but not the tails of the simulated paths.",
+            "The mean order and the shock distribution are chosen inside each fold by the shared tuning objective, by default the per-bar Sharpe ratio of the simulated trades on inner blocks of the training span, and not by the likelihood.",
+            "The price forecast line comes from a second fit of the same model, and because the mean path sum is small beside one tick many forecasts can round to zero before they are scored.",
+            "Consecutive scored bars share most of the bars in their label horizon, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption, and the last bar of every fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "seasonal_decomposition": {
@@ -379,6 +1188,240 @@
           "label": "History bars",
           "group": "Model",
           "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "series_decomposition",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "projection_or_reconstruction"
+        ],
+        "native": {
+          "produces": "Three series, a slowly moving trend, a pattern that repeats by position in the season and a remainder, that add back to the input series exactly.",
+          "targetVariable": "the input series itself, split into trend, seasonal and remainder parts; no future value is predicted by the decomposition",
+          "objectiveId": "additive_series_decomposition",
+          "objectiveNote": "Nothing global is minimised: the trend comes from a centred moving average or from local weighted regressions and the seasonal part from averages by seasonal position, and the classical centred average is not causal because it reads bars on both sides of every point.",
+          "metrics": [
+            {
+              "metricId": "seasonal_strength_fraction",
+              "type": "structure_validity",
+              "role": "primary",
+              "why": "Once the smoothed trend is taken out, this is the share of what remains that the time-of-session pattern accounts for, which tells a trader whether there is a repeating shape worth knowing or only noise.",
+              "baseline": "zero, the value when the seasonal part is flat and the detrended series is all remainder",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "primary",
+              "why": "The specification tells the user to inspect the remainder for leftover pattern, because memory still visible there means the trend window or the seasonal window let real movement fall through.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The extracted seasonal shape is useful only if the same hump at the open and the same lull at midday come back when the decomposition is run on a different stretch of sessions.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The decomposition forecasts only when the trend is extended and the seasonal shape repeated, and the error of that recombined forecast against assuming no change says whether the split carries anything forward.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Stationarity ADF p-Value",
+              "metricId": null,
+              "why": "The decomposition makes no claim that any part is stationary and differences nothing; its own check is whether pattern is left in the remainder, which the residual autocorrelation test covers."
+            },
+            {
+              "name": "Memory Retention Ratio",
+              "metricId": null,
+              "why": "This belongs to fractional differencing, which trades stationarity against kept memory, and a trend, seasonal and remainder split has no differencing order to trade."
+            },
+            {
+              "name": "Silhouette Score",
+              "metricId": "silhouette_coefficient",
+              "why": "No clusters are formed, so there are no groups whose tightness and separation a silhouette could measure."
+            },
+            {
+              "name": "Reconstruction Residual",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The three parts sum to the input exactly, so the residual of rebuilding the series is zero by construction and cannot rank one decomposition above another."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The decomposition describes a series and states no probability of anything, so there are no odds to score until the Model Cycle attaches a forecast and a spread to it."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter runs the specification's STL decomposition once on the training span's log price with the season set to one session, keeps only the seasonal part averaged into a frozen time-of-day profile, and forecasts with that profile plus a trailing average of the deseasonalised returns over trend_window_bars; the decomposition is never run on later bars because its trend smoother reads both sides of each point, so the as-run numbers measure that causal profile-plus-slope forecast and not the decomposition's three parts.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The forecast mean is the label horizon times the trailing slope plus the frozen profile's change between the bar's time of day and the time of day at the end of the horizon, the standard deviation is the root mean square error of that forecast on the fold's validation bars, and the probability of up is the standard normal cumulative value of the mean divided by that one standard deviation.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "additive_series_decomposition",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on validation rows that also set the forecast width, so partly in-sample; the fit returns no training value, so none is logged",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast line is the trailing slope carried forward plus the frozen time-of-day profile, which is the one thing this adapter takes from the decomposition, tested against assuming no move over the label horizon."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Every bar shares one standard deviation, so ranking by the probability is exactly ranking by the slope-plus-profile forecast, and this tests that ordering without depending on the width read from validation bars."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The call is long exactly when the slope-plus-profile forecast is at or above zero, so this is what following the recent deseasonalised drift, nudged by the time-of-day shape, earned after costs."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Scores the tail mass of a bell curve whose centre is the slope-plus-profile forecast and whose single width is that forecast's error on validation bars, so it grades the forecast together with a width that saw validation rows."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The forecast is small beside its validation error, so the probabilities sit close to one half, and this bounded score shows whether the tilts from the trailing slope point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Compares the stated tail mass with the observed up share for a width set from validation errors, so it shows whether the forecast's errors stayed the same size on the test bars; most bars fall in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "With one standard deviation for every bar, a slope away from one says the forecast error measured on validation bars is too small or too large for the test bars that follow."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the tail mass moves from one half as the trailing slope swings; the frozen profile adds little for an index future, so nearly all of this spread comes from the slope window."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of the sign of the slope-plus-profile forecast, which behaves like a short momentum rule over trend_window_bars with a time-of-day correction, read against the majority class of the fold's training bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A trailing slope stays positive through a rising fold, and averaging the hit rate over up bars and down bars separately shows whether the forecast does more than ride that one direction."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number over all four confusion cells for whether the sign of the recent deseasonalised drift moves with the direction of the next move over the label horizon."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the trailing slope plus the profile step was at or above zero, which reveals a forecast that stays long for whole sessions in a trending fold."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from holding the side the trailing slope points to, corrected by the time-of-day profile, under the engine's hold-until-flip rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the trailing slope, which is the cost of a momentum-like rule when the tape chops back and forth inside the slope window."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades that open and close when the slope-plus-profile forecast changes sign, which happens more often the shorter trend_window_bars is set."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades opened by a sign change of the trailing slope that closed with a gain after costs, read with the trade count because a short slope window flips often."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the slope-plus-profile forecast after it is scaled by the bar's trailing move scale and rounded to the tick, read beside the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the forecast move is also the traded call, so this repeats the direction hit rate on the bars where the tick-rounded slope-plus-profile forecast is not zero."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A trailing slope lags every turn, so a forecast that leans one way on average shows the recent drift it extrapolates kept reversing over the label horizon."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short after the first call, so the share of bars in a position describes the engine's rule and not the decomposition."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The decomposition minimises nothing global and logs no training value, while the validation number is the logarithmic loss of the up probability, so there are no two like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "Nothing on the scoreboard grades the decomposition itself; seasonal strength and the remainder's autocorrelation are not computed, and only the adapter's fit summary records the seasonal amplitude and the remainder's standard deviation.",
+            "The forecast standard deviation is fitted on the fold's validation bars, the one quantity this adapter reads from them, so validation scores are partly in-sample for that width and only the test walk is out of sample.",
+            "When fewer than thirty validation bars have a realised move the width stays the training span's own forecast error, which understates the spread because the profile was fitted on those same bars.",
+            "The decomposition is run on log price with missing closes carried forward and its trend and remainder are discarded, because the trend smoother is two-sided and using it on test bars would read the future.",
+            "The model reads only the price and bar-return series and never the feature matrix, and the slope window and seasonal smoother are chosen inside each fold by the shared tuning objective, by default the per-bar Sharpe ratio of the simulated trades on inner blocks of the training span.",
+            "The price forecast line comes from a second fit of the same decomposition, and because the forecast move is small beside one tick many forecasts can round to zero before they are scored.",
+            "Consecutive scored bars share most of the bars in their label horizon, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption, and the last bar of every fold exits at its close while every other exit fills at the next open."
+          ]
         }
       }
     },
@@ -502,6 +1545,312 @@
           "label": "History bars",
           "group": "Model",
           "description": "Bars of warm-up history before a bar is scored (fixed, never searched); the filter itself runs over every bar of the run."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "series_decomposition"
+        ],
+        "native": {
+          "produces": "For each future timestamp it outputs a forecast of the series value with an uncertainty band, split into a bending trend line, repeating daily and weekly waves and the effects of listed event days.",
+          "targetVariable": "the future value of one time-stamped series with calendar structure, such as session volume, realised volatility or the bar close, at stated future times",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "This model's version keeps the single most probable setting of the additive curve under a Laplace prior that switches most trend bends off and normal priors on the wave and event sizes, found by a quasi-Newton optimiser over the whole history at once, with full posterior sampling as a slower variant.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The forecast is the summed trend, waves and event effects with a band built from future trend bends and observation noise, and this score grades that whole band against what the series did at each step ahead of a rolling forecast origin.",
+              "baseline": "The same score for the no-change forecast on the same resolved bars, which for a single-number forecast equals its mean absolute error, and for the same Prophet with its daily and weekly waves switched off on the same rolling origins",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The centre of the forecast is the summed trend, waves and event effects of a fit that assumes Gaussian noise, so it targets the mean and not the median; the absolute miss of that centre against the absolute miss of a forecast that needs no model reads the typical size of its error, and it is read beside the squared-error skill because the two part ways when a few large moves dominate.",
+              "baseline": "The no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The fit maximises a posterior under Gaussian noise around the summed trend, waves and event effects, which is a forecast of the mean, and the squared miss of that centre against the squared miss of a forecast that needs no model is the score that matches a mean forecast and shows whether the trend bends and waves add anything.",
+              "baseline": "The no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The band assumes future trend bends arrive as often and as large as past ones, so the share of realised values inside each plotted band, by step ahead, shows whether the changepoint flexibility was set too loose or too stiff.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fit assumes Gaussian noise around the summed components, and reading that Gaussian density at values beyond the forecast origin punishes a noise level learned on a smooth stretch when the next stretch is rough.",
+              "baseline": "The log density of a Gaussian centred on the no-change forecast with the training spread of the step-to-step change in the same series, and of the same Prophet with its daily and weekly waves switched off on the same folds",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "seasonal_strength_fraction",
+              "type": "structure_validity",
+              "role": "secondary",
+              "why": "The daily and weekly Fourier waves are the reason to choose this model, and the share of the detrended variation they carry on later data says whether the series really has a session rhythm or the waves fitted noise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "diagnostic",
+              "why": "The model is a curve fitted to clock time and has no memory of the last bar, so serial pattern left in what remains after trend, waves and events are removed is exactly the short-term dependence it cannot represent.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A trend bend is reported as a regime shift, so the share of rolling refits in which the same changepoint stays switched on separates a real shift from a bend the sparse prior let through on noise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The additive curve forecasts a level with a band and has no up or down output of its own; the direction hit rate belongs to the as-run reading."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "Ranking up bars above down bars needs a direction score, which the model has only after the Model Cycle turns its forecast into a probability of up."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared error of the centre alone discards the band the model reports, and the registry holds that error in points and never divided by volatility; the centre is graded by the squared-error skill and the absolute-error skill."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The model states no conviction about direction to rank into deciles, and a hit rate on a hand-picked slice of bars is not a registry metric."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "Natively there is no class probability to square against an outcome; the score applies to the as-run probability of up read from the forecast and its noise."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "Natively the model forecasts the level of a series at a clock time and makes no up or down call, so a direction hit rate exists only in the Model Cycle's reading of it."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A fitted calendar curve takes no position, so a return per unit of risk describes the trading rule and costs the Model Cycle adds."
+            },
+            {
+              "name": "Held-out reconstruction error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The components are judged by how they extrapolate beyond the forecast origin, and how closely they redraw the history they were fitted to rises with every extra changepoint and Fourier term."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real Prophet library once per fold by maximum a posteriori optimisation, but on the log return over the label horizon and not on a price, volume or volatility level, with the bar's feature row added as extra regressors, and after the fit it learns nothing from new bars except through those regressors, so the as-run numbers measure a calendar-plus-features regression of the horizon return whose trend line is extrapolated across the validation and test bars.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the standard normal cumulative distribution of the fitted curve's forecast of the horizon log return divided by the single observation noise level Prophet fitted on the training span, with no curve fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds come straight from the additive curve's forecast and its own fitted noise level with nothing tuned on validation rows, so this score tests the model's Gaussian forecast of the horizon return on unseen bars."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Prophet is a forecaster first, and the line drawn on the chart is its summed drift, time-of-day wave, event-day effects and feature terms turned into points from a fit that assumes Gaussian noise, so the line forecasts the mean horizon move and the squared-error skill against assuming no move is the score that matches a mean forecast."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The same summed line scored by its absolute miss against assuming no move reads the typical size of the forecast error, and it is read beside the squared-error skill because a mean forecast is not the median forecast that this score is consistent for."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The call is long exactly when the summed components forecast a horizon return at or above zero, so this is what trading the sign of the calendar-plus-features curve earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The forecast return is small beside the fitted noise level, so the odds sit close to one half, and this bounded score shows whether the small tilts from the waves and regressors point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve is fitted afterwards, so the gap between the stated tail mass and the observed up share tests the one-noise-level Gaussian assumption; expect most bars in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "One noise level learned on overlapping training returns is used for every bar, calm or wild, and a slope away from one on the test bars is the bin-free sign that this single width is wrong for the bars being scored."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Because the noise level is the same for every bar, the odds rise and fall exactly with the curve's forecast, so this ranking number tests whether bars the summed components score higher really rose more often."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "With the feature regressors switched off every bar at the same clock time gets the same odds, and this spread of the stated odds shows how much the waves, event days and regressors move the forecast at all."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is the sign of the summed drift, waves, event effects and regressor terms, so the hit rate grades that sign against the fold's majority-class reference."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A drift term extrapolated from the end of the training span can push every forecast to one side, and averaging the recall of up bars and down bars exposes a curve that only repeats that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the sign of the fitted curve against the outcome, which stays near zero when the extrapolated drift makes the model call one side throughout."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The piecewise-linear drift keeps its last slope across the whole test span, so the share of bars called up shows whether the trades come from the waves and regressors or from that frozen slope."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It puts the profit from trading the sign of the fitted curve against the bar-to-bar swings of that profit, costs included, for the same calls the classification numbers grade."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The curve is fitted once and never refreshed inside the fold, so when the market stops following the training span's clock pattern the position stays wrong, and this is the depth of that hole."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades of the curve's sign made with what the losing ones gave back after costs, read beside the trade count because a time-of-day wave flips the call on a schedule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A trade ends when the summed components change sign, which a daily wave does at fixed clock times, so the share of winning trades describes those scheduled flips and is read beside the average win and loss."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It states in points how far the curve's forecast of the horizon move landed from the realised move, to be read against the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The forecast line and the odds are two readings of the same fitted curve, so the sign of one and the side of one half of the other agree bar for bar and this number repeats the classification accuracy on the bars with a non-zero rounded forecast."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The drift line is extrapolated beyond the last training bar at its final slope, so a mean forecast error away from zero on the test bars is the direct reading of a trend that did not continue."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It asks whether the bars where the waves, event days and regressors forecast a bigger move were followed by bigger moves in the same direction, which the sign-only numbers cannot show."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The changepoint flexibility, the seasonality flexibility and the daily Fourier order are chosen inside each fold by this search score from the real simulator and not by forecast error, so it is shown as an optimistic selection number beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the fitted curve."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single fit logs no training loss, and the validation number is the logarithmic loss of the up probability and not the penalised likelihood Prophet maximised, so there is no pair of like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "The model is fitted once on the fold's training span and then frozen, so across the validation and test bars the drift line is a straight extrapolation of its last slope and no changepoint can form.",
+            "One observation noise level, fitted on overlapping horizon returns of the training span, is the spread for every bar, so the odds ignore whether the current bar is calm or volatile.",
+            "With the feature regressors switched off the forecast is the same number for every bar at a given clock time, which makes it a calendar effect and nothing more.",
+            "The daily and weekly waves follow the clock as the lake stamps it, and futures bars are stamped in Pacific wall-clock time, so the time-of-day wave is aligned to that stamped clock.",
+            "The event days are Federal Open Market Committee statement days, consumer price index days and employment report days read from the lake calendars; when the calendar cannot be read the model is fitted without them and says so in the log.",
+            "Prophet's own interval sampling is switched off, so the uncertainty band the specification describes is not produced and the engine scores only the forecast centre and the tail mass above zero.",
+            "The price forecast line comes from a second fit of the same Prophet model made with the regression task on the same rows, so its direction accuracy and the classification accuracy are the same judgement stated twice.",
+            "The search inside each fold picks the prior scales and the Fourier order by the trading objective and not by Prophet's rolling-origin forecast error.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro E-mini Nasdaq-100 contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

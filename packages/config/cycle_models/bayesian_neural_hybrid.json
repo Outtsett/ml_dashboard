@@ -156,6 +156,293 @@
           "group": "Model",
           "description": "Epochs without a better validation loss before the fit stops and the best weights are restored."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A predictive distribution for each input, built by drawing many sets of network weights from an approximate posterior and running the network once per draw, so that the average of the runs is the prediction and their spread is how unsure the model is.",
+          "targetVariable": "The outcome for an unseen input (a future value for regression, a class for classification) together with the uncertainty about it that comes from not knowing the network's weights.",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "The exact posterior over the weights is out of reach, so the specification approximates it by maximising the evidence lower bound over a Gaussian distribution per weight, and names Monte Carlo dropout and stochastic-gradient Langevin sampling as cheaper stand-ins for the same posterior.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network's answer is a fan of outputs from many weight draws, and this score rewards a fan that is centred on the realised value and no wider than it needs to be, in the units of the thing predicted.",
+              "baseline": "The same score for a fixed fan built from the training outcomes alone, with no input read.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Averaging the likelihood over the sampled weight sets gives the density the model assigns to each unseen outcome, which is the quantity the posterior approximation is meant to make large and which punishes a spread that is too tight when a big miss arrives.",
+              "baseline": "The log density of the unseen outcomes under a single Gaussian fitted to the training outcomes.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The spread across weight draws is sold as an uncertainty estimate, so the realised outcomes should fall inside the bands built from that spread as often as each band's nominal level says.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Ranking each realised outcome among the outputs of the sampled networks shows the shape of the failure: a pile at the edges means the weight draws agree too much, a hump in the middle means they disagree too much.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "In the classification form the class probability is the mean of the sampled networks' probabilities, and the logarithmic loss of that mean on unseen rows is the classification likelihood the weight posterior was fitted to explain.",
+              "baseline": "The logarithmic loss of quoting the training class shares on every unseen row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The whole case for carrying a distribution over weights is that the averaged class probability should happen as often as it says, and this compares stated probability with observed frequency bin by bin for the classification form.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The model's special part is the averaging over sampled weight sets, so its proper score is compared with the same trained network run once at its mean weights with no sampling, which shows whether the Bayesian treatment bought anything.",
+              "baseline": "The same network evaluated in one deterministic pass at its mean weights on the same rows.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "kullback_leibler_term_nats",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "In the variational form the loss has a data-fit part and a penalty for moving each weight's distribution away from its prior, and reporting the penalty apart shows whether the weights learned anything or simply stayed at the prior.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "The model has no regimes; the likelihood that does apply is the held-out log predictive density of the outcome, listed under its own name."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "A network with a distribution over its weights never sorts bars into regimes, so no separation between regimes exists to score."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It ranks the importance of tuning dials in a search and is not a property of this model's predictions or of its uncertainty."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Attribution stability describes an explanation method applied afterwards, and the registry holds no such metric because it does not grade the model's output."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "There is no hidden state that could persist from bar to bar, so the ratio never applied to this model."
+            },
+            {
+              "name": "Price forecast root mean square error alone",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Scoring only the average of the sampled networks throws away the spread across weight draws, which is the one thing this model adds to an ordinary network."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is Monte Carlo dropout, one of the approximations the specification names, and not variational inference over a Gaussian per weight: an ordinary perceptron is trained with dropout and weight decay standing in for the Gaussian prior, and sample_count fixed dropout masks are averaged at prediction; it has no noise term for the data, and the spread across the sampled networks is computed but the engine neither trades on it nor scores it, so the as-run numbers measure only the mean of the sampled networks as an up or down classifier.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the mean, over sample_count dropout mask sets drawn once from the run's seed, of the sigmoid of the perceptron's output, from a network trained with the up class weighted by the ratio of down rows to up rows, with no calibration curve afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The perceptron is trained with the up class reweighted so both directions carry half the loss, which centres the mean of the sampled networks on even odds, and this is the proper score that matches that centring, read against the natural logarithm of two."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether the average of the dropout-sampled networks ranks up bars above down bars on test bars, a question the class weighting and the scale of the probability cannot distort."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Averaging many dropout-sampled networks is supposed to temper over-confident odds, and the slope checks without bins whether the averaged log-odds are still too bold or have become too timid on test bars."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the sampled mean's stated odds that is less harsh than the logarithmic loss on the prior shift the class weighting builds in; because that shift moves the output off the base rate it is read only beside other folds of the same model, or against the Brier score of quoting even odds on every bar, which is the reference matching the weighted fit, and never against the score of quoting the fold's training up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score charges the sampled mean for sitting on even odds when the test bars are lopsided, and it is the same quantity that picked the kept epoch on validation rows, so it is read as context and never as the headline."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Averaging over dropout masks pulls every bar's probability toward the middle, so the spread of the probability of up shows whether the sampled mean ever commits away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the mean of the sampled networks is at least even odds; because of the class weighting that cut means above the balanced prior, so it is read against the fold's training majority class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The class-weighted fit aims at equal recall of up and down bars, so the mean of the two recalls is the hard-call number that matches what the network was trained to do."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the sampled mean's hard calls across all four cells, which stays at zero if the averaged network collapses to a single direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the sampled mean minus one half earned after costs under the engine's rule, read beside buy and hold on the same folds; the uncertainty spread plays no part in the position."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Net profit of the sampled mean's direction calls per unit of bar-to-bar swing under the engine's rule, with every prediction traded at full size whatever the spread across the sampled networks said."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest hole dug by trading every call of the sampled mean, which shows the cost of ignoring the model's own uncertainty since no uncertain bar is skipped or sized down."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the trades closed when the sampled mean flipped side or a fold ended, read with the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the sampled mean's calls that ended positive after costs, describing the engine's exit rule applied to this network's flips."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "A second dropout perceptron trained on the Huber loss forecasts the size of the move as the mean of its sampled networks, and this tests whether that mean beats forecasting no change on the same bars."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the second perceptron's sampled-mean move forecast, read beside the miss of the no-change forecast on the same resolved bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the second perceptron's move forecast matched the realised move; it is a separate fit from the direction network and can disagree with the traded call."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient before clipping on each epoch of the dropout perceptron, which shows whether the one-cycle learning rate kept the fit stable and says nothing about its predictions."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over dropout share, sample_count, width, depth and weight decay is scored by the engine's trading objective on inner training blocks, so it is an optimistic selection score to read beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class weighting deliberately moves the sampled mean from the base rate to even odds, so a gap between stated probability and observed up share is built in and does not show a fault of the posterior approximation."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The worst bin gap inherits the same built-in shift from the class weighting and so grades the weighting, not the dropout-sampled networks."
+            },
+            {
+              "metricId": "brier_reliability_component",
+              "why": "Reliability against the base rate is biased by construction for a class-weighted fit whose output is centred on even odds."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss of single dropout passes while the validation curve holds the unweighted logarithmic loss of the sampled mean, so their difference is not an overfit gap."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so exposure describes the engine's rule and not the network or its uncertainty."
+            }
+          ],
+          "caveats": [
+            "The spread across the sampled networks, which is the model's reason to exist, is kept on the adapter and averaged over validation rows in the fit summary but is not recorded as a metric and does not gate or size any trade.",
+            "The sample_count dropout mask sets are drawn once from the run's seed and reused for every bar, so the prediction is the average of a fixed set of thinned networks and repeats exactly on reload.",
+            "The kept epoch is the one with the lowest validation logarithmic loss of the sampled mean, so that validation number is optimistic and only the test walk is out of sample.",
+            "The validation logarithmic loss cannot be compared with the natural logarithm of two as a no-skill line, because the network was trained on a class-weighted loss and scored on an unweighted one.",
+            "The price forecast comes from a second perceptron fitted separately on the Huber loss, so it can disagree with the traded direction call.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     }
   }

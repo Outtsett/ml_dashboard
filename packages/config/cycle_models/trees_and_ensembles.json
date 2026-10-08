@@ -88,6 +88,281 @@
             "high": 0.9
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "vote_share_or_frequency",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A random forest outputs, for each bar, the share of its bootstrapped decision trees that vote up (or the average of the up fractions in the leaves the bar lands in), which is a counted share between zero and one and not a probability fitted by likelihood.",
+          "targetVariable": "Whether the close a fixed number of bars ahead is above or below the current bar's close, stated as the share of trees voting for up.",
+          "objectiveId": "impurity_reduction",
+          "objectiveNote": "Each tree greedily picks, from a random handful of feature columns at every node, the cut that most lowers Gini impurity on its own bootstrap sample of the bars, and no single loss is minimised across the forest; the averaging of many decorrelated trees is what lowers the variance.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The forest's answer is a tally of tree votes, and when every tree drops a bar into a pure leaf the tally is exactly zero or one, so the squared gap between the vote share and what happened is the proper score that stays finite for it.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Averaging hundreds of trees turns the few coarse levels of one tree into a nearly continuous vote share, so this asks whether bars that more trees voted up for really went up more often, without caring that the share is squeezed toward one half.",
+              "baseline": "One half, the value of an ordering that carries no information, on the same scored bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's native output is the majority vote of the trees, and this one number says whether that up or down verdict moves with the actual direction on both sides instead of just following the more common side.",
+              "baseline": "Zero, which is what calling every bar the fold's training majority direction scores on the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Bagging averages away the confident leaves of single trees, so a forest's vote share is usually too timid and bunched near one half, and this slope shows by how much the tally would need stretching before it could be read as odds.",
+              "baseline": "One, the slope of a vote share that already means what it says.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A forest whose trees disagree on almost every bar returns a vote share that barely leaves one half, so the spread of the tally shows whether the trees ever agree strongly enough to commit to a direction.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The specification reads the forest through its impurity-based feature importances, and a feature column that tops the importance ranking in one fold and disappears in the next was a product of that fold's bootstrap samples and not a lasting driver.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "The generated table invented this name and a pass mark for it; the forest's majority vote is graded natively by the Matthews correlation coefficient against calling the training majority direction, and the plain hit rate is reported on the as-run scoreboard."
+            },
+            {
+              "name": "Macro F1-Score",
+              "metricId": "macro_f_one_score",
+              "why": "The engine does compute the macro F-one score and shows it on the as-run scoreboard, but as the native summary of the majority vote it is replaced by the Matthews correlation coefficient, which uses all four confusion cells and cannot be raised by voting one side every time."
+            },
+            {
+              "name": "High-Conviction Precision",
+              "metricId": null,
+              "why": "It needs a cut-off on the vote share that the generator made up, and because averaging squeezes the share toward one half any fixed cut-off selects an arbitrary and unstable sliver of bars."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A tally of tree votes can be exactly zero or one, and a single such bar that goes the other way is charged an unbounded penalty that the engine only caps by clipping, so the number would be decided by a handful of unanimous trees."
+            },
+            {
+              "name": "Out-of-bag error",
+              "metricId": null,
+              "why": "The specification offers the bars left out of each tree's bootstrap sample as a free internal test, but on overlapping horizon labels a left-out bar sits beside in-bag bars that share most of its future, so the estimate is flattering and the forest is judged on later unseen bars instead."
+            },
+            {
+              "name": "Expected calibration error",
+              "metricId": "expected_calibration_error",
+              "why": "A vote share was never fitted to match frequencies, and averaging trees pushes it toward one half by construction, so a binned gap against observed up shares restates that known squeeze instead of testing a claim the forest makes."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The forest only votes on direction and takes no position, so a risk-adjusted return describes the trading rule and costs wrapped around the vote and belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the plain average, over every tree in the forest, of the class-weighted up fraction in the leaf the bar's feature row lands in, clipped to the range from zero to one, with no curve fitted on top and every tree kept.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "impurity_reduction",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The averaged leaf fractions are a vote share that can sit at exactly zero or one, and the squared gap to the outcome is the proper score that grades such a share without blowing up, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Averaging the leaf fractions of the whole forest gives a finely graded score, so this tests whether bars with a higher averaged up fraction really went up more often, which survives both the squeeze toward one half and the class weighting."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The traded call is up when the averaged leaf fraction is at least one half, and this number says whether that call moves with the actual direction on both up bars and down bars at once."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Each tree reweights its bootstrap sample so up bars and down bars count equally, which makes the forest aim at equal recall on both sides, and the average of the two recalls is the hit rate that matches that aim."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the share of scored bars where the forest's majority side matched the move, read beside the majority-class baseline because balanced class weights deliberately stop the forest from simply siding with the more common direction."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It measures how far the averaged leaf fractions would need stretching to read as odds, which is expected to be well away from one here because averaging trees bunches the share near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the averaged leaf fraction strays from one half across bars, which tells whether the trees ever agree or the forest is effectively tossing a coin with a slight lean."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the bars on which every tree's leaf was pure on the same side, which are the bars that decide the logarithmic loss and explain why that loss is not used to judge the forest."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by being long whenever the averaged leaf fraction is at least one half and short otherwise under the engine's next-open fill and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the forest's majority side earned per bar after costs, and it is also the quantity the hyperparameter search used on training blocks to choose tree depth, leaf size and the feature fraction per split."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest loss run while following the forest's majority side, which matters because the forest is fitted once on the fold's training window and keeps voting that pattern unchanged for the whole test span even if the market stops behaving that way."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by a flip of the forest's majority side made with what the losing ones gave back after costs, and is read with the trade count because a vote share hovering at one half flips often."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the forest's majority side flipped ended in profit after costs, which describes the shape of the trading results and is not the forest's direction hit rate."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is held until the averaged leaf fraction crosses one half, so this counts those crossings, and a share bunched near one half can cross on noise and pay costs each time."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the forest's majority side was up, which with balanced class weights should stay near an even split and exposes a forest that has collapsed to one side."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second forest of regression trees fitted separately on the scaled move with squared-error cuts, so this tests that second forest's averaged leaf means against forecasting no move and says nothing about the traded vote."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression forest's leaf means aim at the average move, so the squared-error version of the skill against forecasting no move is the reading that matches what those trees were grown to do."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second forest's averaged leaf mean was from the move that followed, to be read beside the same error for forecasting no move at all."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the regression forest's forecast against the move, and because averaged leaf means are small many forecasts round to zero ticks and drop out, so it is read with its denominator."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the training-block trading score that picked this fold's tree depth, leaf size and feature fraction, shown beside the test value because the best of many tried forests looks better than it is."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The averaged leaf fraction can be exactly zero or one and the engine only clips it at machine precision, so a few unanimous bars that went the other way set the whole number, and the balanced class weights centre the share on even odds instead of the series' up share."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Balanced class weights centre the vote share on even odds and averaging bunches it near one half, so its gap to the observed up share is built in and most bars fall in the two middle bins."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the scored test bars' own up share, known only in hindsight, while the class-weighted forest is centred on even odds by design, so the comparison penalises the weighting and not the trees."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "Giving each class half the weight matches the forest's balanced weighting, yet the score is still a logarithm of a vote share that reaches exactly zero or one, so the same few unanimous bars decide it."
+            }
+          ],
+          "caveats": [
+            "The runnable forest reweights every tree's bootstrap sample so up bars and down bars count equally, so an averaged leaf fraction of one half means even odds after reweighting and not the series' own up share.",
+            "The validation logarithmic loss logged after each batch of trees selects nothing: every tree is kept, so the curve only shows the forest settling as it grows.",
+            "The specification's native answer is the hard majority vote of the trees, while the runnable adapter averages leaf fractions, which gives the same side on almost every bar and a finer score.",
+            "The forecast line is a second, separately fitted forest of regression trees whose training target is clipped at its training tails; it shares no trees with the classifier that makes the traded call.",
+            "Consecutive scored bars share most of their future bars, so any interval around these numbers needs a block bootstrap or a lag-corrected variance and never a simple binomial interval.",
+            "For instruments other than the micro Nasdaq future the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "stacked_generalization": {
@@ -178,6 +453,280 @@
               8
             ]
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "combiner_or_calibrator",
+        "profileIdAsRun": "combiner_or_calibrator",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A stacked generalisation model outputs a class probability from a small meta-learner whose only inputs are the predictions that several different base models made on bars those base models did not train on.",
+          "targetVariable": "Whether the close a fixed number of bars ahead is above or below the current bar's close, stated as the meta-learner's probability of up given the base models' answers.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The cross-entropy is minimised only by the meta-learner and only on the base models' out-of-fold predictions, while each base model keeps its own objective (impurity cuts for the forest, boosted logarithmic loss for the boosted trees), so the stack learns how much to trust each base model and not the features themselves.",
+          "metrics": [
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "A stack earns its extra fitting cost only if the meta-learner's blended probability scores better on unseen bars than its single best base model and than the unweighted average of the base models' answers, and this is that difference on the same folds.",
+              "baseline": "The same score for the stack's own best base model and for the plain average of its base models' probabilities on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The meta-learner is a logistic model fitted by cross-entropy on the out-of-fold answers, so the same loss on bars it never saw is the direct test of whether the trust weights it learned carry forward.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The meta-learner sees base-model answers made out of fold but is then fed answers from base models refitted on every training bar, which are bolder, so this slope shows whether that mismatch left the stacked probability too extreme.",
+              "baseline": "One, the slope of a stacked probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stacked probability on a bounded scale, so a few bars where the meta-learner leans hard on one confident base model cannot dominate the verdict the way they can in the logarithmic loss.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A meta-learner can only reorder bars by mixing the orderings its base models already give, so this shows whether the learned mix ranks up bars above down bars, separate from whether the mixed scale is honest.",
+              "baseline": "One half, the value of an ordering that carries no information, on the same scored bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the base models disagree or carry no signal the meta-learner shrinks its weights and returns nearly the same probability on every bar, so the spread of the stacked probability shows whether the stack ever commits.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "The generated table invented this name and a pass mark for it; the stack's native claim is a probability graded by logarithmic loss and by its gain over its own base models, and the plain hit rate is reported on the as-run scoreboard."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "A Gaussian negative log-likelihood grades a forecast that states a mean and a variance for the move, and the stacked classifier this specification describes states only a probability of up, so there is no variance to score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "A root mean square error scaled by volatility grades a forecast of the size of the move, which the stacked classifier never makes; natively the size forecast belongs to a separate stack of regressors."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "It needs a cut on the most extreme tenth of stacked probabilities chosen after the fact, which is an invented selection rule and not a property of the meta-learner; the ranking metric covers the same question on all bars."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "The meta-learner holds one fixed weight per base model for every bar and does not route each bar to a chosen expert, so there is no per-bar gate to measure; that belongs to the mixture of experts."
+            },
+            {
+              "name": "Attention weight entropy",
+              "metricId": "attention_weight_entropy_nats",
+              "why": "The stack's trust in each base model is a constant coefficient of a logistic model and not a per-bar attention distribution, so there is no weight distribution whose entropy could be taken."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The stack produces a probability and takes no position, so a risk-adjusted return describes the trading rule and costs wrapped around its call and belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable stack follows the specification's two-level recipe but fixes its base models to a logistic regression, a class-weighted random forest and gradient-boosted trees with a penalised logistic meta-learner, and it builds the out-of-fold answers from contiguous unshuffled blocks of the training window with no purge between them, so the as-run numbers measure this one fixed trio and its meta-learner and not stacking over a free choice of base models.",
+          "directionMode": "classifier",
+          "probabilitySource": "mean_of_base_learners",
+          "classWeighted": false,
+          "probabilityNote": "The three base models are refitted on the whole training window, each states its probability of up for the bar, and a penalised logistic meta-learner that learned one weight per base model from their out-of-fold answers turns those three numbers into the probability of up, so it is a learned weighted blend and not a plain average.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The meta-learner is fitted by unweighted cross-entropy on the three base models' out-of-fold answers, so the same loss on test bars grades exactly the odds it was trained to state, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The meta-learner's weighted sum of three base-model probabilities is a continuous score, so this shows whether the learned mix of the logistic, forest and boosted orderings ranks up bars above down bars regardless of the scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the meta-learner's blended odds on a bounded scale, so the few bars where the refitted forest and boosted trees agree loudly and are wrong cannot dominate as they do in the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The meta-learner carries no class weights and has its own intercept, so its odds are meant to match the series' up share even though the forest feeding it is class weighted, and this binned gap checks that on later bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The meta-learner learned its weights from cautious out-of-fold answers and is then fed bolder answers from base models refitted on every training bar, and this slope shows whether that left the stacked odds too extreme."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A penalised meta-learner that finds little signal in its three inputs shrinks its weights toward zero and quotes nearly the training up share on every bar, and this spread shows whether that happened."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is up when the meta-learner's blended probability is at least one half, so the hit rate tests the stack's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "An unweighted meta-learner with an intercept can simply lean toward the direction that was more common in training, and averaging the hit rate on up bars and on down bars shows whether the blend does more than follow that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It says in one symmetric number whether the side chosen by the meta-learner's blend moves with the actual direction, with zero meaning the three base models and their weights add nothing beyond the training lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by being long whenever the meta-learner's blended probability is at least one half and short otherwise under the engine's next-open fill and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the side chosen by the blend earned per bar after costs, and it is also what the hyperparameter search steered the meta-learner's penalty and the forest's depth toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest loss run while following the blend's side, which matters because the meta-learner's trust weights are frozen for the whole test span even if the base model it trusts most stops working."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by a flip of the blend's side made with what the losing ones gave back after costs, read with the trade count because a blend that leans one way rarely flips."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the meta-learner's call flipped ended in profit after costs, which describes the shape of the trading results and is not the stack's direction hit rate."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is held while the blended probability stays on one side of one half, so this counts how often the meta-learner changed sides, and every trading number of the stack is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the blend called up, which exposes a meta-learner whose intercept outweighs its three inputs so that the stack is in effect always long or always short."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second stack, a ridge meta-learner over a ridge regression, a regression forest and boosted regression trees, so this tests that second blend's size forecast against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The ridge meta-learner of the second stack is fitted by least squares on its base regressors' out-of-fold forecasts, so the squared-error skill against forecasting no move is the reading that matches what it was fitted to do."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second stack's blended size forecast was from the move that followed, to be read beside the same error for forecasting no move at all."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the regression stack's forecast against the move, which can disagree with the classifier stack's traded call because the two stacks are fitted separately, and it is read with its denominator after tick rounding."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the training-block trading score that picked this fold's meta-learner penalty and forest depth, shown beside the test value because the best of many tried stacks looks better than it is."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the scored test bars' own up share, which is known only in hindsight, while the meta-learner's intercept was fitted to the training up share, so a shift in the up share between spans is charged to the stack."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The meta-learner that forms the final odds is not class weighted, so a score that gives each class half the weight grades a target this stack was never fitted to; only the forest among its inputs is class weighted."
+            }
+          ],
+          "caveats": [
+            "The out-of-fold answers that train the meta-learner come from an unpurged split into contiguous blocks inside the training window, so each base model is trained on bars directly beside the block it predicts, whose label horizons overlap it, and for all but the last block on bars that come after it; the meta-learner's weights are therefore fitted on slightly flattering answers.",
+            "The probability source is recorded as the mean of base learners by registry rule, yet the adapter forms it with a fitted logistic meta-learner that weights the three base models unequally and adds an intercept.",
+            "The forest base model is class weighted while the logistic and boosted base models and the meta-learner are not, so one of the three inputs is centred on even odds and the meta-learner's intercept and weight have to undo that.",
+            "The stack is one library fit, so the step channel holds a single epoch: its training loss is the refitted stack scored on its own training bars and its validation loss is the same stack on the validation bars, both plain unweighted logarithmic loss, and the training value is optimistic by construction because the base models were refitted on those very bars.",
+            "The forecast line is a second stack of regressors with a ridge meta-learner, fitted separately on a training target clipped at its training tails; it shares nothing with the classifier stack that makes the traded call.",
+            "Consecutive scored bars share most of their future bars, so any interval around these numbers needs a block bootstrap or a lag-corrected variance and never a simple binomial interval.",
+            "For instruments other than the micro Nasdaq future the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -280,6 +829,260 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "One continuous forecast per bar: the plain average, over many randomised trees, of the mean training target in the leaf each tree routes the bar to.",
+          "targetVariable": "the size and sign of a continuous forward quantity such as the forward return or the forward realised range of the bar",
+          "objectiveId": "impurity_reduction",
+          "objectiveNote": "Extremely randomised trees weaken the greedy search on purpose: each candidate feature gets one threshold drawn at random and the tree keeps whichever random cut lowers the within-child variance most, so no single tree is the best fit and the accuracy comes from averaging many dissimilar trees grown on the whole training set.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Every random cut is kept for the variance it removes and every leaf answers with an average, so the ensemble is an estimate of the expected move and is graded on squared misses against forecasting no move at all.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "Shows in price points how far the averaged leaf values land from the realised move, the same squared miss the specification's own validation step computes on the later block.",
+              "baseline": "the root mean square of the actual moves themselves, which is what forecasting no move would miss by",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Averaging hundreds of trees shrinks the forecast toward the middle, so the question left is whether the bars on which the trees agree on a larger number are the bars that then move further.",
+              "baseline": "zero, the correlation of a forecast unrelated to the move",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The same comparison with the no-change forecast on absolute misses, which a few violent bars cannot dominate the way they dominate the squared version the trees were split on.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The leaf averages carry the drift of the training window forward, so a forest grown on a rising stretch keeps forecasting up, and the mean signed miss shows that lean before it is mistaken for skill.",
+              "baseline": "zero, a forecast that leans neither up nor down",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The specification warns that a large tree average is stable whether or not it has found anything, so the test is whether the features ranked highest by variance removed are the same ones in the next refit.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "The regressor forecasts a size and not a class, so a hit rate on the sign is a by-product; the Model Cycle reports the sign agreement of the forecast as an as-run number instead."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "It never applied: the trees are split on variance reduction with random thresholds and the ensemble outputs an average with no fitted variance to put into a Gaussian density."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The regressor states no conviction, and treating the largest forecasts as the most confident tenth is a reading added by the table and not something the averaged leaf values promise."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The model outputs a continuous forecast and no class probability, and the old row's description of multi-class calibration has nothing to attach to."
+            },
+            {
+              "name": "Brier score",
+              "metricId": "brier_score",
+              "why": "The regressor outputs a number in the units of the target and no probability of up, so there is no stated chance for a squared probability miss to grade."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The ensemble returns only the average of the leaf values; the spread across trees is described as an informal uncertainty hint and is not a fitted variance, so no Gaussian density exists to score."
+            },
+            {
+              "name": "Out-of-bag error",
+              "metricId": null,
+              "why": "In the defining configuration every tree is grown on the whole training set with no bootstrap sample, so no bar is ever left out of a tree and an out-of-bag score cannot be formed."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification describes the regressor, and the Model Cycle fits that regressor only as the price model; the up or down call that is traded and scored comes from a classifier twin, an extremely randomised forest of classification trees fitted with balanced class weights. The direction and trading numbers therefore measure the classifier twin, and only the price-forecast numbers measure the specified regressor.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the plain mean, summed tree by tree in a fixed order, of the class-weighted up share in the leaf each randomised classification tree routes the bar to.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "impurity_reduction",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This is the engine's only stored skill ratio for the specified model itself, the averaged leaf value of the randomised regression trees scaled back to points; it compares absolute misses with forecasting no move, so on a forecaster split for squared error it is read as a median-style check, and the squared-error skill the splits match is derivable from the stored errors but not itself stored."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Grades the averaged leaf share of the classifier twin on unseen bars with a score that stays finite if every tree puts a bar in a one-class leaf; because the shares are class weighted it grades them against an even prior, not the real up rate."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "What the classifier twin's call earned after costs when the engine goes long whenever the averaged class-weighted leaf share is at least one half and short otherwise."
+            },
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Gives up bars and down bars half the weight each, the same balance the classifier twin's leaf shares were fitted under, so it scores the averaged share on the scale it actually targets; read it with the count of extreme shares beside it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Averaging several hundred randomised trees gives a nearly continuous share, so whether up bars receive higher shares than down bars is a fair ranking test that the class weighting does not disturb."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard vote of the forest in one symmetric number; with balanced weights the cut at one half sits at the even prior, so this reads as agreement beyond that prior."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the forest's averaged share fell on the right side of one half; the balanced weights move that cut away from the real up rate, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The mean hit rate on up bars and down bars, which is the quantity a forest fitted with balanced class weights is in effect aiming its vote at."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of per-bar profit from trading the forest's vote under the engine's rule; the search used the same quantity inside the training span to choose depth, leaf floor and feature fraction, so only the test value is unselected."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account while following the vote; an averaged share that hovers near one half flips sides often and pays costs on the way down."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals after costs, where each trade lasts until the averaged share crosses one half or a stop, target or fold end is reached."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money, where a trade is a run of bars on one side of the forest's vote and not a single prediction."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Random thresholds and averaging pull every share toward one half, so the spread of the shares shows whether the forest ever commits or only hovers at the cut."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the scored bars on which every tree agreed completely, which is rare for an average of randomised trees and is the only route by which the logarithmic scores blow up."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The typical miss in points of the specified regressor's averaged leaf value after scaling back and tick rounding, read beside the miss of forecasting no move."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The squared-miss error in points of the regressor, the measure its variance-reducing splits correspond to, though the training target was clipped so large moves are under-forecast by construction."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the regressor's averaged leaf value matched the move; this is the regressor's sign and can differ from the classifier twin's traded call."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The averaged share is a vote that can reach exactly zero or one and is centred on an even prior by the balanced weights, so the unweighted logarithmic score penalises it for a scale it was never fitted to."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Balanced class weights centre the leaf shares on an even prior, so a gap between the stated share and the real up rate is built in and says nothing about the forest's quality."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "No training loss is logged for the tree chunks, so there is nothing on the training side to subtract from the validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the forest."
+            }
+          ],
+          "caveats": [
+            "The validation logarithmic loss logged after each chunk of trees is the unweighted score of class-weighted shares and selects nothing: every tree is kept whatever the curve does, so the best-chunk flag is a report and not a checkpoint.",
+            "The regressor's training target is clipped at its own first and ninety-ninth training percentiles before the trees are grown, so its forecasts cannot reach the largest moves.",
+            "The registry default for the feature fraction offered at each split is one half and the search may change it, while the specification argues for offering every feature in the regression case.",
+            "Scored bars that are closer together than the label horizon share future bars, so intervals on these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption."
+          ]
+        }
       }
     },
     "classification_and_regression_tree": {
@@ -371,11 +1174,258 @@
             ]
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "vote_share_or_frequency",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A binary tree of single-feature threshold tests whose leaf returns either the class shares of the training bars that landed in it or, for a continuous target, the mean of their target values.",
+          "targetVariable": "the class of the bar's future move, or the size of that move, as counted or averaged among the training bars that share the bar's leaf",
+          "objectiveId": "impurity_reduction",
+          "objectiveNote": "Classification and regression trees add a second stage to greedy impurity reduction: the deliberately overgrown tree is cut back along the cost-complexity path, which trades total leaf impurity against a penalty per leaf, and the tree size is chosen on a later block of bars.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "A leaf that happens to hold only up bars states a share of exactly one, and the squared-miss score stays finite there, so it can grade every leaf share the pruned tree hands out.",
+              "baseline": "the squared miss of quoting the fold's training up share on every bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The classification tree's native answer is the majority class of the leaf, and this single correlation over the four confusion cells shows whether those leaf majorities do better than a tree that sends every bar to one class.",
+              "baseline": "zero, the value of calling every bar the fold's training majority class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression form of the tree chooses each split to shrink the squared spread inside the two children and answers with the leaf average, so skill measured on squared misses against forecasting no move is the score that matches what its splits were chosen for.",
+              "baseline": "the no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "Each leaf of the regression tree answers with one constant, so the typical squared miss in price points shows how coarse that staircase of leaf averages is against the moves it is meant to follow.",
+              "baseline": "the root mean square of the actual moves themselves, which is what forecasting no move would miss by",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "One tree hands out one share per leaf, so its ranking curve is drawn from only as many points as there are leaves and is read as a description of the leaf ordering, never as the headline.",
+              "baseline": "one half, the value when the leaf shares do not order up bars above down bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Checks whether bars sent to a leaf that was mostly up in training really go up that often later; a leaf carved around a handful of coincidentally similar bars overstates its odds and pulls the slope below one, which is the memorisation the pruning stage exists to remove.",
+              "baseline": "one, the slope when the leaf shares are on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A small change in the training bars can change the first split and with it every threshold test below, so the share of refits in which the same split features reappear says whether the readable rule chain is knowledge or an accident of one window.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "It never applied: a tree is grown by impurity reduction and pruning, and its leaves hold a class share or an average with no variance to put into a Gaussian density."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A single tree has only as many conviction levels as leaves, so the highest-conviction tenth of bars is a few tied leaves cut at an arbitrary place and not a set the tree itself defines."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A leaf holding only one class states a probability of exactly zero or one, and a single miss in such a leaf sends the logarithmic score to its clipping limit, so the number reports the clip and not the tree."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "A tree leaf stores a class share or an average and never a variance, so there is no Gaussian density for a likelihood to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The tree itself never takes a position; a Sharpe ratio grades the Model Cycle's trading rule and costs applied to the leaf majority call, so it belongs to the as-run record only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter grows one scikit-learn classification tree in a single library call and holds its size down only with a depth limit and a leaf floor chosen by the hyperparameter search; the cost-complexity pruning pass and the one-standard-error choice of tree size that the specification makes the defining second stage are not run, and surrogate splits do not exist. The as-run numbers therefore measure a depth-limited, unpruned tree, with a separate regression tree supplying the price forecast.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the unweighted fraction of up bars among the training bars in the leaf the bar is routed to, read from the fitted tree and clipped only to the range from zero to one.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "impurity_reduction",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Grades the raw leaf up-fraction as a statement of odds on unseen bars and stays finite when a leaf that was pure in training is wrong, which is the case that breaks the logarithmic score for this tree."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "What the tree's leaf majority call earned after costs when the engine goes long in leaves that were at least half up in training and short in the others."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the leaf majorities carry information about both directions; an unweighted tree that routes almost every bar to up-majority leaves scores near zero here even when its hit rate looks respectable."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars on which the leaf majority matched the realised direction, read beside the majority-class accuracy of the same fold because the unweighted tree leans toward the commoner training class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, so it shows whether the splits found leaves for the rarer direction or only for the commoner one."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar profit from following the leaf majority call under the engine's rule; it is also the default quantity the search used to choose the depth and leaf floor inside the training span, so the test value is the honest one."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account while following the leaf calls; a tree that stays in one large leaf for a long stretch rides the whole adverse move without flipping."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals after costs, where a trade ends when the bar moves to a leaf with the opposite majority or a stop, target or fold end is reached."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money; because trades end at leaf-majority flips it describes runs of same-direction leaves, not individual predictions."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The tree is fitted without class weights, so its leaf fractions are meant to be read against the real up rate and the gap is a fair check; only a few probability bins are occupied because there is one level per leaf."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Ranks bars by leaf up-fraction, but the level count may be small because every bar in a leaf ties, so the curve has few points and is descriptive."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how many different leaf fractions the tree actually quoted on the fold's scored bars, which tells the reader how many points the ranking and calibration numbers rest on."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the scored bars routed to a leaf that was all up or all down in training, the bars that decide the size of the logarithmic loss."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "Tests the second model, a separately fitted regression tree whose leaf average of the scaled move is the forecast, against forecasting no move; it says nothing about the classification tree that makes the call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the regression tree's leaf average after it is scaled back and rounded to the tick, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the regression tree's leaf average matched the move; this is the price tree's sign and can disagree with the classification tree's traded call."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A leaf that was pure in training quotes exactly zero or one and the engine clips it at machine precision, so a handful of wrong bars in pure leaves set the number and it reports the clip, not the tree."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "Both step losses are the same logarithmic loss, but the training side is scored on the rows the tree was grown on, where leaves grown to be pure quote shares close to zero or one and the loss falls toward zero, and the validation side is set by the few wrong bars in such leaves at the clipping floor, so the difference reports the clip and the depth, not an overfit read of this tree."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the tree."
+            }
+          ],
+          "caveats": [
+            "The depth limit, leaf floor and split criterion are chosen by the hyperparameter search on a simulated trading score inside the training span, not by the validated pruning path the specification prescribes, so the kept tree size is a trading selection and not a pruning result.",
+            "The single fit logs one training logarithmic loss and one validation logarithmic loss, both the unweighted logarithmic loss of the leaf up-fraction; the training value is in-sample and shrinks toward zero as leaves become pure, both are clipped at the step log's own small floor, and nothing is selected on either because the one fitted tree is always kept.",
+            "The price forecast comes from a second, separately fitted regression tree whose training target is clipped at its own first and ninety-ninth training percentiles, so its forecasts cannot reach the largest moves.",
+            "Scored bars that are closer together than the label horizon share future bars, so intervals on these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption."
+          ]
+        }
       }
     },
     "decision_tree_classifier": {
       "catalogSpecId": "machine-learning-supervised-learning-tree-based-models-decision-tree-classifier",
-      "alsoCatalogSpecIds": ["simulation-decision-models-tree-graph-based-decision-models-decision-trees"],
+      "alsoCatalogSpecIds": [
+        "simulation-decision-models-tree-graph-based-decision-models-decision-trees"
+      ],
       "displayName": "Decision tree classifier",
       "category": "Supervised learning",
       "subcategory": "Tree-based models",
@@ -461,6 +1511,237 @@
               "entropy"
             ]
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "vote_share_or_frequency",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A predicted class for each bar together with the weighted class shares of the training bars that reached the same leaf of a binary tree of threshold tests.",
+          "targetVariable": "the class of the bar, such as whether the coming move is up or down, as counted among the training bars that share the bar's leaf",
+          "objectiveId": "impurity_reduction",
+          "objectiveNote": "The classifier-only tree scores every candidate split by the drop in Gini impurity or entropy and takes the best one greedily, and when class weights are in force they enter both the split score and the stored leaf shares, so the output becomes a rebalanced share and no longer a raw count.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The leaf's class share is the tree's whole statement of confidence and a pure leaf states exactly zero or one, so the squared-miss score, which stays finite there, is the honest grade of those leaf shares.",
+              "baseline": "the squared miss of quoting the fold's training up share on every bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The predicted class is the largest share in the leaf, and because greedy impurity splits can starve the rarer class, one correlation over all four confusion cells shows whether the leaf majorities carry information about both directions.",
+              "baseline": "zero, the value of calling every bar the fold's training majority class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars exposes a tree whose splits served only the commoner class, which is the imbalance weakness the specification names for an unweighted impurity criterion.",
+              "baseline": "one half, the value of calling every bar the same class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "A depth-limited tree has one share per leaf, so the curve is built from as few points as there are leaves and describes how the leaves are ordered instead of serving as the headline.",
+              "baseline": "one half, the value when the leaf shares do not order up bars above down bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Tests whether a leaf that was mostly up in training keeps that rate on later bars; a tree grown too deep quotes shares from a handful of bars and the slope falls below one, and a class-weighted tree quotes a rebalanced share that must not be read as odds.",
+              "baseline": "one, the slope when the leaf shares are on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The selling point of a single tree is its auditable chain of threshold tests, and because one tree has high variance the share of refits in which the same split features come back says whether that chain can be trusted as a rule.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "High-Conviction Precision",
+              "metricId": null,
+              "why": "A single tree has only as many conviction levels as leaves, so the highest-conviction tenth of bars is a few tied leaves cut at an arbitrary place and not a set the tree itself defines."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A pure leaf states a probability of exactly zero or one, and one wrong bar in such a leaf drives the logarithmic score to its clipping limit, so the number reports the clip and not the tree."
+            },
+            {
+              "name": "Binary cross-entropy as the training objective",
+              "metricId": null,
+              "why": "The tree is never fitted by minimising cross-entropy over its outputs; each split is chosen greedily by impurity decrease and no loss is descended."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The classifier itself never takes a position; a Sharpe ratio grades the Model Cycle's trading rule and costs applied to the leaf majority call, so it belongs to the as-run record only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is one scikit-learn classification tree, unweighted and unpruned, grown in a single library call with a depth limit, a leaf floor and a split criterion chosen by the hyperparameter search; it implements this classifier specification but not the decision-analysis reading of the shared Decision Trees specification in the simulation folder, which the registry says is covered by the influence diagram model. A separate regression tree supplies the price forecast.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the unweighted fraction of up bars among the training bars in the leaf the bar is routed to, read from the fitted tree and clipped only to the range from zero to one.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "impurity_reduction",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Grades the leaf up-fraction, the classifier's own statement of confidence, on unseen bars and stays finite when a leaf that held only one class in training turns out wrong."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The classifier's native output is the larger class of the leaf, and this correlation over the four confusion cells tests that hard call without rewarding a tree whose unweighted splits serve only the commoner direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "What following the leaf majority earned after costs when the engine goes long in leaves that were at least half up in training and short in the rest."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the leaf's larger class matched the realised direction, read beside the fold's majority-class accuracy because no class weights are applied."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The mean of the hit rate on up bars and on down bars, which shows whether the greedy impurity splits starved the rarer direction as the specification warns they can."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar profit from trading the leaf majority under the engine's rule; the search also used this quantity inside the training span to choose depth, leaf floor and criterion, so only the test value is unselected."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account while following the leaf calls; a shallow tree that keeps bars in one broad leaf holds the same side through the whole adverse stretch."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals after costs, where each trade runs until the bar lands in a leaf with the opposite majority or a stop, target or fold end is reached."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money; since a trade spans a run of same-direction leaves it is not a count of correct predictions."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The runnable tree applies no class weights, so its leaf fractions are raw counts that should match the later up rate and the binned gap is a fair check, resting on the few bins the leaf levels fall into."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Orders bars by leaf up-fraction, but the level count may be small because all bars in a leaf tie, so it is a curve of a few points and stays descriptive."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The number of different leaf fractions quoted on the fold's scored bars, which is the number of points under the ranking and calibration figures."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "How many scored bars fell into leaves that were all up or all down in training, which are the bars that decide the logarithmic loss."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Belongs to a second model the specification does not describe, a regression tree fitted beside the classifier to draw the forecast line, and compares its leaf average with forecasting no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of that companion regression tree's leaf average after scaling back and tick rounding, read beside the no-change forecast's miss."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the companion regression tree's sign matched the move; it is not the classifier's call and the two can disagree on the same bar."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A leaf that was pure in training quotes exactly zero or one and the engine clips it at machine precision, so a few wrong bars in pure leaves set the number and it reports the clip, not the classifier."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "Both step losses are the same logarithmic loss, but the training side is scored on the rows the tree was grown on, where leaves grown to be pure quote shares close to zero or one and the loss falls toward zero, and the validation side is set by the few wrong bars in such leaves at the clipping floor, so the difference reports the clip and the depth, not an overfit read of this classifier."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the tree."
+            }
+          ],
+          "caveats": [
+            "This record is shared with the Decision Trees specification in the simulation folder, whose decision-analysis reading the adapter does not implement and the registry assigns to the influence diagram model; for this classifier specification the adapter is the described algorithm run without class weights and without pruning, both of which the specification treats as optional.",
+            "The depth limit, leaf floor and split criterion are chosen by the hyperparameter search on a simulated trading score inside the training span; the single fit logs one training logarithmic loss, scored in-sample on the rows the tree was grown on, and one validation logarithmic loss, both clipped at the step log's own small floor, and nothing is selected on either.",
+            "The price forecast comes from a second, separately fitted regression tree whose training target is clipped at its own first and ninety-ninth training percentiles.",
+            "Scored bars that are closer together than the label horizon share future bars, so intervals on these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption."
+          ]
         }
       }
     }

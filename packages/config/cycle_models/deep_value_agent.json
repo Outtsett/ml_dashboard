@@ -190,6 +190,256 @@
           "group": "Model",
           "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A neural network that reads the market state and outputs one action value each for hold, long and short, from which the agent takes the action with the highest value.",
+          "targetVariable": "The expected discounted sum of future trading rewards from taking each of the actions hold, long or short in the current state and choosing the best action on every later bar",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "The deep Q-network regresses the value of the action taken toward the reward plus the discounted best next value read from a frozen copy of the network, on minibatches drawn uniformly from a replay buffer, usually with the Huber form of the error so one volatile bar cannot dominate.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The network exists to pick hold, long or short, so the fair test is the reward its highest-valued action collects per decision on later bars that never entered the replay buffer and never decided which epoch was kept.",
+              "baseline": "Holding flat on the same test tape, which earns zero, and holding long on every decision of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The random exploration draws, the minibatches sampled from the replay buffer and the starting weights all come from the seed, and deep value learning is known to land on different policies from different seeds, so the spread across seeds says whether the result belongs to the method.",
+              "baseline": "The same agent on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The target takes the maximum over the frozen copy's noisy next-bar values and feeds it back into itself, which pushes predicted values above what is later realised, so the gap between the predicted value and the realised discounted reward shows how inflated the value surface is.",
+              "baseline": "Zero, which means the predicted value of the action taken equals the discounted reward that followed it",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The weights that are kept are the ones whose greedy action earned most on the validation tape among all epochs, so that validation reward is the top of a list of tries and is shown next to the test reward to expose how much of it was luck.",
+              "baseline": "The same kept policy's reward per decision on the fold's test tape",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A network that learns that trading costs more than its features can predict will rank hold highest on nearly every bar, and the share of bars on which each of the three actions wins shows that outcome directly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The Huber error against the frozen copy jumps each time the copy is refreshed because the target itself moves, so the curve only shows whether learning diverged and can never be read as how good the policy is.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the traded equity path under the engine's fill rule and costs, so it is reported for the model as run and is not a native score of a value network."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It is a downside-risk ratio of the traded equity path, which exists only in the as-run layer where the agent's calls are filled and charged costs."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The deepest fall of equity is a property of the traded path in the as-run layer, and the network's training target is a sum of rewards that gives no weight to the path."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning against losing trade totals need closed trades, which the engine creates from the agent's calls in the as-run layer and the network never produces itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The agent chooses among three fixed actions and never sizes a position, so a capital fraction is a separate sizing rule and not a measurement of this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The policy is the highest-valued action, which is deterministic at inference, so there is no action distribution to take an entropy of."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The network outputs action values in reward units and never states odds for the next move, so natively there is no probability to grade."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent is a real deep Q-network with a replay buffer, a frozen target copy and annealed random exploration, but its world is the training span's fixed price tape: the market does not react to the agent and its position is not in the state. The state is one bar's feature row where the specification describes a trailing window, and each reward is a whole trade of label_horizon_bars opened at the next open and charged one round trip, so the next bar never depends on the action and the as-run numbers measure cost-aware prediction of that trade's sign from the features.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the network's long value minus its short value divided by one temperature, where that single temperature is fitted on the validation labels, cannot go negative and so can never flip the sign of the value gap.",
+          "priceForecastSource": "none",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_tape_utility",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "Huber error between the predicted action value and its bootstrapped target in move-scaled reward units on training rows, and nats on validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The network was trained on rewards that are trades net of a round trip, so profit on the walked test bars is the money version of what its long-versus-short value gap was fitted to raise, earned here under the engine's rule of following the sign of that gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The fitted temperature cannot change which of long and short has the higher value, so the hard call is the network's own, and averaging the hit rate over up bars and down bars tests it without rewarding a network that learned to sit on one side."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "If the training tape drifted up the long value sits above the short value on most bars and the agent is simply long, so the profit left after buy and hold is removed shows whether the feature row added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of following the sign of the value gap per unit of bar-to-bar swing, with zero only an arithmetic marker because an agent with no edge still pays the round trip on every flip."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The bootstrapped target adds up discounted rewards and gives no weight to the order they arrive in, so the deepest fall of test equity shows a risk the action values never priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that result when the higher of the long and short values changes from one bar's feature row to the next."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the network's long and short values swap order, so it is read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the long-minus-short value gap matched the move, read against the majority-class accuracy because a network that is long on every bar scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric figure for whether bars the network values long over short really went up more often, which falls to zero when the gap carries the same sign on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A positive temperature keeps the order of the value gaps, so this ranks bars by the network's own continuous long-minus-short preference and tests whether a larger gap goes with a likelier up move."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars on which the long value was at least the short value, and a share at one or zero means the agent learned a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the order of the long and short values flipped along the walk, plus stops, targets and fold ends, and is read beside every trading number."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over hidden_size, learning_rate and discount_factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a value gap in reward units passed through one temperature fitted on validation rows, which makes them a preference strength and not a forecast probability."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from one fitted temperature on a value gap, so it mostly measures that single parameter and not the network."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The scale of the probability is set entirely by one temperature fitted on validation labels, so the calibration bins test that fit and not the action values."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this agent has no price model because a gap between action values is not a forecast of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this agent has no price model, so there is no forecast error in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this agent has no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine reads only the long and short values and holds a position on every bar once the first call is made, so exposure describes the engine's rule and hides how often the network preferred to stay flat."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the Huber error against the bootstrapped target and the validation curve holds the logarithmic loss of the temperature-scaled share, so their difference compares two different quantities."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state, so a bar's call never depends on earlier calls.",
+            "The agent's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "Because the next bar is the same whichever action was taken, the bootstrapped part of the target is shared by all three actions, so the inflation from taking a maximum largely cancels in the long-minus-short gap that drives every call.",
+            "Both long and short pay the same round trip in the reward, so the cost cancels in the long-minus-short gap and only the unused flat value carries the cost comparison.",
+            "The epoch that is kept is the one whose long-or-short choice earned most on the validation tape, and the temperature is fitted on the same validation rows, so validation figures are partly in sample and only the test walk is out of sample.",
+            "When the fitted inverse temperature is zero the probability of up is one half on every bar and the engine calls every bar up.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "double_deep_q_network": {
@@ -381,6 +631,265 @@
           "label": "Exploration decay share",
           "group": "Model",
           "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A neural network that outputs one action value each for hold, long and short, trained so that those values are less inflated than a plain deep Q-network's, and the agent takes the highest-valued action.",
+          "targetVariable": "The expected discounted sum of future trading rewards from taking each of the actions hold, long or short in the current state and choosing the best action on every later bar",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "Double deep Q-learning changes only the target: the online network picks the best next action and the frozen copy supplies the value of that pick, so one network's lucky error is no longer both chosen and believed.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Decoupling the pick from the valuation is worth having only if the highest-valued action then earns more per decision on later bars that neither the replay buffer nor the epoch selection ever touched.",
+              "baseline": "Holding flat on the same test tape, which earns zero, and holding long on every decision of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "primary",
+              "why": "The whole claim of the decoupled target is that predicted values stop running ahead of realised reward, and this gap between the value predicted for the action taken and the discounted reward that followed measures exactly that claim.",
+              "baseline": "Zero, which means the predicted value of the action taken equals the discounted reward that followed it",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The only part that differs from the base agent is which network picks the next action inside the target, so rerunning the same agent with the frozen copy doing both jobs isolates what the decoupling bought in test-tape reward.",
+              "baseline": "The same agent on the same folds with the frozen copy both picking and valuing the next action",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The exploration draws, replay minibatches and starting weights all depend on the seed, and the effect of the decoupled target on reward is small enough that one seed can show it with either sign.",
+              "baseline": "The same agent on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The kept weights are the epoch whose greedy action earned most on the validation tape, so that reward is a best-of-many figure and is read against the test reward of the same weights.",
+              "baseline": "The same kept policy's reward per decision on the fold's test tape",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Removing the inflation from rarely tried actions can change which of hold, long and short ranks highest, and the share of bars each action wins shows whether the agent trades at all or sits in hold.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The Huber error against the decoupled target still moves each time the frozen copy is refreshed, so the curve shows only whether learning stayed stable and says nothing about how good the policy is.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the traded equity path under the engine's fill rule and costs, so it is reported for the model as run and is not a native score of the decoupled target."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It is a downside-risk ratio of the traded equity path, which exists only in the as-run layer where the agent's calls are filled and charged costs."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The deepest fall of equity is a property of the traded path in the as-run layer, and a less inflated value estimate makes no promise about the path."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning against losing trade totals need closed trades, which the engine creates from the agent's calls in the as-run layer and the network never produces itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The agent chooses among three fixed actions and never sizes a position, so a capital fraction is a separate sizing rule and not a measurement of this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The policy is the highest-valued action, which is deterministic at inference, so there is no action distribution to take an entropy of."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The network outputs action values in reward units and never states odds for the next move, so natively there is no probability to grade."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent applies the specification's decoupled target, in which the online network picks the next action and the frozen copy values it, but its world is the training span's fixed price tape: the market does not react to the agent and its position is not in the state. The state is one bar's feature row, each reward is a whole trade of label_horizon_bars net of one round trip, and the next bar never depends on the action, so the correction the decoupling makes falls on a part of the value shared by all actions and the as-run numbers measure cost-aware prediction of the trade's sign from the features.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the online network's long value minus its short value divided by one temperature, where that single temperature is fitted on the validation labels, cannot go negative and so can never flip the sign of the value gap.",
+          "priceForecastSource": "none",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_tape_utility",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "Huber error between the predicted action value and its decoupled bootstrapped target in move-scaled reward units on training rows, and nats on validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The rewards behind the decoupled target are trades net of a round trip, so profit on the walked test bars is the money version of what the long-versus-short value gap was fitted to raise, earned under the engine's rule of following the sign of that gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The decoupled target changes how large the values are but the call uses only which of long and short is higher, so the hit rate averaged over up bars and down bars tests the part of the agent that reaches the trade."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "A less inflated value surface can still rank long above short on nearly every bar of a rising tape, so the profit left after buy and hold is removed shows whether the feature row added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of following the sign of the online network's value gap per unit of bar-to-bar swing, with zero only an arithmetic marker because an agent with no edge still pays for every flip."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Removing the upward bias from the target makes the values more honest about expected reward but still says nothing about the path, so the deepest fall of test equity shows a risk the values never priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades produced when the online network's long and short values swap order between one bar's feature row and the next."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the long and short values swap order, so it is read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the long-minus-short gap matched the move, read against the majority-class accuracy because an agent that is long on every bar scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric figure for whether bars the online network values long over short went up more often, which is where any benefit of a steadier target would have to show."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A positive temperature keeps the order of the value gaps, so this ranks bars by the network's own continuous preference and tests whether less inflated values order the bars any better."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars on which the long value was at least the short value, and a share at one or zero means the agent learned a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the order of the long and short values flipped along the walk, plus stops, targets and fold ends, and is read beside every trading number."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over hidden_size, learning_rate and discount_factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a value gap in reward units passed through one temperature fitted on validation rows, which makes them a preference strength and not a forecast probability."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from one fitted temperature on a value gap, so it mostly measures that single parameter and not the decoupled target."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The scale of the probability is set entirely by one temperature fitted on validation labels, so the calibration bins test that fit and not the action values."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this agent has no price model because a gap between action values is not a forecast of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this agent has no price model, so there is no forecast error in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this agent has no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine reads only the long and short values and holds a position on every bar once the first call is made, so exposure describes the engine's rule and hides how often the network preferred to stay flat."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the Huber error against the decoupled target and the validation curve holds the logarithmic loss of the temperature-scaled share, so their difference compares two different quantities."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state, so a bar's call never depends on earlier calls.",
+            "The agent's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "Because the next bar is the same whichever action was taken, the bootstrapped part of the target is shared by all three actions, so the bias the decoupled target removes largely cancels in the long-minus-short gap and the calls are expected to stay close to those of the single-network target.",
+            "None of the engine's numbers measures how inflated the action values are, which is the one thing this variant changes, so its own claim is not tested by the scoreboard.",
+            "The epoch that is kept is the one whose long-or-short choice earned most on the validation tape, and the temperature is fitted on the same validation rows, so validation figures are partly in sample and only the test walk is out of sample.",
+            "When the fitted inverse temperature is zero the probability of up is one half on every bar and the engine calls every bar up.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -574,6 +1083,274 @@
           "group": "Model",
           "description": "The share of all training bars over which the random-action chance falls linearly from its start to its end value."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A neural network with a shared encoder and two heads, one giving the value of the state and one giving each action's advantage, recombined into action values for hold, long and short from which the highest is taken.",
+          "targetVariable": "The expected discounted sum of future trading rewards from taking each of the actions hold, long or short in the current state and choosing the best action on every later bar, split into how good the state is and how much each action adds",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "The dueling design leaves the temporal-difference target unchanged and alters only the output layers, adding the state value to each action's advantage after subtracting the mean advantage so that the split between the two heads is unique.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The two heads are recombined into one value per action before anything is chosen, so the fair test stays the reward the highest recombined value collects per decision on later bars that training and epoch selection never saw.",
+              "baseline": "Holding flat on the same test tape, which earns zero, and holding long on every decision of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The state-value head learns from every replayed step whatever action was taken, which is claimed to help on the many bars where the action hardly matters, and rerunning the same agent with one plain output head isolates what the split bought.",
+              "baseline": "The same agent on the same folds with a single output head in place of the value and advantage heads",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "How the shared encoder divides its signal between the value head and the advantage head depends on the starting weights and replay draws, so the reward has to be read across seeds before the split is credited.",
+              "baseline": "The same agent on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The recombined value is still bootstrapped from a maximum over next-bar values, so the gap between the value predicted for the action taken and the discounted reward that followed shows whether the value head has drifted above reality.",
+              "baseline": "Zero, which means the predicted value of the action taken equals the discounted reward that followed it",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "If the advantage head collapses toward zero on every bar the three recombined values tie and the choice among hold, long and short becomes arbitrary, which shows up as one action winning nearly every bar.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The kept weights are the epoch whose highest recombined value earned most on the validation tape, so that reward is a best-of-many figure and is read against the test reward of the same weights.",
+              "baseline": "The same kept policy's reward per decision on the fold's test tape",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The Huber error flows back through both heads and the shared encoder against a target that moves with each refresh of the frozen copy, so the curve shows stability of learning and nothing about which head carries the signal.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the traded equity path under the engine's fill rule and costs, so it is reported for the model as run and is not a native score of the two-head network."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It is a downside-risk ratio of the traded equity path, which exists only in the as-run layer where the agent's calls are filled and charged costs."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The deepest fall of equity is a property of the traded path in the as-run layer, and the value and advantage heads are trained on a sum of rewards that ignores the path."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning against losing trade totals need closed trades, which the engine creates from the agent's calls in the as-run layer and the network never produces itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The agent chooses among three fixed actions and never sizes a position, so a capital fraction is a separate sizing rule and not a measurement of this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The policy is the highest recombined action value, which is deterministic at inference, so there is no action distribution to take an entropy of."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The two heads output a state value and action advantages in reward units and never state odds for the next move, so natively there is no probability to grade."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent has the specification's shared encoder, state-value head and advantage head recombined with the mean advantage subtracted, and it trains them with the decoupled target, but its world is the training span's fixed price tape: the market does not react to the agent and its position is not in the state. The state is one bar's feature row and each reward is a whole trade of label_horizon_bars net of one round trip, and because the call is the long value minus the short value the state-value head cancels out of it, so the as-run numbers measure the advantage head's cost-aware prediction of the trade's sign.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the recombined long value minus the recombined short value, which equals the long advantage minus the short advantage because the state value cancels, divided by one temperature fitted on the validation labels that cannot go negative.",
+          "priceForecastSource": "none",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_tape_utility",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "Huber error between the recombined action value and its decoupled bootstrapped target in move-scaled reward units on training rows, and nats on validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The rewards the two heads are trained on are trades net of a round trip, so profit on the walked test bars is the money version of what the long-versus-short advantage gap was fitted to raise, earned under the engine's rule of following its sign."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The state-value head drops out of the long-minus-short gap, so the hard call is the advantage head's alone, and the hit rate averaged over up bars and down bars tests whether that head learned a direction."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "An advantage head that leans long on nearly every bar of a rising tape reproduces buy and hold, so the profit left after that is removed shows whether the feature row added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of following the sign of the advantage gap per unit of bar-to-bar swing, with zero only an arithmetic marker because an agent with no edge still pays for every flip."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The state-value head is the part that judges how good a stretch of the tape is, and it never reaches the call, so the deepest fall of test equity shows a risk nothing in the traded signal priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades produced when the long and short advantages swap order between one bar's feature row and the next."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the long and short advantages swap order, so it is read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the long-minus-short advantage matched the move, read against the majority-class accuracy because a head that is long on every bar scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric figure for whether bars with a higher long than short advantage went up more often, which falls to zero if the advantage head collapsed to the same lean on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A positive temperature keeps the order of the advantage gaps, so this ranks bars by the advantage head's own continuous preference and tests whether a wider gap goes with a likelier up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the advantage head has collapsed toward zero every bar's probability sits at one half whatever the temperature, so the spread of the probability across bars is the engine's nearest view of whether the two heads specialised."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars on which the long advantage was at least the short advantage, and a share at one or zero means the head learned a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the order of the long and short advantages flipped along the walk, plus stops, targets and fold ends, and is read beside every trading number."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over hidden_size, learning_rate and discount_factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are an advantage gap in reward units passed through one temperature fitted on validation rows, which makes them a preference strength and not a forecast probability."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from one fitted temperature on an advantage gap, so it mostly measures that single parameter and not the two heads."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The scale of the probability is set entirely by one temperature fitted on validation labels, so the calibration bins test that fit and not the advantage head."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this agent has no price model because a gap between action values is not a forecast of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this agent has no price model, so there is no forecast error in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this agent has no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine reads only the long and short values and holds a position on every bar once the first call is made, so exposure describes the engine's rule and hides how often the network preferred to stay flat."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the Huber error of the recombined value against its target and the validation curve holds the logarithmic loss of the temperature-scaled share, so their difference compares two different quantities."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state, so a bar's call never depends on earlier calls.",
+            "The agent's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "The state-value head cancels out of the long-minus-short gap, so no engine number reads it, and the decomposition into state value and advantage that the specification offers for inspection is not recorded by a run.",
+            "Because the next bar is the same whichever action was taken, the bootstrapped part of the target is shared by all three actions and is absorbed by the state-value head, which leaves the advantage head to learn the immediate trade reward of each action.",
+            "This variant always trains with the decoupled target, so a run never isolates the two-head split from the change of target.",
+            "The epoch that is kept is the one whose long-or-short choice earned most on the validation tape, and the temperature is fitted on the same validation rows, so validation figures are partly in sample and only the test walk is out of sample.",
+            "When the fitted inverse temperature is zero the probability of up is one half on every bar and the engine calls every bar up.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "noisy_deep_q_network": {
@@ -745,6 +1522,267 @@
           "label": "Initial noise scale",
           "group": "Model",
           "description": "The starting size of the learned weight noise in the noisy head layers (sigma zero); training shrinks it where the agent is sure."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "An action value for each of hold, long and short in every state, from a network whose final layers carry learned random noise on their weights, with the size of that noise as an exploration diagnostic.",
+          "targetVariable": "The discounted sum of future trading reward of taking each of hold, long and short in a state and acting greedily afterwards.",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "The learning target is the ordinary one of the deep value network; what this member adds is that the noise scale on each head weight is itself trained through the same loss, so exploration comes from acting greedily on noise-perturbed values and shrinks wherever the loss says the noise is hurting.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Learned weight noise is only a way of finding better action values, so the direct test is the mean reward of the highest-valued action with the noise switched off, hold included, on bars the network never trained or was selected on.",
+              "baseline": "Zero reward per decision, which is what choosing hold on every bar of the same tape pays.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Here the seed sets not just the starting weights but every noise draw that decided which actions were ever tried, so reruns that differ only in seed show how much of the result is the luck of that exploration.",
+              "baseline": "The spread of the same agent's test reward across reruns that differ only in seed.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "noisy_layer_mean_noise_scale",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The specification tells the reader to watch the average noise scale, because the network can train it to nothing everywhere and stop exploring long before it has seen enough of the tape, or leave it so large that its values never settle.",
+              "baseline": "The same network's noise scale at the start of the fit, which the initial noise scale setting fixes.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The target takes the largest of the target copy's noise-perturbed values for the next bar, and a maximum over noisy numbers leans high, so the promised value minus the discounted reward the tape paid shows how inflated the values are.",
+              "baseline": "Zero, where the promised value equals the discounted reward the tape then paid.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Once the noise is off the network may value hold above both sides on nearly every bar because hold never pays costs, and the shares of long, short and hold show whether the learned values lead to any trading at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The kept weights are the ones whose noise-free greedy choice earned the most on a validation stretch, so that validation reward is flattered by the choosing and is shown only beside the test reward.",
+              "baseline": "The same agent's mean reward on the test tape of the same fold.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It is an as-run trading number of the engine's rule and costs applied to the sign of the long-minus-short value gap, not a native measure of the noisy value network."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It grades the downside of the engine's per-bar money path, which exists only after the greedy side is traded under the engine's rule, so it belongs to the as-run layer."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A drawdown belongs to the marked-to-market path the engine builds, while the network learns from replayed single decisions that never show it a losing run."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "It needs closed trades, and the engine and not the value network decides where a trade ends, so it is an as-run number only."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The registry has no such metric and the agent picks a side at one fixed size, so a capital fraction from an empirical edge does not measure this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "A greedy value policy picks one action per state, and this model's exploration is weight noise whose own measure is the learned noise scale."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The network states values of actions in reward units and never a probability that price rises, so a forecast-odds score has nothing native to grade."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent is the specified value network with factorised learned noise on every head layer, a replay buffer, a periodically copied target network and no random-action schedule, but its environment is a fixed reward tape: the market does not react to the agent and its position is not in the state, each decision is paid as one whole trade over the label horizon net of a round trip, and the engine trades only whether long is valued above short, so the as-run numbers measure cost-aware direction calls and not sequential control.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "With the weight noise switched off, the value of long minus the value of short is divided by one temperature fitted by maximum likelihood on the validation labels and passed through the logistic curve, so the side of one half is the network's own preference between long and short and only the distance from one half comes from the fitted temperature.",
+          "priceForecastSource": "none",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_tape_utility",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the mean Huber loss between the noisy network's value of the replayed action and its temporal-difference target, in move-scale reward units; on validation rows nats of the long share after its temperature is refitted on those same validation labels",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The action values are learned from the net reward of whole trades, so the money made by trading whichever of long and short the noise-free network values higher is the as-run number closest to what it learned, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "primary",
+              "why": "It measures how steadily the higher-valued side earned money per bar after costs, which tests whether the noise-driven exploration found a repeatable preference or one that only fitted a stretch of the tape."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Each replayed transition is one separate trade and the value network never sees losses arriving in a row, so the deepest hole on the marked-to-market path is a risk its values do not describe."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened on the higher-valued side made with what the losing ones gave back after costs, read with the trade count because values that rarely cross produce very few trades."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the long value crossed the short value ended in profit, which describes the shape of the result, while the engine's rule and not the agent decides when each trade ends."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the value of long crossed the value of short, and every trading number of this agent is read with it beside the predicted up share."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "When the two side values sit close together, as they do when hold was the network's real preference, the gap flips sign on small feature changes, and this turnover shows what that handed to costs."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows the share of bars on which long was valued above short, which exposes a network that learned one side for the whole test span once its noise had shrunk."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The temperature never flips a sign, so the hard call is the network's own choice between long and short and the hit rate tests whether reward taught it the side price went, against calling the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A network that values one side higher on every bar scores the majority share on plain accuracy, and averaging the hit rate on up bars and on down bars shows whether the preference changes with the features."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up in one symmetric number whether the higher-valued side moves with the actual direction, with zero meaning the value gap carries nothing beyond a fixed lean."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the value gaps, so this asks whether bars where long is valued further above short are more often up bars, a use of the ordering alone that does not treat the share as stated odds."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the selection score that chose the hidden size, the learning rate and the discount factor on training blocks, flattered by that choosing and shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A value gap in reward units pushed through one fitted temperature is a preference between two trades, not a statement of how often price rises, so the score grades the temperature fit."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It treats the long share of two action values as a probability of an up bar, and those values were trained on reward after costs, not on the frequency of up bars."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Calibration compares stated odds with observed frequencies, and here the only link between the two is one temperature fitted on validation rows."
+            },
+            {
+              "metricId": "calibration_slope",
+              "why": "The slope of outcomes on the log-odds re-estimates on test bars the single temperature fitted on validation bars, so it reads drift of that temperature and not the value network."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "It is built on the Brier score of a value-gap share and on a hindsight up share of the test bars, so neither half refers to anything the network stated."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "why": "The spread of the probabilities is set by the fitted temperature, and the network's own uncertainty signal, the learned noise scale on its head weights, is switched off before any probability is formed."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "It is not computed for this model because the agent has no price model, only action values in reward units."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "It is not computed for this model because the agent forecasts no move in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "It is not computed for this model because there is no price forecast whose sign could be checked."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds a Huber temporal-difference loss and the validation curve holds a logarithmic loss, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only setting off and no stop or target the engine never goes flat once in a trade, so this share reflects the engine overriding hold and not how often the network wanted a position."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and the agent's position is not in the state, so each decision is rewarded as one fixed trade over the label horizon and nothing in training resembles managing an open position.",
+            "The engine overrides the agent's hold action and its holding period: the traded side is long whenever long is valued at or above short, even on bars where hold was the highest-valued action.",
+            "The kept epoch is the one whose noise-free choice between long and short earned the highest mean net reward on the validation tape, with hold left out of that score although the agent could choose hold while training, and training stops early when that score has not improved for the patience setting.",
+            "The weight noise is drawn only during training and is off at prediction, so the calls come from the mean weights, and the learned noise scale is written to the fit log and recorded in no metric table.",
+            "When the fitted temperature is infinite the probability of up is exactly one half on every bar, the engine then reads every bar as a long call, and the ranking and hard-call numbers describe that constant and not the agent.",
+            "The validation loss shown for each epoch uses a temperature refitted on those same validation labels at that epoch, so it is optimistic and plays no part in choosing the kept epoch.",
+            "Bars with a missing feature get no prediction and the engine holds the existing position through them.",
+            "Consecutive decisions share future bars because each reward spans the label horizon, so intervals around these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The trading numbers follow the run's own long-only, holding bars, stop loss ticks, take profit ticks and contracts settings, the last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than the micro Nasdaq contract the cost figure is that contract's figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -964,6 +2002,292 @@
           "label": "Importance correction at the start",
           "group": "Model",
           "description": "The starting exponent of the importance weights that undo the priority bias; it rises linearly to 1 over training."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For each action in every state, a categorical distribution over a fixed ladder of possible discounted returns, which collapses to one expected value per action whose largest entry is the greedy choice.",
+          "targetVariable": "The whole distribution, not just the mean, of the discounted sum of future trading reward of taking each action in a state and acting greedily afterwards.",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "This member learns a distribution in place of a single value: the target is the next state's return distribution, shifted by several real rewards and squeezed by the discount, projected back onto the fixed ladder of return atoms and matched by cross-entropy, with the next action picked by the online network, the value split into a state stream and an advantage stream, noisy head weights for exploration, and replay drawn in proportion to each transition's last loss.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The six combined pieces are judged by the action they lead to, so the direct test is the mean reward of the action with the highest expected return over the atoms, hold included, on bars the network never trained or was selected on.",
+              "baseline": "Zero reward per decision, which is what choosing hold on every bar of the same tape pays.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The specification itself lists the ablated agent as the way to learn which of the six pieces matter, so the test reward with one named piece switched off on the same folds shows whether the return distribution, the priorities or the multi-step target earned their complexity.",
+              "baseline": "The same agent on the same folds with one named component switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Noisy weights choose what is explored and prioritised replay then decides what is rehearsed, so a different seed feeds the network a different diet of transitions, and one run alone says little.",
+              "baseline": "The spread of the same agent's test reward across reruns that differ only in seed.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Picking the next action with the online network and scoring it with the target copy is meant to stop inflated values, so the mean of the predicted return distribution minus the discounted multi-step reward the tape paid checks whether it did.",
+              "baseline": "Zero, where the mean of the predicted return distribution equals the discounted reward the tape then paid.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The specification asks the reader to inspect the shape of the predicted return distribution against realised outcomes and to validate its calibration on a held-out block, so the cumulative distribution over the return atoms of the chosen action, evaluated at the discounted multi-step reward the tape then paid, should be spread evenly between zero and one, and a pile-up in the middle shows a distribution that is too wide, a pile-up at both ends one that is too narrow and a lean toward one end one that is biased.",
+              "baseline": "The uniform distribution between zero and one, which is what the transformed values follow when the predicted return distribution is honest.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "noisy_layer_mean_noise_scale",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Exploration in this agent comes only from its noisy head weights, so a noise scale trained down to nothing means it stopped trying new actions, and the prioritised buffer then only rehearses what it already believes.",
+              "baseline": "The same network's noise scale at the start of the fit, which the initial noise scale setting fixes.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Hold has a return distribution piled at zero while both sides carry costs, so the expected values can favour hold on nearly every bar, and the shares of long, short and hold show whether the agent trades at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Rainbow keeps the weights whose greedy choice over the mean of each action's learned return distribution, with the layer noise switched off, earned the most on a validation stretch; that validation reward is flattered by the choosing and is shown only beside the test reward.",
+              "baseline": "The same agent's mean reward on the test tape of the same fold.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It is an as-run trading number of the engine's rule and costs applied to the sign of the long-minus-short expected return, not a native measure of the distributional value network."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It grades the downside of the engine's per-bar money path, which exists only after the greedy side is traded under the engine's rule, so it belongs to the as-run layer."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A drawdown belongs to the marked-to-market path the engine builds, while the network learns from replayed short reward sequences that never show it a long losing run."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "It needs closed trades, and the engine and not the value network decides where a trade ends, so it is an as-run number only."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The registry has no such metric and the agent picks a side at one fixed size, so a capital fraction from an empirical edge does not measure this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "A greedy policy over expected returns picks one action per state, so there is no action distribution whose entropy could be measured."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The atoms hold probabilities of discounted reward levels for an action, not a probability that price rises, so a direction forecast score has nothing native to grade."
+            },
+            {
+              "name": "Continuous ranked probability score",
+              "metricId": "continuous_ranked_probability_score_points",
+              "why": "That score grades a forecast distribution of the price move in points, while this distribution is over discounted trading reward that already includes costs and the agent's own later choices."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent combines the six specified pieces, a categorical return distribution per action, the decoupled next-action choice, the split into state value and advantage, noisy head weights, prioritised replay and multi-step returns, but its environment is a fixed reward tape: the market does not react to the agent and its position is not in the state, each decision is paid as one whole trade over the label horizon net of a round trip, and the engine trades only whether long has a higher expected return than short, so the as-run numbers measure cost-aware direction calls and the shape of the return distribution is never used.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "Each action's return atoms are averaged into one expected value with the weight noise switched off, and the expected value of long minus that of short is divided by one temperature fitted by maximum likelihood on the validation labels and passed through the logistic curve, so the side of one half is the network's own preference and only the distance from one half comes from the fitted temperature.",
+          "priceForecastSource": "none",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_tape_utility",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows nats of importance-weighted cross-entropy between the projected multi-step target return distribution and the predicted distribution of the replayed action; on validation rows nats of the long share after its temperature is refitted on those same validation labels",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The return distributions are learned from the net reward of whole trades, so the money made by trading whichever of long and short has the higher expected return is the as-run number closest to what the agent learned, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "primary",
+              "why": "It measures how steadily the side with the higher expected return earned money per bar after costs, which tests whether the six combined pieces produced a repeatable preference or one fitted to a stretch of the tape."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The network holds a whole distribution of returns for each action, yet only its mean is traded, so the deepest hole on the marked-to-market path shows the tail risk that the atoms described and the bridge ignored."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened on the side with the higher expected return made with what the losing ones gave back after costs, read with the trade count because expected values that rarely cross produce very few trades."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the expected return of long crossed that of short ended in profit, which describes the shape of the result, while the engine's rule and not the agent decides when each trade ends."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the expected return of long crossed that of short, and every trading number of this agent is read with it beside the predicted up share."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The advantage stream can leave long and short almost level when hold is the real preference, so the gap flips sign on small feature changes, and this turnover shows what that handed to costs."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows the share of bars on which long had the higher expected return, which exposes a network whose state-value stream learned the drift of the training span and whose advantage stream settled on one side."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The temperature never flips a sign, so the hard call is the network's own choice between long and short by expected return and the hit rate tests whether reward taught it the side price went, against calling the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A network that ranks one side higher on every bar scores the majority share on plain accuracy, and averaging the hit rate on up bars and on down bars shows whether the ranking changes with the features."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up in one symmetric number whether the side with the higher expected return moves with the actual direction, with zero meaning the gap carries nothing beyond a fixed lean."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the expected-return gaps, so this asks whether bars where long leads short by more are more often up bars, a use of the ordering alone that does not treat the share as stated odds."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the selection score that chose the hidden size, the learning rate and the discount factor on training blocks, flattered by that choosing and shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A gap between two expected returns pushed through one fitted temperature is a preference between two trades, not a statement of how often price rises, so the score grades the temperature fit."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It treats the long share of two expected returns as a probability of an up bar, and the atoms were trained on reward after costs, not on the frequency of up bars."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Calibration compares stated odds with observed frequencies, and the only real probabilities this network states, those over return atoms, are averaged away before the number is formed."
+            },
+            {
+              "metricId": "calibration_slope",
+              "why": "The slope of outcomes on the log-odds re-estimates on test bars the single temperature fitted on validation bars, so it reads drift of that temperature and not the return distributions."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "It is built on the Brier score of an expected-return share and on a hindsight up share of the test bars, so neither half refers to anything the network stated."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "why": "The spread of the probabilities is set by the fitted temperature, while the width of each action's return distribution, which is the network's real statement of uncertainty, never enters it."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "It is not computed for this model because the agent has no price model; its distributions are over discounted reward, not over the price move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "It is not computed for this model because the agent forecasts no move in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "It is not computed for this model because there is no price forecast whose sign could be checked."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds a cross-entropy over return atoms and the validation curve holds a logarithmic loss of direction, so although both are in nats their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only setting off and no stop or target the engine never goes flat once in a trade, so this share reflects the engine overriding hold and not how often the network wanted a position."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and the agent's position is not in the state, so each decision is rewarded as one fixed trade over the label horizon and nothing in training resembles managing an open position.",
+            "The engine overrides the agent's hold action and its holding period: the traded side is long whenever long has an expected return at or above short, even on bars where hold had the highest expected return.",
+            "Only the mean of each action's return atoms reaches the scoreboard, so the skew and tail information that the distributional head exists to learn is used by no as-run number.",
+            "The ladder of return atoms is set from the training rewards alone, using the value limit, the discount factor and the return step count, and a reward outside that range is clipped onto the end atoms.",
+            "The kept epoch is the one whose noise-free choice between long and short earned the highest mean net reward on the validation tape, with hold left out of that score although the agent could choose hold while training, and training stops early when that score has not improved for the patience setting.",
+            "The multi-step target adds several consecutive rewards that are each already a whole trade over the label horizon, so neighbouring rewards inside one target overlap heavily in the bars they are paid on.",
+            "When the fitted temperature is infinite the probability of up is exactly one half on every bar, the engine then reads every bar as a long call, and the ranking and hard-call numbers describe that constant and not the agent.",
+            "The validation loss shown for each epoch uses a temperature refitted on those same validation labels at that epoch, so it is optimistic and plays no part in choosing the kept epoch.",
+            "Bars with a missing feature get no prediction and the engine holds the existing position through them.",
+            "Consecutive decisions share future bars because each reward spans the label horizon, so intervals around these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The trading numbers follow the run's own long-only, holding bars, stop loss ticks, take profit ticks and contracts settings, the last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than the micro Nasdaq contract the cost figure is that contract's figure applied as a stated assumption."
+          ]
         }
       }
     }

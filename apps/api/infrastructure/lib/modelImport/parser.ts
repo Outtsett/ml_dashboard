@@ -27,6 +27,7 @@ import type {
 } from './types';
 import { FOLDER_TO_CATEGORY, CATEGORY_TO_PARENT } from './types';
 import { lookupCatalogClass } from './classMap';
+import { specificationMetricsSchema, type SpecificationMetrics } from '@shared/cycle/metrics';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ interface MarkdownSections {
   keyFeatures: string[];
   applications: string[];
   implementation: string;
+  evaluationMetrics: string;
 }
 
 /** Split markdown into named sections by ## headers */
@@ -119,6 +121,7 @@ function parseSections(markdown: string): MarkdownSections {
     keyFeatures: extractBullets(sections['key features'] ?? ''),
     applications: extractBullets(sections['applications'] ?? ''),
     implementation: sections['implementation details']?.trim() ?? '',
+    evaluationMetrics: sections['evaluation metrics']?.trim() ?? sections['metrics']?.trim() ?? '',
   };
 }
 
@@ -234,6 +237,30 @@ function extractHyperparameters(trainingText: string): ExtractedHyperparameter[]
     seen.add(p.name);
     return true;
   });
+}
+
+// ─── Evaluation Metrics extraction ──────────────────────────────────────────
+
+/**
+ * The model's metrics record from its "Evaluation Metrics" section: the one
+ * fenced JSON block under "### Machine-Readable Record". The tables above it
+ * are the same record for a reader; `scripts/data/render_model_metrics.py` is
+ * the only writer of both. Returns undefined when the section has no block or
+ * the block is not a valid record (the reason goes to the warning list).
+ */
+export function extractMetricsRecord(evaluationText: string, warnings?: string[]): SpecificationMetrics | undefined {
+  const marker = evaluationText.indexOf('### Machine-Readable Record');
+  if (marker < 0) return undefined;
+  const block = evaluationText.slice(marker).match(/```json\s*\n([\s\S]*?)\n```/);
+  if (!block) return undefined;
+  try {
+    const parsed = specificationMetricsSchema.safeParse((JSON.parse(block[1]!) as { metrics?: unknown }).metrics);
+    if (parsed.success) return parsed.data;
+    warnings?.push(parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '));
+  } catch (error) {
+    warnings?.push((error as Error).message);
+  }
+  return undefined;
 }
 
 // ─── Class import extraction (for ParsedModelSpec.module_path/class_name) ───
@@ -430,6 +457,7 @@ export function parseModelSpec(
 
   const name = sections.title || fileName;
   const hyperparameters = extractHyperparameters(sections.trainingMethodology);
+  const metricsRecord = extractMetricsRecord(sections.evaluationMetrics);
   const id = specId;
 
   // Resolve canonical Python class for this spec.
@@ -458,6 +486,7 @@ export function parseModelSpec(
     keyFeatures: sections.keyFeatures.slice(0, 10),
     variants: sections.variants,
     hyperparameters,
+    ...(metricsRecord ? { metricsRecord } : {}),
     hasContent: true,
     fileSize: stat.size,
     ...(includeRaw ? { rawMarkdown: markdown } : {}),

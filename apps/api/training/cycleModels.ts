@@ -21,12 +21,15 @@ import path from "path";
 
 import {
   crossCheckCycleRegistry,
+  crossCheckCycleRegistryMetrics,
   cycleModelFileSchema,
   cycleSharedRegistrySchema,
   type CycleModelEntry,
   type CycleRegistry,
   type CycleSharedRegistry,
 } from "@shared/cycle/models";
+
+import { loadMetricRegistry } from "../ml/metricRegistry";
 
 export const CYCLE_MODELS_DIR = path.join(process.cwd(), "packages", "config", "cycle_models");
 export const CYCLE_SHARED_FILE = "_cycle.json";
@@ -66,6 +69,10 @@ export function validateCycleRegistryFiles(files: Record<string, unknown>): Omit
     }
   }
   problems.push(...crossCheckCycleRegistry(registry));
+  // every model's metrics record names its metrics, objectives and profiles from the metric registry
+  const metricRegistry = loadMetricRegistry();
+  if (metricRegistry.index) problems.push(...crossCheckCycleRegistryMetrics(registry, metricRegistry.index));
+  else problems.push(...metricRegistry.problems.map((problem) => `metric_registry.json: ${problem}`));
   return problems.length > 0 ? { registry: null, problems } : { registry, problems: [] };
 }
 

@@ -33,6 +33,9 @@ import { AttentionPanel } from "@/runs/analytics/AttentionPanel";
 import { GateRoutingPanel } from "@/runs/analytics/GateRoutingPanel";
 import { RegimePanel } from "@/runs/analytics/RegimePanel";
 import { VersionsView } from "@/runs/compare/ComparePage";
+import { useMetricRegistry, useModelMetrics } from "@/ml/metrics/api";
+import { RunnableModelMetricsPanel } from "@/ml/metrics/panels";
+import { rowsOf, standingByEngineMetric } from "@/ml/metrics/rows";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
   const critical = findings.filter((verdict) => verdict.severity === "critical").length;
@@ -132,6 +135,15 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
   const placeholder = run.id === "";
   const panels = new Set(placeholder ? (Object.values(FAMILY_PANELS).flat() as AnalyticsPanel[]) : FAMILY_PANELS[family]);
   const tilesOf = (category: RunCategory) => run.tiles.filter((tile) => tile.category === category);
+  // how each headline number stands for the model that ran, from the model's own metrics record
+  const metricRegistry = useMetricRegistry();
+  const modelMetrics = useModelMetrics(placeholder ? null : modelKey);
+  const standing = standingByEngineMetric(modelMetrics.data?.record, metricRegistry.data);
+  // the one-line answer shown while the panel is closed: the numbers that say whether this model did its job, as run
+  const primaryNames =
+    modelMetrics.data && metricRegistry.data
+      ? rowsOf(modelMetrics.data.record, metricRegistry.data, "asRun").filter((row) => row.role === "primary").map((row) => row.fullName)
+      : [];
   const scope = run.scoreScope === "running" ? `Numbers so far: ${run.barsEvaluated.toLocaleString("en-US")} test bars walked.` : null;
   return (
     <div className="h-full overflow-y-auto" data-testid="run-body">
@@ -154,6 +166,26 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
       <div className="space-y-6 p-3">
         <Section category="configuration" findings={[]}>
           <Configuration configuration={run.configuration} runId={run.id} />
+          {!placeholder && (
+            <details className="rounded-md border border-border bg-card/40 p-3" data-testid="run-model-metrics">
+              <summary className="cursor-pointer text-[12px] font-semibold text-foreground">
+                How this model is judged
+                <span className="font-normal text-muted-foreground">
+                  {primaryNames.length > 0 ? (
+                    <>
+                      : as run, its primary {primaryNames.length === 1 ? "metric is" : "metrics are"} <span className="text-[#E69F00]">● {primaryNames.join(" and ")}</span>. Open for every metric, its type and role, and why it
+                      applies to this model.
+                    </>
+                  ) : (
+                    ": its metrics, the type and role of each, and why each applies to this model."
+                  )}
+                </span>
+              </summary>
+              <div className="mt-3">
+                <RunnableModelMetricsPanel modelKey={modelKey} />
+              </div>
+            </details>
+          )}
         </Section>
         <Section category="learning" findings={of("learning")}>
           <div className="font-mono text-[10px] text-muted-foreground">{placeholder ? "Every family's panels; a run draws the ones its model kind owns." : `Panels for a ${FAMILY_LABELS[family].toLowerCase()}.`}</div>
@@ -164,7 +196,7 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
           {panels.has("gate_routing") && <GateRoutingPanel routings={run.gateRoutings} modelLabel={run.setup?.modelLabel ?? null} />}
         </Section>
         <Section category="prediction" findings={of("prediction")}>
-          <Tiles tiles={tilesOf("prediction")} />
+          <Tiles tiles={tilesOf("prediction")} standing={standing} />
           {panels.has("regime_forecast") && <RegimePanel forecasts={run.regimeForecasts} modelLabel={run.setup?.modelLabel ?? null} focusTime={focusTime} onFocusTime={onFocusTime} />}
           <div className="grid gap-2 xl:grid-cols-2">
             <CalibrationChart bins={run.calibration} />
@@ -172,7 +204,7 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
           </div>
         </Section>
         <Section category="trading" findings={of("trading")}>
-          <Tiles tiles={tilesOf("trading")} />
+          <Tiles tiles={tilesOf("trading")} standing={standing} />
           <EquityChart daily={run.daily} />
         </Section>
         <Section category="tuning" findings={of("tuning")}>

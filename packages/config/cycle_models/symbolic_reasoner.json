@@ -106,6 +106,276 @@
             "log": true
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [
+          "heuristic_search_optimizer"
+        ],
+        "native": {
+          "produces": "One deterministic action per bar, taken from the first rule in a fixed priority list whose condition is true on that bar's facts, together with the name of the rule that fired, or a fixed default action when no rule matches.",
+          "targetVariable": "The trading action for the current bar (for example enter long, reduce size or hold) chosen by the highest-priority matching condition; it is a decision, not a statement about the size or probability of the coming move.",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is minimised: a person authors the conditions and their priority order and checks the fixed list against history; as run by the Model Cycle the rule set is the authored technical-analysis rules in cycle_rules.json plus rules mined on each fold's training span.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "Because the list stops at the first matching condition, the share of bars decided by a real rule instead of the default action, and the share each rule claims before the ones below it get a turn, shows whether the priority order leaves the lower rules any bars at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Each rule is a yes-or-no test with no confidence attached, so the only evidence that it knows something is that the bars it fired on were followed by a different up share than the series as a whole, counted on bars after the ones its thresholds were tuned on.",
+              "baseline": "The up share of all scored bars of the same series over the same span.",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The list outputs an action, hold included, so its own decisions are replayed on later bars after costs and read against doing nothing, which is the reference the specification itself names for a rule stack.",
+              "baseline": "Taking no action on the same bars, which earns zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Every threshold nudged and every reordering tried against the same backtest window is one more attempt, and a hand-tuned cutoff looks better the more versions were tried, so the count of rule versions tested is reported beside the result.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "When the thresholds are recalibrated on the next trailing window, a rule that keeps its cutoff and its place in the priority order is a durable condition, while one that has to be rewritten each time was fitted to one stretch of history.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "It never applied: a priority-ordered rule list has no density and no hidden states, so no log-likelihood exists for it."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It never applied: the list builds no volatility clusters, and the registry has no such metric; the outcome separation per fired rule takes its place."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It never applied: it describes a hyperparameter search, and a hand-authored rule list has none natively."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "It never applied: the fired rule is the whole explanation, so there are no Shapley importances to rank across folds."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "It never applied natively: the specification states that rules carry no certainty factor or probability, so there are no odds to calibrate."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": "mean_state_duration_bars",
+              "why": "It never applied: there is no Markov transition matrix whose diagonal could be read, because each bar is decided on its own."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "Natively the output is an action and a rule name, not a probability of up; the probability scored by the Model Cycle is added by a bridge."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "A list of a few rules gives a few output levels, so the ranking curve has only a few points and cannot be the headline number."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification describes a list of conditions and actions authored and ordered by an expert; the runnable adapter instead offers the authored technical-analysis rules in cycle_rules.json as candidates beside single conditions and pairs mined on the fold's training span, ranks all candidates by the standardised gap between each rule's smoothed training up-rate and the training base rate (a gap that grows with the number of times the rule fired), keeps only the highest ranked up to the rule count so an authored rule can be dropped, and turns the fired rule's up-rate into a probability of up through a logistic curve fitted on validation bars, so every as-run number measures that mined and reordered list plus the curve, not an expert's rule base choosing actions.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "Each bar walks the ordered list, the first rule whose every condition is true supplies the log-odds of its smoothed training up-rate (the training base rate when no rule fires), and the probability of up is an unweighted logistic curve of that value fitted on the fold's validation bars.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the stated odds of the fired rule's up-rate after the validation curve on test bars, so it shows whether the up-rates counted on the training span still hold, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call flips when the curve-mapped probability of the fired rule's up-rate crosses one half, which can sit at an up-rate other than one half because the curve is fitted on validation bars, so the profit after costs shows whether the handful of rules that move the call away from the side of the default rule were worth trading under the engine's rule."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The list gives a small set of probability levels, one per rule plus the default, and the bounded squared-error score grades those levels without being dominated by a few confident bars."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve is unweighted, so its odds are comparable with observed up shares, but the few rule levels fill only a few of the ten bins, so it is read with the occupied-bin count."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A slope well below one on test bars means the rules' training up-rates were stretched further from the base rate than the later bars support, which is the expected mark of rules picked for their extreme training rates."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It asks whether bars under rules with higher up-rates went up more often than bars under rules with lower ones, but with one level per rule the curve has only a few points, so it is supporting evidence only."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The number of levels can be at most the number of rules kept plus the default, and when most bars fall to the default rule it shows that the ranking and calibration numbers rest on very few distinct outputs."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often the side chosen by the fired rule's curve-mapped up-rate matched the move; bars under the default rule all share the curve value of the training base rate, so they take one fixed side that the validation-fitted curve decides, not the training base rate directly."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the default rule sends every uncovered bar to the same side, the average of the up recall and the down recall shows whether the fired rules add anything beyond calling the majority direction."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is near zero when the list almost always answers with the default side and rises only if the bars moved to the other side by a fired rule were moved correctly."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of trading the rule list's call to its variability, and a list that mostly sits on the default side inherits the risk of simply holding that side."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "A step-like call holds one side for long stretches until a rule on the other side fires, so the deepest equity fall shows the cost of those long holds when the market runs against the default side."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Bars under the default rule all take one fixed side that the validation-fitted curve decides from the training base rate, so the profit beyond holding the contract isolates what the rules that fire contribute, and it reads as a gap to holding only when that fixed side is long."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the dollars won and lost on the trades opened when a fired rule flips the call, which are few when the rules rarely disagree with the default side."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A trade closes only when a rule on the opposite side fires or the fold ends, so the share of winning trades describes those flips and must be read with the trade count."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The number of closed trades equals the number of times the first matching rule changed the side of the call, which shows how often the list really speaks."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how one-sided the list is; a share at or near one or zero means the default rule and the base rate are making nearly every call."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every single condition and every pair of conditions is scored on the training span before the strongest are kept, so this count is the multiple-testing exposure behind the kept rules' up-rates."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over rule count, conditions per rule, minimum firings and smoothing is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, so no forecast line is drawn and no forecast error exists."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: the decision list forecasts no move size, so there is no error in points to report."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the actual move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "Nothing is minimised and the fit is a single count of rule up-rates that returns no loss, so no training value is reported to subtract from the validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in the market once the first call is made, so the share describes the engine's rule and not the rule list."
+            }
+          ],
+          "caveats": [
+            "The rule set is the authored technical-analysis rules in cycle_rules.json plus rules mined on the fold's training span; the authored rules are only candidates that are ranked and capped together with the mined ones, so they are not guaranteed a place in the list, and the order is the standardised gap between each rule's smoothed training up-rate and the training base rate, which also grows with the number of firings, so a frequent rule with a modest gap can outrank a rare rule with an extreme rate; it is not an order authored by an expert.",
+            "Each kept rule's up-rate is counted on the same training bars that were used to pick it as one of the strongest, so the rates are optimistic by selection and the smoothing pseudo-count only partly corrects this.",
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation bars the logistic curve was fitted on, and no training value because the rule counts return no loss.",
+            "The logistic curve's slope and intercept are fitted on the validation bars, and if the fitted slope is negative a rule with a high training up-rate is traded as a down call.",
+            "A condition whose input is unknown on a bar never fires, so early bars of a fold fall to the default rule more often than later ones.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "expert_system": {
@@ -236,6 +506,263 @@
           "label": "Inference cycles",
           "group": "Model",
           "description": "Recognise-act cycles before inference stops (two are needed to reach a hypothesis)."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A set of derived facts, usually a trade recommendation, each carrying the combined certainty factor of the chain of rules that fired to reach it.",
+          "targetVariable": "The recommendation an expert's production rules reach from the current bar's observed facts, with a heuristic certainty between minus one and one",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "The rule base and its certainty factors are authored by a domain expert; the only fitting the specification allows is nudging each certainty factor toward the rule's historical hit rate on a trailing window, which is counting, not loss minimisation.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "Forward chaining only speaks on bars where some production rule's premise clears the certainty threshold, so the share of bars that end with a conclusion in working memory, and the share each rule fires on, shows how much of the tape the knowledge base actually covers.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Each fired rule chain is a claim that the market behaves differently after it, so the up share of the bars where the chain concluded up is compared with the up share of all bars of the same series, one row per rule.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "When certainty factors are recalibrated on each trailing window, this shows how often the same rules keep the same sign of certainty, which separates stable desk knowledge from a rule that only worked in one window.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every rule whose certainty factor was checked against history is one more chance for a lucky hit rate, so the number of rules tried before the knowledge base was frozen is shown beside any rule that looks strong.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "The rule base assigns certainty factors, not probability densities, and has no regimes, so this row never described an expert system."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "Production rules and working memory define no regimes, so a separation index has nothing to act on."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "An authored rule base has no hyperparameter search whose variance could be decomposed."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The fired rule chain is the explanation, so attribution stability is not a quantity this model has."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "A certainty factor is not a probability, so natively its calibration against frequency is undefined; the outcome separation per fired rule is the native outcome check kept instead."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "There is no regime state in a forward-chaining engine whose persistence could be measured."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "As a headline it misleads, because every bar on which no rule concluded shares the single combined certainty of zero, so the ranking is decided only by the bars where a rule chain fired and the tied bars carry no order among themselves."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The inference engine is the specification's own: forward chaining over a working memory with recognise-act cycles, refraction, priority ordering and the MYCIN combination function. What differs is the knowledge: the pattern rules are the authored technical-analysis rules plus conjunctions mined on the training span, and each rule's certainty factor is computed from its training up share against the base rate instead of being elicited from an expert, and the final certainty of up is turned into a probability by a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is an unweighted logistic curve, fitted by maximum likelihood on the fold's validation rows only, of the final combined certainty factor of the fact up in working memory, which is zero on bars where no rule concluded.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The curve is unweighted, so this grades the odds that come from the combined certainty of up plus the validation-fitted slope and intercept, against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "A monotone curve leaves the ranking untouched, so this tests the chained certainty itself: do bars with a higher combined certainty of up go up more often, with all no-conclusion bars tied at zero."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-mapped certainty, less dominated than the logarithmic loss by the few bars where several strong rules fire together."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The MYCIN combination adds certainty with every agreeing rule, so a slope below one on the test span means the chain stacked more confidence than the outcomes supported even after the validation curve."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The unweighted curve anchors the odds to the validation up share, so the binned gap fairly checks certainty plus curve, though most bars sit in the bins around the base rate."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What trading the sign of the curve-mapped certainty earned after costs, including the bars with no conclusion, where the curve's intercept alone decides the side."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing from following the expert system's call; zero is an arithmetic marker because a random side still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest equity fall while following the rule chain's call, which shows the losing stretch a trader would have endured."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars across trades opened when the chained conclusion flipped side; one is an arithmetic marker only."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money when the side came from the fired rule chain, read with the trade count because calls flip only when the conclusion changes."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Hit rate of the call cut at 0.5; on bars where no rule fired it is the validation intercept's guess, so it mixes the knowledge base with the prior."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and down bars, so the many no-conclusion bars all called the same side cannot lift the number through the base rate."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for whether the rule chain's call agrees with the realised direction; it sits near zero when most bars get the intercept's side."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every single predicate, and every pair when the atom order parameter allows pairs, is scored on the training span before the strongest become pattern rules, so this count is the multiple-testing exposure of the knowledge base."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the fired chains ever move the odds from the base rate; the registry note says to expect little unless strong patterns fire together."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Holding the contract through the same folds is the only same-series trading reference, so this gap shows whether trading the side of the combined certainty earned more than simply holding, after the costs that every flip of the conclusion pays."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A trade closes only when the sign of the curve-mapped combined certainty changes, so this count shows how often the fired rule chains actually changed the side, and every trading figure for this model is read beside it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how one-sided the combined certainty plus the validation-fitted curve is; a share at or near one or zero means the curve's intercept, which decides every bar with no conclusion, is making nearly every call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the induced feature count, the atom order, the minimum fire count, the rule count, the smoothing pseudo count and the certainty threshold is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because forward chaining concludes only a certainty of up."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to score."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "why": "The combined certainty varies continuously on bars where a rule chain fires, because each fact's certainty comes from a smooth truth degree, and it ties at zero only on bars with no conclusion, so a level count does not describe how coarse the ranking is."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "Forward chaining counts rule hit rates and returns no training loss, so no training value is recorded to subtract from the single validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always in a position, so the specification's certainty threshold for acting never keeps the trader flat and exposure describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation rows that fitted the curve's slope and intercept, and no training value because forward chaining returns no loss.",
+            "The curve's slope and intercept were fitted on validation rows, so every probability metric grades certainty plus curve, and a negative fitted slope would trade against the rule chain.",
+            "The certainty threshold gates which rules may fire, not whether a trade is taken: a bar with no conclusion is still traded on the side the curve's intercept gives.",
+            "Rule certainty factors come from training-span up shares of mined patterns, so they carry the selection luck of every candidate rule that was scored.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -374,6 +901,289 @@
             "low": 1,
             "high": 3
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "graphical_or_probabilistic_logic",
+        "profileIdAsRun": "graphical_or_probabilistic_logic",
+        "additionalProfileIds": [
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A truth value for the queried trading proposition made of two numbers: a strength, which is the estimated probability that the proposition holds, and a confidence, which says how much counted evidence stands behind that strength.",
+          "targetVariable": "Whether the queried proposition (for example that the up move continues) is true for the current bar, given the evidence atoms observed on that bar",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is minimised: each implication link gets its strength from a historical frequency count and its confidence from the size of that count, and the deduction and revision formulas then combine those counted truth values by fixed arithmetic.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The strength that comes out of the deduction and revision chain is offered as a probability for the queried proposition, so the honest test is how much probability it placed on what the next bars actually did.",
+              "baseline": "Quoting the fold's training up share on every scored bar, which is exactly what the network returns when its confidence is zero",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded second opinion on the revised strength, useful because confidence shrinkage keeps most answers close to the base rate where the logarithmic score barely moves.",
+              "baseline": "The same score for quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The deduction formula assumes the chained links are independent and revision adds their evidence counts together, so correlated indicators get counted twice and the merged strength can sit further from the base rate than the bars justify; a slope below one shows that.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each implication link claims a strength for an up move when its atom is true, so on unseen bars the up share among the bars where that atom held should sit on the same side of the series' up share as the stored strength.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The knowledge base is a set of implication links whose strengths are re-counted on every fold, so a link whose strength changes side of the base rate from one training span to the next was never knowledge about this market.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "On a bar where no evidence atom is true there is no derivation to revise and the network can only repeat the base rate, so the share of bars with at least one true atom says how often it reasoned at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The strength is meant to be read as a frequency, so binning the answers and comparing each bin with what happened is a fair picture of it, read together with how few bins the base-rate-hugging answers occupy.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The evidence scale constant decides how fast confidence rises with the evidence count, and a large constant pulls every answer back to the base rate, so the spread of the answers shows whether the network ever commits.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "It scores a hidden-state mixture density, and this model stores counted truth values on implication links with no hidden states and no density."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It measures the distance between volatility clusters, and this model forms no clusters; its atoms are named predicates that are true or false on a bar."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It attributes search-score variance to hyperparameters, which describes a tuning study and says nothing about whether the inferred strengths are right."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Shapley attributions explain a fitted function of feature columns, while this model's explanation is the inference chain itself; the stability question is asked of the links through structure stability instead."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "It reads the diagonal of a Markov transition matrix, and this model has no transition matrix and no regime that carries over between bars."
+            },
+            {
+              "name": "Solver convergence residual",
+              "metricId": "solver_convergence_residual",
+              "why": "Forward chaining to a fixed chain depth is finite arithmetic on truth values and never iterates toward a fixed point, so there is no residual to watch."
+            },
+            {
+              "name": "Mean test-tape return of the model's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "The network answers how likely a proposition is and contains no decision or utility node, so it never chooses an action whose reward could be summed."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable engine applies the specification's own deduction formula, count-pooling revision and the confidence rule built on evidence_scale, but the atoms are grounded predicates on this instrument's indicators and feature columns, the intermediate concepts are rule conjunctions mined on the fold's training span instead of an authored knowledge base, induction and abduction are absent, and a logistic curve fitted on validation bars sits between the inferred strength and the probability that is scored and traded; every as-run number therefore measures counted links plus that curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar the evidence of its true atoms is pooled into one strength and one count, the strength is shrunk toward the training up share by the confidence that count earns under evidence_scale, the log-odds of the result is the score, and an unweighted logistic curve fitted on the fold's validation bars turns that score into the probability of up.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, validation rows only",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the revised and confidence-shrunk strength after the validation curve has rescaled it, on test bars neither the counts nor the curve have seen, so it tests whether counted implication links carry over to new bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the score, so the ordering of bars is the network's own pooled strength, and this number asks whether bars with stronger pooled evidence for up went up more often."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded proper score for the curve-mapped strength, which matters here because confidence shrinkage keeps most probabilities near the training up share where logarithmic loss changes very little."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Neither the counted strengths nor the validation curve are class weighted, so the probability is aimed at the true up frequency and the binned gap tests whether the curve fitted on validation bars still holds on test bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Revision adds evidence counts from indicators that move together as if they were independent witnesses, and a slope away from one on test bars shows how much of that double counting the validation curve failed to undo."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A bar with few true atoms earns little confidence and is answered with almost the training up share, so the spread of the probabilities shows how often the network had enough evidence to move away from it."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Each distinct set of true atoms gives one pooled strength, so the number of levels shows whether the ranking metrics rest on a fine ordering or on a handful of atom combinations."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The up or down call cuts the curve-mapped strength at one half, so it tests the network's ordering together with the intercept the validation curve chose, and should be read against the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because shrinkage holds most probabilities on one side of one half, the network can call nearly every bar the same way, and averaging the two recalls exposes that where plain accuracy hides it."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One number over all four confusion cells that falls to zero when the base-rate-hugging probabilities put every call on the same side, which is the usual failure of this network."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how lopsided the calls are once probabilities cluster around the training up share, which decides whether the trading numbers describe the network or simply one held position."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the side of one half that the curve-mapped strength falls on earned after costs under the engine's position rule, to be read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of that profit per bar; when the calls rarely flip it mostly describes the instrument's own path over the fold, so it is read with the predicted up share and trade count."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest loss run of the position the network's calls held, a property of how seldom the pooled evidence changes its mind as much as of the calls being wrong."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades that open and close when the pooled strength crosses one half, meaningful only when the trade count shows the call actually flipped."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of profitable trades opened by a flip of the call, which says how often a change in the true atoms was followed by a move large enough to cover costs."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the curve-mapped strength crossed one half, which for a network that answers near the base rate can be a very small number behind every trading metric."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the registry gives this model no price block, and a strength for an up move says nothing about its size."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: no price model is fitted beside the network, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price forecast there is no forecast sign; the direction call is scored by the classification metrics."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single counting pass returns no training loss, so the one epoch reports a validation loss only, and that value is scored on the same bars the validation curve was fitted on, so there is no training value to subtract and the validation value is in-sample for the curve."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set the engine is always in the market once it has traded, so the figure describes the engine's rule and not the network."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, while the network's fallback answer is the training up share, so the comparison is not the one the model makes."
+            }
+          ],
+          "caveats": [
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars and the validation loss is scored on those same bars, so the validation loss is in-sample for the curve and only the test numbers are out of sample.",
+            "The curve's slope is not forced to be positive, so a validation span on which stronger pooled evidence was followed by down moves inverts the network's ordering for the whole test span.",
+            "The feature-column predicates are chosen by how differently their tails moved on the training span and the concepts are the highest-ranked mined conjunctions, so the stored strengths are the best of many candidates and are optimistic on the training bars.",
+            "The deduction formula treats the two links of a chain as independent and a two-step chain is counted at half its co-occurrence evidence, which is an engine choice and not part of the specification.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -542,6 +1352,279 @@
           "group": "Model",
           "description": "Epochs without validation improvement before stopping."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "graphical_or_probabilistic_logic",
+        "profileIdAsRun": "graphical_or_probabilistic_logic",
+        "additionalProfileIds": [
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A continuous truth value between zero and one for every queried target atom, found as the jointly most probable assignment of a hinge-loss Markov random field built from weighted soft-logic rules.",
+          "targetVariable": "The degree to which the target atom (for example that the move continues) is true for the current market snapshot, given the graded truth of the observed atoms",
+          "objectiveId": "hinge_loss_markov_random_field_energy",
+          "objectiveNote": "Inference minimises the weighted sum of each grounded rule's distance to satisfaction, which is convex, and weight learning moves each rule weight so that the observed outcome has lower energy than the inferred one.",
+          "metrics": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The inferred truth of the target atom is a graded degree and not a stated frequency, so the first question is whether bars given a higher truth of up really went up more often than bars given a lower one.",
+              "baseline": "One half, the value for a truth degree that orders up bars and down bars no better than chance",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The squared gap between the inferred truth and the outcome is the structured loss the weights are learned against, and it stays finite when the linear hinge puts the inferred truth exactly at zero or one.",
+              "baseline": "The same score for quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A weighted rule base is used to pick out the bars where many rule bodies are strongly satisfied, so the precision among the highest inferred truths tests the part of the output a desk would act on.",
+              "baseline": "The up share of the scored bars, which is what a truth degree with no ordering power gives",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each rule states that a satisfied body should be followed by its head, so on unseen bars the up share where a rule's body was strongly true should differ from the series' up share in the direction the rule concludes.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "A rule weight driven to zero has been rejected by the data, so the set of rules that keep a positive weight is the learned structure, and a rule that survives in one fold and dies in the next carries no dependable weight.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The consensus solver that finds the most probable assignment runs inside every weight-learning step, and a weight update taken against an assignment that had not settled pushes a biased gradient into the rule weights.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "On a bar where every rule body has zero truth only the prior rules act and the inferred truth is the same constant, so the share of bars with at least one active body says how often the rule base spoke.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "It scores a hidden-state mixture density, while this model infers one most probable truth assignment and never evaluates a normalised likelihood."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "It measures the distance between volatility clusters, and a soft-logic rule base forms no clusters; its atoms are graded named predicates."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It describes which hyperparameters moved a search score and says nothing about whether the inferred truth values order the outcomes."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Each rule already carries one learned weight that can be read against its plain statement, so the stability question is asked of those weights through structure stability and not of Shapley attributions."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "The inferred truth is a degree of rule satisfaction and promises no frequency, so comparing its bins with observed up shares tests a claim the model never makes."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "There is no Markov transition matrix over regimes in a soft-logic rule base, so no diagonal persistence exists."
+            },
+            {
+              "name": "Logarithmic loss of the raw truth value",
+              "metricId": "logarithmic_loss",
+              "why": "The inferred truth is a degree of satisfaction that the linear hinge can place exactly at zero or one, where the logarithmic score is unbounded; it becomes gradeable only after a curve maps the degree to a probability."
+            },
+            {
+              "name": "Mean test-tape return of the model's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "The rule base infers how true a proposition is and contains no decision node, so it selects no action whose reward could be summed."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable engine keeps the specification's Lukasiewicz rule bodies, hinge-loss energy, non-negative learned weights and exact most probable assignment, but each bar has a single free atom (the truth of up, with down as its complement), so the alternating direction method of multipliers and joint inference across related atoms never run; the rules are conjunctions mined on the fold's training span plus the authored rule library, the weights are learned by a structured perceptron step, and a logistic curve fitted on validation bars turns the inferred truth into the probability that is scored and traded.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar the engine finds the truth of up that exactly minimises the weighted hinge-loss energy of the mined and authored rules plus two prior rules, takes the log-odds of that truth as the score, and an unweighted logistic curve refitted on the fold's validation bars at every epoch maps the score to the probability of up.",
+          "priceForecastSource": "none",
+          "objectiveId": "hinge_loss_markov_random_field_energy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "brier_score",
+            "validationName": "logarithmic_loss",
+            "unit": "squared truth units on training bars and nats on validation bars",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the score, so the ordering of test bars is the inferred truth of up itself, and this asks whether bars whose weighted rule bodies pushed that truth higher went up more often."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The squared gap between probability and outcome is the same kind of loss the weight learning reports on training bars, here taken on test bars after the curve, and it is not the quantity the kept epoch was chosen on."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the inferred truth after the curve has turned it into odds; the kept epoch is the one with the lowest value of this same loss on validation bars, so the test value is honest but the validation value is optimistic."
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Looks at the bars with the highest inferred truth, where several up-concluding rule bodies were strongly satisfied at once, and asks how many of those really went up."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The perceptron step and the curve are both unweighted, so the probability aims at the true up frequency, and the binned gap tests whether the curve chosen on validation bars still maps truth degrees to frequencies on test bars."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "With the linear hinge the minimising truth sits at zero, one, a rule body or its complement, so many bars share a level and the ranking metrics can rest on a short staircase."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the two prior rules outweigh the mined rules the inferred truth barely moves from bar to bar and the curve returns almost one value, which a spread near zero reveals."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call cuts the curve-mapped truth at one half, so it tests the rule vote together with the intercept the validation curve chose, and is read against the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The curve's intercept can place every truth level on the same side of one half, and averaging the two recalls shows whether the weighted rules ever change the call."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One number over all four confusion cells that falls to zero when the learned weights leave the call on one side for the whole fold."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the side of one half that the curve-mapped truth falls on earned after costs under the engine's position rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of that profit per bar for a position that changes only when the weighted rule vote crosses the curve's midpoint, read with the trade count."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest loss run of the position the soft rule vote held, which lengthens when the rule bodies stay satisfied through a move against them."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades opened when the inferred truth crosses the curve's midpoint, meaningful only when the trade count shows it crossed often enough."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of profitable trades opened by a change in which rule bodies are satisfied, which says how often such a change was followed by a move that covered costs."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the prior rules and the curve's intercept have made the engine a one-sided caller, the context needed before reading its trading numbers."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the registry gives this model no price block, and a truth degree for up says nothing about the size of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: no price model is fitted beside the rule base, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price forecast there is no forecast sign; the direction call is scored by the classification metrics."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the squared gap between the uncalibrated inferred truth and the outcome while the validation channel holds the logarithmic loss of the curve-mapped probability, so the two are different quantities and their difference means nothing."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set the engine is always in the market once it has traded, so the figure describes the engine's rule and not the rule base."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, while the engine's prior rules start from the training up share, so the comparison is not the one the model makes."
+            }
+          ],
+          "caveats": [
+            "The logistic curve is refitted on the fold's validation bars at every epoch and the epoch kept is the one with the lowest logarithmic loss on those same bars, so the validation loss is in-sample for the curve and optimistic through the selection.",
+            "The curve's slope is not forced to be positive, so a validation span on which a higher inferred truth was followed by down moves inverts the rule vote for the whole test span.",
+            "The logged training loss is the squared gap between the inferred truth and the outcome, which is not the hinge-loss energy difference the structured perceptron step actually follows, so the training curve is a progress trace and not the objective.",
+            "The rules are the highest-ranked conjunctions mined on the fold's training span together with the authored rule library, so the rule set is the best of many candidates and its weights are then learned on the same bars.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "fuzzy_logic_model": {
@@ -627,6 +1710,269 @@
           "label": "Defuzzification grid",
           "group": "Model",
           "description": "Points of the output universe the centroid is computed on."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "One crisp, smoothly varying bullishness signal per bar between minus one and one, the centroid of the fuzzy output set that the fired linguistic rules aggregate into.",
+          "targetVariable": "The graded bullishness the linguistic rule base assigns to the current bar's indicator readings",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "A hand-authored Mamdani system fits nothing: memberships and rules are written by a person; only the tuned variant, which adjusts triangle vertices and rule weights by gradient descent, minimises a squared error.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "Where adjacent membership functions leave a gap no linguistic rule fires and the centroid falls back to neutral, so the share of bars with at least one rule firing above zero strength shows how much of the tape the rule base really grades.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The centroid is a graded opinion, so bars are grouped by bins of the defuzzified bullishness and each bin's up share is compared with the up share of all bars of the same series, which shows whether a higher centroid is really followed by more up moves.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "score bin",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Unlike a crisp rule list, the defuzzified centroid varies continuously, so its ordering of bars from most bearish to most bullish can be graded without choosing any cut on the signal.",
+              "baseline": "One half, the value of a signal that orders up bars and down bars at random",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "For the tuned variant this shows how often the same membership peaks and the same rule consequents come back when the system is refitted on the next window, which is the difference between a readable rule base and one that is rewritten every period.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The number of antecedent combinations grows with the count of inputs and of terms per input, so the count of rules proposed before the rule base was cut down is shown beside it as its exposure to lucky rules.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "Fuzzy membership is not probability and the system defines no regimes, so a regime likelihood never applied."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The linguistic terms are overlapping grades of one input, not regimes of the market, so their separation is not a quality of the model."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "No hyperparameter search exists in an authored fuzzy rule base, so nothing can be attributed to hyperparameters."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Rule firing strengths are the model's own explanation, so attribution stability is not one of its quantities."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "The defuzzified signal is a score, not a probability, so natively it has no calibration."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "No regime label exists in a fuzzy inference system whose persistence could be counted."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The inference is the specification's own Mamdani system: minimum for conjunction, clipping for implication, maximum for aggregation and a centroid bullishness between minus one and one. What differs is where the knowledge comes from: the inputs are the feature columns with the most mutual information with the training direction, the membership peaks sit at training quantiles, and the rules are generated from training bars by the Wang-Mendel method instead of being written by hand; the centroid is then turned into a probability by a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is an unweighted logistic curve, fitted by maximum likelihood on the fold's validation rows only, of the centroid of the aggregated fuzzy output set, which is zero on bars where no generated rule fires.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The curve is unweighted, so this grades the odds that come from the centroid bullishness plus the validation-fitted slope and intercept, against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The centroid varies smoothly and the curve is monotone, so this ranking score tests the fuzzy signal itself: do bars with a more bullish centroid go up more often."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-mapped centroid, a second view of the same odds that is not dominated by a few confident bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Clipping and centroid averaging compress the signal toward neutral, and the curve re-stretches it on validation rows, so a slope away from one on the test span shows that stretch did not carry forward."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The unweighted curve anchors the odds to the validation up share, so the binned gap fairly checks centroid plus curve, though a low-resolution signal fills only the bins near the base rate."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What trading the side of the curve-mapped centroid earned after costs, which also shows whether the smooth signal really avoids the whipsaw the specification says a hard threshold causes."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing from following the fuzzy signal's side; zero is an arithmetic marker because a random side still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest equity fall while following the centroid's side, the losing stretch a trader of this rule base would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars across trades opened when the centroid crossed the fitted cut; one is an arithmetic marker only."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money when the side came from the defuzzified signal, read with the trade count."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The specification's selling point is a signal that does not flip back and forth at a boundary, and the number of call flips per session day measures exactly that."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Hit rate of the call cut at 0.5, which places the cut on the centroid wherever the validation curve's intercept puts it rather than at neutral."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and down bars, so a centroid that sits on one side of the fitted cut on most bars cannot score through the base rate."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for whether the side of the centroid agrees with the realised direction across the confusion table."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every training bar proposes an antecedent and only the ones with the most degree mass are kept, and the inputs themselves were picked by mutual information with the label, so this count is the selection exposure of the rule base."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the centroid ever moves the odds from the base rate; the registry note says to expect smooth but low-resolution scores."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Holding the contract through the same folds is the only same-series trading reference, so this gap shows whether trading the side of the curve-mapped centroid earned more than simply holding, after the costs that every crossing of the fitted cut pays."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A trade closes only when the centroid crosses the validation-fitted cut, so this count shows how often the fuzzy signal actually changed the side, and every trading figure for this model is read beside it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how one-sided the centroid plus the validation-fitted curve is; a share at or near one or zero means the curve's intercept, which decides every bar where no generated rule fires, is making nearly every call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the input feature count, the membership function count and the rule count is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because the Mamdani system outputs only a bullishness centroid."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to score."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The Mamdani fit generates rules from training bars and returns no training loss, so no training value is recorded to subtract from the single validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always in a position, even when the centroid is neutral, so exposure describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation rows that fitted the curve's slope and intercept, and no training value because the Mamdani fit returns no loss.",
+            "The curve's slope and intercept were fitted on validation rows, so every probability metric grades centroid plus curve, and a negative fitted slope would trade against the rule base's bullishness.",
+            "A bar on which no generated rule fires scores a neutral centroid and is still traded on the side the curve's intercept gives.",
+            "The inputs and the rule consequents were both chosen using the training direction, so the rule base is fitted knowledge, not the hand-written rules the specification describes.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -714,6 +2060,259 @@
             "high": 10.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A true or not-proved answer on whether a query follows from the knowledge base and the bar's ground facts, with the resolution derivation as its proof trace.",
+          "targetVariable": "Whether a stated trade conclusion is logically entailed by the quantified market rules and the facts observed at the current bar",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is fitted: the knowledge base is converted to clauses and resolution with unification searches for the empty clause, and a search that runs out of steps is inconclusive rather than a disproof.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "The prover only says something on bars where the empty clause is reached, so the share of bars on which the query is proved, split from the share that hit the resolution step limit, shows how often the knowledge base speaks at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "A proof shows the conclusion follows from the authored rules, not that the rules are true of the market, so the up share after bars where an up conclusion was entailed is set against the up share of all bars of the same series.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "Resolution is only semi-decidable, so the count of resolution steps per query and the share of queries cut off by the step limit separate a real proof of entailment from a search that simply stopped.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "This tracks how often the same clauses appear in the proof traces from one period to the next, which shows whether the conclusions rest on a few durable quantified rules or on facts that happened to line up once.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A resolution prover outputs entailment, not a density, and has no regimes, so this row never applied."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "Nothing in a clause set defines regimes, so there is nothing whose separation could be scored."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "There are no fitted hyperparameters behind a proof, only search limits that decide whether it finishes."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The derivation is the explanation, and a logical proof has no additive feature attributions."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "The native answer is entailed or not proved, never a probability, so there is nothing to calibrate."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "A prover keeps no regime label between bars, so persistence is undefined."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "A proved or not-proved answer has two levels, so a ranking curve drawn from it is a single point and cannot be a headline."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification proves whether a query is entailed and returns true or not proved; the runnable adapter does run resolution refutation with unification over a fixed set of quantified Horn clauses about trend across lookback windows, but it then uses the strongest conclusion proved for up and for down (confirmed, aligned, leaning or none) as an index into a table of smoothed training up shares and maps that cell's log-odds to a probability with a validation-fitted curve. Quantification runs over lookback windows of one instrument, not over instruments, and every as-run number measures the up share of the proof cell, not entailment.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is an unweighted logistic curve, fitted by maximum likelihood on the fold's validation rows only, of the log-odds of the smoothed training up share stored for the bar's pair of proof levels, the strongest conclusion the prover established for up and for down.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The curve is unweighted and the cell shares are smoothed toward the base rate, so the odds never reach zero or one and this fairly grades the proof-cell up share plus curve against quoting the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "A bounded score of a probability that takes one value per proof cell, which reads cleanly for the coarse steps this model produces."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It tests whether proof cells with higher training up shares are followed by more up bars, but there is at most one level per pair of proof levels, so the curve has few points and the level count may be small."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how many proof cells actually occurred on the fold's scored bars, which is the number of points every ranking and calibration figure for this model is built from."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The cell up shares come from the training span and the curve from the validation span, so a slope away from one on the test span shows the cells' up shares did not carry forward."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "With an unweighted curve the odds are anchored to the base rate, so the binned gap is a fair check, but the few probability levels fill few bins and the occupied-bin count must be read with it."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What trading the side of the bar's proof cell earned after costs under the engine's rule of following the latest call and filling at the next open."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing from trading the proof cell's side; zero is an arithmetic marker because a random side still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest equity fall while following the prover's cell, which matters because trend conclusions over long windows change side rarely and losses can run."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars across trades opened when the proved conclusion changed cell and the call flipped; one is an arithmetic marker only."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money when the side came from the proof cell, read with the trade count because the cell changes only when a window's trend fact changes."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Hit rate of the call cut at 0.5, which here is decided by whether a cell's training up share sits above or below the validation-fitted cut."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and down bars, so a table whose cells nearly all sit on one side of the cut cannot score through the base rate."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for whether the proof cell's side agrees with the realised direction across the confusion table."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far apart the proof cells' up shares are; cells smoothed onto the base rate give a flat probability that is calibrated and useless."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Holding the contract through the same folds is the only same-series trading reference, so this gap shows whether trading the side of the proof cell earned more than simply holding, after the costs that every change of proof cell pays."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A trade closes only when the proof cell moves the curve-mapped probability across one half, so this count shows how often the prover's conclusions actually changed the side, and every trading figure for this model is read beside it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how one-sided the proof table plus the validation-fitted curve is; a share at or near one or zero means a few proof cells on one side of the cut make nearly every call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the induced feature count, the evidence predicate count and the smoothing pseudo count is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because the prover outputs only a proof level per direction."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to score."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The proof table counts smoothed up shares and returns no training loss, so no training value is recorded to subtract from the single validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always in a position, even on bars where nothing was proved, so exposure describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation rows that fitted the curve's slope and intercept, and no training value because the proof table returns no loss.",
+            "The curve's slope and intercept were fitted on validation rows, so every probability metric grades the proof-cell up share plus that curve.",
+            "A refutation that exceeds the maximum resolution steps is treated as not proved, which the specification says should be reported as inconclusive; the count of such cut-offs is not a recorded metric.",
+            "A proof cell never seen in training carries only the smoothed base rate, so its probability is the prior and not evidence.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -846,6 +2445,265 @@
           "group": "Model",
           "description": "Most answers enumerated per query."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "Every distinct binding of the query's variables for which the goal is provable from the Horn-clause facts and rules, found by unification with backtracking, or failure when none exists.",
+          "targetVariable": "Which combinations of instruments, sessions or setups satisfy the authored relational rules given the facts loaded for the current bar",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is fitted: facts are loaded from current market data, rules are authored, and the engine resolves the leftmost subgoal against clause heads and backtracks on failure until the goal list is empty.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "A query that never succeeds or succeeds on every bar carries no information, so the share of bars on which backtracking returns at least one binding, and the share each clause contributes, shows how often the program has an answer.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "A derivation proves the goal from the authored clauses, not that the clauses hold in the market, so the up share after bars where the up goal was derivable is compared with the up share of all bars of the same series, one row per clause.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "A recursive clause can loop until the recursion limit, so the count of resolution steps and backtracks per query, and the share of queries cut off, separate a finished enumeration of bindings from an exhausted search.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "This tracks how often the same clauses produce the bindings from one period to the next, which shows whether the answers rest on durable relations or on facts that were true only for a short stretch.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A Horn-clause program proves goals and assigns no density to data, so a regime likelihood never applied."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The program defines relations between objects, not regimes of bars, so separation has no meaning here."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "There are no fitted hyperparameters behind a derivation, only limits on the search."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The derivation tree is the explanation, and a proof has no additive attributions to stabilise."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "The native answer is a set of bindings or failure, never a probability, so calibration is undefined natively."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "No regime state exists in a logic program whose persistence could be measured."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "Provable or not provable has two levels, so a ranking curve built from it has a single point and cannot be a headline."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification returns the variable bindings for which a goal is provable and estimates nothing; the runnable adapter states a small Horn-clause program about nested trends, supporting predicates and fired rules, lets miniKanren enumerate the distinct derivations of the up signal and of the down signal for each bar, and uses the count of up derivations minus down derivations as a score that a validation-fitted curve maps to a probability. miniKanren stands in for a Prolog interpreter, and every as-run number measures that vote-like count difference, not provability.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is an unweighted logistic curve, fitted by maximum likelihood on the fold's validation rows only, of the number of distinct derivations of the up signal minus the number of distinct derivations of the down signal, each capped at the answer limit.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The curve is unweighted, so this grades the odds that come from the derivation count difference plus the validation-fitted slope and intercept, against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "A bounded score of a probability that takes one value per whole-number count difference, which reads cleanly for the stepped output this model gives."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The curve is monotone, so this tests the vote itself: do bars with more up derivations than down derivations go up more often, with ties counted half because the difference is a whole number."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The count difference takes only whole-number values within the answer limit, so this shows how few points the ranking and calibration figures are drawn from."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Nested-window derivations are not independent votes, so a slope below one on the test span means the curve gave each extra derivation more weight than the outcomes supported."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The unweighted curve anchors the odds to the validation up share, so the binned gap fairly checks count difference plus curve, read with the count of occupied bins."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What trading the side with more derivations earned after costs under the engine's rule of following the latest call and filling at the next open."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing from trading the side the logic program derives more often; zero is an arithmetic marker because a random side still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest equity fall while following the derivation vote, the losing stretch a trader of this program would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars across trades opened when the derivation vote changed side; one is an arithmetic marker only."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money when the side came from the derivation vote, read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Hit rate of the call cut at 0.5; a tied count is called by the validation intercept, so the number mixes the program with the prior."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and down bars, so the many tied bars all called the same side cannot lift the number through the base rate."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for whether the side with more derivations agrees with the realised direction across the confusion table."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The fired-rule facts come from rules mined over every single predicate, and every pair when the atom order parameter allows pairs, on the training span, so this count is the multiple-testing exposure behind those clauses."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the derivation vote ever moves the odds from the base rate, which the registry note says to expect it rarely does."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Holding the contract through the same folds is the only same-series trading reference, so this gap shows whether trading the side with more derivations earned more than simply holding, after the costs that every change of the vote's side pays."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A trade closes only when the derivation vote changes the side of the curve-mapped call, so this count shows how often the program's derivations actually changed the side, and every trading figure for this model is read beside it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how one-sided the derivation vote plus the validation-fitted curve is; a share at or near one or zero means the curve's intercept, which decides every tied bar, is making nearly every call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the induced feature count, the atom order, the minimum fire count, the rule count, the smoothing pseudo count and the evidence predicate count is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because the logic program outputs only derivation counts."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to score."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The logic program counts derivations and returns no training loss, so no training value is recorded to subtract from the single validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always in a position, even when neither signal is derivable, so exposure describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation rows that fitted the curve's slope and intercept, and no training value because the logic program fit returns no loss.",
+            "The curve's slope and intercept were fitted on validation rows, so every probability metric grades the derivation count difference plus that curve, and a negative fitted slope would trade against the vote.",
+            "Derivations are capped at the answer limit for each direction, so on bars with many firing rules the count difference is truncated.",
+            "A bar on which neither signal is derivable scores zero and is still traded on the side the curve's intercept gives.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "constraint_satisfaction": {
@@ -977,6 +2835,260 @@
           "group": "Model",
           "description": "Cost added to a side the hard constraints exclude."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [
+          "certified_mathematical_program"
+        ],
+        "native": {
+          "produces": "One complete assignment of a value to every variable that breaks none of the stated constraints, or a definitive report that no such assignment exists.",
+          "targetVariable": "Whether a jointly feasible combination of position sizes exists under the margin limit, the per-instrument caps and the correlated-exposure limit, and which combination it is",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "Nothing is fitted: arc-consistency propagation prunes each variable's domain and backtracking search then looks for any assignment that satisfies every constraint, so there is no loss and no learned parameter.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "The solver's whole answer is whether a feasible assignment exists, so the share of bars on which backtracking search finds one shows whether the constraint set is so tight it never allows a trade or so loose it allows everything.",
+              "baseline": "A solver given no constraints at all on the same bars, which allows every combination of position sizes",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "constraint_violation_residual",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "A returned assignment is only an answer if the margin limit, the caps and the exposure limit all hold on it, so the largest remaining violation should be exactly zero for the hard version and is the cost being minimised in the weighted version.",
+              "baseline": "Zero, the value of an assignment that satisfies every hard constraint",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "Backtracking is exponential in the worst case, so the count of propagation passes and of backed-up assignments, with whether the search finished or hit its depth limit, tells whether a report of no solution is a proof or only a search that stopped.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "When the account state behind the margin and exposure limits moves from one period to the next, this shows how often the same binding constraints and the same feasible assignment come back, which is what makes the solution usable as a standing rule.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A constraint solver assigns no probability to any bar and contains no regimes, so a regime likelihood never existed for this model."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "Nothing in variables, domains and constraints partitions bars into regimes, so there is nothing to separate."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "The solver has no fitted score whose variance could be attributed to hyperparameters; its settings only govern search speed."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Feasibility is not an additive prediction, so feature attributions and their stability are undefined for a constraint solver."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": null,
+              "why": "The native output is an assignment or a report of infeasibility, not a stated probability, so calibration does not apply natively."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "There is no regime label whose run length could be measured, because the solver keeps no state between problems."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "A feasible assignment is not a score that ranks bars from most bearish to most bullish, so natively there is nothing to rank."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification searches for a jointly feasible set of position sizes across instruments and forecasts nothing; the runnable adapter instead gives each bar one variable, the side, long or short, turns strongly one-sided mined or authored rules into hard constraints and every directional predicate into a weighted soft constraint, and scores the bar by the cost of short minus the cost of long. Every as-run number therefore measures that cost margin after a logistic curve fitted on validation rows, not feasibility of a portfolio.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is an unweighted logistic curve, fitted by maximum likelihood on the fold's validation rows only, of the soft-constraint cost of short minus the cost of long, where each side's cost is the summed log-odds weights of the predicates it contradicts plus the infeasible side penalty when the hard constraints exclude it.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The curve is unweighted, so this grades the stated odds that come from the cost margin plus the validation-fitted slope and intercept, against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve is monotone, so this ranking score is unchanged by its fitted scale and tests the cost margin itself: do bars where short violates more constraint weight than long go up more often."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the same curve-mapped margin, useful because the infeasible side penalty can push a few bars to very confident odds that dominate the logarithmic loss."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope and intercept were fitted on the validation span, so a slope away from one on the test span shows the cost margin's scale drifted between the two spans."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the curve is unweighted its odds are anchored to the validation up share, so the binned gap is a fair check of the margin plus curve, read with the count of occupied bins."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what trading the cheaper side of the soft constraints earned after costs under the engine's rule of following the latest call and filling at the next open."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing from trading the side the constraints prefer; zero is an arithmetic marker, not a no-skill level, because a random side still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of equity while following the constraint solver's side, which shows the path a trader would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars across trades opened when the preferred side flipped; one is an arithmetic marker only."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money when the side came from the constraint costs, read together with the trade count because a kept same-side call opens no new trade."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Hit rate of the hard call cut at 0.5, which depends on the validation-fitted intercept as much as on which side the constraints prefer."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, so a curve whose intercept leans every call one way cannot look good from the base rate alone."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for whether the cheaper side agrees with the realised direction across all four cells of the confusion table."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every single predicate, and every pair of predicates when the atom order parameter allows pairs, is scored on the training span before the hard constraints are chosen, so this count is the multiple-testing exposure behind them."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows whether the cost margin ever moves the curve away from the base rate, which the registry note says to expect it rarely does."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Holding the contract through the same folds is the only same-series trading reference, so this gap shows whether trading the side with the lower constraint cost earned more than simply holding, after the costs that every side flip pays."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A trade closes only when the cheaper side flips from long to short or back, so this count shows how often the soft constraints actually changed the side, and every trading figure for this model is read beside it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how one-sided the cost margin plus the validation-fitted curve is; a share at or near one or zero means the curve's intercept, not the constraints, is making nearly every call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the induced feature count, the atom order, the minimum fire count, the rule count, the smoothing pseudo count and the hard constraint confidence is scored by the shared tuning objective, an optimistic selection score to be read beside the fold's test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because the soft-constraint engine outputs only a side margin."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to score."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The soft constraint fit counts reliabilities and returns no training loss, so no training value is recorded to subtract from the single validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always long or short once in a trade, so exposure describes the engine's rule and not the constraint solver."
+            }
+          ],
+          "caveats": [
+            "The single fit logs one validation logarithmic loss for the epoch, measured on the same validation rows that fitted the curve's slope and intercept, and no training value because the constraint fit returns no loss.",
+            "The curve's slope and intercept were fitted on validation rows, so every probability metric grades the cost margin plus that curve, and a negative fitted slope would invert the solver's preferred side.",
+            "Bars whose firing hard constraints contradict each other have no feasible side and fall back to the soft constraints alone; the adapter counts them in its log but the count is not a recorded metric.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals need a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "fuzzy_decision_model": {
@@ -1107,6 +3219,274 @@
           "group": "Model",
           "description": "Epochs without validation improvement before stopping."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "symbolic_rule_reasoner",
+        "profileIdAsRun": "symbolic_rule_reasoner",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "Each indicator value is given a degree of membership in overlapping linguistic terms (low, medium, high), every if-then rule fires with a strength taken from those degrees, and the fired rules are blended and defuzzified into one crisp decision value per bar together with the per-rule firing strengths.",
+          "targetVariable": "a graded decision for the bar, such as a position-size multiplier or a confidence score, expressed as one crisp number that changes smoothly as the indicators cross their term boundaries",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "A hand-designed rule base minimises nothing because an expert sets the membership boundaries; only the adaptive neuro-fuzzy variant tunes those boundaries and the rule consequents by gradient descent on a squared error against a labelled target.",
+          "metrics": [
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "primary",
+              "why": "A fuzzy rule base only decides where its membership functions overlap the bar's indicator values, so the share of bars on which some rule fires above the firing threshold, and the share each rule owns, shows whether the linguistic terms actually cover the market or leave it to a default.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Each rule is a readable claim such as strong trend with low volatility means a large position, and the claim is tested by whether the bars where that rule fires most strongly are followed by a different up share than the series as a whole.",
+              "baseline": "the up share of all scored bars of the same series",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The specification names its own reference: the same rules with crisp thresholds in place of the overlapping membership functions, so the gain is the score of the fuzzy system minus the score of that hard-threshold version built from the same indicators.",
+              "baseline": "the same rule base with every membership function replaced by a crisp threshold",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The stated risk is rule-base drift, where boundaries tuned in one volatility regime misfire in the next, so the share of refits in which the same rules and nearly the same term boundaries reappear says whether the linguistic knowledge is durable.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The number of term combinations considered as rules grows quickly with the linguistic terms per input, and the more candidate rules were tried against the training bars before the rule base was fixed, the more of its apparent edge is selection luck.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It applies to the adaptive neuro-fuzzy variant only, where an overgrown rule base with heavily overlapping terms fits training noise and the squared error on the validation block pulls away from the squared error on the training bars.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the system ends at a defuzzified decision value; the Sharpe ratio is an as-run number for the engine's rule applied to the curve-mapped fuzzy output."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The rule base has no benchmark-relative return and the registry holds no alpha metric; as run the reference is buy and hold on the same folds."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "It is a property of the as-run trading account and not of fuzzification, rule firing and defuzzification."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The fuzzy system holds no portfolio natively; turnover is measured only as run from the engine's closed trades."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It needs a traded return and a drawdown, neither of which a rule base of membership functions produces on its own."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "No loss tail exists for a per-bar crisp decision value and the registry holds no conditional value at risk metric."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "Membership degrees are degrees of truth and not probabilities, so the fuzzy system assigns no density to a bar and has no likelihood to score."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the specification's adaptive neuro-fuzzy Takagi-Sugeno variant only: Gaussian terms on the few feature columns with the most training mutual information, rule antecedents generated from the training bars instead of written by an expert, linear consequents solved by ridge least squares toward a plus-one or minus-one direction target, and a logistic curve fitted on validation rows turning the output into a probability, so the as-run numbers grade a learned smooth score and not an authored linguistic rule base.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The normalised product of Gaussian memberships weights each rule's linear consequent, their sum is a score trained toward plus one for up and minus one for down, and a two-parameter logistic curve refitted on the fold's validation rows at every epoch maps that score to the probability of up.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "squared_error",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the mean squared difference between the fuzzy output and the plus-one or minus-one direction target, and on validation rows nats per scored bar of the curve-mapped output",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The firing-weighted sum of linear consequents is a smooth continuous score, and the fitted curve keeps its order unless the slope is negative, so this ranking number tests the fuzzy system's own ordering of bars free of the curve's scale."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The price forecast is the same Takagi-Sugeno system fitted a second time to the scaled move, used directly with no curve, so its skill against the no-change forecast is the cleanest test of what the membership functions and rule consequents learned."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the fuzzy output after the validation-fitted logistic curve, and the kept epoch was chosen on the validation version of this number, so it measures system plus curve plus that choice on test bars."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded proper score of the same curve-mapped output that does not explode if a bar with unusual inputs drives the linear consequents to an extreme score."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve is an unweighted fit on validation rows, so a calibration gap on test bars shows the mapping from fuzzy score to up frequency failing to carry over to the next span."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A least-squares fit toward a plus-one or minus-one target on noisy bars shrinks the output toward zero, and this spread shows how far the mapped probability ever moves from its centre."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is whether the curve-mapped fuzzy score is at least one half, so it depends on the fitted curve's intercept, which sets the prior, as well as on the rules."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and down bars stops a curve intercept that leans one way from reading as skill of the fuzzy rules."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the up or down call of the fuzzy system that stays near zero when the curve calls every bar the same direction."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The second fuzzy system's predicted move in points against the realised horizon move, to be read beside the no-change forecast's error on the same resolved bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the second system's forecast after tick rounding is a direction view with no validation curve, so its gap to accuracy shows what the curve and the separate direction fit changed."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the engine's rule earned after costs going long when the curve-mapped fuzzy score was at least one half and short otherwise; the graded position size the specification describes is not used."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The fuzzy system's calls against holding the instrument over the same folds, the only same-series trading reference the engine computes."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of trading the fuzzy call over its variability; zero is an arithmetic marker because a random-direction trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account when every bar's fuzzy call is traded at full size, which is where rule-base drift into an unfamiliar regime would show."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning over losing trade totals for the engine's rule; a trade ends when the fuzzy call flips, and a smooth score should flip less often than a crisp threshold."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money after costs, each trade covering a run of bars on which the mapped fuzzy score stayed on one side of one half."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "How often the fuzzy call changed side, the direct measure of the whipsaw that overlapping membership functions are meant to reduce."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the validation curve's intercept has the fuzzy system calling almost every bar the same direction."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over input count, terms per input, rule count and learning rate is scored on inner training blocks by the shared selection objective, an optimistic selection score and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds a squared error toward the plus-one or minus-one target and the validation channel holds the logarithmic loss of the curve-mapped score, two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always long or short once it has traded, so exposure describes the engine's rule and not the fuzzy system's graded output."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share, known only in hindsight, so it is not a level the fuzzy system could have been compared with in advance."
+            }
+          ],
+          "caveats": [
+            "The kept epoch is the one with the lowest validation logarithmic loss, and the logistic curve is refitted on those same validation rows at every epoch, so the validation loss is optimistic twice over and is never a result.",
+            "The rules are not authored and do not come from the rule library file: their antecedents are the term combinations that best match the most training bars, and the inputs are capped so each rule keeps enough bars.",
+            "The price forecast is a second fit of the same system to the scaled move clipped at its training first and ninety-ninth percentiles, with its own epoch chosen on the validation Huber loss.",
+            "Consecutive scored bars share future bars because horizon targets overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Dials in force by default: long only off, holding bars equal to the label horizon, no stop loss, no take profit, one contract; a same-direction call at holding expiry is kept at no cost and the fold's last bar exits at its close.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "multi_criteria_decision_analysis": {
@@ -1196,6 +3576,252 @@
               "entropy"
             ]
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "multi_criteria_decision_framework",
+        "profileIdAsRun": "score_or_margin",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A ranked list of a finite set of alternatives, each with a closeness coefficient computed from its weighted distance to the ideal and to the worst case across several criteria, plus a consistency ratio when the weights came from pairwise comparisons.",
+          "targetVariable": "The preference order of the listed alternatives, such as candidate instruments or strategies, under criterion weights that a person stated or derived from pairwise judgments",
+          "objectiveId": "ranking_by_stated_weights",
+          "objectiveNote": "Nothing is fitted to labelled outcomes: the TOPSIS procedure normalises each criterion, applies the stated weights and orders the alternatives by relative closeness to the ideal, so the answer is only as defensible as the weights.",
+          "metrics": [
+            {
+              "metricId": "rank_stability_under_weight_perturbation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The criterion weights are a judgment call, so the ranking is trusted only if the top alternatives keep their places when each weight is nudged by a plausible margin; a ranking that flips on a small nudge to one weight decided nothing.",
+              "baseline": "The ranking produced by the unperturbed weights",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pairwise_comparison_consistency_ratio",
+              "type": "solution_quality",
+              "role": "secondary",
+              "why": "When the weights come from pairwise comparisons in the analytic hierarchy process, this ratio shows whether those judgments contradict one another before any alternative is ranked with them.",
+              "baseline": "Zero, the value of a perfectly consistent comparison matrix",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "If the same alternatives come out on top each time the decision matrix is rebuilt on a new period, the ranking reflects the alternatives; if the top set reshuffles every time, it reflects noise in the criterion values.",
+              "baseline": "The top set chosen on the first period",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "regret_across_scenarios",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Treating each plausible weight set as a scenario, the shortfall of the top-ranked alternative from whichever alternative wins under that weight set shows how costly it is to have picked the wrong weights.",
+              "baseline": "Zero shortfall, which is what the top alternative shows under the weights that ranked it first",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": null,
+              "why": "The ranking takes no position; a Sharpe ratio can only enter as one of the criterion columns being weighed."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "An ordered list of alternatives has no return and no benchmark, and the registry carries no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": null,
+              "why": "The method outputs closeness scores, not an equity curve, so it has no drawdown of its own."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": null,
+              "why": "No trades are placed by ranking a decision matrix, so turnover never applied."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": null,
+              "why": "Return over drawdown describes a traded account, which a weighted ranking is not."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The weighted distance to the ideal produces no loss distribution, so there is no tail to average."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A closeness coefficient orders alternatives and is not a probability of anything, so there is nothing for a probability score to grade."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification ranks a list of alternatives under weights a person states. The runnable adapter instead treats each bar as the single alternative, picks its criteria as the criterion_count feature columns most correlated with the outcome on training bars, derives the weights either from those same correlations (the analytic hierarchy option) or from the spread of the criteria on the training bars (the entropy option), and scores the bar's TOPSIS closeness to a training-span ideal. The as-run numbers measure that closeness as a direction signal after a validation-fitted logistic curve, not the quality of a ranking.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The bar's weighted relative closeness to the ideal, a number between zero and one, has one half subtracted, and a two-parameter logistic curve fitted on the fold's validation bars turns that signed score into the probability of up.",
+          "priceForecastSource": "readout",
+          "objectiveId": "ranking_by_stated_weights",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit, of the curve-mapped closeness with the curve fitted on those same validation bars; the ranking minimises nothing, so no training value is logged",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The closeness coefficient promises only an ordering, so the direct test is whether bars sitting nearer the ideal on the chosen criteria went up more often than bars sitting nearer the worst case."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the closeness score after the validation curve has turned it into a probability, on a bounded scale that stays readable when the curve keeps every bar near one half."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It scores the same curve-adjusted closeness; the probability scale belongs entirely to the two curve parameters fitted on validation bars, so this is a score of the weighted composite plus that curve."
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether the bars with the very highest closeness to the ideal were really up bars, which is the end of the ranking a top-choice method cares about."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over how many criteria the ranking uses and whether their weights come from the analytic hierarchy or the entropy method is scored on inner blocks of the training span by the shared tuning objective, an optimistic selection score and not a result."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The best setting's search score minus the same quantity on the fold's test walk shows how much of the chosen criterion count and weighting looked good by selection and not by the composite's skill."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds are the validation curve's doing, so a gap on test bars says the mapping from closeness to up share learned on validation bars did not hold."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A weighted composite of weak criteria gives the curve little to work with, and this spread shows whether the probability ever leaves the neighbourhood of one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts the hard calls made by cutting the curve-adjusted closeness at one half; the cut point on the closeness scale is set by the curve's intercept, not by the midpoint between ideal and worst case."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate over rising and falling bars shows whether closeness to the ideal separates them or the curve's intercept sent every call the same way."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric figure for the calls made from the composite score, which stays near zero when the criteria chosen on training bars stop lining up with direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what trading the composite's call earned after costs under the engine's rule, long when the curve-adjusted closeness is at least one half and short otherwise."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit from following the weighted composite to its variability; zero is an arithmetic marker and not a no-skill level because random calls pay costs too."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the worst losing stretch of the composite's call, which arrives when the training-span correlations that chose and oriented the criteria reverse."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It sets the money won against the money lost on the trades opened when the closeness-based call changed side, after costs, and needs the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of the composite's closed trades that made money; a trade runs until the call flips or the fold ends, so it is not a per-bar hit rate."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The forecast is the closeness score minus one half multiplied by a single slope fitted through the origin on training bars, so this tests whether distance from the ideal scales with the size of the move at all."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It gives the typical miss in points of that one-slope readout of closeness; with a small slope the forecast hugs zero and this number approaches the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the slope times the closeness score, which uses the midpoint between ideal and worst case as its cut and no validation curve."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The forecast instance picks its criteria by correlation with the size of the move and the direction instance by correlation with the up label, and the direction call also passes through the curve, so this share shows how often the two readings agree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The ranking minimises nothing and logs no training loss, so there is no training value to subtract from the validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always in a position once it has traded, so this share describes the engine's rule and not the ranking."
+            }
+          ],
+          "caveats": [
+            "With the analytic hierarchy weighting the pairwise matrix is built from ratios of the criteria's own training correlations, so it is perfectly consistent by construction and the logged consistency ratio is always zero; it checks nothing in this adapter.",
+            "The criteria and their orientation are always chosen from correlations with the outcome on the training span, and the weights come from those same correlations under the analytic hierarchy option or from the spread of the criteria on the training bars under the entropy option, which makes the composite a fitted signal and not a ranking under weights stated in advance.",
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars and the slope may come out negative, in which case bars closer to the ideal are called down.",
+            "With ideal_reference set to trailing_window the bar is ranked against its own last sequence_length bars instead of the training-span percentiles, which changes what closeness means.",
+            "The price forecast comes from a second instance that re-selects its criteria against the scaled move, so the forecast line and the direction call can rest on different feature columns.",
+            "Horizons of consecutive bars overlap, so intervals on these scores need a block bootstrap or a Newey-West variance; for roots other than MNQ the costs are the MNQ account figures, and the last bar of each fold exits at its close."
+          ]
         }
       }
     },
@@ -1314,6 +3940,265 @@
           "label": "Scenario discovery depth",
           "group": "Model",
           "description": "Depth of the tree that describes where the robust set fails."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "multi_criteria_decision_framework",
+        "profileIdAsRun": "score_or_margin",
+        "additionalProfileIds": [
+          "decision_graph_or_utility_model"
+        ],
+        "native": {
+          "produces": "A robustness score for each candidate strategy, being the share of a large ensemble of structurally different futures in which it performs acceptably, together with a short description of the conditions under which each strategy fails.",
+          "targetVariable": "How each candidate strategy performs across a swept range of deeply uncertain inputs, and which combinations of those inputs make it fall below the acceptable performance threshold",
+          "objectiveId": "ranking_by_stated_weights",
+          "objectiveNote": "No loss is fitted: every candidate strategy is run through a simulation model under every sampled future, and the strategies are ordered by the share of futures they satisfice or by their worst regret rather than by average performance.",
+          "metrics": [
+            {
+              "metricId": "satisficing_scenario_fraction",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "This is the framework's own ranking criterion: out of all the sampled futures, the share in which a candidate strategy stays above the acceptable performance threshold, which rewards holding up everywhere over shining in one assumed future.",
+              "baseline": "The same share for the other candidate strategies run through the identical ensemble of futures",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "regret_across_scenarios",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "For each sampled future it measures how far the chosen strategy fell short of whichever candidate was best there; a robust choice keeps that shortfall small even in the futures that hurt it most.",
+              "baseline": "Zero shortfall, which a strategy shows in a future where it is itself the best candidate",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "scenario_discovery_coverage_fraction",
+              "type": "structure_validity",
+              "role": "secondary",
+              "why": "The scenario-discovery step draws a small box of conditions said to break the strategy; coverage says what share of all the failing futures actually fall inside that box, so a low value means most failures are still unexplained.",
+              "baseline": "The share of failing futures in the whole ensemble that a box covering every future would capture, which is all of them",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "scenario_discovery_density_fraction",
+              "type": "structure_validity",
+              "role": "secondary",
+              "why": "Density says what share of the futures inside the discovered box really are failures; a box with low density points a hedge at conditions under which the strategy mostly survives.",
+              "baseline": "The share of failing futures in the whole ensemble",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "If redrawing the ensemble of futures with a new seed moves the vulnerability box to different conditions, the box was describing that one sample and should not steer a hedge.",
+              "baseline": "The vulnerability conditions found on the first ensemble",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The robust strategy's performance averaged over the swept futures is a promise made by the simulation model; subtracting what the strategy then earned on later bars shows whether the uncertainty ranges covered the future that arrived.",
+              "baseline": "A gap of zero, where the later bars behaved like the ensemble",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": null,
+              "why": "A simulated Sharpe ratio per strategy and future is an input the acceptability threshold is applied to, not a realised score of the framework."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The framework ranks candidates by robustness and trades nothing against a benchmark; the registry also has no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": null,
+              "why": "Drawdown appears as a simulated outcome inside each future; the framework itself has no equity curve."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": null,
+              "why": "No orders are generated by sweeping an ensemble of futures, so turnover never applied."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": null,
+              "why": "It summarises a single realised path, while the native result is a share of many simulated futures survived."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "A tail average needs one agreed probability distribution over futures, and the framework exists for the case where no such distribution is trusted."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The specification states that the framework does not predict a single future outcome, so it issues no probability to score."
+            },
+            {
+              "name": "Rank stability under weight perturbation",
+              "metricId": "rank_stability_under_weight_perturbation",
+              "why": "There are no criterion weights to perturb; robustness here is tested by sweeping the uncertain inputs, which the satisficing share and regret already measure."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The adapter keeps the framework's steps, a pool of candidate strategies, an ensemble of scenarios, a satisficing or minimax-regret ranking and a shallow scenario-discovery tree, but its scenarios are re-cuts of the training history (contiguous blocks, volatility terciles and trend regimes, each at the actual and at twice the round-trip cost) and not a sweep of uncertain inputs through a simulation model. The as-run numbers measure the robustness-weighted blend of the surviving strategies' scores as a direction signal after a validation-fitted logistic curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "Each surviving strategy's score is divided by its training standard deviation, the scores are averaged with weights equal to each strategy's robustness across the scenario ensemble, and a two-parameter logistic curve fitted on the fold's validation bars turns that blend into the probability of up.",
+          "priceForecastSource": "none",
+          "objectiveId": "ranking_by_stated_weights",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored validation bar, one value for the single fit, of the curve-mapped robust blend with the curve fitted on those same validation bars; selecting strategies by robustness minimises no loss, so no training value is logged",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The strategies were ranked by their robustness across the training scenarios, each scored by its position times the move net of cost, and only the most robust few were kept; this is the same kind of quantity earned by the blended call on test bars the scenarios never contained."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether the robustness-weighted blend of the surviving strategies' scores ranks rising bars above falling ones, independent of the scale the validation curve gives it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The whole point of choosing by robustness instead of average performance is to avoid deep holes, so the worst peak-to-trough loss of the blended call on test bars is a direct check of that promise."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of the robust blend to its variability; zero is an arithmetic marker, not a no-skill level, because a random-direction trader still pays costs."
+            },
+            {
+              "metricId": "break_even_cost_per_contract_per_side_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Every scenario was evaluated at the actual cost and at twice it, so the cost level at which the blended call's test profit would vanish shows whether that cost stress carried over."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the candidate strategy count, the scenario block count, the acceptable utility, the choice between satisficing and minimax regret and the number of robust strategies kept is scored on inner blocks of the training span by the shared tuning objective, an optimistic selection score and not a result."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The best setting's search score minus the same quantity on the fold's test walk shows how much of the chosen robustness rule looked good by selection and not by surviving the later bars."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It scores the blend after the validation curve has given it a probability scale; that scale comes from the curve's two parameters, so this is a score of the blended strategies plus the curve."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded reading of the same curve-adjusted blend, which stays informative when a conservative ensemble keeps the probability close to the base rate."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The odds are the validation curve's doing, so a gap between stated and observed up share on test bars means the mapping from blended score to up share did not carry forward."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Averaging several standardised strategy scores cancels much of their disagreement, and this spread shows whether the blend ever commits away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts the hard calls made by cutting the curve-adjusted blend at one half; note the strategies were selected on net utility of the move and not on this hit rate."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on rising and on falling bars shows whether the surviving strategies separate the two or the curve's intercept leaned every call one way."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric figure for the blended call's hits and misses, near zero when the strategies that survived the training scenarios stop agreeing with direction."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares money won with money lost on the trades opened when the blended score changed sign, after costs, and should be read with the trade count."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of the blend's closed trades that made money; trades end when the call flips or the fold ends, so it is a per-trade share and not the per-scenario robustness score that ranked the strategies."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, so no forecast line is drawn and no skill exists to report."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast whose error could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "Selecting strategies by robustness minimises no loss and logs no training value, so there is nothing to subtract from the validation logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine never goes flat once in a trade, so this share reflects the engine's rule and not the robust blend."
+            }
+          ],
+          "caveats": [
+            "The scenario ensemble is cut from the fold's own training bars, and the blocks, volatility terciles and trend regimes overlap one another, so the scenarios are not independent futures and the uncertainty explored is only as deep as that history.",
+            "The candidate pool includes a logistic regression fitted on every feature of the training bars, which is then judged on scenarios drawn from those same bars, so its robustness is measured in-sample and it can dominate the blend.",
+            "Robustness is scored on mean position times scaled move net of cost, while the engine trades the sign of a validation-curve probability with its own holding and exit rule, so the selection utility and the scored profit are related but not identical.",
+            "The scenario-discovery tree that describes where the robust set fails is written to the log only; it does not change any call and its coverage and density are not recorded.",
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars, so the validation loss is partly in-sample, and the slope is free to come out negative.",
+            "Horizons of consecutive bars overlap, so intervals on these scores need a block bootstrap or a Newey-West variance; for roots other than MNQ the costs are the MNQ account figures, and the last bar of each fold exits at its close."
+          ]
         }
       }
     }

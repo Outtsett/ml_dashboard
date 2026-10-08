@@ -168,6 +168,341 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A probability that the market goes up, computed by a small target network whose weights were written for this bar by a second network, the hypernetwork, after it read a description of the current market context.",
+          "targetVariable": "The direction of the coming price move, up or down, stated as a probability, together with the generated weights of the target network that produced it.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The loss is the ordinary loss of the target network's prediction, but its gradient is passed back through the generated weights into the hypernetwork, so the only thing that is learned is the rule that turns a market context into a set of weights; the specification writes this loss as a squared error on a price target and names buy or sell probabilities as an alternative output.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The target network ends in a probability of up, so the honest grade of the weights the hypernetwork wrote for each bar is how much probability those weights put on the direction that then happened.",
+              "baseline": "Quoting the fold's training up share on every bar, with no context and no generated weights.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of a hypernetwork is that weights rewritten from the market context beat one fixed set of weights, so the same target network trained with ordinary fixed weights on the same folds is the comparison that says whether the weight generator earned anything.",
+              "baseline": "The same target network with fixed, learned weights and no hypernetwork, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Generated weights can swing far when the context is unlike anything seen in training and push the target network to near certainty, and this squared-error grade of the probability stays finite on those bars where the logarithmic grade explodes.",
+              "baseline": "Quoting the fold's training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars on which the context-written target network leaned more strongly toward up were followed by up moves more often than bars where it leaned less, whatever the scale of its output.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Because every weight of the target network is multiplied through from the context, a small change in context can stretch the log-odds, and the slope shows whether the probabilities written this way are too confident on unseen bars.",
+              "baseline": "One, the slope of probabilities whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the hypernetwork writes almost the same weights for every context and those weights find nothing in the bar, the target network quotes one number everywhere, and this spread shows whether it ever commits.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A weight generator has many more outputs than a plain layer of the same target size, so the gap between its cross-entropy on held-back bars and on fitted bars shows whether it memorised which weights suited which training context.",
+              "baseline": "Zero, the gap of a fit that scores unseen bars as well as the bars it learned from.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curve of the target network's loss by step shows whether learning through a second network that writes the weights settled or kept jumping, which is the known difficulty of training this design.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The error signal reaches the hypernetwork only after passing through the weights it generated, so the size of the gradient by step shows whether that longer path is feeding it or blowing up.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of the hard call depends on where the target network's probability is cut and on the prior it was trained toward, so it is reported in the as-run layer as accuracy and is not how a probability written by generated weights is judged on its own terms."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The specification trains the generated target network on a squared error or a classification loss and gives it no variance output, so a Gaussian likelihood of returns was never its objective or its output."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared-error figure describes only the regression use of the design, and as a probability model the hypernetwork's target network makes no forecast of the size of the move."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate restricted to the most confident tenth of bars is a hand-picked slice of the ordering that the area under the receiver operating characteristic curve already summarises over every cut, and the registry holds no such metric."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "The target network outputs one number per bar and no spread, so there is no forecast distribution of the move whose likelihood could be scored."
+            },
+            {
+              "name": "Root mean square error of the price forecast",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "It belongs to the regression use of the same design, where the generated target network outputs a price move instead of a probability, and says nothing about the probability of up."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A weight generator takes no position; the ratio grades the Model Cycle's trading rule and costs applied to its call and so belongs to the as-run layer only."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "There is no gate choosing among fixed experts here; the context rewrites one target network continuously, so there are no experts whose usage could be counted."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the specification's core idea, a hypernetwork that writes every weight and bias of a target network from a context, but fixes the choices the specification leaves open: the context is the mean and standard deviation of each feature over the window of recent bars, the target network is a perceptron with one hidden layer that reads only the last bar, the recurrent, sparse and transformer variants are not built, and the loss is a binary cross-entropy with a positive-class weight instead of the specification's squared error, so the as-run probability is centred on even odds rather than on the up share of the series.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the target network's output, which is the sum of each hidden unit's activation times its generated output weight plus the generated bias, with no calibration step afterwards, and because up bars were weighted by the ratio of down bars to up bars during training the value one half means even odds between two equally weighted classes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The hypernetwork was trained with up bars and down bars each carrying half the loss, so the score that gives each class half the weight on test bars grades the generated target network's odds on the scale they were fitted to, with the natural logarithm of two as the value of always quoting even odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether bars for which the weights written from the window's mean and standard deviation pushed the target network's output higher were followed by up moves more often than bars scored lower, which does not depend on the class weighting or on the scale of the sigmoid."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted version is what early stopping watched on the validation rows to choose the kept epoch, so on test bars it shows that same quantity out of sample, with the warning that it charges the generated network for being centred on even odds whenever the series leaned one way."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded scale, so a few bars whose unusual window statistics produced extreme generated weights cannot swamp it, though it is measured against the up share while the network was centred on even odds."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope asks only whether the target network's log-odds are stretched or squeezed, which the class weighting does not decide, so it shows whether weights generated for test-span contexts made the network over-confident on bars it never saw."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The generator starts with its context-dependent part scaled small so that the context only nudges a fixed perceptron, and this spread of the output shows whether training ever let the regime move the probability away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the summed contributions of the generated output layer are positive, so the hit rate tests the target network's own decision boundary, read against the fold's training majority class and with the reminder that the boundary sits at even odds between weighted classes."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It subtracts what always calling the fold's training majority direction would have scored, which is the plain test of whether rewriting a perceptron's weights from the regime beat knowing only which way the training span leaned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars matches the equal class weights the hypernetwork was trained with, so it is the hard-call number that sits on the same footing as the loss the generator minimised."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It reduces the four cells of called against actual direction to one symmetric number, showing whether the sign of the generated target network's output moves with the market at all, where zero means the calls are unrelated to the outcome."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long whenever the generated target network's output is positive and short otherwise, filled at the next open with costs, so it tests only the sign of the call under the engine's rule and is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A target network whose generated bias leans long in a rising fold earns the drift without reading the bar, and subtracting buy and hold on the same folds removes that drift from the money figure."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily following the sign of the generated target network's output earned money per bar after costs, and because only the sign is traded the size of the probability plays no part in it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole the account fell into while the position followed the context-written network's call bar after bar, which is the risk paid for whatever those calls earned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades earned with what the losing trades gave back after costs, where a trade ends when the sign of the target network's output flips, and it is shown with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that ended in profit under the engine's exit rule, so it describes how the hypernetwork's changes of direction fared as trades and is read together with the predicted up share."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a call in the same direction keeps the position open, this counts how often the sign of the output flipped; the context changes slowly with the window but the target reads only the last bar, so many flips mean the last bar and not the regime is driving the call."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the generated network called up, and a share near all or nothing means the generated bias has taken over and every trading number is then just that direction's drift."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second hypernetwork of the same design fitted separately with Huber loss on the scaled move, so this skill against the no-change forecast tests that second fit and not the direction network that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second, price-fitted hypernetwork missed the move on average, to be read beside the no-change error on the same bars and never as a grade of the direction call."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It shows how often the sign of the price hypernetwork's forecast matched the move, which is a second opinion from a separately trained weight generator and can disagree with the traded call."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the weighted cross-entropy the optimiser minimised through the generated weights and the validation curve holds the unweighted logarithmic loss that chose the kept epoch, so each is read for its own shape and the two are never compared level for level."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the size of the gradient before clipping, averaged over an epoch, and shows whether the error signal that must travel back through the generated weights into the context embedding is steady or arriving in bursts."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It describes how steep the loss is around the kept weights of the generator, which matters here because a small move in the generator's weights changes every weight of the target network at once."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score that picked the hypernetwork width, the target width, the context embedding size and the training dials inside each fold's training span, so it is optimistic by construction and is shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "It compares the stated probability with the observed up share, but the positive-class weight centred the generated network on even odds on purpose, so a gap here is built in and says nothing about the weight generator."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "It is the worst bin of the same comparison against the observed up share, which the class weighting shifts by construction, and the sigmoid output near one half fills only a few bins."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted cross-entropy and the validation curve holds the unweighted logarithmic loss, so their difference mixes two quantities and is not an overfit measure for this network."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only dial off and no stop or target set the engine never goes flat once the first call is filled, so the share of bars in a position describes the engine's rule and not the hypernetwork."
+            }
+          ],
+          "caveats": [
+            "The price forecast is drawn by a second hypernetwork with its own generated weights, fitted separately on the scaled move with Huber loss, so the forecast line and the traded call can disagree.",
+            "Consecutive scored bars share most of the future bars inside their label horizon, so any interval around a classification metric must come from a block bootstrap or a Newey-West variance and never from a binomial formula.",
+            "The last open position of each fold is closed at the fold's final close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the commission and fee figures are the MNQ account figures applied as a stated assumption.",
+            "The context is recomputed from the window's mean and standard deviation at every bar, so a test-span regime unlike any in the fold's training span produces weights the generator was never corrected on."
+          ]
+        }
       }
     }
   }

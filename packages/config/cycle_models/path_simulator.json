@@ -122,6 +122,282 @@
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "heuristic_search_optimizer"
+        ],
+        "native": {
+          "produces": "A population of simple trading agents (trend followers, mean reverters, noise traders, market makers) is stepped forward through a clearing mechanism many times with different seeds, giving a fan of simulated price paths plus each agent's own profit trajectory.",
+          "targetVariable": "the distribution of future price paths of the instrument, and the bar statistics (volatility, tail fatness, clustering of large moves) that emerge from the agents trading with each other",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "objectiveNote": "The agent type proportions and rule parameters are searched by a derivative-free optimiser until the simulated bars' volatility, kurtosis and squared-return autocorrelation match the real instrument's, because the simulator cannot be differentiated end to end.",
+          "metrics": [
+            {
+              "metricId": "stylized_fact_distances",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The whole claim of an agent population is that fat tails and volatility clustering emerge from the trend followers, mean reverters and noise traders interacting, so the test is how far the simulated tape's kurtosis and autocorrelations sit from the real tape's on bars the calibration never saw.",
+              "baseline": "the same distances measured on the training span the type proportions were calibrated on",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each seed of the agent population gives one path, so the set of seeded runs is a forecast fan, and this score checks in points whether the realised move landed where the crowd of simulated agents put most of their paths.",
+              "baseline": "the same score for a fan drawn from the training span's own unconditional moves of this instrument",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "If the calibrated noise traders and price impact are too weak the realised move keeps falling outside the simulated paths, and if they are too strong it always lands in the middle; the rank of the real move among the agents' paths shows which.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The specification's own guard against fitting one window is to hold out a later block and check that the calibrated population's simulated moments still match it, which is the moment distance on the later block minus the distance on the calibration window.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "best_objective_by_evaluation_count",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The moment-matching search over agent proportions has no gradient and no certificate, so the best simulated-versus-real moment distance found after each generation of candidate populations shows whether the calibration settled or was still falling when it stopped.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "One run of the agent population is a single draw that depends on its seed, so any statistic of the simulated paths carries an error bar set by the independent run count, and a difference smaller than that bar is the seed speaking, not the agents.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the agent population generates paths and never trades the real tape; the Sharpe ratio appears only as run, where it grades the engine's rule applied to the share of simulated paths ending higher."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "No benchmark-relative strategy return exists for a market simulator, and the registry holds no alpha metric; the as-run comparison is net profit minus buy and hold on the same folds."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The simulator has no account on the real tape, so a drawdown belongs to the as-run trading of its direction call and not to the calibrated agent population."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "There is no portfolio natively; turnover is measured only as run, as closed trades per session day of the engine's rule."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "Return over drawdown needs a traded account, which the path-generating agent population does not have on its own terms."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The generator has no portfolio loss distribution, and the registry holds no conditional value at risk metric; the native tail check is the kurtosis row of the stylised-fact distances."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "The agent population outputs a distribution of paths, and the specification itself says one run is a draw from a distribution and not a forecast, so a single up or down call is not its native product."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable simulator is a real calibrated agent population (trend followers, mean reverters, informed traders reading a ridge index of the features, noise traders and a liquidity provider working off its inventory) on one instrument, but each agent type acts through its average demand with no order book and no exit of losing agents, and the fan of paths is reduced to the share ending higher passed through a curve fitted on validation rows, so the as-run numbers grade that share-plus-curve and the fan's mean, not the emergent market statistics the specification is about.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "From each bar the calibrated agents trade forward for the label horizon along many seeded paths, the share of paths ending above the bar's close is turned into log-odds, and a two-parameter logistic curve fitted on the fold's validation rows maps those log-odds to the probability of up.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "simulated_moments_or_path_fit",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the best sum of squared standardised gaps between simulated and observed one-bar moments found so far (dimensionless), and on validation rows nats per scored bar of the curve-mapped share, reported once after the last generation",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The price forecast is the mean end point of the agents' simulated paths, so its absolute-error skill against the no-change forecast is the closest engine number to grading the centre of the fan the population generates."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The share of agent paths ending higher takes many levels, and the fitted curve cannot reorder bars unless its slope is negative, so this ranking number tests the simulated crowd's own ordering of bars from most bearish to most bullish."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the path share after the validation-fitted logistic curve, so it measures the agent population plus that curve together and not the raw share of paths."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded second opinion on the same curve-mapped path share, useful because the specification itself expects the directional edge of a moment-calibrated population to sit close to the base rate."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve was fitted on validation rows only, so a calibration gap on test bars shows the mapping from path share to up frequency drifting between the validation span and the test span."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Noise traders and symmetric shocks pull every simulated fan toward an even split, so a tiny spread of the probability of up says the population is voicing almost no directional view."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is whether the curve-mapped path share is at least one half, so it depends on the curve's intercept, which sets the prior, as much as on the agents' simulated paths."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages the hit rate on up bars and down bars, which stops a curve intercept that leans the whole fold one way from looking like skill of the agent population."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the up or down call of the simulated crowd, staying near zero when the curve simply calls every bar the same direction."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The mean simulated path end in points against the realised horizon move, read beside the no-change forecast's error on the same resolved bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the fan's mean after tick rounding is the agents' direction view without the validation curve, so comparing it with accuracy shows what the curve changed."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The calibration matches the training span's mean one-bar move, so a persistent lean in the mean simulated move is the training drift being replayed by the informed and trend agents."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the engine's rule earned after costs when it went long whenever the curve-mapped share of agent paths ending higher was at least one half and short otherwise."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The simulated crowd's calls against simply holding the same instrument over the same folds, the only same-series trading reference the engine computes."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of trading the path-share call over its variability; zero is an arithmetic marker and not a no-skill level, because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account when every bar's call from the agent simulation is traded, which reflects how long the simulated crowd stayed on the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning over losing trade totals for the engine's rule on the path-share call; a trade here ends when the call flips, so it counts flips of the simulated majority and not predictions."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money after costs, where each trade spans a run of bars on which the agents' path majority stayed on one side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "How often the majority of simulated agent paths changed side, which sets the costs paid and must be read beside every trading number."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the curve intercept or a replayed training drift has the agent simulation calling nearly every bar the same way."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the liquidity provider's inventory aversion is scored on inner training blocks by the shared selection objective, so it is an optimistic selection score and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the moment-matching distance and the validation channel holds the logarithmic loss of the curve-mapped share, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always long or short once it has traded, so exposure describes the engine's rule and not the agent population."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share, known only in hindsight, so it is not a level the calibrated agent population could have been compared with in advance."
+            }
+          ],
+          "caveats": [
+            "The price forecast comes from a second fit of the same simulator: the engine builds a separate regression instance, the calibration runs again with the same seed, and the forecast is the mean simulated path end multiplied back by the causal move scale and rounded to the tick.",
+            "No checkpoint is selected: the validation rows are scored once, after the last calibration generation, and they are the rows the logistic curve was fitted on, so the validation logarithmic loss is in-sample for the curve.",
+            "The calibration matches one-bar moments (mean, deviation, excess kurtosis and three correlations with the next move) from each training bar's observed state, while the forecast is a move over the whole label horizon, so a good calibration distance does not certify the horizon fan.",
+            "Consecutive scored bars share future bars because horizon targets overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Dials in force by default: long only off, holding bars equal to the label horizon, no stop loss, no take profit, one contract; a same-direction call at holding expiry is kept at no cost and the fold's last bar exits at its close.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "multi_agent_simulation": {
@@ -274,6 +550,283 @@
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "value_agent"
+        ],
+        "native": {
+          "produces": "A handful of named roles (market maker, informed trader, hedger, arbitrageur) observe, decide and act in a fixed scheduler order inside a shared matching environment, giving per-episode price paths, each role's action and reward trace, and microstructure statistics attributable to a role.",
+          "targetVariable": "the interaction trace of the named roles over an episode: the simulated price path, each role's actions and rewards, and the spread, inventory and adverse-selection cost each role causes",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "Only a trainable role minimises anything: its action-value or actor-critic update runs against its own reward while the other roles keep changing, so the target it chases moves, and a role with a fixed rule has no objective at all.",
+          "metrics": [
+            {
+              "metricId": "stylized_fact_distances",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The price path here is whatever the market maker's quotes and the informed trader's orders produce through the matching rules, so the first question is whether that role-made tape has the real tape's tail fatness and autocorrelation or is an artefact of the protocol.",
+              "baseline": "the same distances for the environment run with every role replaced by its fixed non-adaptive rule",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The specification says an episode is an interaction trace and not a one-bar forecast, so the fan of seeded episodes is graded against the realised move only as a secondary check that the roles' joint behaviour is anchored to the instrument.",
+              "baseline": "the same score for a fan drawn from the training span's own unconditional moves of this instrument",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Each role learns against the others' changing policies, so two seeds can settle into different joint behaviours; the spread of each role's episode reward across seeds says whether the result is a property of the roles or of one lucky co-adaptation.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Because every learner is part of every other learner's environment, a role's update error that keeps swinging instead of settling is the visible sign that the roles are chasing each other and no stable joint policy was reached.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A role that ends up long, short or flat on nearly every bar has collapsed to a degenerate policy, the failure the specification's entropy bonus exists to prevent, and it turns the simulation into a constant order flow.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Role statistics such as the market maker's inventory cost are averaged over seeded episodes, so each carries an error bar set by the episode count, and a gap between two roles inside that bar is not a finding.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the roles earn simulated rewards only; the Sharpe ratio exists as run, where it grades the engine's rule applied to the share of the learners' simulated paths ending higher."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "A simulation of interacting roles has no benchmark-relative strategy return, and the registry holds no alpha metric; as run the reference is buy and hold on the same folds."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "It belongs to the as-run trading account and not to the scheduler stepping simulated roles through their observe, decide and act cycle."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The simulation holds no portfolio natively; turnover is counted only as run, from the engine's closed trades per session day."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "Return over drawdown is defined on a real traded account, which a multi-role simulation does not have on its own terms."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "No portfolio loss tail exists for an interaction simulator and the registry holds no conditional value at risk metric; tail realism of the simulated path is the native question."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "No role states a probability that the price will be higher; a probability of up appears only as run, when the share of simulated paths ending higher is passed through a fitted curve."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model trains four independent tabular action-value learners (market maker, trend follower, mean reverter, informed trader) on replayed training moves plus the price impact of their own orders, with no matching engine, no message protocol and no equilibrium, then links their greedy net position to the next move by least squares and simulates paths from it; the as-run numbers therefore grade the share of those paths ending higher after a validation-fitted curve, not the role-by-role interaction trace the specification describes.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "From each bar the four learners' greedy policies trade along many seeded paths, each step moving by a least-squares link from their net position plus a residual resampled from the training span, and the log-odds of the share of paths ending higher go through a logistic curve fitted on the fold's validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the mean absolute temporal-difference error of the four learners over a batch of replayed episodes in move-scale reward units, and on validation rows nats per scored bar of the curve-mapped share, reported once after the last batch",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The share of paths ending higher changes with the binned signals the trend follower, mean reverter and informed trader observe, so this ranking number tests whether the learners' joint greedy positions order bars by what happens next."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the mean end of the paths driven by the learners' net position through the least-squares link, so its skill against the no-change forecast tests whether that link carries any move information beyond the training drift held in its intercept."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the path share after the validation-fitted logistic curve, so it measures the four learners plus the link plus the curve together."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check of the same curve-mapped share, relevant because resampled training residuals dominate each path and keep most shares close to an even split."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve saw only validation rows, so a calibration gap on test bars shows the mapping from the learners' path share to the up frequency moving between spans."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the fitted link slope from net position to the next move is close to zero every bar gets nearly the same path share, and this spread shows that flat output directly."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is whether the curve-mapped share is at least one half, so it depends on the curve intercept, which sets the prior, as well as on the learners' positions."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and down bars keeps a one-sided curve intercept or link intercept from passing as skill of the four learners."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the up or down call that stays near zero when the simulated roles end up calling every bar the same direction."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The mean simulated path end in points against the realised horizon move, to be read beside the no-change forecast's error on the same resolved bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the mean path end is the learners' direction view without the validation curve, so its gap to accuracy shows what the curve changed."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The link's intercept is the training span's average move not explained by the learners, so a steady lean in the forecast is that drift being carried into the test span."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the engine's rule earned after costs going long when the curve-mapped share of the learners' paths ending higher was at least one half and short otherwise; the learners' own simulated rewards are not this number."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The same calls against holding the instrument over the same folds, the only same-series trading reference the engine computes."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of trading the path-share call over its variability; zero is an arithmetic marker because a random-direction trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account when each bar's call from the four-role simulation is traded, showing how long the simulated majority sat on the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning over losing trade totals for the engine's rule; a trade ends when the path majority flips, so the count behind it is flips of the learners' joint view."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money after costs, each trade covering a run of bars on which the learners' path majority kept one side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "How often the majority of the learners' simulated paths changed side, which sets the costs paid and belongs beside every trading number."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the link intercept or the curve intercept has the simulation calling almost every bar the same way."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the learners' learning rate is scored on inner training blocks by the shared selection objective, an optimistic selection score and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the learners' mean absolute temporal-difference error and the validation channel holds the logarithmic loss of the curve-mapped share, two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always in the market once it has traded, so exposure describes the engine's rule; the learners' own flat action never reaches it."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share, known only in hindsight, so it is not a level the simulation could have been held to in advance."
+            }
+          ],
+          "caveats": [
+            "The four learners are independent and each treats the others as part of a changing environment, so they reach no equilibrium and a different seed can settle into a different joint behaviour.",
+            "The learners are trained on replayed training-span moves plus the impact of their own order flow, but the real market does not react to them, and a step that crosses a session gap is replayed as no move.",
+            "The price forecast comes from a second fit of the same simulator: the engine builds a separate regression instance, trains the learners again with the same seed, and uses the mean simulated path end multiplied back by the causal move scale and rounded to the tick.",
+            "No checkpoint is selected: the validation rows are scored once after the last batch of episodes, and they are the rows the logistic curve was fitted on, so the validation logarithmic loss is in-sample for the curve.",
+            "Consecutive scored bars share future bars because horizon targets overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Dials in force by default: long only off, holding bars equal to the label horizon, no stop loss, no take profit, one contract; a same-direction call at holding expiry is kept at no cost and the fold's last bar exits at its close.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "markov_chain_monte_carlo": {
@@ -398,6 +951,295 @@
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "posterior_sampler",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "predictive_distribution"
+        ],
+        "native": {
+          "produces": "A set of retained draws of the parameters of a chosen return or volatility model, visited by a Markov chain in proportion to their posterior probability, from which a posterior mean, credible intervals and a predictive distribution are averaged.",
+          "targetVariable": "The posterior distribution of the parameters of the likelihood model the user chose for the return series, and through it the predictive distribution of the next move or the next bar's volatility",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "The sampler minimises nothing: its acceptance rule compares the unnormalised posterior at the proposed point with the current point, so the chain visits parameter values in proportion to the posterior without ever computing the normalising constant.",
+          "metrics": [
+            {
+              "metricId": "potential_scale_reduction_factor",
+              "type": "convergence_and_efficiency",
+              "role": "primary",
+              "why": "Several chains are started from dispersed points on purpose, and this number says whether they ended up exploring the same posterior; until it sits close to one the retained draws describe the starting points and not the model.",
+              "baseline": "The value one, which is what chains that have fully mixed give",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "effective_sample_size",
+              "type": "convergence_and_efficiency",
+              "role": "primary",
+              "why": "Each Metropolis-Hastings draw is a small step away from the previous one, so thousands of retained draws can carry the information of only a few independent ones; this count is what every posterior average really rests on.",
+              "baseline": "The raw count of retained draws after burn-in and thinning in the same run",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "markov_chain_monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "It converts the effective draw count into an error bar on each posterior mean, so a reader can tell whether a coefficient differs from zero or whether the chain was simply too short to say.",
+              "baseline": "The posterior standard deviation of the same parameter",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Once the chains have converged, the model they sampled is graded by how much predictive density, averaged over the retained draws, lands on moves the chain never saw; this is a score of the sampled model and not of the sampler.",
+              "baseline": "The same density from the same likelihood model with its parameters fixed at the prior mean",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The retained draws give a whole cone for the next move rather than one number, and this score grades the centre and the width of that cone together in price points.",
+              "baseline": "The same score for a single-number forecast of no change on the same bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A credible interval built from the draws promises to contain the realised move a stated share of the time; when overlapping or autocorrelated observations make the posterior too narrow, the realised share falls short and this is where it shows.",
+              "baseline": "The nominal level of each plotted interval",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": null,
+              "why": "The chain produces posterior draws and takes no position, so natively there is no return stream whose mean could be divided by its spread."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "Alpha needs traded returns and a benchmark, and the sampler's output is a set of parameter draws; the registry also carries no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": null,
+              "why": "A drawdown belongs to an equity curve, which only exists after the Model Cycle trades the call built from the draws."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": null,
+              "why": "The sampler holds no portfolio, so there are no trades to count per day."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": null,
+              "why": "Return over drawdown needs a traded equity curve, which the posterior draws do not contain."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Expected tail loss is something the sampled model's predictive distribution can report, not a measure of whether the chains converged and mixed."
+            },
+            {
+              "name": "Accuracy of the direction call",
+              "metricId": "accuracy",
+              "why": "A sampler draws parameter values and makes no up or down call; any hit rate belongs to the likelihood model whose posterior was sampled."
+            },
+            {
+              "name": "Monte Carlo standard error for independent paths",
+              "metricId": "monte_carlo_standard_error",
+              "why": "Its square-root-of-count rule assumes independent draws, and consecutive draws of a Markov chain are correlated, so it would understate the error."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "The specification states there is no loss to minimise; a falling negative log posterior during burn-in shows the chain walking in from its start, not learning."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The sampler is the specification's algorithm, an adaptive random-walk Metropolis-Hastings run on several chains with burn-in, thinning and a convergence check, but the model it samples is the adapter's choice: a Student-t regression of the scaled move label_horizon_bars ahead on the bar's leading principal components. The as-run numbers therefore grade that regression's posterior-predictive chance of a rise after a validation-fitted logistic curve, not the sampler.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar the Student-t probability that the move is above zero is averaged over every retained posterior draw of the regression coefficients and scale, its log-odds are taken, and a two-parameter logistic curve fitted on the fold's validation bars turns that into the probability of up.",
+          "priceForecastSource": "readout",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "marginal_likelihood_or_posterior",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per training bar for the training series (the chains' mean negative log posterior) and nats per scored validation bar for the single validation value",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the posterior-predictive chance of a rise, averaged over the retained draws and passed through the validation curve, on test bars neither the chains nor the curve saw; it is a score of the sampled regression plus that curve."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The curve only stretches or shifts the scale, so this number tests whether the regression's posterior location on the principal components puts bars that rose above bars that fell."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded second opinion on the same curve-adjusted predictive probability, less dominated than the logarithmic loss by the few bars where the heavy-tailed model was confidently wrong."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The two curve parameters were fitted on validation bars, so a gap between stated and observed up share on test bars shows the curve fitted there did not carry forward; expect few occupied bins because the posterior keeps the probability near one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Overlapping horizon moves are treated as independent observations in the likelihood, which narrows the posterior and overstates confidence; a slope below one on test bars is where that shows after the validation curve has done what it can."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A weak regression on a few principal components keeps every bar's predictive chance close to one half; this spread shows whether the draws ever commit away from it."
+            },
+            {
+              "metricId": "potential_scale_reduction_factor",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The adapter computes it for every parameter after the last sampling block and refuses the whole fit when the worst value exceeds its limit, so a run that produced numbers at all has passed this gate."
+            },
+            {
+              "metricId": "effective_sample_size",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The smallest value across parameters is logged with the fit and tells how many independent draws the averaged predictive probability of each bar really rests on."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over how many leading principal components describe each bar is scored on inner blocks of the training span by the shared tuning objective, so it is an optimistic selection score and not a result."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The best setting's search score minus the same quantity on the fold's test walk shows how much of the chosen number of principal components looked good by selection and not by the regression's skill."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often the side of one half the curve-adjusted predictive probability fell on matched the move; because the curve has its own intercept, the cut reflects the validation bars' up share as well as the posterior."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars shows whether the regression separates the two or whether the curve's intercept simply tilted every call one way."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the hard calls made from the posterior-predictive probability, which stays near zero when the curve's intercept pushes almost every bar to the same side."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what trading the sign of the curve-adjusted predictive probability earned after costs under the engine's rule; only the side of one half matters, so the posterior's width does not reach this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of trading the sampled regression's call to its variability; zero is an arithmetic marker here and not a no-skill level, because a random-direction trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the worst run of losses from following the call of a slowly changing linear signal on principal components, which can stay on the wrong side for long stretches."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money won with the money lost on the trades opened when the posterior-predictive call flipped side, after costs, and should be read beside the trade count."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades of the regression's call that ended in profit; trades end when the call flips or the fold ends, so it is not a per-bar hit rate."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the posterior mean of the Student-t location, a robust centre of the move, so comparing its absolute error with that of forecasting no change is a fair test of the sampled regression itself, before any curve."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It gives the typical miss of the posterior-mean location in price points, to be read against the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the posterior-mean location directly, without the validation curve, so setting it beside accuracy shows what the curve's slope and intercept changed."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call comes from the curve applied to the predictive log-odds while the forecast line is the posterior-mean location; a share below one means the curve's intercept or a negative slope moved calls away from the forecast's own sign."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training series is the chains' negative log posterior of the scaled move and the validation value is the logarithmic loss of the direction call, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always long or short once it has traded, so this share describes the engine's rule and not the sampled model."
+            }
+          ],
+          "caveats": [
+            "The likelihood treats moves over overlapping horizons as independent observations, so the posterior is narrower than the data justify and any interval around these scores must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "A fit whose largest potential scale reduction factor exceeds the limit set in adapters_extra/path_simulator/metropolis.py is refused with an error instead of being scored; this is the adapter's refusal rule and not a quality target.",
+            "The two parameters of the logistic curve are fitted on the fold's validation bars, so the validation loss shown is partly in-sample and only the test walk is out of sample.",
+            "The curve's slope is not constrained to be positive, so on some folds the traded call can be the opposite of the sign of the posterior-mean forecast.",
+            "The price forecast comes from a second instance of the same sampler fitted on the same training bars with the same seed, read as the posterior mean of the location.",
+            "Only the most recent maximum_training_bars usable training bars enter the likelihood, and the training curve covers equal blocks of the chain iterations including burn-in, so its early fall is the chains walking in from their dispersed starts.",
+            "For roots other than MNQ the cost figures are the MNQ account figures applied as a stated assumption, and the last bar of each fold exits at its close while other exits fill at the next open."
+          ]
+        }
       }
     },
     "monte_carlo_simulation": {
@@ -485,6 +1327,268 @@
           "label": "Maximum training bars",
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "predictive_distribution"
+        ],
+        "native": {
+          "produces": "An empirical distribution of a chosen quantity, such as terminal equity, worst drawdown or whether a barrier was touched, collected over many independently simulated price paths, with its summary statistics and their sampling error.",
+          "targetVariable": "The distribution of a path-dependent outcome over the simulation horizon under the stated resampling scheme or stochastic process",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "The specification states that nothing is fitted by gradient descent; the only choices are the resampling scheme or process and a path count large enough to shrink the sampling error, which falls with the square root of the number of paths.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The product is the whole fan of simulated outcomes, so it is graded by how close the fan as a whole sits to the move that then happened, rewarding a fan that is both centred and no wider than it needs to be.",
+              "baseline": "The same score for the no-change forecast on the same bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "primary",
+              "why": "Every number read off the simulated distribution is an average over a finite count of independent paths, and this error bar says whether a reported probability or percentile is a finding or just noise from drawing too few paths.",
+              "baseline": "The same error at the path count actually drawn, shown with that count",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Ranking each realised move among the simulated ones shows at a glance whether the bootstrapped or parametric fan is too narrow, too wide or leaning to one side.",
+              "baseline": "The flat histogram a correctly spread fan would give",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "stylized_fact_distances",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Resampling single bars destroys volatility clustering while resampling blocks keeps it, and comparing the simulated tape's fat tails and clustering with the real tape shows whether the chosen scheme preserved what matters for drawdowns.",
+              "baseline": "The same statistics of the historical series the paths were resampled from",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Percentiles of the simulated outcomes are used as risk limits, so the share of realised moves that land inside each simulated band should match the level the band was drawn at.",
+              "baseline": "The nominal level of each plotted band",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": null,
+              "why": "The simulator takes no position; a Sharpe ratio exists only for a strategy run along its paths or for the Model Cycle's traded call."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "Alpha needs a traded return and a benchmark; the simulator outputs path fans and the registry carries no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": null,
+              "why": "A drawdown distribution is something the paths are used to estimate, so it is an output of the method and not a score of it."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": null,
+              "why": "Nothing is bought or sold when paths are drawn, so there is no turnover to report."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": null,
+              "why": "Return over drawdown describes a traded account and the simulator natively has none."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Tail loss is read from the simulated distribution as a result; it says nothing about whether that distribution matched what happened."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "A bootstrap or process simulation stores history and draws from it; no loss is minimised, so there is no curve to read."
+            },
+            {
+              "name": "Markov chain Monte Carlo standard error",
+              "metricId": "markov_chain_monte_carlo_standard_error",
+              "why": "The simulated paths are independent draws, so the correction for correlated chain draws does not apply here."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The adapter runs the specification's block-bootstrap variant, but conditioned on the present bar: paths are stitched from blocks of the one-bar steps that followed the nearest training bars in principal-component space, not from the whole history or an assumed process. The as-run numbers grade the share of those paths ending higher after a validation-fitted logistic curve, a nearest-analogue direction call, not a simulated distribution of strategy outcomes.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar path_count paths are built by copying blocks of block_length_bars consecutive steps from the neighbor_count nearest training bars, the share of paths that end above the start is turned into log-odds clipped half a path away from zero and from one, and a two-parameter logistic curve fitted on validation bars maps that to the probability of up.",
+          "priceForecastSource": "readout",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "no_training_objective",
+            "validationName": "logarithmic_loss",
+            "unit": "the single training value is the mean absolute horizon move of the stored path library in move-scale units, a description of the data that no fit minimises, and the single validation value is nats per scored validation bar of the curve-mapped share of up paths, with the curve fitted on those same bars; both are reported once as epoch one of one",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests the core claim of the conditional bootstrap: that bars whose nearest historical analogues were mostly followed by rises get a higher share of up paths than bars that then fell, regardless of how the curve rescales that share."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over how many nearest training bars supply the resampled moves is scored on inner blocks of the training span by the shared tuning objective, so it is an optimistic selection score and not a result."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The best neighbour count's search score minus the same quantity on the fold's test walk shows how much of the chosen analogue set looked good by selection and not by recurring feature states."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the share of bootstrapped paths ending higher after the validation curve has rescaled it, on test bars neither the path library nor the curve saw; it is a score of the fan plus that curve."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check on the same curve-adjusted share of up paths, useful because a share built from a finite number of paths moves in small steps."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Neighbouring bars share most of their analogues, so the raw share of up paths is overconfident about how much it knows; this shows whether the curve fitted on validation bars corrected that on test bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A bin-free reading of whether the curve-adjusted share of up paths is stretched too far from one half on test bars, which happens when the analogue set drifts between the training and test spans."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the neighbours' following moves are a near-even mix, every bar's share of up paths sits close to one half; this spread shows whether the feature state ever recurs clearly enough to tilt the fan."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often the side of one half the curve-adjusted path share fell on matched the realised move; the curve's intercept carries the validation bars' up share into that cut."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "By averaging the hit rate on rising and on falling bars it shows whether the analogue paths separate the two or the calibrating curve leaned all calls one way."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the hard calls drawn from the path share, which collapses toward zero when nearly every bar's fan lands on the same side of one half."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what was earned after costs by going long when more than half of the curve-adjusted fan pointed up and short otherwise, under the engine's rule; the width of the fan does not reach this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of trading the analogue fan's call to its variability; zero marks an arithmetic midpoint, not a no-skill level, since random calls still pay costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest losing stretch from following the nearest-analogue call, which is where a market state with no close precedent in the training library would hurt."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares money won with money lost across the trades opened each time the fan's majority flipped, after costs, and needs the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades of the path-share call that made money; a trade lasts until the call flips or the fold ends, so it is not the share of bars called correctly."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the mean end point of the bootstrapped paths in move-scale units, so its absolute error against forecasting no change tests the centre of the fan directly, with no curve in between."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It reports the typical miss of the fan's mean end point in price points; because that mean is an average of resampled history it is usually small, so read it against the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the fan's mean end point without the validation curve; the mean and the share of up paths can disagree when the neighbours' moves are skewed."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the curve applied to the share of up paths while the forecast is the mean path end; a share below one shows how often the curve or a skewed fan put them on opposite sides."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single training value is the mean absolute horizon move of the stored path library and the validation value is the logarithmic loss of the call, so subtracting them compares unrelated quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine never goes flat once in a trade, so this share reflects the engine's rule and not the simulated fan."
+            }
+          ],
+          "caveats": [
+            "The model is fitted in one step and reports epoch one of one, so its loss history is a single training value and a single validation value; the training value is the mean absolute horizon move of the training library in move-scale units, which is a description of the data and not an objective, and only the validation value is a logarithmic loss.",
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars, so the validation loss is partly in-sample and only the test walk is out of sample.",
+            "Consecutive bars share most of their nearest training neighbours and their horizons overlap, so intervals on these scores must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "The price forecast comes from a second instance of the same bootstrap built on the same training bars with the same seed, read as the mean end point of its paths.",
+            "The engine does not record the fan itself, so the native grades of a simulator, the continuous ranked probability score and the Monte Carlo standard error at path_count paths, are not available for the run.",
+            "For roots other than MNQ the cost figures are the MNQ account figures applied as a stated assumption, and the last bar of each fold exits at its close while other exits fill at the next open."
+          ]
         }
       }
     },
@@ -601,6 +1705,254 @@
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "explicit_density"
+        ],
+        "native": {
+          "produces": "A time-ordered trace of simulated order arrivals, cancellations and fills with the order-book states between them, generated by popping the earliest event from a queue and letting each processed event schedule later ones.",
+          "targetVariable": "the timing, side, size and price of the next order-book events and the fills an embedded strategy would receive from them",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "objectiveNote": "The event loop itself minimises nothing; the fitting step is maximum likelihood of the event-arrival process, baseline intensity and excitation kernel together, on real event timestamps, after which the simulated stream's inter-arrival and clustering statistics are compared with the real stream's.",
+          "metrics": [
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The arrival process is fitted by maximum likelihood on event timestamps, so the log-likelihood its fitted intensity gives to event times from a later stretch it never saw is the same objective measured where it was not tuned.",
+              "baseline": "the same process with its excitation kernel switched off, which is a constant arrival rate fitted on the same training events",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "stylized_fact_distances",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The specification validates the simulator by comparing the simulated event stream's clustering with the real stream's; once the trace is aggregated into bars this table measures how far the simulated bars' fat tails and volatility clustering sit from the real bars'.",
+              "baseline": "the same distances between two halves of the real series",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Passing each waiting time between events through the fitted intensity should leave values spread evenly between nought and one; a pile-up at either end shows the excitation kernel decays too fast or too slowly for the clustering in the real order flow.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "This applies only after the event trace is aggregated into bars: it then compares the whole spread of simulated horizon moves, built from net up and down events, with the move that happened, in points.",
+              "baseline": "the same score for a fan collapsed onto no change",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Each run of the event queue is one random realisation, so a fill rate or profit read from it needs the spread across independent runs over the root of the run count before a difference between two execution rules is believed.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The event queue takes no position, so the Sharpe ratio never graded the simulator; it stays only as an as-run number about the engine's trading rule."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "No benchmark and no return stream exist for an order-flow simulator, and the registry has no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A drawdown belongs to an account that trades; natively the simulator outputs events and book states, so it is an as-run number only."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The simulator holds no portfolio; trades per session day describes the engine's rule in the as-run layer."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "Return over drawdown needs a traded account, which the event process does not have; as-run only."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Conditional value at risk is a property of a position's losses and the event trace has none; the registry has no such metric."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "The event loop has no loss and the arrival process is fitted in one maximum-likelihood solve, so there is no learning curve to read."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification simulates an order book event by event with arrivals, cancellations, queue position and fills; the runnable adapter has no order book or queue and instead cuts each bar's close-to-close move into evenly spaced up or down tick events, fits a two-type self-exciting Hawkes process to them by maximum likelihood and simulates the next horizon by Ogata thinning, so the as-run numbers measure that bar-level event process plus a validation-fitted curve and not order-book mechanics.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar the adapter simulates the configured number of thinned event paths over the horizon, takes the logit of the share whose up events outnumber their down events, and passes it through a logistic curve whose slope and intercept are fitted by maximum likelihood on the fold's validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "exact_negative_log_likelihood_density",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "exact_negative_log_likelihood_density",
+            "validationName": "logarithmic_loss",
+            "unit": "one value per fold: on training rows the Hawkes process's negative log-likelihood per training bar in nats, including the penalty that holds the branching matrix under its limit; on validation rows nats per scored bar of the curve-mapped probability of up",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether bars where more thinned event paths ended higher were really followed by up moves more often; the ordering comes from the Hawkes baseline and excitation state, and only its direction is set by the sign of the validation-fitted slope."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the mean net displacement of the simulated event paths times the event size, with no validation curve in between, so its error against forecasting no change is the most direct test of the fitted event process itself."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the share of up-ending event paths after the validation-fitted logistic curve against quoting the fold's training up share; it is a statement about the simulator plus a curve whose two parameters saw the validation rows."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the same curve-mapped path share, useful here because a steep fitted slope can push the probability close to certainty on bars where nearly every thinned path ended on one side."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds come from the logistic curve fitted on validation rows, so a gap from the observed up share on test bars shows the link between the path share and the outcome did not carry over."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the fitted up and down intensities are nearly symmetric the path share hovers at one half and the curve's slope shrinks, so a spread near nothing shows the probability is just the validation up share."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the curve-mapped path share at one half matched the outcome; the cut carries the intercept fitted on validation rows, so it reflects their up share and not the simulator's own."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The fitted intercept can put every bar on one side of one half, so averaging the up and down recalls shows whether the thinned event paths separate the two directions at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Turns negative when the relation between the path share and the outcome reversed between the validation rows the curve was fitted on and the test bars, which is how this bridge fails."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the curve-mapped path share earned after costs under the engine's rule, read beside buy and hold on the same folds because a near-symmetric event process trades the validation majority direction."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the event simulator's direction call after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed the event simulator's call, which shows what a reversed path share cost before the fold ended."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the curve-mapped path share; one is an arithmetic marker, since costs are charged whichever way the call points."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the event simulator's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the mean simulated event displacement, which is a count of event sizes averaged over the paths and then rounded to the tick before scoring."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the mean simulated displacement matched the move; it has no validation curve, so it can disagree with the traded call when the fitted slope is negative."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the mean simulated displacement equals the traded call; well below one means the validation curve turned the path share upside down or its intercept overrode it."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search varies the branching limit of the Hawkes process and scores each setting by the shared tuning objective on inner blocks of the training span; it is a selection score and optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training figure is the Hawkes negative log-likelihood per bar and the validation figure is the logarithmic loss of the curve-mapped probability, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the event simulator."
+            }
+          ],
+          "caveats": [
+            "The curve's slope and intercept are fitted on the fold's validation rows and the validation loss is scored on those same rows, so that figure is in-sample for the curve and only the test walk is out of sample.",
+            "The direction score is a share of a finite number of simulated paths, so two bars with the same intensities can land on opposite sides of one half by sampling noise alone; the Monte Carlo standard error of the share is not computed by the engine.",
+            "The price forecast comes from a second fit of the same Hawkes generator made for the regression task, which reads the mean simulated displacement directly with no validation curve.",
+            "The features reach the simulator only through the baseline intensity, which reads their leading principal components fitted on the training span; the excitation reads the up and down events of the recent bars.",
+            "The registry's declared probability field and the adapter agree for this model: a logistic curve fitted on validation rows.",
+            "Scored bars share future bars because label horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
+        }
       }
     },
     "event_driven_simulation": {
@@ -656,6 +2008,259 @@
           "label": "Maximum training bars",
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "heuristic_search_optimizer",
+          "decision_graph_or_utility_model"
+        ],
+        "native": {
+          "produces": "A time-ordered trace of market, signal, order and fill events and the resulting equity curve of whatever strategy is plugged into the dispatcher, produced by the same handler code that would run live.",
+          "targetVariable": "the fills, positions and cash a given strategy would have had if its orders had met the replayed market",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "The dispatcher has configuration and no learned parameters; any training happens inside the wrapped strategy handler, whose own profile governs the forecast, and the only calibrated part is the execution-cost model estimated from the trader's own fills.",
+          "metrics": [
+            {
+              "metricId": "realized_minus_simulated_fill_price_ticks",
+              "type": "distributional_assumption_check",
+              "role": "primary",
+              "why": "The engine's one promise is that a replayed order is filled as a live order would be, so the gap between the price the execution handler simulated and the price the same order really received, in ticks, measures its slippage and impact model directly.",
+              "baseline": "the same gap with the slippage and impact coefficients set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The architecture exists to close the distance between a backtest and live trading, so the result the replay promised for a strategy minus what the identical handlers earned on later bars or in paper trading is the discrepancy it is built to remove.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The equity curve the dispatcher outputs is the wrapped strategy's net result per decision on the replayed bars after the execution handler's costs; it grades the strategy handler and the cost model together and says nothing about the event queue.",
+              "baseline": "holding no position on the same replayed bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A replay engine makes it cheap to push many strategies through the same queue, and the more that were replayed before one was kept the more the kept equity curve owes to luck, so the count travels with the result.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It grades whichever strategy handler is plugged into the dispatcher and never the event architecture itself; it remains an as-run number."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "No benchmark is part of an event dispatcher and the registry has no alpha metric, so the row never applied."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The replayed account's drawdown is the wrapped strategy's, recorded by the engine and not produced by it; as-run only."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "Order frequency is set by the strategy and portfolio handlers, so this row described them and not the event queue."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "The dispatcher earns no return and suffers no drawdown of its own, so the ratio never applied to it."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Tail loss belongs to the positions the wrapped strategy takes, and the registry has no such metric."
+            },
+            {
+              "name": "Fan score of simulated paths",
+              "metricId": "continuous_ranked_probability_score_points",
+              "why": "The engine replays one historical tape in timestamp order and draws no random paths, so there is no fan of outcomes to grade."
+            },
+            {
+              "name": "Stylised-fact distances",
+              "metricId": "stylized_fact_distances",
+              "why": "The market events are the real bars replayed and not a generated tape, so comparing their statistical fingerprints with the real series would compare the series with itself."
+            },
+            {
+              "name": "Monte Carlo standard error",
+              "metricId": "monte_carlo_standard_error",
+              "why": "Replaying a fixed file through the dispatcher is deterministic, so there is no path-sampling error to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification is an execution architecture that wraps any strategy and has nothing to fit; the runnable adapter builds that queue of market, signal, order and fill events with slippage and half the round-trip cost per fill, replays a fixed grid of momentum, mean-reversion and blended rules over the training span, keeps the rule with the best net Sharpe ratio and uses its signal strength as the score, so the as-run numbers measure that one selected rule plus a validation-fitted curve; no paths are simulated, and the engine's own trading rule, not the replay's, produces the trading metrics.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The kept rule's signed signal strength at the bar, a gap between two moving averages or a distance from a moving average in move-scale units read from closes up to that bar, goes through a logistic curve whose slope and intercept are fitted by maximum likelihood on the fold's validation rows.",
+          "priceForecastSource": "readout",
+          "objectiveId": "tape_utility_maximization",
+          "checkpointSelectedBy": "none",
+          "tuned": false,
+          "stepQuantity": {
+            "trainName": "tape_utility_maximization",
+            "validationName": "logarithmic_loss",
+            "unit": "one value per fold: on training rows minus the kept rule's net Sharpe ratio over the replayed bars, the mean over the deviation of the per-bar result in points times the root of the bar count; on validation rows nats per scored bar of the curve-mapped probability of up",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The rule was kept for its net result in the training replay, so what the engine's own rule earns from its direction call on test bars after costs is the out-of-sample check of that selection, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether a stronger signal from the kept momentum or reversion rule went with up moves more often on bars the replay never saw; the rule was chosen for its replayed Sharpe ratio and not for ranking, and the validation curve's slope sets which end counts as up."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The rule was picked for the highest net Sharpe ratio in the training replay, so the Sharpe ratio of the engine's walk on test bars shows how much of that survives the selection among the grid; zero is an arithmetic marker, since a random caller still pays costs."
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every rule in the fixed grid of momentum, reversion and blended candidates is replayed through the event queue before one is kept, so the kept rule's training Sharpe ratio is the best of many tries and this count says how many."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the kept rule's signal strength after the validation-fitted logistic curve against quoting the fold's training up share; the signal is a moving-average gap and not a likelihood, so this describes the rule plus a curve whose two parameters saw the validation rows."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the same curve-mapped signal strength, which matters when an extreme stretch from the moving average meets a steep fitted slope and the probability runs close to certainty."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds come entirely from the logistic curve fitted on validation rows, so a gap from the observed up share on test bars shows the link between the rule's signal and the outcome did not carry over."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the kept rule's signal says nothing about the next move the curve's slope shrinks toward nothing, and a spread near nothing reveals that the probability is just the validation up share."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the curve-mapped signal at one half matched the outcome; the cut depends on the intercept fitted on validation rows and not on the entry threshold the rule used in the replay."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The fitted intercept can place every bar on one side of one half, so averaging the up and down recalls shows whether the momentum or reversion signal separates the two directions at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Turns negative when a rule that behaved as momentum on the validation rows behaves as reversion on the test bars, because the curve's slope was fixed on the validation rows."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while the engine followed the kept rule's call on every bar, including the bars where the replayed rule itself would have stood flat inside its threshold band."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the curve-mapped rule signal; one is an arithmetic marker, since costs are charged whichever way the call points."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the kept rule's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast is a least-squares line from the kept rule's signal to the scaled move, fitted on the training span, so its error against forecasting no change tests whether the size of the signal carries any information about the size of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the training-fitted line from the rule's signal, which stays close to the no-change error whenever the line's slope is near nothing."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the training-fitted line's forecast matched the move; the line's slope comes from training rows and the curve's from validation rows, so the forecast and the traded call can point opposite ways."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the line's forecast equals the traded call; a low share means the training span and the validation rows disagreed about whether the kept rule's signal leads or fades the move."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training figure is minus the kept rule's replayed Sharpe ratio and the validation figure is the logarithmic loss of the curve-mapped probability, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the replayed rule, which could stand flat."
+            }
+          ],
+          "caveats": [
+            "The standing assignment keeps this model under the path simulator profile, but the adapter draws no paths: its output is the signal of the one rule that won the training replay, and the wrapped rule's own behaviour governs every forecast number.",
+            "In the training replay a candidate stands flat while its signal sits inside its threshold band, but the Model Cycle trades every call, so the kept rule's threshold has no effect on the test walk.",
+            "Each replayed fill pays the configured slippage ticks on top of half the cost model's round trip, so the cost that selected the rule is not the cost the engine charges on the test walk.",
+            "The kept rule reads closes and the move scale only; the shared feature matrix, including the sentiment columns, does not reach the direction score.",
+            "This model has no searchable parameter, so it is not tuned and no search score exists for it.",
+            "The curve's slope and intercept are fitted on the fold's validation rows and the validation loss is scored on those same rows, so that figure is in-sample for the curve and only the test walk is out of sample.",
+            "The price forecast comes from a second fit of the same replay made for the regression task; it keeps the same rule and reads a least-squares line from the signal with no validation curve.",
+            "The registry's declared probability field and the adapter agree for this model: a logistic curve fitted on validation rows.",
+            "Scored bars share future bars because label horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
         }
       }
     },
@@ -766,6 +2371,273 @@
           "label": "Jump threshold (robust deviations)",
           "group": "Model",
           "description": "A Merton training residual beyond this many robust deviations is a jump."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "predictive_distribution"
+        ],
+        "native": {
+          "produces": "A fan of simulated continuous-time price or volatility paths stepped forward from the last observed state, together with the fitted drift, diffusion and mean-reversion parameters.",
+          "targetVariable": "the distribution of the price, spread or variance at each future time step given its current value",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "objectiveNote": "Members with a tractable transition density, geometric Brownian motion and the Ornstein-Uhlenbeck process, are fitted by maximum likelihood of bar-to-bar transitions, while the Heston model is fitted by matching simulated to observed moments, so the objective is a likelihood for some members and a moment distance for others.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The equation's output is a whole distribution of where price sits after the horizon, so this score compares the entire spread of Euler-Maruyama paths with the move that occurred and charges a wrong drift and a wrong diffusion together, in points.",
+              "baseline": "the same score for a fan from the same equation with its drift set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Drift and diffusion are fitted by maximising the likelihood of bar-to-bar transitions, so the log density the fitted transition law gives to later transitions it never saw is that objective out of sample, and it punishes a diffusion too small for the jumps that arrive.",
+              "baseline": "the same density from the same equation with its drift set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The diffusion coefficient promises how wide the path fan is, so the share of realised moves landing inside each central band of simulated paths shows directly whether the diffusion, the variance process or the jump term is sized right.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Ranking each realised move among its own simulated paths should give ranks spread evenly; a hump in the middle means the diffusion is too large, piles at the ends mean it is too small, and a tilt means the drift leans.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "stylized_fact_distances",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Constant-diffusion members cannot produce volatility clustering or fat tails while the Heston and jump members are added to do exactly that, so the distance between simulated and real kurtosis and absolute-return autocorrelation shows whether the chosen member was enough.",
+              "baseline": "the same distances between two halves of the real series",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "diagnostic",
+              "why": "After removing the fitted drift and dividing by the fitted diffusion the increments should be independent like Brownian increments; leftover correlation in their squares says a constant diffusion coefficient was the wrong choice.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Every forward statistic is an average over a finite set of simulated paths, so its spread across paths over the root of the path count says whether a tilt in the fan is drift or sampling noise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A diffusion equation holds no position, so the Sharpe ratio never graded it; it remains an as-run number about the engine's trading rule."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The path generator has no benchmark and no traded return, and the registry has no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The row meant the drawdown of a traded account, which the equation does not have; it stays in the as-run layer."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "No trades are placed by a diffusion model, so turnover belongs to the engine's rule and not to the equation."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It needs an account's return and drawdown, neither of which the path generator produces natively."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "As a score of the equation the tails are checked by interval coverage and the rank histogram; the registry has no conditional value at risk metric."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "The parameters come from one likelihood or moment-matching solve over historical transitions, so no loss is tracked step by step."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The adapter does what the specification describes, simulating geometric Brownian motion, an Ornstein-Uhlenbeck drift, Heston variance or Merton jumps forward from the current bar by Euler-Maruyama, but it adds a drift factor the specification does not have, a ridge projection of the features onto the next bar's log return that itself mean-reverts, estimates parameters in closed form from sample moments and least-squares regressions on the training span, with no optimiser and no simulated-moment matching and not by maximising a transition likelihood, so simulation only reads the fitted values when it steps forward, and reduces the fan to the share of paths ending higher through a validation-fitted curve, so the as-run numbers measure that conditional drift plus the curve and never the fan's width.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "For each bar the adapter draws the configured number of Euler-Maruyama paths of the log price over the horizon from that bar's own random stream, takes the logit of the share that end above the start, and passes it through a logistic curve whose slope and intercept are fitted by maximum likelihood on the fold's validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "one value per fold: on training rows the mean absolute residual of the next bar's log return after the fitted drift and drift factor, in log-return units, which is a fit report and not a quantity any estimator minimised; on validation rows nats per scored bar of the curve-mapped probability of up",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether bars where the ridge drift factor tilted more Euler-Maruyama paths upward were followed by up moves more often; with the geometric Brownian motion member the share differs between bars only by sampling noise, so this is informative only for the conditional members."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the mean simulated price change over the paths, driven by the fitted drift and the decaying drift factor with no validation curve, so its error against forecasting no change tests the drift part of the equation directly."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the share of paths ending higher after the validation-fitted logistic curve against quoting the fold's training up share; it is a statement about the simulated drift plus a curve whose two parameters saw the validation rows."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the same curve-mapped path share, useful because a strong drift factor against a small diffusion sends nearly every path one way and a steep fitted slope then states near certainty."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds come from the logistic curve fitted on validation rows, so a gap from the observed up share on test bars shows the link between the simulated path share and the outcome did not carry over."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the ridge drift factor is tiny beside the diffusion every bar's paths split almost evenly, and a spread near nothing reveals that the probability is just the validation up share."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the curve-mapped path share at one half matched the outcome; the cut carries the intercept fitted on validation rows, so it reflects their up share and not the equation's own drift."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The fitted intercept can put every bar on one side of one half, so averaging the up and down recalls shows whether the simulated drift separates the two directions at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Turns negative when the drift factor's relation to the outcome reversed between the validation rows the curve was fitted on and the test bars, which is how this bridge fails."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the curve-mapped path share earned after costs under the engine's rule, read beside buy and hold on the same folds because a weak drift factor trades the validation majority direction."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the diffusion model's direction call after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed the simulated drift's call, which shows what a drift factor that pointed the wrong way cost before the fold ended."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the curve-mapped path share; one is an arithmetic marker, since costs are charged whichever way the call points."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the diffusion model's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the mean simulated price change, which sits close to the no-change error because the fitted drift over a few bars is small beside the diffusion."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the mean simulated price change matched the move; it has no validation curve, so it can disagree with the traded call when the fitted slope is negative."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the mean simulated price change equals the traded call; well below one means the validation curve turned the path share upside down or its intercept overrode it."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search chooses between the Ornstein-Uhlenbeck drift, Heston and Merton members and sets the ridge penalty of the drift factor by the shared tuning objective on inner blocks of the training span; it is a selection score and optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training figure is a mean absolute log-return residual and the validation figure is the logarithmic loss of the curve-mapped probability, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the diffusion model."
+            }
+          ],
+          "caveats": [
+            "Heston variance and Merton jumps change the width and tails of the fan far more than the share of paths ending higher, and no engine metric scores the fan's width, so the tuner's choice among the members is made on direction calls alone.",
+            "With the geometric Brownian motion member every bar has the same drift and diffusion, so the direction score varies between bars only through sampling noise.",
+            "The direction score is a share of a finite number of simulated paths, so a bar whose paths split almost evenly can land on either side of one half by sampling noise alone; the Monte Carlo standard error of the share is not computed by the engine.",
+            "The curve's slope and intercept are fitted on the fold's validation rows and the validation loss is scored on those same rows, so that figure is in-sample for the curve and only the test walk is out of sample.",
+            "The price forecast comes from a second fit of the same equation made for the regression task, which reads the mean simulated price change directly with no validation curve.",
+            "The registry's declared probability field and the adapter agree for this model: a logistic curve fitted on validation rows.",
+            "Scored bars share future bars because label horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
         }
       }
     },
@@ -885,6 +2757,254 @@
           "label": "Maximum training bars",
           "group": "Model",
           "description": "The most recent training bars the generator is fitted on."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "path_simulator",
+        "profileIdAsRun": "path_simulator",
+        "additionalProfileIds": [
+          "world_model_agent",
+          "heuristic_search_optimizer"
+        ],
+        "native": {
+          "produces": "Deterministic trajectories of every stock and flow over the simulation horizon, obtained by integrating coupled stock-and-flow equations with feedback loops and delays forward from the current stock levels.",
+          "targetVariable": "the future levels of the measurable stocks, such as open interest, dealer positioning and realised volatility, over the simulation horizon",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "objectiveNote": "The fit minimises the squared gap between simulated and observed trajectories of the measurable stocks with a derivative-free optimiser, so it is a whole-path fit and not a match of summary moments, and the classical model is deterministic unless noise is added to a flow.",
+          "metrics": [
+            {
+              "metricId": "open_loop_prediction_error_by_horizon",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The stock-and-flow equations are integrated forward from today's stock levels without seeing later bars, so the error of each stock's projected level at each step ahead, on a window not used for fitting, is the fitting criterion measured where long transients cannot flatter it.",
+              "baseline": "holding every stock at its current level for the whole horizon",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The method claims that a named feedback loop or delay produces the overshoot and oscillation, so the projection error with that loop or delay switched off, on the same windows, shows whether the structure earns its place or only adds free parameters.",
+              "baseline": "the same stock-and-flow equations with the named loop or delay removed",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Both numbers are the same squared trajectory error, once on the fitting window and once on a later non-overlapping window, and the specification warns that long transients make the in-sample figure look too good, so the gap is the direct overfit reading.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "A flow sensitivity that changes sign from one fitting window to the next means its loop switches between reinforcing and balancing, so counting how often each fitted loop keeps its sign across refits tests whether the causal story is stable.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "best_objective_by_evaluation_count",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Delays and discontinuities force a derivative-free search over the flow parameters, and the best trajectory error against the number of simulations run shows whether that search had settled or was still improving when it stopped.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The feedback model holds no position, so the Sharpe ratio never graded it; it remains an as-run number about the engine's rule."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "Stock trajectories are not returns against a benchmark, and the registry has no alpha metric."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The row meant a traded account's drawdown, which the stock-and-flow model does not have; as-run only."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The model places no trades, so turnover belongs to the engine's rule and not to the feedback structure."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It needs an account's return and drawdown, neither of which a stock-and-flow simulation produces natively."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "One deterministic trajectory has no loss tail to average, and the registry has no such metric."
+            },
+            {
+              "name": "Fan score of simulated paths",
+              "metricId": "continuous_ranked_probability_score_points",
+              "why": "The classical model returns one deterministic trajectory per stock and no fan, so there is no spread to grade unless noise is added to a flow."
+            },
+            {
+              "name": "Monte Carlo standard error",
+              "metricId": "monte_carlo_standard_error",
+              "why": "Nothing is drawn at random in the deterministic formulation, so repeated runs give the same trajectory and there is no sampling error."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification's stocks are market accumulations such as open interest, dealer inventory and margin capacity, which the bar data does not carry; the runnable adapter keeps the method, stocks joined by flows with a delayed feedback loop, integrated by Euler steps and fitted to training trajectories by differential evolution, but its stocks are momentum pressure, stretch from a moving average read with a delay, volatility and a ridge information inflow measured from bars, and its projected displacement becomes a probability through a validation-fitted curve, so the as-run numbers measure that price-displacement model plus the curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The adapter integrates the fitted flow equations forward over the horizon from the bar's observed pressure, stretch, volatility and information stocks, and the projected price displacement, a single deterministic number, goes through a logistic curve whose slope and intercept are fitted by maximum likelihood on the fold's validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "simulated_moments_or_path_fit",
+          "checkpointSelectedBy": "none",
+          "tuned": false,
+          "stepQuantity": {
+            "trainName": "simulated_moments_or_path_fit",
+            "validationName": "logarithmic_loss",
+            "unit": "one value per fold: on training rows the mean squared gap between the simulated and the observed cumulative displacement after each bar of the horizon, in squared move-scale units; on validation rows nats per scored bar of the curve-mapped probability of up",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The projected displacement is the stock-and-flow model's own output in the units of the price target and was fitted by squared trajectory error on training rows, so its error on test bars against forecasting no change is the nearest out-of-sample reading of what was fitted, with no validation curve involved."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether bars with a larger projected displacement from the pressure, stretch and information stocks were followed by up moves more often; the displacement is a continuous number, and only which end counts as up is set by the validation-fitted slope."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the projected displacement after the validation-fitted logistic curve against quoting the fold's training up share; the displacement was fitted to trajectories and not to direction, so this describes the feedback model plus a curve whose two parameters saw the validation rows."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the same curve-mapped displacement, useful because a bar with an extreme stretch can project a large displacement and a steep fitted slope then states near certainty."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds come from the logistic curve fitted on validation rows, so a gap from the observed up share on test bars shows the link between the projected displacement and the outcome did not carry over."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the fitted flow sensitivities are near nothing every bar projects almost no displacement, and a spread near nothing reveals that the probability is just the validation up share."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the curve-mapped displacement at one half matched the outcome; the cut carries the intercept fitted on validation rows and not the sign of the projected displacement itself."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The fitted intercept can put every bar on one side of one half, so averaging the up and down recalls shows whether the feedback model's projection separates the two directions at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Turns negative when the balance between the momentum loop and the delayed stretch loop shifted between the validation rows the curve was fitted on and the test bars, so the projection points the wrong way."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the curve-mapped displacement earned after costs under the engine's rule, read beside buy and hold on the same folds because a flat projection trades the validation majority direction."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the feedback model's direction call after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed the projected displacement, which shows what a momentum loop that kept pushing after the market turned cost before the fold ended."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the curve-mapped displacement; one is an arithmetic marker, since costs are charged whichever way the call points."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the feedback model's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the projected displacement, which was fitted by squared error on training trajectories and is rounded to the tick before scoring."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the projected displacement itself matched the move, with no validation curve; it is the stock-and-flow model's own direction call before the bridge touches it."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The score and the forecast are the same projected displacement, so any bar where the forecast's sign differs from the traded call is the work of the validation curve's slope or intercept alone."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training figure is a squared displacement error and the validation figure is the logarithmic loss of the curve-mapped probability, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the feedback model."
+            }
+          ],
+          "caveats": [
+            "The model is deterministic: no paths are drawn, the score is the projected displacement itself and the raw share of up paths does not exist for it.",
+            "This model has no searchable parameter, so it is not tuned and no search score exists for it; the differential evolution inside the fit searches the flow coefficients on training trajectories only.",
+            "The curve's slope and intercept are fitted on the fold's validation rows and the validation loss is scored on those same rows, so that figure is in-sample for the curve and only the test walk is out of sample.",
+            "The price forecast comes from a second fit of the same stock-and-flow model made for the regression task, which reads the projected displacement directly with no validation curve.",
+            "The registry's declared probability field and the adapter agree for this model: a logistic curve fitted on validation rows.",
+            "Scored bars share future bars because label horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
         }
       }
     }

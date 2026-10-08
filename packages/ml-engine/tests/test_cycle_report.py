@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 import numpy as np
 import pyarrow as pa
 import pytest
-
 from cycle import report
 from cycle.metrics import METRIC_NAMES
 
@@ -375,3 +374,107 @@ def test_the_majority_class_accuracy_of_an_older_record_is_weighted_by_scored_ba
                       "metrics": pa.array(["{}", "{}"])})
     _, tables = build(predictions, trades, folds=folds)
     assert value(tables, "majority_class_accuracy")["metric_value"] == pytest.approx(float(np.mean(actual < 0)))
+
+
+# ─── the bin-free calibration regression, the class-balanced score and the forecast extras ──────
+
+
+def test_calibration_slope_and_intercept_equal_statsmodels():
+    import statsmodels.api as sm
+
+    generator = np.random.default_rng(23)
+    count = 1500
+    probability = np.clip(generator.beta(2.0, 2.0, count), 0.02, 0.98)
+    # outcomes drawn from a FLATTER curve than the forecasts state, so the forecasts are over-confident
+    log_odds = np.log(probability / (1 - probability))
+    actual = np.where(generator.uniform(size=count) < 1 / (1 + np.exp(-(0.2 + 0.6 * log_odds))), 1, -1)
+    predictions, trades = record(np.zeros(count), probability=probability, actual=actual)
+    _, tables = build(predictions, trades)
+    y = (actual > 0).astype(float)
+    two_parameter = sm.Logit(y, sm.add_constant(log_odds)).fit(disp=0)
+    offset_only = sm.GLM(y, np.ones((count, 1)), family=sm.families.Binomial(), offset=log_odds).fit()
+    slope = value(tables, "calibration_slope")["metric_value"]
+    intercept = value(tables, "calibration_intercept")["metric_value"]
+    assert slope == pytest.approx(float(two_parameter.params[1]), abs=1e-7)
+    assert intercept == pytest.approx(float(offset_only.params[0]), abs=1e-7)
+    assert slope < 1.0  # over-confident forecasts read as a slope below one
+    assert intercept > 0.0  # and up happened more often than they said
+
+
+def test_perfectly_calibrated_forecasts_have_slope_one_and_intercept_zero_within_sampling_error():
+    generator = np.random.default_rng(29)
+    count = 60000
+    probability = generator.uniform(0.1, 0.9, count)
+    actual = np.where(generator.uniform(size=count) < probability, 1, -1)
+    slope, intercept = report.calibration_regression((actual > 0).astype(float), probability)
+    assert slope == pytest.approx(1.0, abs=0.03)
+    assert intercept == pytest.approx(0.0, abs=0.03)
+
+
+def test_calibration_regression_is_null_with_a_reason_when_it_is_undefined():
+    # every forecast the same: no spread to fit a slope on, the intercept still exists
+    predictions, trades = record(np.zeros(200), probability=np.full(200, 0.6), actual=np.where(np.arange(200) % 2, 1, -1))
+    _, tables = build(predictions, trades)
+    assert value(tables, "calibration_slope")["metric_value"] is None and value(tables, "calibration_slope")["note"]
+    assert value(tables, "calibration_intercept")["metric_value"] == pytest.approx(math.log(0.5 / 0.5) - math.log(0.6 / 0.4), abs=1e-8)
+    assert value(tables, "distinct_probability_level_count")["metric_value"] == 1
+    # outcomes perfectly separated by the forecast: the slope runs to infinity, so it is null
+    probability = np.concatenate([np.full(50, 0.2), np.full(50, 0.8)])
+    actual = np.concatenate([-np.ones(50), np.ones(50)])
+    slope, _ = report.calibration_regression((actual > 0).astype(float), probability)
+    assert slope is None
+    # one class only
+    assert report.calibration_regression(np.ones(40), np.linspace(0.1, 0.9, 40)) == (None, None)
+
+
+def test_class_balanced_log_loss_weights_each_class_by_half():
+    from sklearn.metrics import log_loss
+
+    generator = np.random.default_rng(31)
+    count = 900
+    actual = np.where(generator.uniform(size=count) < 0.2, 1, -1)  # an unbalanced label
+    probability = np.clip(0.5 + 0.2 * (actual > 0) + generator.normal(0, 0.15, count), 0.02, 0.98)
+    predictions, trades = record(np.zeros(count), probability=probability, actual=actual)
+    _, tables = build(predictions, trades)
+    y = (actual > 0).astype(int)
+    weights = np.where(y == 1, 0.5 / y.mean(), 0.5 / (1 - y.mean()))
+    expected = log_loss(y, probability, sample_weight=weights)
+    assert value(tables, "class_balanced_logarithmic_loss")["metric_value"] == pytest.approx(expected, abs=1e-12)
+    # and it differs from the plain log loss exactly because the label is unbalanced
+    assert abs(value(tables, "class_balanced_logarithmic_loss")["metric_value"] - value(tables, "log_loss")["metric_value"]) > 0.01
+    # a model that always says 0.5 scores ln 2 on both
+    predictions, trades = record(np.zeros(count), probability=np.full(count, 0.5), actual=actual)
+    _, tables = build(predictions, trades)
+    assert value(tables, "class_balanced_logarithmic_loss")["metric_value"] == pytest.approx(math.log(2), abs=1e-12)
+
+
+def test_extreme_and_distinct_probability_counts():
+    probability = np.array([0.0, 1.0, 1.0, 0.25, 0.25, 0.75, 0.5, 0.5])
+    actual = np.array([1, 1, -1, -1, 1, 1, -1, 1])
+    predictions, trades = record(np.zeros(8), probability=probability, actual=actual)
+    _, tables = build(predictions, trades)
+    assert value(tables, "extreme_probability_bar_count")["metric_value"] == 3
+    assert value(tables, "distinct_probability_level_count")["metric_value"] == 5
+
+
+def test_forecast_squared_error_skill_and_call_agreement():
+    count = 400
+    generator = np.random.default_rng(37)
+    probability = generator.uniform(0.3, 0.7, count)
+    predictions, trades = record(np.zeros(count), probability=probability, with_forecast=True)
+    _, tables = build(predictions, trades)
+    predicted = np.linspace(-2, 2, count)
+    error = np.linspace(-1, 1, count) * 0.5
+    actual_move = predicted - error
+    assert value(tables, "price_forecast_squared_error_skill")["metric_value"] == pytest.approx(
+        1 - np.mean(error ** 2) / np.mean(actual_move ** 2), abs=1e-12)
+    called = np.where(probability >= 0.5, 1, -1)
+    keep = predicted != 0
+    assert value(tables, "forecast_call_agreement_fraction")["metric_value"] == pytest.approx(
+        float(np.mean(np.sign(predicted[keep]) == called[keep])), abs=1e-12)
+    # no price forecast: both are null with the reason, never zero
+    predictions, trades = record(np.zeros(count), probability=probability)
+    _, tables = build(predictions, trades)
+    for name in ("price_forecast_squared_error_skill", "forecast_call_agreement_fraction"):
+        row = value(tables, name)
+        assert row["metric_value"] is None and row["note"], name

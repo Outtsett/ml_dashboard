@@ -70,6 +70,276 @@
             "high": 100
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A Gaussian predictive distribution for each new feature row: a centre equal to the posterior mean weights times the row, and a spread that adds the uncertainty of the weights to the residual noise.",
+          "targetVariable": "the forward return of the instrument over the forecast horizon (the specification also allows realised volatility), as a real number with a stated uncertainty",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "The posterior over the weights is exact matrix algebra under a zero-mean Gaussian prior, and the prior and noise variances are set by maximising the marginal likelihood of the training window, so no validation rows are spent on the amount of shrinkage.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The model hands back a bell curve per bar, so the score has to reward both a posterior-mean line that lands near the realised move and a predictive width that is neither too tight nor too loose, in price points.",
+              "baseline": "The same score for a zero-centred Gaussian whose width is the training window's own standard deviation of the move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The evidence that picked the prior and noise variances is a log density on training bars; reading the same Gaussian log density at realised moves on unseen bars shows whether that evidence-chosen shrinkage carries forward.",
+              "baseline": "The log density of the zero-centred Gaussian with the training window's standard deviation of the move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The predictive standard deviation is meant to size trades and place stops, so the share of realised moves inside each plotted band has to match the band's stated level or the confidence measure misleads.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The posterior mean is a ridge-regularised least-squares line, so its squared-error skill shows whether the shrunk weights forecast the move any better than assuming no move at all.",
+              "baseline": "The no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Returns have fatter tails than the Gaussian noise term assumes, and a histogram of where realised moves fall inside the predictive curve shows that misfit as piles at both ends.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A linear fit on a trending training window carries that window's average move in its intercept, and a posterior mean that leans one way looks skilled only while the trend lasts.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A Bayesian linear regression has one set of weights and no regimes; its own likelihood quantity is the held-out log predictive density of the move, which is listed under that name instead."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The model fits a single line with uncertainty and never partitions bars into groups, so there is nothing whose separation could be measured."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This decomposes a hyperparameter search surface, and here the two variances are set by evidence maximisation inside the fit rather than searched, so it says nothing about the model."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "For a linear model the attribution of a feature is its posterior mean weight times the feature value, and the posterior covariance already states how unstable each weight is."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively there is no probability of up to bin; the honest-odds check for a predictive bell curve is the coverage of its intervals, and the binned check belongs to the as-run direction reading."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "No hidden state exists in a single linear regression, so there is no state whose run length could persist."
+            },
+            {
+              "name": "Potential scale reduction factor",
+              "metricId": "potential_scale_reduction_factor",
+              "why": "The conjugate Gaussian posterior is computed in closed form from one matrix inversion, so there are no sampling chains whose agreement could be checked."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "Natively the model forecasts a size with a spread, not an up or down class; a direction hit rate appears only after the Model Cycle reads the predictive mass above zero."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The regression takes no position by itself; a return per unit of risk describes the trading rule and the costs the Model Cycle adds on top of the forecast."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is the specification's conjugate posterior with evidence-maximised prior and noise variances, but the target is the volatility-scaled move clipped at its training first and ninety-ninth percentiles, and the up probability is the Gaussian predictive mass above zero, so the as-run numbers measure that tail reading of the model's own bell curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the standard normal cumulative value of the predictive mean divided by the predictive standard deviation, where the variance adds the noise term, the weight uncertainty for that feature row and the uncertainty of the training mean; no curve is fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only because the closed-form fit returns no training loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds come straight from the predictive mean and standard deviation with nothing fitted in between, so this score is a direct out-of-sample test of the regression's own bell curve."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Because the Gaussian is symmetric the call is long exactly when the posterior mean forecast is at or above zero, so this is what trading the sign of the shrunk linear forecast earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The predictive mass above zero stays close to one half on most bars, and this bounded score shows whether the small departures from one half point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve was fitted, so the gap between the stated tail mass and the observed up share tests the Gaussian noise assumption itself; most bars fall in the two bins around one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A slope away from one says the predictive standard deviation is too narrow or too wide for the size of the mean, which is the bin-free reading of whether evidence maximisation set the noise variance well."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The ratio of predictive mean to predictive standard deviation is continuous, so ranking bars by it tests whether a more confident linear forecast is more often followed by an up move."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Strong shrinkage of the weights pulls every predictive mean toward the training mean, and the spread of the stated probabilities shows whether the model ever commits away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of the sign of the posterior mean forecast, since the symmetric predictive curve crosses one half exactly where its centre crosses zero."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A training mean above zero tilts every forecast toward long, and averaging the hit rate over up bars and down bars separately removes the credit that tilt earns in a rising fold."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the sign of the linear forecast moves with the realised direction once the long tilt from the training mean is accounted for."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the posterior mean sat at or above zero, which reveals a model that is long on nearly every bar because its intercept carries the training drift."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from trading the sign of the posterior mean forecast under the engine's hold-until-flip rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the sign of the linear forecast, which is long when a trending training window left a positive intercept and the test bars reverse."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the posterior mean forecast changes sign."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of sign-of-forecast trades that closed with a gain after costs, read with the trade count because a forecast that rarely changes sign closes few trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the predictive mean of a second fit of the identical conjugate regression, so this tests the shrunk linear forecast of the move against assuming no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss of the posterior mean forecast in price points after it is scaled back by the bar's trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the predictive mean is also the traded call, so this repeats the direction hit rate on the bars where the tick-rounded forecast is not zero."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The intercept is the mean of the clipped training target, and a forecast that leans one way on the test bars shows that training drift did not continue."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the regression."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit maximises a marginal likelihood of the scaled move and logs no training loss at all, while the one logged number is the validation logarithmic loss of the up probability, so there is no training-side value to subtract and the difference does not exist."
+            }
+          ],
+          "caveats": [
+            "The training target is clipped at its training first and ninety-ninth percentiles, so the fitted noise variance understates the tails and the predictive band is narrower than the raw moves warrant.",
+            "The price forecast line comes from a second fit of the same conjugate regression on the same target, so its direction accuracy and the classification accuracy are close to the same number.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open.",
+            "The validation rows are only scored and never used to fit anything, so the validation logarithmic loss is an honest preview of the test number."
+          ]
+        }
       }
     },
     "gaussian_process": {
@@ -146,6 +416,276 @@
           "label": "Optimizer restarts",
           "group": "Model",
           "description": "Extra random starts of the kernel fit."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A Gaussian predictive distribution at every queried feature row: a mean read from the kernel similarity to the training rows and a variance that grows as the row moves away from them.",
+          "targetVariable": "the forward return of the instrument over the forecast horizon, as an unknown smooth function of the feature row plus observation noise",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "The kernel length scale, signal variance and noise variance are fitted by maximising the exact log marginal likelihood, whose log-determinant term penalises an over-flexible kernel, and the posterior over function values is then closed form.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each queried bar gets a kernel-weighted mean and a distance-driven variance, and this score grades the two together in price points, so a curve that widens correctly far from the training rows is rewarded.",
+              "baseline": "The same score for a zero-centred Gaussian whose width is the training window's own standard deviation of the move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The kernel hyperparameters maximise a log density on the training window, and a length scale fitted to noise shows up as a collapse of that same log density at realised moves on bars the kernel matrix never held.",
+              "baseline": "The log density of the zero-centred Gaussian with the training window's standard deviation of the move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The predictive variance is a geometric statement about distance in kernel space, and counting realised moves inside each plotted band tests whether that geometry matches how often the market actually lands there.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The predictive mean falls back to the prior mean away from the training rows, so its squared-error skill shows whether the kernel-weighted neighbours add anything over forecasting no move.",
+              "baseline": "The no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A histogram of where realised moves fall inside each predictive curve separates a noise variance fitted too small, which piles mass at the ends, from one fitted too large, which piles it in the middle.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "A short fitted length scale makes the predictive mean interpolate training noise, and a mean that no longer moves with the realised move on unseen bars is the first visible sign of it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A Gaussian process has one kernel and no regimes; its own likelihood quantity is the held-out log predictive density of the move, which is listed under that name instead."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The model places a prior over smooth functions and never sorts bars into groups, so no separation between groups exists to measure."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "The kernel hyperparameters are fitted by the marginal likelihood inside the model rather than by an outer search, so a decomposition of a search surface does not describe this model."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "A stationary kernel reads distance between whole feature rows, so the model has no per-feature weights whose attribution could be tracked from fit to fit."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively there is no probability of up to bin; the honest-odds check for a predictive variance is the coverage of its intervals, and the binned check belongs to the as-run direction reading."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "A Gaussian process regression carries no hidden state from bar to bar, so there is no state whose run length could persist."
+            },
+            {
+              "name": "Potential scale reduction factor",
+              "metricId": "potential_scale_reduction_factor",
+              "why": "With Gaussian noise the posterior over function values is exact, so nothing is sampled and no chains exist to compare."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The fit is a handful of optimiser restarts over a few kernel hyperparameters, not a learning curve over a weight vector, so a per-step loss describes the optimiser only."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "Natively the model returns a function value with a variance, not an up or down class; a direction hit rate appears only after the Model Cycle reads the predictive mass above zero."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is an exact Gaussian process regression with a kernel plus white noise fitted by marginal likelihood, but only on the most recent training_window_bars rows of the fold because the exact solve grows with the cube of the row count, and on the clipped scaled move, so the as-run numbers measure a local model that returns to its prior away from those recent bars.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the standard normal cumulative value of the predictive mean divided by the predictive standard deviation of the noisy move, both computed from the kernel between the bar's feature row and the stored window rows; no curve is fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only because the kernel fit returns no training loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds are the kernel-weighted mean over its distance-driven standard deviation with nothing fitted in between, so this score tests the process's own predictive curve on bars outside its window."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long exactly when the kernel-weighted mean is at or above zero, so this is what trading the sign of the local forecast earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Far from the window rows the mean returns to the window average and the stated probability to near one half, and this bounded score shows whether the departures near familiar rows point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "No weighting and no fitted curve stand between the kernel and the stated odds, so the gap to the observed up share tests the fitted white-noise level and length scale directly; most bars sit in the two middle bins."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A slope below one says the fitted noise level is too small for unseen rows, the signature of a length scale that interpolated the window's noise."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The mean over standard deviation is continuous and largest for rows that resemble window rows with a consistent outcome, so ranking by it tests whether resemblance carries direction."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread of the stated probabilities shows how often test rows fall close enough to the window rows for the kernel to commit away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of the sign of the kernel-weighted mean, since the symmetric predictive curve crosses one half exactly where its centre crosses zero."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Away from the window the mean falls back to the window's average move, which makes one call dominate, and averaging the hit rate over up bars and down bars removes the credit for that default."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the sign of the local forecast moves with the realised direction after the default call from the window average is accounted for."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how often the kernel-weighted mean sat at or above zero, which exposes a run where the window average decides nearly every call."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from trading the sign of the local kernel forecast under the engine's hold-until-flip rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the sign of the local forecast, which holds one side for long stretches when test rows drift away from the stored window."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the kernel-weighted mean changes sign."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of sign-of-forecast trades that closed with a gain after costs, read with the trade count because a mean pinned to the window average closes few trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the predictive mean of a second fit of the identical kernel regression, so this tests the local forecast of the move against assuming no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss of the kernel-weighted mean in price points after it is scaled back by the bar's trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the predictive mean is also the traded call, so this repeats the direction hit rate on the bars where the tick-rounded forecast is not zero."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Whether larger kernel-weighted forecasts go with larger realised moves, which fails first when the fitted length scale is short enough to memorise the window."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the kernel model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit maximises a marginal likelihood of the scaled move and logs no training loss at all, while the one logged number is the validation logarithmic loss of the up probability, so there is no training-side value to subtract and the difference does not exist."
+            }
+          ],
+          "caveats": [
+            "Only the most recent training_window_bars rows of each fold's training span enter the kernel matrix, so earlier training bars have no influence on any forecast.",
+            "The target is clipped at its training first and ninety-ninth percentiles and normalised by its window mean and standard deviation before the kernel fit, so the predictive band understates the raw tails.",
+            "The price forecast line comes from a second fit of the same kernel regression on the same target, so its direction accuracy and the classification accuracy are close to the same number.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -267,6 +807,310 @@
           "group": "Model",
           "description": "Optimisation steps of the variational fit (ADVI only)."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "posterior_sampler"
+        ],
+        "native": {
+          "produces": "A set of posterior draws for every parameter of a model the user wrote as priors plus a likelihood, the sampler's convergence diagnostics, and a posterior predictive distribution for any new input obtained by pushing each draw through the likelihood.",
+          "targetVariable": "The observed quantity named in the written likelihood (for a trading model, the size and sign of the move over the coming bars), described by a whole distribution instead of one number",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "The language separates the written model from inference, so the quantity targeted is whatever posterior the declared priors and likelihood define; the No-U-Turn sampler draws from it exactly in the limit, and the variational mode replaces it with an evidence lower bound.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The product of the sampler is a cloud of predictive draws for the coming move, and this score compares that whole cloud with the move that happened, rewarding a cloud that is both centred well and no wider than it needs to be.",
+              "baseline": "The same score for the no-change forecast on the same resolved bars, where it equals the mean absolute actual move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Averaging the likelihood of the realised move over the posterior draws is the written model's own likelihood taken out of sample, and it is the score that punishes a likelihood whose tails are too thin for market moves.",
+              "baseline": "The same density score for a distribution fitted to the fold's training moves with no predictors",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Every central interval read off the predictive draws promises to hold the move a stated share of the time, so counting how often it did tests the declared noise model and priors directly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The share of predictive draws above zero is the model's own probability of an up move, formed with no extra fitting, so its logarithmic score tests the upper tail mass of the declared likelihood.",
+              "baseline": "Quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the up probability is the posterior predictive mass above zero and not a class-weighted or curve-fitted number, comparing binned probabilities with observed up shares is a fair check of it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Where each realised move falls among its own predictive draws should be evenly spread; a pile-up in the middle means the written noise scale is too wide and a pile-up at the ends means it is too narrow.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "potential_scale_reduction_factor",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Independent Hamiltonian chains started apart must end up describing the same posterior, and when they disagree every number computed from the draws describes the sampler's failure and not the written model.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "effective_sample_size",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Successive draws of a chain are correlated, so the count of independent draws they are worth, in the bulk and in the tails, says how finely the predictive distribution and its tail mass above zero are resolved.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "markov_chain_monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "Successive draws of each Hamiltonian chain of this model are correlated, so the error bar on the posterior mean of the move forecast and on the tail mass above zero has to divide the posterior standard deviation by the square root of the effective sample size and not of the raw draw count.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "The specification describes a general language for written models and a sampler, with no hidden market states whose sequence likelihood could be reported."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "No volatility clusters are formed by a posterior sampler, so there are no cluster densities whose distance could be measured."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It describes how a hyperparameter search behaved and carries no information about whether the posterior predictive distribution matches the moves."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The model already reports a full posterior for every parameter, which states each input's effect and its uncertainty directly; a separate attribution ranking adds nothing native."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "There is no Markov transition matrix in the described model, so no diagonal persistence exists to report."
+            },
+            {
+              "name": "Price forecast root mean square error alone",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Scoring only the centre of the predictive draws discards the spread, which is the reason for sampling a posterior instead of fitting one line."
+            },
+            {
+              "name": "Monte Carlo standard error for independent paths",
+              "metricId": "monte_carlo_standard_error",
+              "why": "Chain draws are autocorrelated, so the error of a posterior summary must use the effective sample size and not the raw draw count."
+            },
+            {
+              "name": "Training loss curve",
+              "metricId": "training_objective_value_by_step",
+              "why": "Sampling to convergence follows no loss curve; only the variational mode optimises a bound, and that bound is a convergence trace and not a score of the model."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is one fixed written program, a Student-t regression of the scaled move on standardised features with Normal priors on the weights, sampled by the No-U-Turn sampler through nutpie on only the most recent training_window_bars training bars; it is not a language in which a different model can be declared, so the as-run numbers measure that one program's posterior predictive distribution.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "For every kept posterior draw the adapter takes the Student-t probability that the scaled move is above zero given that draw's intercept, weights, scale and degrees of freedom, and the probability of up is the mean of those tail masses over the draws, with no curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, validation rows only",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The probability of up is the Student-t posterior predictive mass above zero with nothing fitted on top, so this is the cleanest test of whether the sampled location, scale and tail thickness describe the coming move."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the mean over posterior draws of the regression's location, the centre of a symmetric fat-tailed likelihood, so its absolute error against the no-change forecast tests whether the sampled weights find any drift at all."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded proper score for the tail mass above zero, useful because weak predictors leave the sampled location small against the scale and the probabilities close to one half."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and no curve is applied, so the binned gap between the stated tail mass and the observed up share is a direct check of the declared likelihood on unseen bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A bin-free check of the same tail mass: a slope below one says the posterior location is larger against its scale than the moves justify, which a prior_scale set too wide produces."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Tests only the ordering produced by the sampled location over scale, separate from whether the Student-t tail turns that ratio into honest odds."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the tail mass ever moves from one half; the registry note expects it to stay near one half, and a spread near zero means the program found no usable drift."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The size in points of the miss of the posterior mean location after it is scaled back by the causal trailing move scale and rounded to the tick, read against the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The sign of the posterior mean location against the sign of the actual move, on the bars where the tick-rounded forecast is not zero, which for a small sampled drift can be a short list."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The sampled intercept leans every forecast the same way, so a non-zero mean error shows a drift learned on the last training_window_bars bars that did not continue."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "For a symmetric likelihood the tail mass is above one half exactly when the location is above zero, so any disagreement between the forecast's sign and the traded call comes from the price model being a second sampling run and from averaging over draws."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the posterior predictive mass above zero reaches one half, which is the sign of the sampled location, so it tests the direction of the program's drift against the majority class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A positive sampled intercept can put almost every bar's tail mass above one half, and averaging the two recalls shows whether the predictors ever overrule that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One number over all four confusion cells that drops to zero when the intercept alone decides every call, which is the common outcome for a near-zero posterior drift."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the side of one half that the tail mass falls on earned after costs under the engine's position rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of that profit per bar; the engine trades the sign of the drift only and ignores the predictive spread, so it does not reward the program for knowing when it is unsure."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest loss run of the position held on the sign of the sampled drift, which grows when the intercept keeps one side for long stretches."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing trade totals for trades opened when the tail mass crosses one half, meaningful only with enough flips to give both winners and losers."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of profitable trades opened by a change in the sign of the posterior location, which says how often such a change was followed by a move that covered costs."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the sampled intercept has made the program a one-sided caller, the context needed before reading any of its trading numbers."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The single sampling run returns no training loss, so the one epoch reports only a validation logarithmic loss, scored on bars the posterior never saw, and there is no training value to subtract from it."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set the engine is always in the market once it has traded, so the figure describes the engine's rule and not the program."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which no forecaster could have quoted, so it overstates how hard the reference is to beat."
+            }
+          ],
+          "caveats": [
+            "The price forecast comes from a second sampling run of the same Student-t program fitted with the regression task, so the forecast and the traded probability rest on two separate sets of posterior draws.",
+            "A split potential scale reduction factor above the engine's warning limit is written to the log as a warning and the fold continues with those draws; the sampler refuses to run only when nutpie is not installed (probabilistic_program.py).",
+            "The engine scores only the tail mass above zero and the posterior mean, so the predictive spread, interval coverage and continuous ranked probability score that the native record names are not computed.",
+            "Only the most recent training_window_bars training bars enter the likelihood, so the posterior describes the end of the training span and not the whole of it.",
+            "The kept draws are thinned evenly to the engine's stored-draw cap before any prediction, and the automatic differentiation variational inference mode replaces the sampled posterior with a mean-field approximation that reports no chain diagnostics.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "bayesian_hierarchical_model": {
@@ -361,6 +1205,305 @@
             "high": 3.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "predictive_distribution",
+        "additionalProfileIds": [
+          "posterior_sampler",
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For every group it outputs sampled sets of regression weights that are pulled toward a shared population set of weights, and from those draws a predictive distribution of the target for each new row of that group.",
+          "targetVariable": "the continuous outcome of a bar inside its group, such as the forward return of one instrument, one session type or one regime, stated as a centre with a spread",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "This model's version infers one joint posterior over every group's weights, the population mean and the between-group spread at once, so the amount each group is shrunk toward the population is an output of the sampler and not a dial.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each group's forecast is a cloud of draws from its shrunk weights plus noise, and this score grades that whole cloud against the move that happened, per group, so a thin group whose cloud is honest and wide is not punished the way a confident miss is.",
+              "baseline": "The same score for a zero-centred cloud whose width is the training spread of the move in that group of the same series",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The sampler explores a joint posterior built from a Gaussian likelihood per bar, and averaging that density over the kept draws on later bars of each group shows whether the pooled weights and the sampled noise level still describe bars the chains never saw.",
+              "baseline": "The log density of a zero-centred Gaussian with the training variance of the move on the same series",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Partial pooling is the one part this model adds, so its predictive score per group is compared with the same regression fitted to all groups as one and with the same regression fitted to each group alone; a hierarchy that beats neither extreme on the thin groups has not earned its sampler.",
+              "baseline": "The same linear model with complete pooling and the same linear model with no pooling, on the same folds",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The credible bands widen for a group with few bars because its weights lean on the population, and the share of realised moves inside each plotted band, read group by group, shows whether that extra width is the right amount.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The centre of each group's forecast is the posterior mean of a Gaussian linear model, which targets the average move, so its squared-error skill shows whether the shrunk group line forecasts the move better than assuming no move.",
+              "baseline": "The no-change forecast on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "potential_scale_reduction_factor",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "When the between-group spread is small the posterior takes a funnel shape that traps a chain, so independent chains that disagree on the population mean or the group spread mean the reported shrinkage is a property of the sampler and not of the data.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "effective_sample_size",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Alternating draws of group weights given the population and of the population given the group weights are strongly correlated from one sweep to the next, so this count says how many independent looks at the between-group spread the kept draws are really worth.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The bar-level noise is Gaussian with one variance shared by every group, and a histogram of where realised moves land inside each group's predictive cloud shows fat tails as piles at both ends and a group with its own noise level as a hump or a bowl.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "The model has no hidden market states to sum over; its own likelihood quantity is the held-out log predictive density of the move averaged over posterior draws, which is listed under that name."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "Groups are supplied as labels and their weights are deliberately pulled together by the shared prior, so a distance between discovered clusters does not describe anything this model does."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This decomposes the surface of a hyperparameter search, while here the pooling strength is sampled inside the posterior, so it says nothing about the hierarchy."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "Each feature's contribution is its group weight times the feature value, and the posterior draws of that weight already state how much it wobbles, so a rank correlation of attributions adds nothing."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively there is no probability of up to put in bins; the honest-odds check for a predictive cloud is the coverage of its intervals, and the binned check belongs to the as-run direction reading."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "No transition matrix exists in a multilevel regression, so there is no state whose tendency to stay put could be measured."
+            },
+            {
+              "name": "Accuracy",
+              "metricId": "accuracy",
+              "why": "Natively each group gets a forecast of size with a spread and no up or down class, so a direction hit rate exists only after the Model Cycle reads the predictive mass above zero."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The multilevel regression holds no position, so a return per unit of risk describes the trading rule and the costs the Model Cycle adds on top of the forecast."
+            },
+            {
+              "name": "Silhouette coefficient",
+              "metricId": "silhouette_coefficient",
+              "why": "The groups are given to the model as known labels such as the instrument or the session and are never discovered, so there is no found partition whose tightness could be judged."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter runs a real Gibbs sampler for a multilevel linear model of the horizon move divided by its trailing spread, but its groups are equal time-of-day blocks of one instrument's stamped day and not instruments, sessions or regimes, and each weight has its own independent group spread where the specification has a full covariance matrix, so the as-run numbers measure pooling across times of day for a single market.",
+          "directionMode": "classifier",
+          "probabilitySource": "model_implied_tail_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the average over the kept Gibbs draws of the standard normal cumulative distribution of the bar's block forecast divided by that draw's noise standard deviation, with no curve fitted on validation rows.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated odds are the predictive mass above zero taken straight from the sampled block weights and the sampled noise level, so this score tests the hierarchy's own distribution on unseen bars with nothing fitted in between."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call is long when the draws of the bar's time-of-day block put at least half their mass above zero, so this is what trading the sign of the pooled block forecast earned after costs."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Shrinking every block toward the shared weights keeps the stated odds close to one half, and this bounded score shows whether the small departures that survive the pooling point the right way."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The sampler is unweighted and no curve is fitted, so the gap between the stated tail mass and the observed up share tests the Gaussian noise term directly; expect most bars in the two bins beside one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The noise level is sampled from a target whose extreme training values were clipped, which narrows the predictive cloud, and a slope below one on the test bars is how that narrowing shows up without bins."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each bar's odds come from its own feature row through its block's weights, so the output is continuous and this ranking number tests whether bars given more mass above zero really rose more often."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A tight prior scale or a small sampled group spread collapses every block onto the shared weights and the odds onto one half, and this spread of the stated odds shows how far the model commits at all."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call cuts the predictive mass at one half, which for this model is the sign of a draw-averaged block forecast, so the hit rate grades that sign against the fold's majority-class reference."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A block intercept that absorbed the training drift makes the model call one side for a whole part of the day, and averaging the recall of up bars and down bars exposes that."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the sign of the pooled block forecast against the outcome, which stays near zero when a block simply repeats its training lean."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Each time-of-day block carries its own intercept, so the share of bars called up shows whether the trades come from the features or from blocks that are long all session."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It puts the profit from trading the sign of the block forecast against the bar-to-bar swings of that profit, costs included, for the same calls the classification numbers grade."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The weights are frozen after the fold's sampling, so a block whose pooled line stops fitting keeps trading the wrong side until the fold ends, and this is the depth of that hole."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades of the block forecast's sign made with what the losing ones gave back after costs, read beside the trade count because a block that never flips makes few trades."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A trade here ends when the sign of the pooled forecast flips or the fold ends, so the share of winning trades describes those flips and is read beside the average win and loss."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is the draw-averaged block forecast from a second run of the same sampler, so its absolute-error skill against assuming no move tests the centre of the same hierarchy the odds come from."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the pooled block forecast landed from the realised horizon move, to be read against the no-change error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the draw-averaged forecast and the side of one half the tail mass falls on agree on almost every bar, so this number is close to the classification accuracy and confirms it and adds little."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Every block has its own intercept learned from the training span, so a mean forecast error away from zero shows a time-of-day drift that did not carry into the test bars."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The count of session blocks and the prior scale of the shared weights are chosen inside each fold by this search score from the real simulator, so it is shown as an optimistic selection number beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the hierarchy."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "A Gibbs chain reports no training loss, and the validation number is the logarithmic loss of the up probability and not the posterior the sampler explores, so there is no pair of like quantities to subtract."
+            }
+          ],
+          "caveats": [
+            "The groups are equal slices of the day as the lake stamps it, and futures bars are stamped in Pacific wall-clock time, so a block is a stretch of the stamped clock and not a named trading session.",
+            "A block with no training bars draws its weights from the shared prior alone, so its forecasts are the population line with extra spread.",
+            "The training target is clipped at its extreme training percentiles before sampling, so the sampled noise level understates the tails and the predictive cloud is narrower than the raw moves warrant.",
+            "A split potential scale reduction factor above the sampler's own warning limit is written to the log as a warning and the fold continues with those draws; the check covers the noise variance and the shared weights and not the block weights (hierarchical.py).",
+            "Each logged epoch is one more Gibbs chain added to the pool of draws, so the validation logarithmic loss by epoch shows the pooled draws settling and is not a learning curve, and no chain is discarded on it.",
+            "The kept draws of all chains are thinned evenly to the sampler's stored-draw cap before any prediction.",
+            "The price forecast line comes from a second run of the same sampler fitted with the regression task on the same target, so its direction accuracy and the classification accuracy are close to the same number.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro E-mini Nasdaq-100 contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

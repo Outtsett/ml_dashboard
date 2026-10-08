@@ -59,6 +59,255 @@
           "label": "Max iterations",
           "group": "Model"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability of each class for every bar, read by passing one weighted sum of the bar's features through the sigmoid curve.",
+          "targetVariable": "The class label of the bar, for example whether the coming move is up or down, stated as a probability of the up class",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification adds a squared-size penalty on the weights to the negative log-likelihood, so the weighted sum is deliberately shrunk and the stated odds are a little less extreme than an unpenalised fit would give.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The solver moves the weights of the single weighted sum to make exactly this number small on the training bars, so on unseen bars it is the direct test of whether the sigmoid's stated odds are honest.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded squared scale, so a handful of bars where the weighted sum ran far from zero cannot dominate the verdict the way they can in the logarithmic score.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Regressing the outcome on the model's own log-odds, which here is simply the weighted sum, shows whether the weight penalty left the sum too flat or whether correlated indicators made it too steep.",
+              "baseline": "A slope of one, the mathematical value for log-odds on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The sigmoid never reorders bars, so this number tests the weighted sum alone: whether a straight-line blend of the features places up bars above down bars at all.",
+              "baseline": "One half, the value when the weighted sum orders up bars and down bars no better than a coin",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The straight decision boundary where the weighted sum crosses zero is the model's hard call, and averaging the hit rate of each side stops a boundary that calls nearly every bar one way from looking skilled.",
+              "baseline": "One half, the value of calling every bar the same side",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A heavily penalised weight vector collapses the weighted sum toward its intercept, and the spread of the stated probabilities shows whether the features move the output at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "With one weight per feature the only way this model memorises is through too weak a penalty, and the gap between the same log-likelihood on validation rows and on training rows shows it directly.",
+              "baseline": "Zero, no gap between the two spans",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Macro F1-Score",
+              "metricId": "macro_f_one_score",
+              "why": "It is a hard-call number of the as-run scoreboard that depends on where the sigmoid output is cut; natively the model is judged on its stated odds and its hard call is covered by balanced accuracy."
+            },
+            {
+              "name": "High-Conviction Precision",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of bars, and the threshold-free ranking and calibration metrics already test whether large weighted sums are more reliable."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The sigmoid of a weighted sum states a probability of a class and never a size of move, so there is no forecast in points to measure an error on."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the model only states odds; a Sharpe ratio appears only after the engine turns those odds into positions and charges costs, so it belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the weighted sum of the bar's features standardised with the training rows' mean and deviation, from a fit in which up bars and down bars each carry half the loss.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The solver gave up bars and down bars equal weight, so the sigmoid's output is centred on an even prior and this half-and-half logarithmic score is the one that matches what the weights were actually fitted to do; its reference is the natural logarithm of two."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Class weighting shifts the intercept but does not reorder bars, so this is the clean test of whether the weighted sum of features ranks bars that went up above bars that went down."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the weighted sum is at or above zero and short otherwise, and this is what that straight decision boundary earned after costs beyond simply holding the same contract through the same folds."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by trading the sign of the weighted sum under the engine's fill and exit rule with costs charged, read beside the predicted up share and the trade count."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of following the decision boundary to its bumpiness; zero is only an arithmetic marker because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while the weighted sum stayed on the wrong side of zero, which a single linear boundary can do for long stretches when the market's regime changes."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning trades opened by a flip of the weighted sum's sign with the losing ones after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many of the trades that began when the weighted sum changed sign closed with a profit, which must be read with the average win and loss because exits follow the engine's rule."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the call at the zero crossing of the weighted sum; because the fit was class balanced, that crossing sits at an even prior and not at the fold's own up share."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages the hit rate on up bars and on down bars, which is the hard-call number that matches a boundary deliberately placed by a fit that weighted the two sides equally."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It condenses the four counts of called against actual direction at the zero crossing into one symmetric number that stays near zero when the boundary merely calls one side most of the time."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The plain logarithmic loss charges the sigmoid's output against the real up share, which the balanced fit did not aim at, so it reads a little worse than the model's ranking deserves; it is also the quantity whose validation value picked the kept solver pass."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same balanced-prior probability on a bounded squared scale, so it carries the same small penalty for the shifted intercept but cannot be dominated by a few extreme weighted sums."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Class weighting moves the intercept and leaves the steepness alone, so the slope still tells whether the penalised weighted sum is too flat or too steep as log-odds."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the regularization strength dial left the weights large enough for the sigmoid output to move away from one half at all."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Both logged curves hold the plain logarithmic loss of the sigmoid output, so their gap at the kept solver pass is a fair overfit check for this model."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the regularization strength; it is a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The balanced fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in by design and does not show a fault of the weights."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "The forecast line comes from a separately fitted ridge regression on the scaled move, not from the logistic weights, so this number says nothing about the classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "It measures the miss of the separate ridge price model drawn beside the classifier, whose weights share nothing with the sigmoid's weighted sum."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "It is the sign hit rate of the separate ridge forecast, which can disagree with the logistic call on any bar and is never traded."
+            }
+          ],
+          "caveats": [
+            "The price forecast shown for this model is a second model, a ridge regression whose penalty is the reciprocal of the regularization strength, fitted on the volatility-scaled move with its training target clipped at extreme training percentiles.",
+            "The fit runs in ten warm-started solver passes and keeps the pass with the lowest validation logarithmic loss, so the validation logarithmic loss of the kept pass is optimistic.",
+            "The logged training curve is the plain logarithmic loss of the sigmoid output, while the solver itself minimised the class-weighted and penalised version of it.",
+            "The specification does not mention class weighting; the runnable model always balances the two classes, so a probability of one half means above an even prior and not above the fold's up share.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "stochastic_gradient_descent": {
@@ -176,6 +425,306 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A linear model whose weights were nudged after every single row or small batch, giving for each feature row the sigmoid of a weighted sum as the probability of the positive class, or the weighted sum itself when the regression loss is chosen.",
+          "targetVariable": "The probability that a feature row belongs to the positive class, which on this dashboard is the close label horizon bars ahead finishing above this bar's close.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "Stochastic gradient descent is the update rule and not a model of its own: the specification lets the same row-by-row weight nudges minimise logarithmic loss for a classifier or squared error for a regression, each with a penalty on the size of the weights, and the classification form is the one assigned here.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "With the logistic loss chosen, every weight nudge moves the line downhill on exactly this quantity plus the weight penalty, so the same number on unseen rows says whether the noisy row-by-row walk ended somewhere that states honest odds.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The sigmoid of the weighted sum is graded as a squared miss between zero and one, which keeps a handful of rows with a very large weighted sum from deciding the verdict the way they can under the logarithm.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The weight penalty shrinks the weighted sum and stopping the passes early leaves it short, so the slope shows whether the line's log-odds are stretched too far or squeezed toward even odds.",
+              "baseline": "A slope of one, which is the mathematical value for log-odds on the right scale.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks only whether rows with a larger weighted sum turned out positive more often, so it grades the direction of the learned weight vector without caring how the penalty scaled it.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A strong weight penalty pulls every coefficient toward zero until the sigmoid quotes nearly the same odds on every row, and this spread shows whether the line still commits to anything.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Because the method is defined by its noisy single-row updates, the logarithmic loss after each pass over the training rows is the only way to see whether the step size let the weights settle or left them bouncing.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The logarithmic loss of the kept pass on later rows minus on the rows it was nudged on shows whether the line memorised its training span, which a linear model does only when the penalty is weak and the features are many.",
+              "baseline": "Zero, meaning the line scores the same on rows it was fitted on and rows it never saw.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The row-by-row weight nudges produce odds and take no position, so natively this never applied; the as-run layer reports the engine's Sharpe ratio of the fitted line's calls."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "No benchmark and no beta are fitted by the update rule or by the engine, so an alpha was never a quantity this method could output."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "It is a property of the traded equity path under the engine's rule, reported as run, and tells nothing about whether the noisy updates settled on honest odds."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The method fits one weight vector and holds no portfolio; the nearest real quantity is the as-run count of trades per session day."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It is the engine's return divided by the engine's drawdown, both as-run quantities of the traded calls and neither produced by mini-batch gradient steps."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The method returns weights and a loss trajectory and never a distribution of trading losses, and the registry has no tail-loss metric for this row."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The logistic form states a probability of a class and never a bell curve around a forecast move, so there is no density to evaluate at the realised move."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A size-of-move error belongs to the squared-error regression form, which as run is a second, separately fitted line and not the classifier whose odds are being judged."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the method outputs odds and takes no position, so a reward-for-risk figure grades the engine's trading rule and costs and exists only on the as-run layer."
+            },
+            {
+              "name": "Relative optimality gap",
+              "metricId": "relative_optimality_gap_fraction",
+              "why": "The noisy updates carry no proven bound on how far the kept weights are from the best possible weights, so there is no certificate to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the up-class column of predict_proba from a scikit-learn stochastic gradient descent classifier with the logistic loss, that is the sigmoid of a weighted sum of the standardised features, with no class weighting and no curve fitted on top.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The classifier was nudged row by row on unweighted logarithmic loss, so on the test walk this is the model's own objective measured where neither the weights nor the kept epoch ever saw the bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The weighted sum is continuous, so this is a fair test of whether bars the line scored higher went up more often over the label horizon, whatever the penalty did to the scale of the weights."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the sigmoid of the weighted sum as a squared miss, a bounded second opinion on the same odds that a few extreme feature rows cannot dominate."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Because the fit is unweighted, the sigmoid output is a real frequency claim against the base rate, and the binned gap shows whether a stated chance of up matched the observed up share; it is read with the occupied-bin count because a penalised line keeps its odds close to even."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "It shows without bins whether the penalty and the early-kept epoch left the line's log-odds too flat or too steep on the test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the sigmoid output moves away from its average, which collapses toward nothing when the search picks a large penalty_strength."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The training and validation curves both hold the plain logarithmic loss of the same probabilities, so the kept epoch's difference between them is a clean reading of how much the line fitted its own span."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the share of scored bars where the sigmoid landed on the right side of one half, and because the fit is unweighted that cut carries the training base rate, so it is read beside the majority-class accuracy of the same fold."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the learned weights added anything to the line's own intercept, which alone would call the fold's training majority direction on every bar."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages how often the line caught the up bars and how often it caught the down bars, so a model that leans on its intercept and calls one side nearly always earns no credit."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the four cells of the line's hard calls in one symmetric number that stays near zero when the weighted sum only echoes the training base rate."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the sign of the line's call earned after costs under the engine's rule of following the latest call and filling at the next bar's open, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It is the per-bar reward for risk of trading the line's call under the engine's rule and costs, and it depends only on which side of one half the sigmoid fell, never on how confident it was."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It is the deepest fall of the equity made by trading the line's call, which shows what a fixed set of weights costs when the test bars stop behaving like the training span."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares dollars won with dollars lost over the closed trades the line's flips produced, after costs, as a description of the engine's rule applied to this model's calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It is the share of closed trades that ended positive, where a trade ends when the line's call changes side, a stop or target is hit or the fold ends, so it is read with the trade count."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the line called up, which exposes a heavily penalised model whose intercept decides nearly every bar."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the line's call switched side or a trade otherwise ended, which is needed to read every trading number of a model whose weighted sum hovers near zero."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second, separately fitted stochastic gradient descent regressor trained on squared error against forecasting no move on the same resolved bars; it says nothing about the classifier's odds."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of the separately fitted regression line after tick rounding, read beside the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is how often the sign of the regression line's forecast matched the actual move on bars where both are non-zero after tick rounding; it belongs to the regressor and can disagree with the traded call."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The classifier is fitted without class weights, so its odds are centred on the training base rate and the score that gives each class half the weight would grade it against a target it never aimed at."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the line."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "why": "It is the selection score that picked penalty_strength, penalty_type and l1_penalty_share inside the training span, optimistic by construction and not a result of the fitted line."
+            }
+          ],
+          "caveats": [
+            "The kept epoch is the one with the lowest validation logarithmic loss, so the validation figure is optimistic and only the test walk is out of sample.",
+            "The price line is a second model, a stochastic gradient descent regressor whose kept epoch is chosen on validation mean absolute error, so the forecast metrics and the direction metrics grade two different sets of weights.",
+            "The training and validation curves hold the logarithmic loss without the weight penalty, so they are not the full penalised objective the updates followed.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "On roots other than the Micro Nasdaq future the cost per side is the Micro Nasdaq account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "probit_regression": {
@@ -239,6 +788,255 @@
           "group": "Model",
           "description": "The most steps the solver takes to find the weights."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability of the positive class for every bar, read by passing one weighted sum of the features through the cumulative curve of the standard normal distribution.",
+          "targetVariable": "The binary class label of the bar, for example a buy or sell signal, stated as a probability of the positive class",
+          "objectiveId": "probit_likelihood",
+          "objectiveNote": "The model imagines a hidden score equal to the weighted sum plus standard normal noise and calls the bar positive when that score is above zero, and the specification adds a squared-size penalty on the weights.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The weights are chosen to maximise the log of the normal-curve probability given to what happened, so this number on unseen bars is the fitted likelihood out of sample; the thin tails of the normal curve make a confident miss especially expensive here.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Because the normal curve reaches near-certainty faster than the sigmoid does, a bounded squared score is needed beside the logarithmic one to see whether a few extreme hidden scores are driving the result.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "It checks whether the unit-variance noise assumed for the hidden score matches the market: a slope away from one says the normal curve is turning the weighted sum into odds that are too bold or too timid.",
+              "baseline": "A slope of one, the mathematical value for log-odds on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The normal curve is monotone, so this number tests only the hidden score: whether the straight-line blend of features sits higher on positive bars than on negative ones.",
+              "baseline": "One half, the value when the hidden score orders the two classes no better than a coin",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hard call is the sign of the hidden score, and averaging the hit rate over the two sides shows whether that straight boundary separates them or simply sits on one side of nearly every bar.",
+              "baseline": "One half, the value of calling every bar the same side",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the penalty shrinks every weight the hidden score stops moving and the normal curve returns almost the same probability on every bar, which this spread exposes.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The old table stamped a Gaussian density objective on a classifier whose real objective is the probit likelihood of a binary label; the model outputs no mean or variance of a return."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The probit predicts a class probability and not a return amount, so a root mean square error of a return forecast never applied to it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of bars, and the ranking and calibration metrics already test whether large hidden scores are more reliable."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "The normal distribution in a probit sits on the hidden score and only shapes the link; the model never states a mean and variance of a return for a Gaussian density to grade."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A probit has no regression form and states no size of move, so there is no forecast in points whose error could be measured."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the model only states odds; a Sharpe ratio exists only after the engine trades those odds with costs, so it belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is a real probit fitted by maximum likelihood on the up or down label, but when its penalty strength is above zero it uses an absolute-value penalty where the specification writes a squared-size penalty, it covers only the binary case, and it has no price model; the as-run numbers measure the binary probit's own probability of up.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the standard normal cumulative curve applied to an intercept plus the weighted sum of features standardised with the training rows' mean and deviation, from an unweighted maximum-likelihood fit with no curve added afterwards.",
+          "priceForecastSource": "none",
+          "objectiveId": "probit_likelihood",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit; both numbers are the plain logarithmic loss of the normal-curve probability of up, on the training rows and on the validation rows, and neither includes the absolute-value penalty term",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The weights were fitted by maximising the unweighted log of the normal-curve probability given to each training label, so this is the same quantity on unseen bars and the direct test of the stated odds; the thin normal tails make a confident miss costly."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The normal curve never reorders bars, so this tests the hidden score alone: whether the weighted sum of features sits higher on bars that went up than on bars that went down."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the hidden score is at or above zero and short otherwise, and this is what that straight boundary earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by trading the sign of the hidden score under the engine's fill and exit rule with costs charged, read beside the predicted up share and the trade count."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of following the sign of the hidden score to its bumpiness; zero is only an arithmetic marker because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest loss run while the hidden score stayed on the wrong side of zero; an unweighted fit follows the training up share, so in a one-sided training span the boundary can sit on one side for long stretches."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning with losing trades opened when the hidden score changed sign, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the share of trades begun at a sign change of the hidden score that closed with a profit, and must be read with average win and loss because exits follow the engine's rule."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of calling up when the normal-curve probability is at least one half; because the fit is unweighted, that cut reflects the training up share and the reference is the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "An unweighted probit can lean toward the side that was more common in training, and averaging the hit rate of the two sides shows whether its boundary separates them or merely follows that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It condenses the four counts of called against actual direction into one symmetric number that stays near zero when the hidden score rarely crosses zero."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the normal-curve probability on a bounded squared scale, so the result does not hinge on the few bars where the hidden score ran far into the curve's thin tails."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is unweighted and nothing is fitted on validation bars, so the binned gap between the stated probability and the observed up share is a fair check of the probit's own odds, read with the count of occupied bins."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "It checks the unit-variance noise assumed for the hidden score: a slope below one means the normal curve is turning the weighted sum into odds that are too bold on unseen bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The absolute-value penalty can set many weights to exactly zero, and the spread of the probability shows whether enough survived for the output to move away from the base rate."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Both logged numbers hold the plain logarithmic loss of the normal-curve probability, so their gap at the single step is a fair overfit check for this probit, although the absolute-value penalty the optimiser also paid for is in neither number."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the penalty strength; it is a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: a probit has no regression form, so this model fits no price model and draws no forecast line."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: there is no price model for this key, so no forecast move exists to take an error on."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the share of bars held describes the engine's rule and not the probit."
+            }
+          ],
+          "caveats": [
+            "At the default penalty strength of zero the fit is plain maximum likelihood; above zero it is an absolute-value penalty with the intercept left unpenalised, which is not the squared-size penalty the specification writes.",
+            "The fit is a single library call with no checkpoint choice; the single step reports the plain logarithmic loss of the probability of up on the training rows and on the validation rows, both without the penalty term, and selects nothing.",
+            "The adapter clips the probability to the closed range from zero to one, so a hidden score far in the tail can produce a probability of exactly zero or one and a very large logarithmic loss on that bar.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "ridge_regression": {
@@ -294,6 +1092,288 @@
             "log": true
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "One number per bar, the expected value of a continuous target such as the coming price change, as a straight-line blend of the features whose weights are shrunk toward zero.",
+          "targetVariable": "The expected size and sign of the coming continuous outcome, such as the price change over the horizon, given the bar's features",
+          "objectiveId": "squared_error",
+          "objectiveNote": "Ridge adds a penalty on the squared size of the weights to least squares, which has a closed-form solution and shares weight among correlated indicators instead of letting them take huge opposite values.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Ridge solves for the weights that minimise squared misses, which aims the line at the average move, so the share of squared error it removes relative to forecasting no move is the fitted objective judged out of sample.",
+              "baseline": "The mean squared actual move, which is the squared error of forecasting no move on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It states the same squared-miss objective in points, so the typical size of the shrunk line's miss can be read against the typical size of a move.",
+              "baseline": "The root mean square actual move on the same resolved bars, the error of forecasting no move",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute-error version is not what ridge minimises, but it shows whether the gain over forecasting no move survives when the few largest bars stop dominating the sum.",
+              "baseline": "The mean absolute actual move on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The penalty shrinks every weight, so the line's forecasts are deliberately too small; correlation ignores that shrinkage and asks only whether larger forecasts line up with larger realised moves.",
+              "baseline": "Zero, no linear relation between forecast and realised move",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The intercept is fitted on the training span's average move, so a drifting market shows up as a constant lean in the line that can pass for skill while the drift lasts.",
+              "baseline": "Zero, no lean in either direction",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The penalty strength is the single dial trading fit against stability, and the gap between squared error on validation rows and on training rows shows whether it was set too loose.",
+              "baseline": "Zero, no gap between the two spans",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "Natively the ridge line forecasts an amount and makes no up or down call; a direction hit rate exists only as run, through the curve fitted on validation bars."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The model has no class probability of its own to rank; natively the matching question, whether bigger forecasts go with bigger moves, is answered by the forecast-to-move correlation."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The old table stamped a Gaussian density objective with a per-bar variance on a model that minimises penalised squared error and outputs only the centre."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the largest tenth of forecasts, and the shrunk line carries no direction call natively."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The model outputs a size of move and not a probability, so a squared probability error had nothing to be computed on."
+            },
+            {
+              "name": "Brier score",
+              "metricId": "brier_score",
+              "why": "Natively the shrunk line states a size of move and no probability of up, so there is nothing between zero and one to score; the curve fitted on validation bars is an as-run addition."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "Ridge returns only the centre of the forecast and never a variance for each bar, so a Gaussian density that needs both cannot be evaluated."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the model only forecasts a move; a Sharpe ratio exists only after the engine turns the forecast into positions and charges costs, so it belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is a real ridge regression fitted in closed form on the volatility-scaled move over the horizon, as the specification describes, but the up or down call is not part of the specification: it comes from a logistic curve of the forecast fitted on the validation bars, so the probability metrics measure the shrunk line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve applied to the ridge line's forecast of the scaled move, with the curve's slope and intercept fitted by maximum likelihood on the fold's validation bars only.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the volatility-scaled horizon move, in scaled-move units and not in points, one value for the single fit; the training value is scored against the target clipped at extreme training percentiles and the validation value against the raw target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Ridge minimises squared misses, which aims the line at the average move, so the share of squared error it removes relative to forecasting no move is its own objective judged on unseen bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the forecast, so this number tests the shrunk line itself: whether higher forecast moves go with bars that went up; a value below one half with a negative curve slope means the curve inverted the line."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the curve's probability is at least one half, which is a threshold on the ridge forecast, and this is what that call earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It states the line's squared-miss objective in points after the forecast is scaled back by the trailing move scale, so the typical miss can be read against the typical move."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute-error skill is not what ridge minimises, but it shows whether the gain over forecasting no move survives once the few largest bars stop dominating the sum."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It is the typical miss of the shrunk line in points, read against the no-change forecast's error on the same resolved bars."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The penalty makes every forecast deliberately small, and correlation ignores that shrinkage and asks only whether larger forecasts line up with larger realised moves."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the sign of the ridge forecast on bars where neither forecast nor move rounded to zero; because shrunk forecasts often round to zero ticks, its denominator matters, and it is not the traded call."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The intercept carries the training span's average move, so a lean here means the line is partly forecasting the old drift and can look skilled while that drift lasts."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The curve fitted on validation bars can move the up or down threshold away from a zero forecast or flip it, and this share shows how often the traded side still matches the sign of the ridge forecast."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by trading the side chosen by the curve's threshold on the ridge forecast, under the engine's fill and exit rule with costs charged."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of following that threshold to its bumpiness; zero is only an arithmetic marker because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest loss run of the threshold call; a curve with a large intercept can hold one side for a whole fold, which then shows up here as an unhedged directional hole."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning with losing trades opened when the ridge forecast crossed the curve's threshold, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the share of trades begun at a threshold crossing of the forecast that closed with a profit, and must be read with average win and loss because exits follow the engine's rule."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the call made by cutting the curve's probability at one half, so it tests the shrunk line and the validation-fitted threshold together and depends on the prior that curve learned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The curve's intercept can push nearly every bar to one side, and averaging the hit rate over up bars and down bars shows whether the ridge forecast separates them once that lean is discounted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It condenses the threshold call into one symmetric number that stays near zero when the ridge forecast rarely crosses the curve's threshold."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the ridge forecast after the two-parameter curve has turned it into odds, so it is meaningful for line plus curve and says how informative the forecast is about direction once it is put on a probability scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same curve output on a bounded squared scale; the curve is fitted by maximum likelihood with a light slope penalty, so its output never reaches exactly zero or one."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It tests whether a curve learned on the validation bars still maps the ridge forecast to the right odds on the later test bars, so a large value points at drift between the two spans more than at the line."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the penalty strength, the model's only dial; it is a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the share of bars held describes the engine's rule and not the ridge line."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The logged numbers are mean absolute errors and not the squared-error objective the fit minimised, and the training one is scored against the clipped target while the validation one is scored against the raw target, so their gap is not an overfit check for this line."
+            }
+          ],
+          "caveats": [
+            "The traded call is the validation-fitted threshold of the forecast and not the forecast's sign, and the curve's fitted slope and intercept are logged as text but not stored as metrics.",
+            "The curve's two parameters were fitted on the fold's validation bars, so probability metrics on validation rows are partly in-sample; only the test walk is out of sample for line plus curve.",
+            "The line's training target is clipped at its extreme training percentiles before the fit, and the forecast is multiplied back by the trailing move scale and rounded to the tick before it is scored.",
+            "The step channel reports once, after the single closed-form fit, the line's mean absolute error in volatility-scaled units on the training rows against the clipped target and on the validation rows against the raw target, although the fit minimised squared error; nothing is selected on it.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "lasso_regression": {
@@ -348,6 +1428,303 @@
             "high": 0.1,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, as a weighted sum of the few features whose weights survived the absolute-value penalty.",
+          "targetVariable": "The expected size and sign of a continuous outcome such as the coming price move.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "This model's version adds a penalty on the sum of absolute coefficient sizes, whose soft-threshold update sets weak coefficients to exactly zero, so the fit selects features as well as weighting them.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The soft-threshold updates minimise squared misses plus the absolute-value penalty, so the surviving coefficients are judged by their squared miss on unseen bars against forecasting no move.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The set of features left with a non-zero weight is the selection this model exists to make, and among correlated indicators the penalty keeps one almost arbitrarily, so a set that does not recur across refits is not a finding.",
+              "baseline": "The share of features that would recur if each refit kept the same number of features at random.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the sparse line in points, the unit read on the chart, on the same resolved bars.",
+              "baseline": "The root mean square size of the actual move on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The penalty pulls every surviving coefficient toward zero as well as removing others, so the forecasts are undersized by design and correlation checks their ordering apart from that shrunken scale.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute miss against the no-change forecast is less driven by a few large bars than the squared version, so it is read beside the squared one for this mean-targeting sparse fit.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the penalty removes most features the unpenalised intercept does most of the forecasting, and it carries the average move of the training span into every bar.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The soft-threshold fit optimises squared misses and never signs, so a sign hit rate is not a native score of it; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The model attaches no confidence to its single-number forecast, so this row never applied to it."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The fit states no forecast variance, so no Gaussian density exists to score and the row never applied."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter and not an output of the sparse regression."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "Natively the model gives no probability of up, so a probability score has nothing to grade until a curve is added as run."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "A sparse least squares line states no variance for its forecast, so there is no density to evaluate at the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real lasso estimator on the horizon move divided by its trailing volatility, as specified, but the up or down call is derived by a two-parameter logistic curve fitted to that forecast on the validation bars, and the penalty strength is chosen by a per-fold search on a trading objective and not by cross-validated error, so the probability and trading numbers measure the sparse line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve of the sparse lasso forecast, with slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "It tests the sparse line directly: whether the forecast from the coefficients the absolute-value penalty left non-zero, after tick rounding, misses by less than forecasting no move on the same resolved bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve only stretches the lasso forecast, so the ordering of bars comes from the surviving features alone, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The soft-threshold fit minimises squared misses, and the squared miss against the no-change forecast is the scale that matches it; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the sparse forecast in points, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the sparse forecast itself, before the validation curve can shift or flip it, with its count of non-zero forecasts because a strong penalty rounds many to zero ticks."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the lasso forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the surviving features."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the sparse line plus its validation curve earned after costs under the engine's trading rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings, and it is also the quantity the per-fold search of the penalty strength maximised on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest hole dug while following the calls of the sparse line, which stays always in the market under the default rule."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened by flips of the lasso call after costs, and a random-direction trader would sit below one because of those costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the lasso call ended above zero after costs, and says nothing about size without the payoff ratio beside it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at 0.5, which depends on the intercept fitted on validation bars as much as on the sparse forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks that the curve-derived call finds both up bars and down bars, since a penalty that zeroes every coefficient leaves only the intercept and the call lands on one side on every bar."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the sparse forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the lasso forecast plus its validation curve together; the curve's slope and intercept saw validation bars, so the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same curve-made probability on a bounded scale, and a forecast built from very few surviving features gives a nearly flat curve whose score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether the curve fitted on validation bars still matches observed up shares on test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The penalty strength that decides how many features survive was picked by the best training-block score, so the drop from that score to the fold's test value shows how much of the pick was luck."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the sparse lasso forecast in points on the resolved forecasts, the scale that matches the squared-error fit, and it weighs large misses more heavily than the absolute error does."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The penalty removes some coefficients and pulls the survivors toward zero, so the lasso forecasts are undersized by design, and this correlation checks whether bigger forecasts still go with bigger realised moves apart from that scale."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the penalty removes most features the unpenalised intercept does most of the forecasting and carries the average move of the training span into every bar, so this mean signed gap shows a lean that can pass for skill."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that come from flips of the lasso call, and each one pays a round trip of costs that the forecast measures of the sparse line never see."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the curve ever moves the probability from its centre, which is the fitted slope times the spread of the lasso forecasts, so a penalty that leaves very few features leaves it near zero."
+            },
+            {
+              "metricId": "persistence_mean_absolute_error_points",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the miss of forecasting no move on the same resolved bars, the same-series reference that the absolute error of the lasso forecast has to beat for its skill figure to be positive."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the accuracy of calling every scored bar the fold's training majority class, the same-series reference for the accuracy of the call that the validation curve derives from the lasso forecast."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is what holding a single long position through the same folds earned after a round trip of costs per fold, the same-series reference for the net profit of the calls from the sparse line."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine holds a position on every bar once the first lasso call is filled, so the share describes the engine's rule and not the model."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            }
+          ],
+          "caveats": [
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the sparse regression plus that curve and not the regression alone.",
+            "The step record of the single fit holds the mean absolute error of the volatility-scaled move and not the squared error the fit minimises, and its training value is scored against the clipped target while its validation value is scored against the unclipped one, so the gap between them is not a pure measure of overfitting.",
+            "When the penalty zeroes every coefficient the forecast is a constant and the logistic curve falls back to the validation base rate, so every bar gets the same call.",
+            "The penalty strength is searched inside each fold on a trading objective whose undefined blocks score zero, so the chosen penalty is not the one with the smallest forecast error.",
+            "The price target is clipped at the outer percentiles of the training rows before the fit, so the coefficients never see the largest moves at full size.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -421,6 +1798,302 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, as a weighted sum of the features whose weights were shrunk and partly zeroed by a blended penalty.",
+          "targetVariable": "The expected size and sign of a continuous outcome such as the coming price move.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "This model's version adds a blend of an absolute-value penalty, which zeroes weak coefficients, and a squared penalty, which lets correlated features share weight, with the blend set by the mixing dial.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Coordinate descent minimises squared misses plus the blended penalty, so the honest test of the kept coefficients is their squared miss on unseen bars against forecasting no move at all.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The absolute-value part of the penalty decides which features keep a non-zero weight, and a selection that changes on every refit means the squared part is not steadying the correlated indicators as the model promises.",
+              "baseline": "The share of features that would recur if each refit kept the same number of features at random.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the penalised line in points, the unit a trader reads on the chart, on the same resolved bars.",
+              "baseline": "The root mean square size of the actual move on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Both penalties shrink every coefficient toward zero, so the forecasts are small by design, and correlation shows whether their ordering still tracks the real moves once that shrunken scale is set aside.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute miss against the no-change forecast is the engine's computed skill figure and is less driven by a few large bars than the squared version, so it is read beside the squared one for this mean-targeting fit.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The intercept is not penalised and carries the average move of the training span, so in a trending span the line leans one way and that lean can pass for skill.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The blended-penalty fit optimises squared misses and never signs, so a sign hit rate is not a native score of it; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The model attaches no confidence to its single-number forecast, so this row never applied to it."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The fit states no forecast variance, so no Gaussian density exists to score and the row never applied."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter and not an output of the penalised regression."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "Natively the model gives no probability of up, so a probability score has nothing to grade until a curve is added as run."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "A penalised least squares line states no variance for its forecast, so there is no density to evaluate at the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real elastic net estimator on the horizon move divided by its trailing volatility, as specified, but the up or down call is derived by a two-parameter logistic curve fitted to that forecast on the validation bars, and the penalty strength and mixing share are chosen by a per-fold search on a trading objective and not by cross-validated error, so the probability and trading numbers measure the penalised line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve of the elastic net forecast, with slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "It tests the penalised line directly: whether the forecast from the coefficients that survived the blended penalty, after tick rounding, misses by less than forecasting no move on the same resolved bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve only stretches the elastic net forecast, so the ordering of bars is the penalised line's own, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The blended-penalty fit minimises squared misses, and the squared miss against the no-change forecast is the scale that matches it; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the shrunken elastic net forecast in points, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the penalised forecast itself, before the validation curve can shift or flip it, with its count of non-zero forecasts because heavy shrinkage rounds many to zero ticks."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the elastic net forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the penalised line."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the elastic net line plus its validation curve earned after costs under the engine's trading rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings, and it is also the quantity the per-fold search of the two penalty dials maximised on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest hole dug while following the calls of the penalised line, which stays always in the market under the default rule."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened by flips of the elastic net call after costs, and a random-direction trader would sit below one because of those costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the elastic net call ended above zero after costs, and says nothing about size without the payoff ratio beside it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at 0.5, which depends on the intercept fitted on validation bars as much as on the penalised forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks that the curve-derived call finds both up bars and down bars, since a penalty strong enough to zero every coefficient leaves a constant forecast that calls one side on every bar."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the shrunken forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the elastic net forecast plus its validation curve together; the curve's slope and intercept saw validation bars, so the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same curve-made probability on a bounded scale, and a heavily shrunken forecast gives a nearly flat curve whose score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether the curve fitted on validation bars still matches observed up shares on test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The penalty strength and the mixing share were picked by the best training-block score, so the drop from that score to the fold's test value shows how much of the pick was luck."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the elastic net forecast in points on the resolved forecasts, the scale that matches the squared-error fit, and it weighs large misses more heavily than the absolute error does."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Both penalties shrink every coefficient, so the elastic net forecasts are small by design, and this correlation checks whether bigger forecasts still go with bigger realised moves apart from that shrunken scale."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The unpenalised intercept carries the average move of the training span into every forecast, so this mean signed gap between forecast and realised move shows a lean that can pass for skill when the span trended."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that come from flips of the elastic net call, and each one pays a round trip of costs that the forecast measures of the penalised line never see."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the curve ever moves the probability from its centre, which is the fitted slope times the spread of the elastic net forecasts, so heavy shrinkage leaves it near zero."
+            },
+            {
+              "metricId": "persistence_mean_absolute_error_points",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the miss of forecasting no move on the same resolved bars, the same-series reference that the absolute error of the elastic net forecast has to beat for its skill figure to be positive."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the accuracy of calling every scored bar the fold's training majority class, the same-series reference for the accuracy of the call that the validation curve derives from the elastic net forecast."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is what holding a single long position through the same folds earned after a round trip of costs per fold, the same-series reference for the net profit of the calls from the elastic net line."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine holds a position on every bar once the first elastic net call is filled, so the share describes the engine's rule and not the model."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            }
+          ],
+          "caveats": [
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the penalised regression plus that curve and not the regression alone.",
+            "The step record of the single fit holds the mean absolute error of the volatility-scaled move and not the squared error the fit minimises, and its training value is scored against the clipped target while its validation value is scored against the unclipped one, so the gap between them is not a pure measure of overfitting.",
+            "The penalty strength and the mixing share are searched inside each fold on a trading objective whose undefined blocks score zero, so the chosen penalty is not the one with the smallest forecast error.",
+            "The price target is clipped at the outer percentiles of the training rows before the fit, so the coefficients never see the largest moves at full size.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "least_angle_regression": {
@@ -475,6 +2148,303 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, from a line built by adding one feature at a time along the equiangular path, together with the order in which features entered.",
+          "targetVariable": "The expected size and sign of a continuous outcome such as the coming price move.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "This model's version does not minimise a penalised loss directly: it walks the least squares path feature by feature, moving the active coefficients at equal angles to the residual, and the stopping point on that path plays the role of the penalty.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Every step along the equiangular path lowers the squared residual on training rows, so the test of the chosen stopping point is its squared miss on unseen bars against forecasting no move.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The entry order of the features is the result this algorithm is known for, and with correlated indicators a small change in the residual swaps which one enters first, so recurrence of the active set across refits is half the verdict.",
+              "baseline": "The share of features that would recur if each refit picked an active set of the same size at random.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the squared miss of the stopped path in points, the unit read on the chart, on the same resolved bars.",
+              "baseline": "The root mean square size of the actual move on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A path stopped after few features gives coefficients that have not reached their full least squares size, so correlation checks the ordering of the forecasts apart from that shortened scale.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute miss against the no-change forecast is less driven by a few large bars than the squared version, and the path is known to chase noisy residuals, so the two are read side by side.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The algorithm computes a whole path of candidate models, one per step, and the more stopping points are compared before one is kept, the more the kept one is flattered by luck.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The equiangular path lowers squared residuals and never optimises signs, so a sign hit rate is not a native score of it; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The model attaches no confidence to its single-number forecast, so this row never applied to it."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The path states no forecast variance, so no Gaussian density exists to score and the row never applied."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter and not an output of least angle regression."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "Natively the model gives no probability of up, so a probability score has nothing to grade until a curve is added as run."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "A point on the least squares path states no variance for its forecast, so there is no density to evaluate at the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the plain least angle path on the horizon move divided by its trailing volatility and stops it at the nonzero_coefficient_limit dial, where the specification picks the stopping point from the whole path by cross-validated error and describes the lasso form of the path, and the up or down call is derived by a two-parameter logistic curve fitted to the forecast on the validation bars, so the probability and trading numbers measure the stopped path plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve of the forecast from the stopped least angle path, with slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "It tests the stopped path directly: whether the forecast from the few features admitted before nonzero_coefficient_limit was reached, after tick rounding, misses by less than forecasting no move on the same resolved bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve only stretches the path's forecast, so the ordering of bars comes from the admitted features alone, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "Each step of the path lowers squared residuals, and the squared miss against the no-change forecast is the scale that matches it; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the stopped path's forecast in points, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the path's forecast itself, before the validation curve can shift or flip it, so it shows what the admitted features alone know about direction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the path's forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the admitted features."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the stopped path plus its validation curve earned after costs under the engine's trading rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings, and it is also the quantity the per-fold search of the feature limit maximised on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest hole dug while following the calls of the stopped path, which stays always in the market under the default rule."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened by flips of the path's call after costs, and a random-direction trader would sit below one because of those costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the path's call ended above zero after costs, and says nothing about size without the payoff ratio beside it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at 0.5, which depends on the intercept fitted on validation bars as much as on the forecast from the admitted features."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks that the curve-derived call finds both up bars and down bars, since a path stopped after very few features gives a forecast that barely moves and can call one side on every bar."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the path's forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the path's forecast plus its validation curve together; the curve's slope and intercept saw validation bars, so the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same curve-made probability on a bounded scale, and a weak forecast from the admitted features gives a nearly flat curve whose score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether the curve fitted on validation bars still matches observed up shares on test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The feature limit that stops the path was picked by the best training-block score, so the drop from that score to the fold's test value shows how much of the pick was luck."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the stopped path's forecast in points on the resolved forecasts, the scale that matches a path built to lower squared residuals, and it weighs large misses more heavily than the absolute error does."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A path stopped after few features gives coefficients that have not reached their full least squares size, and this correlation checks whether bigger forecasts still go with bigger realised moves apart from that shortened scale."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It is the mean signed gap between the stopped path's forecast and the realised move, and a lean carried by the intercept of a path with very few features can pass for skill when the training span trended."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that come from flips of the path's call, and each one pays a round trip of costs that the forecast measures of the stopped path never see."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the curve ever moves the probability from its centre, which is the fitted slope times the spread of the path's forecasts, so a path stopped after very few features leaves it near zero."
+            },
+            {
+              "metricId": "persistence_mean_absolute_error_points",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the miss of forecasting no move on the same resolved bars, the same-series reference that the absolute error of the stopped path's forecast has to beat for its skill figure to be positive."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the accuracy of calling every scored bar the fold's training majority class, the same-series reference for the accuracy of the call that the validation curve derives from the stopped path's forecast."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is what holding a single long position through the same folds earned after a round trip of costs per fold, the same-series reference for the net profit of the calls from the stopped path."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine holds a position on every bar once the first call from the path is filled, so the share describes the engine's rule and not the model."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            }
+          ],
+          "caveats": [
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the stopped path plus that curve and not the path alone.",
+            "The step record of the single fit holds the mean absolute error of the volatility-scaled move and not the squared residual the path lowers, and its training value is scored against the clipped target while its validation value is scored against the unclipped one, so the gap between them is not a pure measure of overfitting.",
+            "The path is the plain least angle path with no step that removes a feature whose coefficient crosses zero, so its active set is not the lasso solution the specification's objective describes.",
+            "The feature limit is searched inside each fold on a trading objective whose undefined blocks score zero, so the chosen stopping point is not the one with the smallest forecast error.",
+            "The price target is clipped at the outer percentiles of the training rows before the fit, so the path never sees the largest moves at full size.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "bayesian_ridge_regression": {
@@ -525,6 +2495,299 @@
           "description": "The most rounds used to estimate the penalty and the noise.",
           "argument": "max_iter"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For every bar it outputs a Gaussian forecast of the target: a centre from the posterior mean of the coefficients and a spread that adds the learned noise variance to the uncertainty left in the coefficients.",
+          "targetVariable": "The size and sign of a continuous outcome such as the coming price move, stated as a centre and a spread rather than one number.",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "This model's version learns the noise precision and the coefficient precision from the data by iterating evidence updates, so the ridge penalty strength is an output of the fit and not a dial.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The Gaussian cone built from the posterior mean and the learned noise variance is scored in points against the move that happened, so a cone that is centred well but too narrow or too wide loses.",
+              "baseline": "The same score for a cone centred on no move with the trailing spread of moves of the same series.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fit maximises the evidence of the training rows, and this is that same Gaussian density read on bars the coefficient posterior never saw, which punishes hard a learned noise variance that is too small for the tails of real moves.",
+              "baseline": "The log density of a zero-centred Gaussian with the training variance of the move on the same series.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The predictive variance is noise variance plus coefficient uncertainty, and the intervals drawn from it are checked by counting how often the realised move lands inside each plotted band.",
+              "baseline": "The nominal level of each plotted band.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The posterior mean is a ridge line whose shrinkage was learned from the evidence, and its squared miss against the no-change forecast shows whether that learned shrinkage left any usable centre.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Reading each realised move through the model's own Gaussian curve shows whether the constant-noise assumption holds, because fat-tailed bars pile up at both ends of the histogram.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "standardized_residual_autocorrelation",
+              "type": "distributional_assumption_check",
+              "role": "diagnostic",
+              "why": "The Gaussian likelihood treats each row's miss as independent, and consecutive horizon moves share future bars, so leftover pattern in the residuals says the learned precisions are too confident.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "The model has one coefficient posterior for all rows and no hidden regimes, so this row never applied to it."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "A Bayesian ridge fit never groups bars into states, so there is no separation between regimes to measure."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "The penalty strength is learned by the evidence updates, so there is no hand search whose variance could be split across dials."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The coefficient posterior already gives each feature's pull with its uncertainty, so a separate attribution stability score never belonged to this model."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively there is no probability of up to bin; the Gaussian forecast is checked by prediction interval coverage instead."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "No state is assigned to any bar, so there is no state run length and this row never applied."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real evidence-maximised ridge estimator on the horizon move divided by its trailing volatility, but it reads only the posterior mean and discards the predictive spread the specification is about, and the up or down call comes from a two-parameter logistic curve fitted to that mean forecast on the validation bars, so the as-run numbers measure the posterior-mean line plus that curve and say nothing about the model's uncertainty.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve of the posterior-mean forecast, with slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, and the model's own predictive variance plays no part in it.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "checkpointSelectedBy": "none",
+          "tuned": false,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "It tests the posterior-mean line directly: whether the forecast move, after the evidence-learned shrinkage and tick rounding, misses by less than forecasting no move on the same resolved bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve only stretches the posterior-mean forecast, so the ordering of bars is the regression's own, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The posterior mean targets the average move, and the squared miss against the no-change forecast is the scale that matches it; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the posterior-mean forecast in points, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the posterior-mean forecast itself, before the validation curve can shift or flip it, so it shows what the regression alone knows about direction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the posterior mean and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the regression."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the posterior-mean line plus its validation curve earned after costs under the engine's trading rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings; the evidence-learned shrinkage affects it only through the sign pattern of the calls."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest hole dug while following the calls of the posterior-mean line, which stays always in the market under the default rule."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened by flips of the curve-derived call after costs, and a random-direction trader would sit below one because of those costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the posterior-mean call ended above zero after costs, and says nothing about size without the payoff ratio beside it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at 0.5, which depends on the intercept fitted on validation bars as much as on the posterior-mean forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks that the curve-derived call finds both up bars and down bars, since a flat posterior-mean forecast with a tilted intercept calls one side on every bar."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the posterior-mean forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the posterior-mean forecast plus its validation curve together; the curve's slope and intercept saw validation bars, so the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same curve-made probability on a bounded scale, and a weak posterior-mean forecast gives a nearly flat curve whose score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether the curve fitted on validation bars still matches observed up shares on test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the curve ever moves the probability from its centre, which is the fitted slope times the spread of the posterior-mean forecasts."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the posterior-mean line in points on the resolved forecasts, the scale that matches a ridge whose shrinkage was learned from the evidence, and it weighs large misses more heavily than the absolute error does."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The evidence-learned shrinkage keeps the posterior-mean forecasts small, and this correlation checks whether bigger forecasts still go with bigger realised moves apart from that shrunken scale."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It is the mean signed gap between the posterior-mean forecast and the realised move, and a lean carried by the unpenalised intercept can look like skill in the skill measures when the training span trended."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that come from flips of the curve-derived call, and each one pays a round trip of costs that the forecast measures of the posterior-mean line never see."
+            },
+            {
+              "metricId": "persistence_mean_absolute_error_points",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the miss of forecasting no move on the same resolved bars, the same-series reference that the absolute error of the posterior-mean forecast has to beat for its skill figure to be positive."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the accuracy of calling every scored bar the fold's training majority class, the same-series reference for the accuracy of the call that the validation curve derives from the posterior-mean forecast."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is what holding a single long position through the same folds earned after a round trip of costs per fold, the same-series reference for the net profit of the calls from the posterior-mean line."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine holds a position on every bar once the first posterior-mean call is filled, so the share describes the engine's rule and not the model."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            }
+          ],
+          "caveats": [
+            "The step record of the single fit holds the mean absolute error of the volatility-scaled move and not the evidence the fit maximises, and its training value is scored against the clipped target while its validation value is scored against the unclipped one, so the gap between them is not a pure measure of overfitting.",
+            "The predictive standard deviation that the estimator can return is never requested, so no as-run number tests the uncertainty this model is specified to give.",
+            "This model has no search block, so its maximum iterations dial stays at the registry default and no per-fold hyperparameter search is run for it.",
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the regression plus that curve and not the regression alone.",
+            "The price target is clipped at the outer percentiles of the training rows before the fit, so the learned noise precision understates the tails of real moves.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "linear_regression": {
@@ -564,7 +2827,297 @@
       "speed": "fast",
       "estimatedTrainingTime": "2-30 min (paced replay)",
       "gpu": false,
-      "parameters": {}
+      "parameters": {},
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, as an intercept plus an unpenalised weighted sum of every feature.",
+          "targetVariable": "The expected size and sign of a continuous outcome such as the coming price move.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "This model's version carries no penalty at all, so the coefficients are the closed-form least squares solution and nothing restrains them when features are correlated.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The normal equation gives the coefficients with the smallest squared miss on training rows, so the only honest test is the same squared miss on unseen bars against forecasting no move.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the unpenalised line in points, the unit read on the chart, on the same resolved bars.",
+              "baseline": "The root mean square size of the actual move on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "With nothing shrinking the coefficients the line can produce oversized forecasts from correlated features, and correlation checks whether their ordering tracks real moves apart from that inflated scale.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute miss against the no-change forecast is less driven by a few large bars than the squared version, so it is read beside the squared one for this mean-targeting line.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "An unpenalised line with one coefficient per feature fits the training span as closely as a line can, so the gap between its miss on later bars and on the bars it was solved on is the direct measure of memorised noise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The coefficients are the interpretation this model offers, and with correlated indicators and no penalty their signs can flip from one refit to the next, so recurrence of each coefficient's sign shows whether they can be read at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The normal equations minimise squared misses of the size of the move and never its sign, so a sign hit rate is not a native score of this line; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The line gives one number per bar and no class probability, so there are no conviction deciles to separate and this row never applied to it."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The coefficients are chosen by least squares alone and the record shared by both catalog copies of this algorithm grades the point forecast, so the density score is not listed even though this copy of the specification also estimates a residual variance and describes prediction intervals from it, which the Model Cycle does not produce."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter applied afterwards and not an output of ordinary least squares."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "Natively the line states a size of move and no probability of up, so a probability score has nothing to grade until a curve is added as run."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The coefficients are chosen by least squares alone and the registry model states only a point forecast with no forecast variance, so no density is evaluated at the realised move; the Statistical Models copy of the specification does estimate a residual variance and describes prediction intervals from it, but the Model Cycle does not produce or score them."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real ordinary least squares estimator on the horizon move divided by its trailing volatility, as specified, but the up or down call is derived by a two-parameter logistic curve fitted to that forecast on the validation bars, so the forecast numbers measure the least squares line itself while the probability and trading numbers measure the line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve of the least squares forecast, with slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "squared_error",
+          "checkpointSelectedBy": "none",
+          "tuned": false,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "It tests the unpenalised line directly: whether the forecast from one free coefficient per feature column, after tick rounding, misses by less than forecasting no move on the same resolved bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logistic curve only stretches the least squares forecast, so the ordering of bars is the line's own, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The normal equation minimises squared misses, and the squared miss against the no-change forecast is the scale that matches it; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the unpenalised forecast in points, read beside the no-change forecast's miss on the same bars, where an overfitted line can miss by more than no forecast at all."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the least squares forecast itself, before the validation curve can shift or flip it, so it shows what the line alone knows about direction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the least squares forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the line."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the least squares line plus its validation curve earned after costs under the engine's trading rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings; the unpenalised coefficients affect it only through the sign pattern of the calls."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest hole dug while following the calls of the least squares line, which stays always in the market under the default rule."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened by flips of the least squares call after costs, and a random-direction trader would sit below one because of those costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the least squares call ended above zero after costs, and says nothing about size without the payoff ratio beside it."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "An unpenalised line reacts to every feature wiggle, so its call can flip often, and each flip is a round trip of costs that the forecast metrics never see."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at 0.5, which depends on the intercept fitted on validation bars as much as on the least squares forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks that the curve-derived call finds both up bars and down bars, since an intercept tilted by the validation base rate can outweigh a noisy least squares forecast."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the least squares forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the least squares forecast plus its validation curve together; the curve's slope and intercept saw validation bars, so the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "It grades the same curve-made probability on a bounded scale, and an overfitted line whose forecasts do not hold on validation bars gets a nearly flat curve whose score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether the curve fitted on validation bars still matches observed up shares on test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the least squares line in points on the resolved forecasts, the scale the normal equation minimises, and it weighs large misses more heavily than the absolute error does, which matters for an unpenalised line."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "With nothing shrinking the coefficients the line can give oversized forecasts from correlated features, and this correlation checks whether bigger forecasts still go with bigger realised moves apart from that inflated scale."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It is the mean signed gap between the least squares forecast and the realised move, and an intercept that carries the average move of a trending training span can pass for skill in the skill measures."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the curve ever moves the probability from its centre, which is the fitted slope times the spread of the least squares forecasts, and an overfitted line whose forecasts fail on validation bars leaves it near zero."
+            },
+            {
+              "metricId": "persistence_mean_absolute_error_points",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the miss of forecasting no move on the same resolved bars, the same-series reference that the absolute error of the least squares forecast has to beat for its skill figure to be positive."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is the accuracy of calling every scored bar the fold's training majority class, the same-series reference for the accuracy of the call that the validation curve derives from the least squares forecast."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It is what holding a single long position through the same folds earned after a round trip of costs per fold, the same-series reference for the net profit of the calls from the least squares line."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine holds a position on every bar once the first least squares call is filled, so the share describes the engine's rule and not the model."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            }
+          ],
+          "caveats": [
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the least squares line plus that curve and not the line alone.",
+            "The step record of the single fit holds the mean absolute error of the volatility-scaled move and not the squared error the normal equation minimises, and its training value is scored against the clipped target while its validation value is scored against the unclipped one, so the gap between them is not a pure measure of overfitting.",
+            "This model has no parameters and no search block, so no per-fold hyperparameter search is run for it and nothing restrains the coefficients on correlated features.",
+            "The price target is clipped at the outer percentiles of the training rows before the fit, so the line is not the plain least squares solution on the raw moves.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
+      }
     },
     "quantile_regression": {
       "catalogSpecId": "machine-learning-supervised-learning-linear-models-quantile-regression",
@@ -633,6 +3186,264 @@
             "high": 0.1,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "conditional_quantile",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "A chosen percentile of the future value of the target for every bar, as a straight-line function of the bar's features, with a separate line fitted for each percentile wanted.",
+          "targetVariable": "The stated percentile of the coming continuous outcome, such as the price change over the horizon, given the bar's features",
+          "objectiveId": "pinball_loss",
+          "objectiveNote": "The tilted absolute loss charges misses above the line and misses below it at different rates set by the quantile level, which is what pushes the line to the chosen percentile instead of the average, and the specification allows an optional penalty on the weights.",
+          "metrics": [
+            {
+              "metricId": "pinball_loss_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The line is found by a linear programme that makes this tilted absolute miss as small as possible on training bars, so the same tilted miss on unseen bars is the only score that rewards landing on the chosen percentile and not on the average.",
+              "baseline": "The pinball loss of quoting the training rows' unconditional quantile at the same level on every bar",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "quantile_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A line fitted at a given quantile level promises that the realised move falls below it on that share of bars, and counting how often it really does tests the promise without reference to how far the misses were.",
+              "baseline": "The quantile level the line was fitted at",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "When the level is set to one half the line is a median forecast, and the median is exactly what an absolute-error comparison against forecasting no move is consistent for.",
+              "baseline": "The mean absolute error of forecasting no move on the same resolved bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A line fitted away from the middle level is meant to sit above or below the typical move, so the average signed miss should be read as the size of that intended lean and not as an error.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "Natively a percentile line states how large the move could be at a given level and makes no up or down call; a direction hit rate exists only as run, through the curve fitted on validation bars."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The line has no class probability and no conviction ranking of its own; the area under the receiver operating characteristic curve is an as-run number of the forecast read as a score."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The old table stamped a Gaussian density objective on a method that minimises the pinball loss and, in this specification's own words, assumes no shape for the error distribution."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Root mean square error rewards predicting the average, and this specification's Training Methodology itself calls mean squared error the wrong yardstick for a quantile forecast."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of bars, and a percentile line carries no direction natively."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The line outputs a size of move at a percentile and not a probability, so a squared probability error had nothing to be computed on."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Squared error is smallest at the average of the outcome, so it would mark a correctly placed percentile line as wrong for doing what it was fitted to do."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "The method makes no assumption about the shape of the noise and outputs a percentile, not a mean and a variance, so a Gaussian density cannot be evaluated."
+            },
+            {
+              "name": "Brier score",
+              "metricId": "brier_score",
+              "why": "Natively the line states a size of move at a percentile and no probability of up, so there is nothing between zero and one to score against the outcome."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model fits one real quantile regression line on the volatility-scaled move at a single quantile level, the median by default, where the specification describes several lines forming prediction intervals; the up or down call is not part of the specification and comes from a logistic curve of the forecast fitted on the validation bars, so the probability metrics measure the line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve applied to the quantile line's forecast of the scaled move, with the curve's slope and intercept fitted by maximum likelihood on the fold's validation bars only.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "pinball_loss",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the volatility-scaled horizon move, in scaled-move units and not in points, one value for the single fit; the training value is scored against the target clipped at extreme training percentiles and the validation value against the raw target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "At the default level of one half the line is a median forecast, and absolute error is exactly what a median minimises, so its gain over forecasting no move is the fitted pinball objective judged on unseen bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the forecast, so this number tests the quantile line itself: whether higher forecast moves go with bars that went up; a value below one half with a negative curve slope means the curve inverted the line."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the curve's probability is at least one half, which is a threshold on the line's forecast, and this is what that call earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It is the median line's own objective turned back into points through the trailing move scale, read against the no-change forecast's error on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the sign of the line's forecast on bars where neither forecast nor move rounded to zero; it is not the traded call, which is the curve's threshold."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "At a quantile level away from one half the line is meant to sit above or below the typical move, so this average signed miss measures the intended lean and is an error only at the median."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The curve fitted on validation bars can move the up or down threshold away from a zero forecast or flip it, and this share shows how often the traded side still matches the sign of the line's forecast."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by trading the side chosen by the curve's threshold on the line's forecast, under the engine's fill and exit rule with costs charged."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of following that threshold to its bumpiness; zero is only an arithmetic marker because a coin-flip trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest loss run of the threshold call; a curve with a large intercept can hold one side for a whole fold, which then shows up here as an unhedged directional hole."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning with losing trades opened when the line's forecast crossed the curve's threshold, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the share of trades begun at a threshold crossing of the forecast that closed with a profit, and must be read with average win and loss because exits follow the engine's rule."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It is the hit rate of the call made by cutting the curve's probability at one half, so it tests the line and the validation-fitted threshold together and depends on the prior that curve learned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The curve's intercept can push nearly every bar to one side, and averaging the hit rate over up bars and down bars shows whether the line's forecast separates them once that lean is discounted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It condenses the threshold call into one symmetric number that stays near zero when the forecast rarely crosses the curve's threshold."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the line's forecast after the two-parameter curve has turned it into odds, so it is meaningful for line plus curve and says how informative the forecast is about direction once it is put on a probability scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same curve output on a bounded squared scale; the curve is fitted by maximum likelihood with a light slope penalty, so its output never reaches exactly zero or one."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It tests whether a curve learned on the validation bars still maps the line's forecast to the right odds on the later test bars, so a large value points at drift between the two spans more than at the line."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the penalty strength; the quantile level itself is not searched, and the score is optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Squared error is smallest at the average move, so it marks a correctly placed median or percentile line as wrong for doing what the pinball loss asked of it."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the share of bars held describes the engine's rule and not the line."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The logged numbers are mean absolute errors and not the pinball objective, and the training one is scored against the clipped target while the validation one is scored against the raw target, so their gap is not an overfit check for this line."
+            }
+          ],
+          "caveats": [
+            "The traded call is the validation-fitted threshold of the forecast and not the forecast's sign, and the curve's fitted slope and intercept are logged as text but not stored as metrics.",
+            "The curve's two parameters were fitted on the fold's validation bars, so probability metrics on validation rows are partly in-sample; only the test walk is out of sample for line plus curve.",
+            "The line's training target is clipped at its extreme training percentiles before the fit, and the forecast is multiplied back by the trailing move scale and rounded to the tick before it is scored.",
+            "Only one quantile level is fitted per run, so the prediction intervals the specification describes are not produced and interval coverage cannot be checked.",
+            "The step channel reports once, after the single fit, the line's mean absolute error in volatility-scaled units on the training rows against the clipped target and on the validation rows against the raw target; nothing is selected on it.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     }

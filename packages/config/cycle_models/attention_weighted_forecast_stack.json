@@ -24,7 +24,9 @@
         "estimator": null,
         "fixed": {}
       },
-      "preprocess": ["standard_scaler"],
+      "preprocess": [
+        "standard_scaler"
+      ],
       "progress": "per_epoch",
       "stepUnit": "epoch",
       "explainKind": "opaque",
@@ -59,7 +61,11 @@
           "description": "How many trees the gradient-boosting base forecaster adds one after another.",
           "search": {
             "kind": "categorical",
-            "choices": [50, 100, 200]
+            "choices": [
+              50,
+              100,
+              200
+            ]
           }
         },
         "combiner_learning_rate": {
@@ -112,8 +118,285 @@
           "description": "Units in the one hidden layer of the multilayer-perceptron base forecaster.",
           "search": {
             "kind": "categorical",
-            "choices": [32, 64]
+            "choices": [
+              32,
+              64
+            ]
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "combiner_or_calibrator",
+        "profileIdAsRun": "combiner_or_calibrator",
+        "additionalProfileIds": [
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "One combined forecast of the coming move per bar, formed by letting an attention module hand each base forecaster a weight for that bar and summing the base forecasts with those weights.",
+          "targetVariable": "The size and sign of the future value of the series at the forecast step, stated as a single number per bar.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "The specification minimises the mean squared miss of the attention-weighted sum of the base forecasts, training the base forecasters first and the attention weights second on their out-of-fold forecasts, with an optional penalty that keeps the attention from spreading evenly.",
+          "metrics": [
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The attention module only earns its place if its bar-by-bar weighting scores better than the single strongest base forecaster inside the stack and better than giving every base forecaster the same fixed weight, so the stack is graded against those two cut-down versions of itself.",
+              "baseline": "The same stack with the attention weights frozen at equal shares, and the best single base forecaster of the same stack, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The attention weights are trained to shrink the squared miss of the weighted sum, so the fair out-of-sample reading is how much of the squared size of the realised move that weighted sum removes compared with forecasting no move at all.",
+              "baseline": "The no-change forecast on the same resolved bars of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the stack's own training loss in points, so a trader can see how far the attention-weighted sum typically lands from the realised move on bars the stack never trained on.",
+              "baseline": "The root mean square size of the realised move on the same bars, which is the error of forecasting no move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A softmax blend of several forecasters tends to shrink toward the middle, so this checks whether bars where the weighted sum calls for a larger move are in fact followed by larger moves, even when the scale of the blend is too timid.",
+              "baseline": "Zero, the value when the weighted sum carries no linear relation to the realised move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "attention_weight_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows whether the softmax over the base forecasters actually switches between them from bar to bar or sits near equal shares, in which case the stack is a plain average wearing an attention label.",
+              "baseline": "The natural logarithm of the number of base forecasters, which is the entropy of equal shares.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Softmax weights sum to one, so a lean shared by every base forecaster passes straight through the blend, and this mean signed miss shows whether the stack inherited such a lean and merely looks skilled in a trending stretch.",
+              "baseline": "Zero points, a forecast with no lean in either direction.",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The specification trains the weighted sum of base forecasts on the size of the miss, not on a hit or miss of direction, so a direction hit rate with a pass mark was never this stack's own measure and is reported only as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The specified stack states no conviction or probability to rank bars by, only a forecast number, so a ranking score over conviction deciles has nothing native to read."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's loss is the mean squared error of a single combined number and its training loop fits no variance, so a Gaussian likelihood with a spread term was stamped on by the generator and never belonged to this model."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Picking the most confident tenth of bars needs a stated confidence, and the specified stack outputs only a forecast number, so this slice and its pass mark were invented by the generator."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "A Brier score grades a stated probability, and natively this stack states a forecast size with no probability attached, so the score applies only to the runnable adapter's blended odds."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The specification's stack outputs one forecast number trained by squared error and states no probability of up, so a probability score exists only for the runnable adapter, which blends classifier log-odds instead."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "The base forecasters are trained separately on the full data before the attention module exists, so there is no gate dividing the bars among jointly trained experts the way a mixture of experts does."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a forecaster and names no trading rule, position size or cost, so a return per unit of risk only appears once the Model Cycle trades the sign of the combined call."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable stack keeps the two-stage idea but swaps the parts: four tabular scikit-learn models (a logistic regression, a nearest-neighbours vote, histogram gradient boosting and a one-hidden-layer perceptron) read only the current bar's feature row in place of the specification's recurrent, convolutional, transformer and statistical forecasters over several kinds of input, one linear score per base model with a temperature replaces multi-head self-attention, nothing is trained end to end, and the direction model blends classifier log-odds under cross-entropy rather than forecast sizes under squared error, so the as-run numbers measure a per-bar reweighting of four classifiers.",
+          "directionMode": "classifier",
+          "probabilitySource": "mean_of_base_learners",
+          "classWeighted": false,
+          "probabilityNote": "Each of the four base classifiers turns its own probability of up into log-odds, a linear map of the standardised feature row divided by the attention temperature and passed through a softmax gives one weight per base classifier for that bar, and the probability of up is the sigmoid of the weighted sum of those log-odds with no class weighting and no separate calibration step.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The attention combiner is fitted by plain unweighted cross-entropy on the weighted sum of the base classifiers' log-odds, so on test bars this number grades exactly the kind of stated odds the combiner was trained to give, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The weighted sum of four sets of log-odds is a continuous score, so this shows whether the per-bar reweighting orders up bars above down bars, which is the part of the blend that does not depend on its scale being right."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The nearest-neighbours base classifier can state exactly zero or one, which the adapter clips before taking log-odds, and this bounded score grades the blended odds without letting those few clipped bars dominate."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Neither the base classifiers nor the combiner are class weighted, so the blended odds are meant to match the up share of the series, and this gap shows whether a combiner fitted on a short validation stretch kept them honest on later bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Softmax weights sum to one, so the blend can never be more extreme than its most extreme base classifier, and this slope shows whether leaning on the boosted trees or the nearest-neighbours vote left the stated odds too bold or too timid."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The combiner starts as the plain average of the four log-odds, and an average of disagreeing classifiers sits near one half, so this spread shows whether the learned weights let the blend commit on any bar."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is up whenever the attention-weighted sum of log-odds is at or above zero, so the hit rate tests the blend's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "With no class weighting anywhere in the stack the blended log-odds can simply lean toward the direction that was more common in training, and averaging the hit rate on up bars and on down bars shows whether the blend does more than follow that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up in one symmetric number whether the sign of the weighted log-odds moves with the actual direction, with zero meaning the four classifiers and their weights add nothing beyond the training lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when the attention-weighted log-odds are at or above zero and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of the blended log-odds earned money per bar after costs, and it is also what the hyperparameter search steered the neighbour count, boosting rounds and attention temperature toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the blend's sign, which matters here because the attention can shift its trust to a different base classifier just as that classifier starts to fail."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by the blend's sign made with what the losing ones gave back after costs, read with the trade count beside it because a call that rarely flips produces few trades."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many of the trades opened when the blended call flipped ended in profit after costs, which describes the shape of the results of trading this blend and is not a direction hit rate."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a position is kept while the blended call stays on one side, this counts how often the attention-weighted log-odds crossed zero, and every trading number of this stack is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the blend called up, which exposes a stack that inherited the training lean of its unweighted base classifiers and is in effect always long or always short."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second stack of four regressors with its own attention combiner trained on Huber loss, so this tests that second blend's size forecasts against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives in points the typical miss of the second stack's attention-weighted regressor forecast, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the regressor stack's forecast, which is formed by a different set of base models and a different combiner from the one that makes the traded call, so the two can disagree."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the selection score that chose the neighbour count, boosting rounds, perceptron width, combiner learning rate and attention temperature on training blocks, flattered by that choosing and shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training-row loss is flattered because the base classifiers have already seen those rows, the nearest-neighbours model being its own nearest neighbour there, so the gap to the held-out validation loss shows base-model memorising and says nothing about the combiner overfitting."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only setting off and no stop or target the engine holds a position on every bar once the first trade is open, so this share describes the engine's rule and not the blend."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the up share of the scored test bars themselves, which is known only in hindsight, so it flatters or punishes the blend for something no model could have quoted in advance."
+            }
+          ],
+          "caveats": [
+            "The attention combiner is fitted on the earlier part of each fold's validation rows and its kept epoch is chosen on the later part after a purge as long as the label horizon, which is the documented exception to the rule that nothing is fitted on validation rows, so validation numbers of this model are not comparable with those of models that only read validation rows.",
+            "When a fold has too few validation rows to cut in two, the combiner is fitted and scored on the same rows and the fit summary says so, and that fold's validation loss is then an in-sample figure.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The trading numbers follow the run's own long-only, holding bars, stop loss ticks, take profit ticks and contracts settings, the last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than the micro Nasdaq contract the cost figure is that contract's figure applied as a stated assumption.",
+            "The price forecast is produced by a separately fitted stack of regressors with its own combiner, so price forecast numbers and the traded call can point in different directions on the same bar."
+          ]
         }
       }
     }

@@ -175,6 +175,347 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A probability that the market goes up, formed as a weighted blend of the answers of several small expert networks, with the weights for each bar set by a gating network that reads the same bar.",
+          "targetVariable": "The direction of the coming price move, up or down, stated as a probability, together with the share of trust the gate gave each expert on that bar.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The loss of the blended prediction is trained through the experts and the gate together, and the specification adds a load-balancing penalty on the squared coefficient of variation of each expert's total gate weight so that no expert is left idle; the specification writes the task loss itself as a squared error on a price target.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The blend of the experts' answers is a probability of up, so the honest grade of the gate and experts together is how much probability that blend put on the direction that then happened.",
+              "baseline": "Quoting the fold's training up share on every bar, with no experts and no gate.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Routing is worth its cost only if several gated experts beat one expert of the same size reading every bar, so the same pipeline with the gate removed and a single expert kept is the comparison that tests the idea of specialisation.",
+              "baseline": "One expert network of the same design with no gate, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gate_usage_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "The share of gate weight each expert receives across bars shows whether the experts really divided the market between them or whether the gate sent nearly everything to one of them, which the load-balancing penalty exists to prevent.",
+              "baseline": "Equal shares, one divided by the number of experts.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "When the gate hands a bar almost entirely to one confident expert the blend can sit near certainty, and this squared-error grade stays finite on those bars where the logarithmic grade is dominated by them.",
+              "baseline": "Quoting the fold's training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars on which the gated blend leaned more strongly toward up were followed by up moves more often than bars where it leaned less, whichever expert the gate trusted.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A sparse gate switches abruptly between experts whose scales differ, so the slope shows whether the blended log-odds come out too confident or too timid on unseen bars.",
+              "baseline": "One, the slope of probabilities whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gate_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It measures, bar by bar, how decisively the gate picks: near zero it commits to one expert, and near the logarithm of the number of experts it averages them all and the routing does nothing.",
+              "baseline": "The natural logarithm of the number of experts, the value of a gate that trusts every expert equally.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If every expert learned the same thing the blend barely moves from bar to bar whatever the gate does, and this spread shows whether the mixture ever commits to a direction.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curve by step shows the task loss falling while the load-balancing penalty is being traded against it, and a curve that stalls early is the usual sign of the gate collapsing onto one expert.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of the hard call depends on where the blended probability is cut and on the prior it was trained toward, so it is reported in the as-run layer as accuracy and is not how a gated mixture of experts is judged on its own terms."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The specification trains the blend on a task loss plus a load-balancing penalty and gives it no variance output, so a Gaussian likelihood of returns was never its objective or its output."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared-error figure describes only the regression use of the mixture, and as a probability model the gated blend makes no forecast of the size of the move."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate restricted to the most confident tenth of bars is a hand-picked slice of the ordering that the area under the receiver operating characteristic curve already summarises over every cut, and the registry holds no such metric."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "The blended output is one number per bar with no spread, so there is no forecast distribution of the move whose likelihood could be scored."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss of the specification includes the load-balancing penalty on the gate and a validation loss does not, so the two are different quantities and their difference is not an overfit measure."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A gated blend of experts takes no position; the ratio grades the Model Cycle's trading rule and costs applied to its call and so belongs to the as-run layer only."
+            },
+            {
+              "name": "Attention weight entropy",
+              "metricId": "attention_weight_entropy_nats",
+              "why": "The gate spreads weight over experts and not over the bars of a window or over separately trained models, so its spread is reported as gate entropy instead."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the specification's experts and softmax gate but routes densely: every expert scores every bar and the gate's weights blend their hidden vectors before one shared linear head, so the specification's selection of only the few highest-weighted experts is not built, the load-balancing penalty is left out and an idle expert is shown in the gate usage rather than prevented, the gate has one hidden layer, and the loss is a binary cross-entropy with a positive-class weight instead of the specification's squared error, so the as-run probability is centred on even odds rather than on the up share of the series.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of one shared linear head applied to the gate-weighted sum of the experts' hidden vectors for the current bar, with no calibration step afterwards, and because up bars were weighted by the ratio of down bars to up bars during training the value one half means even odds between two equally weighted classes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The gate and experts were trained with up bars and down bars each carrying half the loss, so the score that gives each class half the weight on test bars grades the blended odds on the scale they were fitted to, with the natural logarithm of two as the value of always quoting even odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether bars for which the gate-weighted blend of expert vectors pushed the shared head higher were followed by up moves more often than bars scored lower, which does not depend on the class weighting or on the scale of the sigmoid."
+            },
+            {
+              "metricId": "gate_usage_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "The engine records the gate's probabilities on every test bar of each fold, and because no load-balancing penalty is applied these shares are the only evidence of whether the experts split the market or the gate sent nearly all its weight to one of them."
+            },
+            {
+              "metricId": "gate_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "With dense routing nothing forces the gate to choose, so its entropy per bar shows whether it commits to an expert or sits near an equal blend, in which case the model is an average of similar perceptrons."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted version is what early stopping watched on the validation rows to choose the kept epoch, so on test bars it shows that same quantity out of sample, with the warning that it charges the blend for being centred on even odds whenever the series leaned one way."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded scale, so a few bars the gate handed to one very confident expert cannot swamp it, though it is measured against the up share while the mixture was centred on even odds."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope asks only whether the shared head's log-odds are stretched or squeezed, which the class weighting does not decide, so it shows whether stopping on validation loss left the blended experts over-confident on bars they never saw."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the experts learned nearly the same mapping the blend barely changes whatever the gate does, and this spread shows whether the head's output ever moves away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the shared head's output on the blended expert vector is positive, so the hit rate tests the mixture's own decision boundary, read against the fold's training majority class and with the reminder that the boundary sits at even odds between weighted classes."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It subtracts what always calling the fold's training majority direction would have scored, which is the plain test of whether routing each bar among experts beat knowing only which way the training span leaned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars matches the equal class weights the gate and experts were trained with, so it is the hard-call number that sits on the same footing as the loss they minimised."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It reduces the four cells of called against actual direction to one symmetric number, showing whether the sign of the blended head output moves with the market at all, where zero means the calls are unrelated to the outcome."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long whenever the head's output on the gated blend is positive and short otherwise, filled at the next open with costs, so it tests only the sign of the call under the engine's rule and is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A mixture whose dominant expert leans long in a rising fold earns the drift without any routing, and subtracting buy and hold on the same folds removes that drift from the money figure."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily following the sign of the gated blend earned money per bar after costs, and because only the sign is traded neither the size of the probability nor the gate's confidence plays any part in it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole the account fell into while the position followed the mixture's call bar after bar, which is the risk paid for whatever those calls earned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades earned with what the losing trades gave back after costs, where a trade ends when the sign of the blended output flips, and it is shown with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that ended in profit under the engine's exit rule, so it describes how the mixture's changes of direction fared as trades and is read together with the predicted up share."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a call in the same direction keeps the position open, this counts how often the sign of the blend flipped; the mixture reads one bar at a time with no window, so a gate that hops between experts bar to bar shows up here as churn that pays cost each time."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the mixture called up, and a share near all or nothing means the shared head's bias has taken over and every trading number is then just that direction's drift."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second mixture of experts with its own gate, fitted separately with Huber loss on the scaled move, so this skill against the no-change forecast tests that second fit and not the direction mixture that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second, price-fitted mixture missed the move on average, to be read beside the no-change error on the same bars and never as a grade of the direction call."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It shows how often the sign of the price mixture's forecast matched the move, which is a second opinion from separately trained experts and a separate gate and can disagree with the traded call."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the weighted cross-entropy the optimiser minimised through gate and experts together and the validation curve holds the unweighted logarithmic loss that chose the kept epoch, so each is read for its own shape and the two are never compared level for level."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the size of the gradient before clipping, averaged over an epoch, and a norm that collapses early is a sign that the gate has settled on one expert and the others have stopped receiving any error signal."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score that picked the number of experts, their width and depth, the gate width and the training dials inside each fold's training span, so it is optimistic by construction and is shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "It compares the stated probability with the observed up share, but the positive-class weight centred the blended output on even odds on purpose, so a gap here is built in and says nothing about the gate or the experts."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "It is the worst bin of the same comparison against the observed up share, which the class weighting shifts by construction, and the sigmoid output near one half fills only a few bins."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted cross-entropy and the validation curve holds the unweighted logarithmic loss, so their difference mixes two quantities and is not an overfit measure for this mixture."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only dial off and no stop or target set the engine never goes flat once the first call is filled, so the share of bars in a position describes the engine's rule and not the mixture."
+            }
+          ],
+          "caveats": [
+            "The gate usage shares are measured on each fold's test bars with no load-balancing penalty in the loss, so an expert with almost no share is a finding about this fit and not a fault of the recording.",
+            "The price forecast is drawn by a second mixture with its own experts and gate, fitted separately on the scaled move with Huber loss, and the recorded gate routing belongs to the direction mixture only.",
+            "Consecutive scored bars share most of the future bars inside their label horizon, so any interval around a classification metric must come from a block bootstrap or a Newey-West variance and never from a binomial formula.",
+            "The last open position of each fold is closed at the fold's final close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the commission and fee figures are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     }
   }

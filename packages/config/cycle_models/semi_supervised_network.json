@@ -180,6 +180,316 @@
           "group": "Model",
           "description": "Epochs from the ramp start to the full weight (T2 - T1)."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A probability for each class of a bar from one network that was trained on the labelled bars and on its own hard guesses for the unlabelled bars.",
+          "targetVariable": "the class label of an input row, which here is whether the close a fixed number of bars ahead is above the current bar's close",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Lee's version adds to the cross-entropy on labelled bars a second cross-entropy against the network's own hard prediction on unlabelled bars, with a weight that starts at zero and is ramped up so that early wrong guesses carry little force, while the specification describes the thresholded form that admits only confident guesses into a growing labelled set.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network is trained by cross-entropy on true labels and then on its own guesses, so the honest test of what came out is how much probability it gave to what really happened on bars it never trained on.",
+              "baseline": "the logarithmic loss of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Pseudo-labeling claims that feeding the network its own guesses improves it, and the only direct test is the score of the identical network with the pseudo-label weight held at zero, on identical folds.",
+              "baseline": "the same network trained with the pseudo-label weight at zero on the same labelled bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A network that is rewarded for agreeing with its own hard guess is pulled toward stating more extreme odds on the unlabelled bars, and a slope below one shows that this confirmation loop made it over-confident.",
+              "baseline": "a slope of one, which means the stated odds have the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the network's probability that a handful of very confident self-taught misses cannot dominate, read beside the logarithmic loss for that reason.",
+              "baseline": "the Brier score of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Even when the self-confirming loss distorts the size of the odds, the network's logit may still order up bars above down bars, and this number measures that ordering alone.",
+              "baseline": "one half, the value of an ordering that carries no information",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The method rests on the assumption that the network's most confident guesses are its most correct ones, so the up share inside its highest-confidence bin against the up share of all scored bars tests that assumption directly.",
+              "baseline": "the up share of all scored bars of the same series",
+              "groupKind": "score bin",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the hidden labels of the pool still exist, the share of the network's hard guesses that match them can be counted, which shows whether it was teaching itself truths or its own mistakes.",
+              "baseline": "the larger of the up share and the down share of the masked bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "In the thresholded form the specification describes, this shows how many unlabelled bars cleared the confidence bar and entered training; in Lee's original every drawn pool bar is used, so the share is one by construction.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve changes meaning as the pseudo-label weight ramps in, so it is read only to see that the fit settled and to spot the moment the self-taught term begins to dominate the step.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy_lift_over_majority_class",
+              "why": "A hit rate above the majority class depends on cutting the probability at one half, which is the engine's rule and not part of the method, so it is reported in the as-run layer only."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The network outputs a class probability and no Gaussian density of the move, so a Gaussian likelihood never applied to it."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "There is no forecast of the size of the move in this method, because a regressor that pseudo-labels itself gets no gradient."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The network states a probability for a class and never a bell curve over the size of the move, so there is no density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Pseudo-labeling is defined for classes; a regressor that takes its own output as its target receives no gradient, so there is no price forecast to measure."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the method outputs a class probability and takes no position, so a risk-adjusted return belongs to the trading rule of the engine and is listed only in the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is Lee's original pseudo-labeling in one small fully connected network that reads a single standardised feature row per bar: every unlabelled row drawn into a step gets the network's own hard prediction as its target, with no confidence threshold and no growing labelled set as the specification describes, and the weight of that term rises linearly from the ramp start epoch. The unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, so the as-run numbers measure that network after training on the kept labels plus its own guesses on the masked bars.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit of the kept network read from the bar's standardised feature row alone, with dropout switched off and no calibration curve fitted afterwards.",
+          "priceForecastSource": "none",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The supervised term is unweighted cross-entropy on the kept labels, so the network's output tracks the series' own up share and this score on test bars, which played no part in choosing the kept epoch, is the honest grade of the odds it states."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The network's logit is continuous, so this tests whether a network that spent its later epochs agreeing with its own hard guesses still ranks up bars above down bars, whatever that did to the level of its odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the network's probability on every scored bar, read beside the logarithmic loss because the self-confirming term can leave a few very confident misses."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The pseudo-label term rewards the network for moving its logit further toward whichever side it already leaned on the masked bars, and the slope shows whether that left the odds more extreme than the outcomes support."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the network's stated odds with the observed up share in each bin is a fair test; it is read with the count of occupied bins because the odds cluster near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the network's odds spread away from their average; a spread that widens without a better logarithmic loss is the signature of the network confirming its own guesses."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the network's probability is at least one half; with an unweighted fit that cut sits against the kept labels' own up share, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether the network learned both sides or whether its hard guesses on the masked bars reinforced a lean toward the commoner class."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the network's hard call over all four outcome cells, which stays near zero when self-labelling collapsed the call to one side even if the hit rate looks respectable."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the network's call earned after costs when every call is traded under the engine's rule; only the side of one half the probability falls on reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the network's call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity from trading the network's call, which shows the cost of the stretches where a network taught partly by its own guesses held the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the network's call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the network's call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the network called both directions or whether its hard self-labels drove it to one side, and is read beside every trading number of this model together with the count of closed trades."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The accuracy of calling every scored bar the class that was commoner in the fold's training labels, which is the bar that the network's hit rate must clear before its training on masked bars and its own guesses can be said to have taught it anything."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The network's hit rate minus the hit rate of always calling the commoner training class, so a network that only learned the lean of its kept labels, or that confirmed its own lean on the masked bars, shows a lift of about zero."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the closed trades that flips of the network's call produced; a call that rarely flips gives few trades and a net profit resting on a handful of stretches, and a call that flips on every small change of the logit pays costs on each flip."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "What holding one position through the same test bars earned after one round trip per fold, which is the only same-series money reference for this network's trading call, because a random-direction trader would pay costs too."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The net profit of trading the network's call minus the buy-and-hold profit of the same folds, which separates a call that added something from one that rode the drift of the series."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the cross-entropy on kept labels plus the ramped cross-entropy against the network's own hard guesses, so it shows that the fit settled and where the self-taught term switched on, and nothing about skill."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed for this model: the registry gives it no price model, because a regressor that pseudo-labels itself receives no gradient."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed for this model: there is no price model, so no forecast of the move exists whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed for this model: there is no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds cross-entropy on kept labels plus the ramped self-agreement term, measured with dropout on, while the validation curve holds only the logarithmic loss of the probability, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this network."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the network with part of its labels deliberately hidden and not a network that had no more labels to use.",
+            "The adapter applies no confidence threshold: every pool row drawn into a step is given the network's hard prediction, so the share of the pool admitted is one by construction and the specification's threshold dial does not exist in the run.",
+            "The kept epoch is the one with the lowest validation logarithmic loss, so the validation loss curve is optimistic at that epoch and only the test walk is out of sample.",
+            "The weight of the pseudo-label term is exactly zero until the ramp start epoch and the epoch with the lowest validation logarithmic loss is restored at the end, so when the kept epoch falls before the ramp start epoch the numbers describe a network trained on the kept labels alone, which never acted on its own guesses; the best epoch in the fit summary read against the ramp start epoch among the fold's recorded parameters shows which happened, and the engine does not flag it.",
+            "The engine does not record how many of the network's hard guesses on the masked bars matched the hidden labels, so whether it taught itself truths or mistakes cannot be read from a run today.",
+            "The comparison with the same network trained with the pseudo-label weight at zero, which is the test of whether the masked bars helped, is not run by the engine.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by this network's own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "consistency_regularization": {
@@ -384,6 +694,259 @@
           "label": "Ramp-up epochs",
           "group": "Model",
           "description": "Epochs of the exp(-5 (1 - t)^2) ramp-up of the consistency weight."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A probability for each class of an input, from a network trained on a few labelled inputs plus many unlabelled ones on which two noisy passes (or a student and its weight-averaged teacher) must give the same answer.",
+          "targetVariable": "the class of each input window (in the specification a market regime or trend label), stated as a probability per class",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled term is the squared gap between two predictions for the same input under different noise or dropout, taken against a second pass of the same network in the Pi-model or against a teacher whose weights are a running average of the student's in the Mean Teacher, with its weight ramped up from zero.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The labelled term is cross-entropy and the consistency term only asks two noisy passes to agree, so what comes out is still a class probability and it is graded by how much probability it gave to what happened on held-out labelled inputs.",
+              "baseline": "quoting the labelled training inputs' class shares for every held-out input",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The method's whole claim is that making the student agree with a second noisy pass or with its averaged teacher on unlabelled inputs beats ignoring them, so the same network is trained with the consistency weight at zero and the two scores are compared.",
+              "baseline": "the same network, labelled inputs, noise and dropout with the consistency weight set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking score for its labelled test set; it shows whether the teacher's smoothed probabilities still order the classes correctly, whatever the ramped consistency weight did to their scale.",
+              "baseline": "one half, the value of an ordering unrelated to the class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's own evaluation is the hit rate of the most probable class on labelled test inputs; it is read per class and averaged, because a teacher smoothed toward the majority class can score well on the plain hit rate while never recognising the other class.",
+              "baseline": "one half, which calling a single class for every input scores",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The consistency term is itself a squared gap between two probabilities, so a squared-error score of the final probability against the outcome grades the output on the same scale the regulariser worked on.",
+              "baseline": "the same score for always quoting the labelled training inputs' class share",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Agreement under noise can be bought by flattening every prediction toward the middle, and weight averaging in the teacher damps extremes further, so the slope shows whether the stated odds ended up too timid or too bold.",
+              "baseline": "one, the slope of stated odds that are neither stretched nor squeezed",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The cheapest way to make two noisy passes agree is to answer the same thing for every input, so the spread of the probabilities shows whether the consistency weight collapsed the network into a constant.",
+              "baseline": "zero spread, which a network that answers identically for every input would show",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The network outputs class probabilities trained by cross-entropy plus a squared consistency gap; it never states a mean and a variance for a return, so a Gaussian likelihood has nothing to score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "Natively the method is a classifier and forecasts no return size; a price error exists only for the second network the Model Cycle fits beside it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth, and the specification never evaluates one; whether confident calls are right more often is read from the calibration slope and the ranking score."
+            },
+            {
+              "name": "Pseudo-label accuracy per round",
+              "metricId": "pseudo_label_accuracy_fraction",
+              "why": "Neither the Pi-model nor the Mean Teacher ever turns a prediction into a hard label for an unlabelled input; the target is the other pass's soft probability, so there are no pseudo-labels to grade."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training objective includes the ramped consistency term and the validation score does not, so the two are different quantities and their difference is not an overfit measure."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements the Mean Teacher (or the Pi-model when consistency_teacher is set to it) as published, on a plain multilayer network reading one standardised feature row per bar, but the unlabelled pool is manufactured by masking labels in embargoed blocks of the training span, which deliberately handicaps the model against full supervision, and the two views differ by Gaussian noise and dropout only, not by time warping or image augmentation; the as-run numbers therefore measure a noise-consistent network trained on a labelled subset.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic curve applied to the single output of the kept predictor, which for the Mean Teacher is the network whose weights are a running average of the student's and for the Pi-model is the trained network itself; no calibration map is fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats for the validation line; the training line adds the ramped squared consistency gap, in squared probability units times its weight, to the labelled cross-entropy in nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The labelled term is unweighted cross-entropy, so the averaged teacher's probability is meant to track the real up share and is graded on test bars by how much probability it gave to what happened; the reference is quoting the fold's training up share."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It asks whether the averaged teacher ranks bars that went up above bars that went down, which holds or fails regardless of how much the consistency term squeezed the probabilities toward the middle."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The consistency term trained on squared gaps between two noisy probabilities, so the squared gap between the teacher's probability and the outcome grades the output on that same scale and stays bounded."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Agreement under noise and weight averaging both damp extreme answers, and the checkpoint was picked on a short validation span, so the slope shows whether the teacher's log-odds came out too timid or too bold."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the cross-entropy is not class-weighted the teacher's probability should match the observed up share bin by bin; a teacher that barely leaves the middle fills only the central bins, so the occupied-bin count is read with it."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Two noisy passes agree most easily when the answer is the same for every bar, so the spread of the teacher's probability shows whether the ramped consistency weight flattened the network into a constant."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of test bars where the side of one half the teacher's probability fell on matched the direction, read against the majority-class accuracy of the same fold; the cut sits on an unweighted probability, so it leans toward the labelled up share."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A teacher smoothed toward the labelled up share can call almost every bar the majority way and still score well on plain accuracy, so the hit rate averaged over up bars and down bars shows whether it recognises both."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number over all four confusion cells for the teacher's hard calls, which drops to zero when consistency smoothing leaves it calling a single direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what going long when the teacher's probability is at least one half and short otherwise earned after costs under the engine's rule of following the latest call; only the side of one half reaches this number."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It sets the teacher's trading result against simply holding the contract over the same folds, which matters because a smoothed network that mostly says up looks profitable on a rising tape."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of the teacher's calls over its own variability; zero is an arithmetic marker and not a no-skill line, because a teacher hovering around one half flips often and pays costs each time."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity built from the teacher's calls; it describes the path the engine's trading rule produced and nothing the consistency objective trained for."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winners over losers among the trades created when the teacher's probability crosses one half; one is an arithmetic marker, and it is read with the trade count because a smoothed probability may cross rarely."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of those trades that closed above zero after costs; it says how often a crossing of one half by the teacher paid, not how large the wins and losses were."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second network of the same method trained with a Huber loss on the scaled move, with the consistency term taken as the squared gap between two noisy value predictions; skill against the no-change forecast tests that second network, not the direction teacher."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The second network's miss in points after its output is multiplied back by the trailing move scale and rounded to the tick; a noise-consistent value network stays near zero, so it is read beside the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the second network's forecast matched the actual move on bars where both are non-zero after tick rounding; it can disagree with the traded call, which comes from the direction teacher."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training line is labelled cross-entropy plus the ramped consistency gap measured on the student, while the validation line is the plain logarithmic loss of the kept predictor, so their difference is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "When the run is not long-only and no stop or target is set the engine is always in the market once the first call is made, so exposure describes the engine's rule and not the teacher."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in blocks of label_block_bars with an embargo of the label horizon, and only the labeled_fraction that remains feeds the cross-entropy, which deliberately handicaps the model against full supervision.",
+            "The consistency term draws from every bar of the training span, labelled bars included, so it regularises the labelled rows as well as the hidden ones.",
+            "The epoch kept is the one with the lowest validation logarithmic loss, so the validation loss shown for it is optimistic; only the test walk is out of sample.",
+            "The price forecast belongs to a second network fitted separately with a Huber loss and is not the network that makes the direction call.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the costs charged are the MNQ account figures, a stated assumption, and the last bar of each fold exits at its close while every other exit fills at the next open."
+          ]
         }
       }
     },
@@ -605,6 +1168,277 @@
             "price"
           ]
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A probability for each class of an input, from one network trained on a few labelled inputs plus unlabelled ones whose confident prediction on a lightly altered copy becomes the hard target for a heavily altered copy.",
+          "targetVariable": "the class of each input window (in the specification a buy or sell signal or a trend label), stated as a probability per class",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled term is cross-entropy between the strong view's prediction and the hard class the weak view picked, counted only where the weak view's top probability clears the confidence threshold and averaged over the whole unlabelled batch.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Both of its terms are cross-entropies, one against true labels and one against its own confident weak-view calls, so the output is a class probability graded by how much probability it gave to what happened on held-out labelled inputs.",
+              "baseline": "quoting the labelled training inputs' class shares for every held-out input",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The claim is that teaching the strong view with the weak view's confident calls beats training on the labelled inputs alone, so the same network is trained with the unlabelled weight at zero and the two scores are compared.",
+              "baseline": "the same network and labelled inputs with the unlabelled weight set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The method rests on the assumption that a weak-view call above the confidence threshold is usually right; where the true labels were only hidden, the share of those admitted hard targets that match the hidden label tests that assumption directly.",
+              "baseline": "the majority class share among the hidden labels, which admitting calls at random would match",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking score for its labelled test set; it shows whether the network orders the classes correctly even after hard self-made targets have pushed its probabilities toward the extremes.",
+              "baseline": "one half, the value of an ordering unrelated to the class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's own evaluation is the hit rate of the most probable class, and the hard class is the very thing the weak view passes to the strong view; it is read per class and averaged, because confident self-made targets come mostly from the majority class and can crowd the other one out.",
+              "baseline": "one half, which calling a single class for every input scores",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Training the strong view on hard zero-or-one targets that the network chose itself rewards ever more extreme answers, so the slope shows whether the stated odds became bolder than the outcomes justify.",
+              "baseline": "one, the slope of stated odds that are neither stretched nor squeezed",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score that stays readable when self-made hard targets drive some probabilities close to zero or one, where a single confident miss would dominate the logarithmic loss.",
+              "baseline": "the same score for always quoting the labelled training inputs' class share",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Only weak-view calls above the confidence threshold enter the loss, so the admitted share of the unlabelled batch says how much of the pool actually taught the network; near zero the method is plain supervised training.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The confidence threshold can only be cleared if the network commits away from the middle, so the spread of its probabilities shows whether any weak-view call could ever have been admitted.",
+              "baseline": "zero spread, which a network that answers identically for every input would show",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "Both terms of the method are cross-entropies over classes; the network never states a mean and a variance for a return, so a Gaussian likelihood has nothing to score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The published method is classification only and forecasts no return size; a price error exists only for the adapted second network the Model Cycle fits beside it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth; the method's own version of that question is the accuracy of the weak-view calls admitted above the confidence threshold, listed as pseudo-label accuracy."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training objective includes the masked strong-view cross-entropy against self-made targets and the validation score does not, so their difference is not an overfit measure."
+            },
+            {
+              "name": "Classifier two-sample test accuracy",
+              "metricId": "classifier_two_sample_test_accuracy",
+              "why": "The strong and weak views are altered copies used as training signal, not generated samples offered as realistic data, so there is nothing to tell apart from real rows."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements the published rule on a plain multilayer network reading one standardised feature row per bar, but the unlabelled pool is manufactured by masking labels in embargoed blocks of the training span, which deliberately handicaps the model against full supervision, and the strong view is tabular (larger Gaussian noise, a random share of features set to the training mean and a random rescaling of the row) instead of image or time-warp augmentation; the as-run numbers therefore measure a self-taught network trained on a labelled subset.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic curve applied to the single output of the one trained network in evaluation mode; no calibration map is fitted afterwards, and the hard self-made targets used in training push that output toward the extremes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats; the training line adds the weighted strong-view cross-entropy against confident weak-view calls to the labelled cross-entropy",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Both training terms are unweighted cross-entropies, so the network's probability is meant to track the real up share and is graded on test bars by how much probability it gave to what happened; the reference is quoting the fold's training up share."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It asks whether the network ranks bars that went up above bars that went down, which holds or fails regardless of how far the hard weak-view targets stretched its probabilities."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The strong view is trained toward zero-or-one targets the network chose for itself above the confidence threshold, which rewards bolder answers than the outcomes support; a slope below one on test bars is the mark of that."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score that stays readable if self-training drove some probabilities close to certainty, where a single confident miss would dominate the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because neither cross-entropy is class-weighted the stated probability should match the observed up share bin by bin, and the outer bins show directly whether the confident calls the method relies on were right that often."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A weak-view call is admitted only when the probability is far enough from one half, so the spread of the probability shows whether the network ever committed enough for the unlabelled term to switch on."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of test bars where the side of one half the probability fell on matched the direction, the same hard call the weak view hands to the strong view in training; it is read against the majority-class accuracy of the fold."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Confident self-made targets tend to come from the majority direction, which can tip the network into calling one side, so the hit rate averaged over up bars and down bars shows whether it still recognises both."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number over all four confusion cells, which falls to zero if self-training on confident majority-side calls left the network calling a single direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what going long when the network's probability is at least one half and short otherwise earned after costs under the engine's rule of following the latest call; the confidence threshold plays no part in trading, every call is traded."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It sets the network's trading result against simply holding the contract over the same folds, which matters because a network self-taught toward the majority direction looks profitable on a rising tape."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of the network's calls over its own variability; zero is an arithmetic marker and not a no-skill line, because calls made at random still pay costs on every flip."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity built from the network's calls; it describes the path the engine's trading rule produced and nothing the weak-to-strong objective trained for."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winners over losers among the trades created when the network's probability crosses one half; one is an arithmetic marker, and it is read with the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of those trades that closed above zero after costs; it says how often a change of call by the self-taught network paid, not how large the wins and losses were."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second network trained with a Huber loss on the scaled move, where the published confidence rule is replaced by an adaptation: the mean of several dropout passes on the weak view is the target wherever their spread is at or below the batch's price_confidence_quantile; skill against the no-change forecast tests that adaptation."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The second network's miss in points after its output is multiplied back by the trailing move scale and rounded to the tick; teaching itself on low-spread dropout guesses keeps it near zero, so it is read beside the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the second network's forecast matched the actual move on bars where both are non-zero after tick rounding; it can disagree with the traded call, which comes from the direction network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training line is labelled cross-entropy plus the weighted strong-view term against self-made targets, while the validation line is the plain logarithmic loss, so their difference is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "When the run is not long-only and no stop or target is set the engine is always in the market once the first call is made, so exposure describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in blocks of label_block_bars with an embargo of the label horizon, and only the labeled_fraction that remains feeds the labelled cross-entropy, which deliberately handicaps the model against full supervision.",
+            "The share of drawn unlabelled bars whose weak-view call cleared confidence_threshold is written to the run log and the fit summary but is not stored as a metric; when it is near zero the run is plain supervised training on the labelled subset.",
+            "The epoch kept is the one with the lowest validation logarithmic loss, so the validation loss shown for it is optimistic; only the test walk is out of sample.",
+            "The price forecast belongs to a second network fitted separately, and its confidence rule on dropout spread is an adaptation because the published method has no regression form.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the costs charged are the MNQ account figures, a stated assumption, and the last bar of each fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "mixmatch": {
@@ -822,6 +1656,268 @@
           "group": "Model",
           "description": "Epochs over which the unlabelled weight rises to its full value (0: at once)."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A probability for each class of an input, from one network trained on blends of labelled and unlabelled inputs, where each unlabelled input carries a guessed label averaged over several noisy copies and then sharpened.",
+          "targetVariable": "the class of each input window (in the specification a buy or sell signal or a market regime), stated as a probability per class",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The labelled term is cross-entropy on MixUp blends of rows and their blended labels, and the unlabelled term is the squared gap between the prediction on a blended row and its blended guessed label, where the guess is the mean over noisy copies raised to the inverse of a temperature.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network is trained by cross-entropy on blended labelled rows and ends as a class probability, so it is graded by how much probability it gave to what happened on held-out labelled inputs that were never blended.",
+              "baseline": "quoting the labelled training inputs' class shares for every held-out input",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Setting the unlabelled weight to zero removes only the squared-gap term of this method: guessed labels for the unlabelled inputs still enter the pool that the labelled inputs are blended with, so that setting is not a clean off-switch and two references are needed: the same network drawing no unlabelled inputs at all, which isolates the guessed labels, and the same network with blending switched off, which isolates the blending.",
+              "baseline": "the same network drawing no unlabelled inputs at all (MixUp on labelled inputs only), and the same network with no blending at all",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Two parts pull the stated odds in opposite directions: sharpening pushes guessed labels toward certainty while blending rows and labels trains the network to answer in between, so the slope shows which effect won.",
+              "baseline": "one, the slope of stated odds that are neither stretched nor squeezed",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking score for its labelled test set; it shows whether the network orders the classes correctly regardless of how blending and sharpening moved the scale of its probabilities.",
+              "baseline": "one half, the value of an ordering unrelated to the class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's own evaluation is the hit rate of the most probable class, taken on real unblended inputs although the network only ever trained on blends; it is read per class and averaged, because guessed labels that lean to the majority class can tip every blend the same way.",
+              "baseline": "one half, which calling a single class for every input scores",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unlabelled term is a squared gap between a probability and a soft guessed label, so a squared-error score of the final probability against the outcome grades the output on the scale that term trained.",
+              "baseline": "the same score for always quoting the labelled training inputs' class share",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Every unlabelled input receives a sharpened guess with no confidence filter, so where the true labels were only hidden the share of guesses falling on the correct side shows whether the network was teaching itself right or wrong answers.",
+              "baseline": "the majority class share among the hidden labels",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Training on blended rows with blended labels teaches in-between answers, so the spread of the final probabilities shows whether the network still commits on real, unblended inputs.",
+              "baseline": "zero spread, which a network that answers identically for every input would show",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The network outputs class probabilities trained by cross-entropy on blends plus a squared gap to guessed labels; it never states a mean and a variance for a return."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "Natively the method is a classifier and forecasts no return size; a price error exists only for the second network the Model Cycle fits beside it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth, and the specification never evaluates one; whether confident calls are right more often is read from the calibration slope and the ranking score."
+            },
+            {
+              "name": "Admitted share of the unlabelled pool per round",
+              "metricId": "pseudo_label_admitted_fraction",
+              "why": "There is no confidence filter: every unlabelled input drawn gets a guessed label and enters the loss, so the admitted share is one by construction."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss is measured on blended rows with soft blended labels plus the guessed-label term, while validation is scored on real rows, so the two are different quantities."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements label guessing, sharpening and MixUp as published on a plain multilayer network reading one standardised feature row per bar, but the unlabelled pool is manufactured by masking labels in embargoed blocks of the training span, which deliberately handicaps the model against full supervision, the copies differ by Gaussian noise only, and blending two rows of indicator values is a regulariser with no market meaning; the as-run numbers therefore measure a blend-regularised network trained on a labelled subset.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic curve applied to the single output of the one trained network in evaluation mode on the real, unblended feature row; no calibration map is fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats for the validation line; the training line is cross-entropy on blended labelled rows with blended soft labels plus the weighted squared gap to blended guessed labels in squared probability units",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The labelled term is unweighted cross-entropy, so the network's probability is meant to track the real up share and is graded on real test bars, never blended ones, by how much probability it gave to what happened; the reference is quoting the fold's training up share."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It asks whether the network ranks bars that went up above bars that went down, which holds or fails regardless of whether blending pulled its probabilities inward or sharpening pushed them outward."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Sharpening by the temperature pushes guessed labels toward certainty while MixUp trains in-between answers on in-between rows, so the slope on test bars shows which of the two set the final scale of the stated odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The guessed-label term trained on squared gaps between a probability and a soft target, so the squared gap between the probability and the outcome grades the output on that same scale and stays bounded."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the cross-entropy is not class-weighted the stated probability should match the observed up share bin by bin; a network trained on blends often fills only the central bins, so the occupied-bin count is read with it."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A network that only ever saw blended rows with blended labels may answer close to the middle on every real bar, so the spread of its probability shows whether it still commits once the blending is removed."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of real test bars where the side of one half the probability fell on matched the direction, read against the majority-class accuracy of the same fold; the cut sits on an unweighted probability, so it leans toward the labelled up share."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Blending with guessed labels that lean toward the majority direction can tip the network into calling one side, so the hit rate averaged over up bars and down bars shows whether it still recognises both."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number over all four confusion cells, which falls to zero if the blend-trained network ends up calling a single direction on real bars."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what going long when the network's probability on the real bar is at least one half and short otherwise earned after costs under the engine's rule of following the latest call; only the side of one half reaches this number."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It sets the blend-trained network's trading result against simply holding the contract over the same folds, which separates a network with direction in it from one that mostly says up on a rising tape."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of the network's calls over its own variability; zero is an arithmetic marker and not a no-skill line, because a probability held near one half by blending flips often and pays costs each time."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity built from the network's calls; it describes the path the engine's trading rule produced and nothing the guessing and blending objective trained for."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winners over losers among the trades created when the network's probability crosses one half; one is an arithmetic marker, and it is read with the trade count beside it."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of those trades that closed above zero after costs; it says how often a change of call by the blend-trained network paid, not how large the wins and losses were."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second network trained with a Huber loss on blended rows and blended scaled moves, where the guessed target is the plain mean over noisy copies with no sharpening; skill against the no-change forecast tests that second network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The second network's miss in points after its output is multiplied back by the trailing move scale and rounded to the tick; blending moves of opposite sign averages them toward zero, so it is read beside the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the second network's forecast matched the actual move on bars where both are non-zero after tick rounding; it can disagree with the traded call, which comes from the direction network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training line is measured on blended rows with soft blended labels plus the guessed-label term, while the validation line is the plain logarithmic loss on real rows, so their difference is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "When the run is not long-only and no stop or target is set the engine is always in the market once the first call is made, so exposure describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in blocks of label_block_bars with an embargo of the label horizon, and only the labeled_fraction that remains carries true labels into the blends, which deliberately handicaps the model against full supervision.",
+            "Setting the unlabelled weight to zero removes only the squared-gap term: guessed labels of the unlabelled bars still enter the pool the labelled rows are blended with, so this does not give the plain network or MixUp on labelled rows alone. A clean no-unlabelled reference draws no unlabelled bars at all, which the unlabeled_ratio dial cannot do because its smallest value is one, and a no-blending reference sets the MixUp concentration to zero.",
+            "The epoch kept is the one with the lowest validation logarithmic loss, so the validation loss shown for it is optimistic; only the test walk is out of sample.",
+            "The price forecast belongs to a second network fitted separately with a Huber loss and is not the network that makes the direction call.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the costs charged are the MNQ account figures, a stated assumption, and the last bar of each fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "virtual_adversarial_training": {
@@ -1024,6 +2120,264 @@
             "log": true
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A probability for each class of an input, from one network trained on a few labelled inputs while every input, labelled or not, is nudged in the direction that would change its prediction most and the change is penalised.",
+          "targetVariable": "the class of each input window (in the specification a buy or sell signal or a market regime), stated as a probability per class",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled term is the Kullback-Leibler divergence between the prediction at an input and at the same input moved by a fixed-length nudge, where the nudge direction is found without labels by power iteration on the gradient of that divergence.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The labelled term is cross-entropy and the adversarial term only asks the prediction to hold still under the worst small nudge, so the output remains a class probability graded by how much probability it gave to what happened on held-out labelled inputs.",
+              "baseline": "quoting the labelled training inputs' class shares for every held-out input",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The claim is that penalising the prediction's change under the worst-direction nudge on all inputs beats training on the labelled inputs alone, so the same network is trained with the adversarial weight at zero and the two scores are compared.",
+              "baseline": "the same network and labelled inputs with the adversarial smoothness weight set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Forcing the prediction to stay put within the perturbation radius flattens the network around every input, which tends to pull stated odds toward the middle; the slope shows whether the radius made them too timid.",
+              "baseline": "one, the slope of stated odds that are neither stretched nor squeezed",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking score for its labelled test set; smoothing by adversarial nudges may shrink every probability toward the middle yet leave the ordering of inputs intact, and this score sees only the ordering.",
+              "baseline": "one half, the value of an ordering unrelated to the class",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's own evaluation is the hit rate of the most probable class, the hard call left after the decision boundary has been pushed away from the inputs; it is read per class and averaged, because a boundary pushed past every input of the smaller class still scores well on the plain hit rate.",
+              "baseline": "one half, which calling a single class for every input scores",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the smoothed probability against the outcome, which stays stable when the perturbation radius is large and the network answers close to the middle everywhere.",
+              "baseline": "the same score for always quoting the labelled training inputs' class share",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A network that answers the same for every input is perfectly stable under any nudge, so the spread of the probabilities shows whether the perturbation radius and its weight erased the signal along with the noise.",
+              "baseline": "zero spread, which a network that answers identically for every input would show",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The network outputs class probabilities trained by cross-entropy plus a divergence between two of its own class predictions; it never states a mean and a variance for a return."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "Natively the method is a classifier and forecasts no return size; a price error exists only for the second network the Model Cycle fits beside it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth, and the specification never evaluates one; whether confident calls are right more often is read from the calibration slope and the ranking score."
+            },
+            {
+              "name": "Pseudo-label accuracy per round",
+              "metricId": "pseudo_label_accuracy_fraction",
+              "why": "The method never assigns a label to an unlabelled input; it compares the network's own soft prediction before and after the nudge, so there are no pseudo-labels to grade."
+            },
+            {
+              "name": "Admitted share of the unlabelled pool per round",
+              "metricId": "pseudo_label_admitted_fraction",
+              "why": "There is no confidence threshold: every input, labelled or not, receives a nudge and enters the smoothness term."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training objective includes the adversarial divergence term and the validation score does not, so their difference is not an overfit measure."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements the published power-iteration nudge and divergence penalty on a plain multilayer network reading one standardised feature row per bar, but the unlabelled pool is manufactured by masking labels in embargoed blocks of the training span, which deliberately handicaps the model against full supervision, and the perturbation radius is in standardised feature units, so a nudge can reach values a feature never takes; the as-run numbers therefore measure a locally smoothed network trained on a labelled subset.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic curve applied to the single output of the one trained network in evaluation mode on the unperturbed feature row; no calibration map is fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats; the training line adds the weighted Kullback-Leibler divergence between the prediction before and after the adversarial nudge to the labelled cross-entropy",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The labelled term is unweighted cross-entropy and the adversarial term only holds the prediction still under a nudge, so the probability is meant to track the real up share and is graded on test bars by how much probability it gave to what happened; the reference is quoting the fold's training up share."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It asks whether the smoothed network ranks bars that went up above bars that went down, which holds or fails regardless of how much the perturbation radius pulled its probabilities toward the middle."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Holding the prediction still inside the perturbation radius flattens the network around every bar and tends to make its stated odds timid; a slope above one on test bars is the mark of a radius or weight set too large."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the smoothed probability against the outcome that stays stable when the network answers close to the middle on every bar, where differences in logarithmic loss become tiny."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the cross-entropy is not class-weighted the stated probability should match the observed up share bin by bin; a heavily smoothed network fills only the central bins, so the occupied-bin count is read with it."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A network that gives the same answer for every bar is perfectly stable under any nudge, so the spread of its probability shows whether the adversarial penalty erased the signal along with the sensitivity."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of test bars where the side of one half the smoothed probability fell on matched the direction, read against the majority-class accuracy of the same fold; the cut sits on an unweighted probability, so it leans toward the labelled up share."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A network smoothed toward the labelled up share can call almost every bar the majority way, so the hit rate averaged over up bars and down bars shows whether the decision boundary still passes through the data."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number over all four confusion cells, which falls to zero when adversarial smoothing has pushed the decision boundary so far from the bars that one direction is always called."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what going long when the smoothed network's probability is at least one half and short otherwise earned after costs under the engine's rule of following the latest call; only the side of one half reaches this number."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It sets the smoothed network's trading result against simply holding the contract over the same folds, which matters because a network flattened into mostly saying up looks profitable on a rising tape."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of the smoothed network's calls over its own variability; zero is an arithmetic marker and not a no-skill line, because calls made at random still pay costs on every flip."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity built from the network's calls; it describes the path the engine's trading rule produced and nothing the adversarial smoothness objective trained for."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winners over losers among the trades created when the smoothed probability crosses one half; one is an arithmetic marker, and it is read with the trade count because a smooth network may cross rarely."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of those trades that closed above zero after costs; it says how often a change of call by the smoothed network paid, not how large the wins and losses were."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second network trained with a Huber loss on the scaled move, where the adversarial penalty is the squared change of the forecast under the worst-direction nudge; skill against the no-change forecast tests that second network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The second network's miss in points after its output is multiplied back by the trailing move scale and rounded to the tick; a forecast made insensitive to its inputs stays near zero, so it is read beside the no-change error."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the second network's forecast matched the actual move on bars where both are non-zero after tick rounding; it can disagree with the traded call, which comes from the direction network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training line is labelled cross-entropy plus the weighted adversarial divergence, while the validation line is the plain logarithmic loss, so their difference is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "When the run is not long-only and no stop or target is set the engine is always in the market once the first call is made, so exposure describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in blocks of label_block_bars with an embargo of the label horizon, and only the labeled_fraction that remains feeds the cross-entropy, which deliberately handicaps the model against full supervision.",
+            "The adversarial term draws from every bar of the training span, labelled bars included, and its nudge of length perturbation_radius is measured in standardised feature units, so it can move a row to values that feature never takes.",
+            "The epoch kept is the one with the lowest validation logarithmic loss, so the validation loss shown for it is optimistic; only the test walk is out of sample.",
+            "The price forecast belongs to a second network fitted separately with a Huber loss and is not the network that makes the direction call.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than MNQ the costs charged are the MNQ account figures, a stated assumption, and the last bar of each fold exits at its close while every other exit fills at the next open."
+          ]
+        }
       }
     },
     "entropy_minimization": {
@@ -1196,6 +2550,276 @@
           "label": "Ramp-up epochs",
           "group": "Model",
           "description": "Epochs over which the unlabelled weight rises to its full value (0: at once)."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A class probability per bar from one network that was additionally pushed to be confident on bars it had no label for, which moves its boundary away from crowded regions of the features.",
+          "targetVariable": "The class of the bar (for this instrument, whether the close a set number of bars ahead is above or below the current close), stated as a probability by the network.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Entropy minimisation's unlabelled term is the average entropy of the network's own predicted probabilities on unlabelled bars, so the network is charged for sitting on the fence there and never told which side to pick.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The entropy penalty rewards the network for moving its probability toward certainty on unlabelled bars, and this score is the one that charges heavily when that bought confidence lands on the wrong side.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The method is one added penalty, so the test is the identical network trained on the labelled bars with the entropy weight set to zero, which shows whether demanding confidence on unlabelled bars helped or only sharpened the output.",
+              "baseline": "The same network trained on the labelled bars only, with the entropy weight at zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Minimising entropy on unlabelled bars drives the probability toward the extremes regardless of whether the evidence supports it, so a slope well under one is the expected fingerprint of this penalty and the first thing to read.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The penalty's direct effect is to spread the network's probabilities away from even odds, so the spread of the output read beside the logarithmic loss separates sharper from better.",
+              "baseline": "The sharpness of the same network trained with the entropy weight at zero.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Pushing probabilities outward does not by itself reorder the bars, so this ranking score shows whether moving the boundary into sparse regions actually separated up bars from down bars better.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "When the entropy penalty pushes some bars almost to certainty, this bounded score grades them without a single confident miss swamping the fold the way it does in the logarithmic loss.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hard call of the sharpened network is judged per class, because a boundary shoved into a sparse region can end up calling nearly every bar the same direction while looking very sure of itself.",
+              "baseline": "One half, what calling every bar the same direction scores.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The side the network grew confident about on each hidden bar acts as an implied label, and because the truth there was only masked, the share of those confident sides that were right can be measured.",
+              "baseline": "The labelled bars' majority class share, what picking one direction on every hidden bar would score.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve is the supervised loss plus the weighted entropy term, and the entropy weight ramps in over the first epochs, so the curve shows when the confidence pressure took hold and whether it was fought by the labelled loss.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The specification's own objective is a classification loss plus the entropy of class probabilities, never a Gaussian likelihood of the return, so this loss was never fitted or reported."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The entropy of a real-valued forecast is undefined in this method, so there is no return forecast and no error in points to scale by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth of bars, and under an entropy penalty confidence is manufactured by the loss, so the most confident slice is not a selected set of better bars."
+            },
+            {
+              "name": "Admitted share of the unlabelled pool",
+              "metricId": "pseudo_label_admitted_fraction",
+              "why": "Entropy minimisation never admits or rejects rows: every unlabelled bar drawn contributes its entropy to the loss, so there is no admission step to count."
+            },
+            {
+              "name": "Kullback-Leibler term of an evidence lower bound",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The entropy here is of the network's predicted class probabilities, not a divergence between a latent code and a prior, and the model has no latent code or bound."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The network states a class probability and is trained with a classification loss, so there is no forecast density over the size of the move to score."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter trains the loss the specification states (binary cross-entropy on labelled bars plus the weighted mean entropy of the probability of up on unlabelled bars), but the unlabelled pool is manufactured by masking the labels of blocks of an otherwise fully labelled training span, so the as-run numbers measure the entropy penalty under a deliberate label handicap and not on bars that truly had no label.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the sigmoid of the single output of the kept multilayer perceptron, trained with unweighted binary cross-entropy on labelled bars plus the entropy penalty, with no curve fitted afterwards.",
+          "priceForecastSource": "none",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per row; the training value adds the ramped entropy weight times the mean entropy on unlabelled rows to the labelled cross-entropy, the validation value is the plain logarithmic loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "On the test walk it grades the network's sharpened probability where it was neither trained nor used to pick the epoch, and it is the score that charges most when confidence bought by the entropy penalty lands on the wrong side."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "primary",
+              "why": "The entropy penalty pushes the probability outward on unlabelled bars whether or not the evidence supports it, so a slope under one is this model's expected failure and the direct measure of sharper versus better."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether moving the boundary into sparse regions of the features actually ordered up bars above down bars, independent of how far the penalty stretched the scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sharpened probability on a bounded scale, so a few bars driven almost to certainty by the entropy term cannot dominate the fold."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The labelled loss is unweighted, so comparing the stated probability with the observed up share is a fair test here, and it locates the bins where entropy-driven confidence overshoots."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The spread of the output is the direct footprint of the entropy weight, read beside the logarithmic loss to see whether the extra commitment was earned."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "On weak signal the entropy term can saturate the sigmoid, and each scored bar stated as certain and wrong costs a very large logarithmic loss, so the count shows how many bars decide that score."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the direction call cut from the sharpened probability, which depends on where the entropy penalty left the boundary relative to the base rate."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the direction call per class, catching the case where the boundary was pushed into a sparse region and nearly every bar is called the same way with high confidence."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It condenses the four outcomes of the sharpened network's direction call into one number that stays near zero when the call only reflects a one-sided boundary."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what following the sign of the network's call earned under the engine's position rule after costs, read beside buy and hold on the same folds; the size of the confidence plays no part in it."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar result of trading the network's call to its variability under the engine's rule and costs; zero is an arithmetic marker, not a no-skill line, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest fall of the equity path from trading the network's call, where a confidently misplaced boundary shows up as a long one-sided losing stretch."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning trades opened on the network's call with the losing ones after costs, a trade-level view of the same direction call."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how often a trade opened on the network's call closed positive, where a trade ends when the call flips or the fold ends, so a network that rarely changes side yields few trades."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because the entropy of a real-valued forecast is undefined in the method."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to compare with the actual direction."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training value includes the weighted entropy term on unlabelled rows and the validation value is the plain logarithmic loss, so their gap is not an overfitting measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target set the engine is always in a position once it has traded, so the share describes the engine's rule and not the network's call."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in blocks of the training span with an embargo of the label horizon, which deliberately handicaps the model against a fully supervised fit on the same bars.",
+            "The kept epoch is the one with the lowest validation logarithmic loss, so that validation figure is optimistic and only the test walk is out of sample.",
+            "There is no price model, so the forecast line and every price forecast metric are absent for this model.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -1381,6 +3005,303 @@
             "high": 10.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability",
+          "projection_or_reconstruction"
+        ],
+        "native": {
+          "produces": "A class probability for each input from the top layer of an encoder whose every layer is also rebuilt, from a noise-corrupted copy, by a top-down decoder joined to the encoder through lateral connections.",
+          "targetVariable": "The class of the trading signal attached to an input window (buy or sell, or a market regime), stated as a probability per class, learned from a small labelled set and a large unlabelled set of price windows.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled-data term is a sum over layers of the squared error between each layer's activations and the decoder's denoised estimate of them, each layer with its own weight, added to the cross-entropy of the noisy path's prediction; as run the unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled series.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The top of the ladder is a softmax trained by cross-entropy, so the first question is how much probability that top rung gave to the class that actually followed on inputs outside the training set.",
+              "baseline": "The logarithmic loss of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The ladder's claim is that denoising every layer on unlabelled inputs improves the classifier, so its score is compared with the same batch-normalised encoder trained with every layer's denoising weight set to zero.",
+              "baseline": "The same encoder on the same folds with the decoder, the lateral connections and the denoising cost switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking measure for its own evaluation, and it shows whether the clean path's output sorts the classes correctly regardless of how the injected noise shifted the level of its probabilities.",
+              "baseline": "One half, the value of an output that carries no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The supervised cost is taken on the noisy path while predictions come from the clean path, so the odds the clean path states can be sharper than the noisy training ever justified, and the slope measures that.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded squared-error score of the clean path's probability that a handful of confident misses from a classifier trained on few labels cannot dominate.",
+              "baseline": "The Brier score of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "held_out_reconstruction_error_fraction",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "The bottom rung of the decoder rebuilds the clean input from its noise-corrupted copy, and that error on unseen inputs, as a share of the input's variance, shows whether the denoising half learned anything to pass up the ladder.",
+              "baseline": "The error of handing back the noise-corrupted input unchanged, which is the noise variance as a share of the input variance.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Plotting the cross-entropy and each layer's denoising cost as separate curves by epoch shows whether the layer weights let reconstruction of the input drown the classification signal at the top.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A ladder whose denoising cost dominates can settle into rebuilding inputs while its top rung states nearly the same odds on every bar, and the spread of the probability exposes that.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "Natively the top rung states a probability; the hit rate of the hard call is measured on the as-run scoreboard as accuracy, with no invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The ladder has no variance output and its losses are cross-entropy and squared denoising error, so a Gaussian likelihood of the return was never its objective or its score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The described ladder outputs a class probability, not a return forecast, so a return error scaled by volatility does not apply to it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of calls, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The top rung is trained by cross-entropy on a class label and the lower rungs by squared denoising error, so no mean and variance of a return is ever output and there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The ladder described outputs a buy or sell class probability, not a forecast of the size of the return, so an error in return units has nothing to grade natively."
+            },
+            {
+              "name": "Directional edge",
+              "metricId": null,
+              "why": "The native output is a probability; the hit rate of the hard call made by cutting it at one half is an as-run scoreboard number and carries no pass mark."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "No registry metric scores only the most confident tenth of calls, and picking that slice after the fact flatters any classifier."
+            },
+            {
+              "name": "Held-out log-likelihood per row",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "A denoising decoder learns to remove noise and defines no normalised density of the input, so the ladder has no likelihood of unseen rows to report despite being filed among generative models."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the ladder states a class probability and takes no position; a return per unit of risk exists only once the engine trades the call with its own rule and costs."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the ladder of Rasmus and colleagues with a clean encoder, a noisy encoder and a top-down decoder using the paper's combinator, built as a small fully connected ladder over one standardised feature row per bar with no convolutions and no price window. The unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, and the denoising cost is taken on every span bar, so the as-run numbers measure the clean path of that ladder after training on the kept labels.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the sigmoid of the top output of the clean encoder path, run without noise and normalised with the running batch statistics gathered during training, with the decoder unused at prediction time and no calibration curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The ladder's supervised term is unweighted cross-entropy on the kept labels, so the clean path's output tracks the series' own up share and this score on test bars, which played no part in choosing the kept epoch, is the honest grade of its odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The clean path's top output is continuous, so this tests whether an encoder shaped by denoising every layer ranks up bars above down bars, regardless of the gap between the noisy path it was trained on and the clean path it predicts with."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the clean path's probability on every scored bar, read beside the logarithmic loss so that a few over-confident bars do not decide the verdict alone."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The labels are fitted through the noisy path but the odds are stated by the clean path with running statistics, and the slope shows whether removing the noise at prediction time left those odds more extreme than the outcomes support."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the clean path's stated odds with the observed up share in each bin is a fair test; it is read with the count of occupied bins because the odds cluster near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the denoising cost of the input layer dominates the step, the top rung can settle on nearly the same odds for every bar, and a small spread of the probability reveals that."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the clean path's probability is at least one half; with an unweighted fit that cut sits at the labelled bars' own up share, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether the ladder's top rung learned both sides or leaned toward whichever class was commoner among the kept labels."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the clean path's hard call over all four outcome cells, which stays near zero when the call is one-sided even if the hit rate looks respectable."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the clean path's call earned after costs when every call is traded under the engine's rule; only the side of one half the probability falls on reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the clean path's call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity produced by trading the clean path's call, which shows the cost of the stretches where a ladder taught on half-hidden labels held the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the clean path's call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the clean path's call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the ladder's clean path called both directions or collapsed to one side, and is read beside every trading number of this model together with the count of closed trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Tests a second ladder of the same design, fitted separately with a Huber loss on the scaled move in place of cross-entropy, against forecasting no change; it says nothing about the ladder whose call is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the second ladder's clean-path value after it is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the second ladder's forecast matched the move, over bars where both are non-zero after tick rounding; that sign is not the call that is traded."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the noisy path's cross-entropy plus the weighted sum of every layer's denoising cost, so it shows whether the ladder converged and nothing about how good the clean path's odds are."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the noisy path's cross-entropy plus the layers' denoising costs while the validation curve holds the clean path's logarithmic loss alone, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this model."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the model with part of its labels deliberately hidden and not a model that had no more labels to use.",
+            "The denoising cost is taken on every bar of the training span, labelled or masked, and the registry's own note expects the result to sit close to a batch-normalised plain network.",
+            "The kept epoch is the one with the lowest validation logarithmic loss, so the validation loss curve is optimistic at that epoch and only the test walk is out of sample.",
+            "The engine does not record the per-layer denoising costs on unseen bars, and the comparison with the same encoder trained with the denoising weight at zero is not run, so whether denoising helped cannot be read from a run today.",
+            "The price forecast comes from a second ladder fitted separately, so forecast numbers and direction numbers describe two different sets of weights.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by this model's own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -1582,6 +3503,313 @@
             "high": 3.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability",
+          "explicit_density",
+          "projection_or_reconstruction"
+        ],
+        "native": {
+          "produces": "A class probability for each input from a discriminative head that shares an encoder with a generative model of the inputs, so that unlabelled inputs shape the encoder through reconstruction while the few labelled inputs train the head.",
+          "targetVariable": "The class of the trading signal attached to an input window (buy or sell, or a market regime), stated as a probability per class, learned from a small labelled set and a large unlabelled set of price windows.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled-data term here is a generative loss, the negative evidence lower bound of a variational autoencoder (or an adversarial loss in the variants), added to the cross-entropy of the head with a balance weight called lambda; as run the unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled series.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The discriminative head is trained by cross-entropy, so the first question is how much probability the head, sitting on an encoder shaped by reconstruction, gave to the class that actually followed on inputs it never trained on.",
+              "baseline": "The logarithmic loss of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of the hybrid is that the generative loss on unlabelled inputs improves the head, so its score is compared with the same encoder and head trained with the generative weight lambda set to zero on the labelled inputs alone.",
+              "baseline": "The same encoder and classification head on the same folds with the generative term switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking measure for its own evaluation, and it shows whether the head on the shared latent code sorts the classes correctly even when the reconstruction term has left the level of its probabilities off.",
+              "baseline": "One half, the value of an output that carries no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The unlabelled bound of the label-conditioned variant weights each label's reconstruction by the head's own guess, which can pull the head toward confident calls on bars with no label, while the entropy of the head is subtracted from that bound, which rewards uncertainty and pulls it back toward one half, and the slope shows whether the stated odds ended up stretched or squeezed.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded squared-error score of the head's probability that is not dominated by the few bars where a head trained on a small labelled set was confidently wrong.",
+              "baseline": "The Brier score of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The generative half is a density model of the input, and its evidence lower bound on unseen inputs (a bound, not the exact likelihood, and reported as such) shows whether the decoder learned the inputs at all before any credit is given to it for helping the head.",
+              "baseline": "The log density that a single Gaussian fitted to the training inputs gives the same unseen inputs.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "kullback_leibler_term_nats",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "Reporting the divergence between the encoder's code and the standard normal prior apart from the reconstruction term shows whether the beta weight let the code carry information or pressed it flat onto the prior.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "active_latent_unit_count",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "If the reparameterised latent units stop varying from input to input the decoder is ignoring the code, and then the shared encoder hands the classification head nothing that the unlabelled inputs taught it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Plotting the classification term and the generative term as separate curves by epoch shows whether reconstruction swamped the head's cross-entropy, which is the usual failure when the balance weight is set carelessly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "Natively the head states a probability; the hit rate of the hard call is measured on the as-run scoreboard as accuracy, with no invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The head has no variance output for the return and its supervised loss is cross-entropy, so a Gaussian likelihood of the return was never this model's objective or its score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The described model outputs a class probability, not a return forecast, so a return error scaled by volatility does not apply to it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of calls, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The head is trained by cross-entropy on a class label and never outputs a mean and a variance for a return, so there is no Gaussian density of the return to score; the only Gaussian in the model is the decoder's density of the input row."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The trading form described outputs a buy or sell class probability, not a forecast of the size of the return, so an error measured in return units has nothing to grade natively."
+            },
+            {
+              "name": "Directional edge",
+              "metricId": null,
+              "why": "The native output is a probability; the hit rate of the hard call made by cutting it at one half is an as-run scoreboard number and carries no pass mark."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "No registry metric scores only the most confident tenth of calls, and picking that slice after the fact flatters any classifier."
+            },
+            {
+              "name": "Classifier two-sample test accuracy of generated inputs",
+              "metricId": "classifier_two_sample_test_accuracy",
+              "why": "The product judged here is the classification head; how lifelike the decoder's generated inputs look is a different question that does not say whether the head improved."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the model states a class probability and takes no position; a return per unit of risk exists only once the engine trades the call with its own rule and costs."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the label-conditioned variational autoencoder of Kingma and colleagues on one standardised feature row per bar: a classifier network reads the row, an encoder reads the row and the label, and a Gaussian decoder rebuilds the row from the latent code and the label, where the specification describes a shared sequence encoder with a classification head over price windows. The unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, so the as-run numbers measure that classifier network after it was trained on the kept labels plus the label-marginalised bound on the masked bars.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the sigmoid of the classifier network's single logit read from the bar's standardised feature row alone, with the encoder, the latent code and the decoder unused at prediction time and no calibration curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The classifier network is fitted by unweighted cross-entropy on the kept labels, so its output tracks the series' own up share and this score on test bars, which played no part in choosing the kept epoch, is the honest grade of the odds it states."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The classifier's logit is continuous, so this tests whether training it through the label-weighted reconstruction of masked bars left it able to rank up bars above down bars, whatever happened to the level of its odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the classifier network's probability on every scored bar, read beside the logarithmic loss because weighting the reconstruction bound of the masked bars by the classifier's own guess can push it toward confident calls there, while the entropy term of the unlabelled bound pulls it back toward one half, and a bounded score stops a few confident misses from deciding the verdict alone."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The unlabelled bound weights each masked bar's reconstruction by the classifier's own guess and subtracts that guess's entropy, which moves the confidence of the odds, and the slope shows whether they came out too extreme or too timid."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the stated odds with the observed up share in each bin is a fair test of this classifier; it is read with the count of occupied bins because its odds cluster near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the reconstruction term dominates the step, the classifier network barely moves and states nearly the same odds on every bar, and a small spread of the probability reveals that."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the classifier network's probability is at least one half; with an unweighted fit that cut sits at the labelled bars' own up share, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether the classifier network learned both sides or simply leaned toward whichever class was commoner among the kept labels."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the classifier network's hard call over all four outcome cells, which stays near zero when the call is one-sided even if the hit rate looks respectable."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the classifier network's call earned after costs when every call is traded under the engine's rule; only the side of one half the probability falls on reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the classifier network's call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity produced by trading the classifier network's call, which shows the cost of the stretches where a classifier taught on half-hidden labels held the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the classifier network's call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the classifier network's call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the classifier network called both directions or collapsed to one side, and is read beside every trading number of this model together with the count of closed trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Tests a second, separately fitted model, a label-free variational autoencoder of the feature row with a Huber regression head on the encoder's latent mean, against forecasting no change; it says nothing about the classifier that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the regression head on the latent mean after its output is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the latent-mean regression head's forecast matched the move, over bars where both are non-zero after tick rounding; that sign is not the call that is traded."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the labelled bound plus the weighted cross-entropy plus the weighted unlabelled bound, a sum dominated by the reconstruction of the feature row, so it shows convergence of the generative half and little about the classifier."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the reconstruction bounds plus weighted cross-entropy while the validation curve holds only the classifier's logarithmic loss, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this model."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the model with part of its labels deliberately hidden and not a model that had no more labels to use.",
+            "The kept epoch is the one with the lowest validation logarithmic loss, so the validation loss curve is optimistic at that epoch and only the test walk is out of sample.",
+            "The engine does not record the evidence lower bound on unseen bars, the divergence term or the count of active latent units, so whether the generative half learned anything cannot be read from a run today.",
+            "The comparison with the same classifier network trained on the kept labels alone, which is the test of whether the masked bars helped, is not run by the engine.",
+            "The price forecast comes from a differently built second model fitted separately, so forecast numbers and direction numbers describe two different sets of weights.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by this model's own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -1792,6 +4020,298 @@
             "high": 3.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability",
+          "implicit_sample_generator"
+        ],
+        "native": {
+          "produces": "A class probability for each real input from a discriminator that is trained at the same time to tell real inputs from the inputs a generator makes out of random noise, together with those generated inputs as a by-product.",
+          "targetVariable": "The class of the trading signal attached to a real input window (buy, sell or hold), stated as a probability per class, learned from a small labelled set, a large unlabelled set and the generator's forgeries.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The unlabelled-data term is the discriminator's adversarial loss for calling unlabelled inputs real and generated inputs fake, added to the cross-entropy of its class output on labelled inputs, while the generator is trained against it; the adversarial game itself is not the score, and as run the unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled series.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The discriminator's class output is trained by cross-entropy on the labelled inputs, so the first question is how much probability that class output gave to what actually followed on inputs outside the training set.",
+              "baseline": "The logarithmic loss of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The claim is that learning to reject the generator's forgeries teaches the discriminator features that help it classify, so its score is compared with the same discriminator trained on the labelled inputs alone with no generator and no real-or-fake term.",
+              "baseline": "The same discriminator body and class output on the same folds with the adversarial term and the generator switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The specification names this ranking measure for its own evaluation, and it shows whether the class output sorts real inputs correctly even after an unstable adversarial game has pushed the level of its probabilities around.",
+              "baseline": "One half, the value of an output that carries no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The real-or-fake term rewards the discriminator for large class logits on every real input, labelled or not, which can stretch the class odds beyond what the outcomes support, and the slope measures that stretch.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded squared-error score of the class output that stays readable in the epochs where the adversarial game makes the discriminator briefly and wildly over-confident.",
+              "baseline": "The Brier score of quoting the training set's class shares on every scored input.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "diagnostic",
+              "why": "The generator's forged inputs are a by-product, and the share of real inputs that lie inside the neighbourhood of the forgeries only describes how widely the forgeries spread over the real inputs; it is shown with no better or worse direction, because the specification's own Bad GAN variant improves the classifier with forgeries that deliberately do not cover the real inputs.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The discriminator's supervised term, its real-or-fake term and the generator's loss plotted as separate curves show only whether the game stayed balanced or one side won; none of the three is a score of the classifier.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The discriminator is trained with a logarithmic real-or-fake loss, not as a constrained critic, so it never estimates a transport distance."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder and decoder pair in this model, so no input is ever rebuilt and no reconstruction error exists."
+            },
+            {
+              "name": "Fréchet Market Distance",
+              "metricId": null,
+              "why": "The registry has no such metric, and sample realism is not what this model is judged on because its product is the discriminator's class output."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The model has no encoder posterior and no prior-matching term; that row belongs to a variational autoencoder and was stamped here by mistake."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "The model learns no normalised embedding whose spread over a sphere could be measured; that row belongs to contrastive representation learning."
+            },
+            {
+              "name": "Wasserstein distance",
+              "metricId": null,
+              "why": "The discriminator described is trained with a logarithmic real-or-fake loss and is not a critic constrained to estimate a transport distance, so it yields no Wasserstein distance."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The model has a generator and a discriminator but no encoder that maps a real input to a code and back, so nothing is ever reconstructed."
+            },
+            {
+              "name": "Fréchet market distance",
+              "metricId": null,
+              "why": "It grades how lifelike the generator's samples are, but the product of this model is the discriminator's class output, and a semi-supervised discriminator can classify well beside a generator whose samples are poor."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The generator draws its noise straight from a fixed distribution and there is no encoder posterior to compare with a prior, so no divergence term exists in this model."
+            },
+            {
+              "name": "Latent uniformity",
+              "metricId": null,
+              "why": "The model learns no embedding on a sphere whose spread could be measured; the generator's noise is uniform or Gaussian by construction."
+            },
+            {
+              "name": "Classifier two-sample test accuracy of generated inputs",
+              "metricId": "classifier_two_sample_test_accuracy",
+              "why": "For the semi-supervised adversarial network the classifier is the product, so a test of whether a fresh judge can tell forged inputs from real ones grades the by-product and not the result."
+            },
+            {
+              "name": "Held-out log-likelihood per row",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "A generator fed by noise defines samples but no density and no bound on one, so there is no likelihood of unseen inputs to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the feature-matching form of Salimans and colleagues: one discriminator with two class logits and the generated class left implicit, and a generator trained to match the discriminator's average hidden features, where the specification's main text describes a separate real-or-fake head and a generator trained to fool it. Both networks work on one standardised feature row per bar, not on price windows, and no price model exists. The unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, so the as-run numbers measure the discriminator's two class logits after that training.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the softmax over the discriminator's two class logits, computed as the sigmoid of the up logit minus the down logit, with the implicit generated class left out, the input noise switched off at prediction time and no calibration curve fitted afterwards.",
+          "priceForecastSource": "none",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The discriminator's supervised term is unweighted cross-entropy over its two class logits on the kept labels, so its output tracks the series' own up share and this score on test bars, which played no part in choosing the kept epoch, is the honest grade of its odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The gap between the two class logits is continuous, so this tests whether a discriminator that also learned to reject the generator's rows ranks up bars above down bars, however the adversarial term moved the level of its odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the discriminator's class probability on every scored bar, which stays readable when the real-or-fake term has inflated both class logits and produced a few very confident misses."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The real-or-fake term rewards a large combined size of the two class logits on every real bar, which can widen the gap between them, and the slope shows whether the resulting odds are more extreme than the outcomes support."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the discriminator's stated odds with the observed up share in each bin is a fair test; it is read with the count of occupied bins because the odds cluster near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "An adversarial game that the generator loses early leaves the discriminator rejecting forgeries easily and learning little about direction, and a small spread of its class probability reveals that."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the up logit is at least the down logit; with an unweighted fit that cut sits at the labelled bars' own up share, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether the discriminator's class logits learned both sides or leaned toward whichever class was commoner among the kept labels."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the discriminator's hard class call over all four outcome cells, which stays near zero when the call is one-sided even if the hit rate looks respectable."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the gap between the discriminator's class logits earned after costs when every call is traded under the engine's rule; the size of the gap never reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the discriminator's class call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity produced by trading the discriminator's class call, which shows the cost of the stretches where an unstable adversarial fit held the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the discriminator's class call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the discriminator's class call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the discriminator called both directions or collapsed to one side, and is read beside every trading number of this model together with the count of closed trades."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the discriminator's cross-entropy plus its weighted real-or-fake term and leaves out the generator's feature-matching loss, so it shows the balance of the game from one side and is not a score of the classifier."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because its generator makes feature rows and nothing in it forecasts the size of the move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast in points whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to compare with the move; direction comes only from the discriminator's class logits."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds cross-entropy plus the weighted real-or-fake term while the validation curve holds the class logarithmic loss alone, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this model."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the model with part of its labels deliberately hidden and not a model that had no more labels to use.",
+            "The kept epoch is the one with the lowest validation logarithmic loss of the class output, not a point where the adversarial game settled, so the generator at that epoch may be poor and the validation loss curve is optimistic there.",
+            "The generated rows are standardised feature rows that are never scored or stored, so nothing in a run says how widely the generator's rows spread over the real bars.",
+            "The comparison with the same discriminator trained on the kept labels alone, which is the test of whether the adversarial term helped, is not run by the engine.",
+            "Adversarial training is unstable, so two runs that differ only in seed can give visibly different results and one run is weak evidence.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by this model's own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     }

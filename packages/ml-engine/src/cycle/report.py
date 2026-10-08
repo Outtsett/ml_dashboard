@@ -185,6 +185,15 @@ DEFINITIONS: dict[str, Definition] = {
         ("probability_up_sharpness", "Sharpness", "probability", "none",
          "How far the model's probabilities spread: the standard deviation of P(up). Sharp is only good when it is also calibrated.",
          "standard deviation of p (ddof 1)"),
+        ("class_balanced_logarithmic_loss", "Class-balanced log loss", "ratio", "lower",
+         "The log loss of the scored up bars and the log loss of the scored down bars, averaged with each class carrying half whatever its share of the bars; the proper score that matches a model fitted with class-balanced weights. P(up) is clipped at machine epsilon as in the log loss. 0.693 is always saying 0.5.",
+         "0.5 x mean over up bars of -ln(p) + 0.5 x mean over down bars of -ln(1 - p)"),
+        ("extreme_probability_bar_count", "Bars with P(up) of exactly 0 or 1", "count", "none",
+         "Scored bars where the model gave a probability of up of exactly 0 or exactly 1; each one that misses costs about 36 in the log loss.",
+         "count of scored bars with p <= 0 or p >= 1"),
+        ("distinct_probability_level_count", "Distinct P(up) values", "count", "none",
+         "How many different values the probability of up took on the scored bars; with only a handful, ROC AUC and average precision are curves of a few points.",
+         "count of distinct p"),
     ]),
     **_define(MODEL, "calibration", [
         ("expected_calibration_error", "Expected calibration error", "probability", "lower",
@@ -201,6 +210,12 @@ DEFINITIONS: dict[str, Definition] = {
         ("brier_uncertainty_component", "Brier uncertainty", "ratio", "none",
          "The Brier score of always forecasting the base rate; a property of the data, not the model. Brier = reliability - resolution + uncertainty, up to the spread of p inside each bin.",
          "base rate x (1 - base rate)"),
+        ("calibration_slope", "Calibration slope", "ratio", "none",
+         "The slope of a logistic regression of the outcome (1 up, 0 down) on the log-odds of P(up) over scored bars, with P(up) clipped to [0.000001, 0.999999]. It uses no bins. 1 means the probabilities are on the right scale; below 1 they are too extreme (over-confident), above 1 too timid.",
+         "fit y ~ sigmoid(a + b x ln(p / (1 - p))) by maximum likelihood; report b"),
+        ("calibration_intercept", "Calibration intercept", "ratio", "closer_to_zero",
+         "The intercept of the same regression with the slope held at 1, in log-odds. 0 means no overall lean; above 0 up happened more often than the probabilities said, below 0 less often.",
+         "fit y ~ sigmoid(a + ln(p / (1 - p))) by maximum likelihood; report a"),
     ]),
     **_define(MODEL, "baseline", [
         ("majority_class_accuracy", "Majority-class accuracy", "fraction", "none",
@@ -236,6 +251,12 @@ DEFINITIONS: dict[str, Definition] = {
          "mean(predicted move - actual move)"),
         ("predicted_actual_move_correlation", "Forecast-actual correlation", "correlation", "higher",
          "The Pearson correlation between the forecast move and the actual move.", "corr(predicted move, actual move)"),
+        ("price_forecast_squared_error_skill", "Forecast squared-error skill versus no-change", "ratio", "higher",
+         "How much smaller the forecast's mean squared error is than the no-change forecast's, over resolved forecasts; above 0 beats no-change. It is the out-of-sample R-squared against a zero-move benchmark, the skill measure that matches a forecast of the mean move.",
+         "1 - mean((predicted move - actual move)^2) / mean(actual move^2)"),
+        ("forecast_call_agreement_fraction", "Forecast and call agree", "fraction", "none",
+         "The share of processed bars where the sign of the forecast move is the direction the model called, over bars where the forecast move is not zero and a call was made. Below 1, the step that turns the forecast into P(up) shifted or reversed it.",
+         "sign(predicted move) == predicted direction, averaged"),
     ]),
     **_define(TRADING, "returns", [
         ("net_profit_usd", "Net profit", "usd", "higher",
@@ -693,6 +714,63 @@ def calibration(actual_up: np.ndarray, probability: np.ndarray) -> list[dict]:
     return bins
 
 
+CALIBRATION_LOGIT_CLIP = 1e-6
+
+
+def calibration_regression(actual_up: np.ndarray, probability: np.ndarray) -> tuple[float | None, float | None]:
+    """(slope, intercept) of Cox's calibration regression of the outcome on the log-odds of the
+    forecast. The slope comes from the two-parameter fit ``y ~ sigmoid(a + b logit(p))``; the
+    intercept from the fit with the slope held at 1 (``y ~ sigmoid(a + logit(p))``), which is the
+    usual "calibration in the large". Probabilities are clipped to [1e-6, 1 - 1e-6] so a forecast
+    of exactly 0 or 1 has a finite log-odds. Either value is None when it is undefined: one class
+    only, no spread in the forecasts (slope), or a fit that does not converge (the outcomes are
+    perfectly separated by the forecast)."""
+    y = np.asarray(actual_up, dtype=np.float64)
+    if y.size < 2 or y.min() == y.max():
+        return None, None
+    clipped = np.clip(np.asarray(probability, dtype=np.float64), CALIBRATION_LOGIT_CLIP, 1.0 - CALIBRATION_LOGIT_CLIP)
+    z = np.log(clipped / (1.0 - clipped))
+
+    def sigmoid(value: np.ndarray) -> np.ndarray:
+        return 1.0 / (1.0 + np.exp(-np.clip(value, -700.0, 700.0)))
+
+    intercept: float | None = 0.0
+    for _ in range(100):
+        fitted = sigmoid(intercept + z)
+        curvature = float(np.sum(fitted * (1.0 - fitted)))
+        if curvature <= 0.0:
+            intercept = None
+            break
+        step = float(np.sum(y - fitted)) / curvature
+        intercept += step
+        if abs(step) < 1e-10:
+            break
+    else:
+        intercept = None
+    if intercept is not None and not math.isfinite(intercept):
+        intercept = None
+
+    slope: float | None = None
+    if float(np.ptp(z)) > 1e-9:
+        design = np.column_stack([np.ones_like(z), z])
+        beta = np.array([0.0, 1.0])
+        for _ in range(100):
+            fitted = sigmoid(design @ beta)
+            weight = fitted * (1.0 - fitted)
+            hessian = design.T @ (design * weight[:, None])
+            try:
+                step = np.linalg.solve(hessian, design.T @ (y - fitted))
+            except np.linalg.LinAlgError:
+                break
+            beta = beta + step
+            if not np.all(np.isfinite(beta)) or abs(beta[1]) > 1e6:
+                break
+            if float(np.max(np.abs(step))) < 1e-10:
+                slope = float(beta[1])
+                break
+    return slope, intercept
+
+
 def _confidence_bucket(probability: np.ndarray) -> np.ndarray:
     """The confidence label of each probability: how far it sat from 0.5. The distance is
     rounded to 12 decimals first, so P(up) = 0.45 and 0.55 (0.0499.. and 0.0500.. in
@@ -847,6 +925,15 @@ def _model_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int |
     add("mean_probability_up", float(prob.mean()) if n else None, n, _undefined(float(prob.mean()) if n else None, "no scored bars"))
     sharpness = float(np.std(prob, ddof=1)) if n >= 2 else None
     add("probability_up_sharpness", sharpness, n, _undefined(sharpness, "fewer than two scored bars"))
+    balanced_loss = None
+    if n and 0 < int(y.sum()) < n:
+        eps = np.finfo(np.float64).eps
+        clipped = np.clip(prob, eps, 1.0 - eps)
+        balanced_loss = 0.5 * float(-np.log(clipped[y == 1]).mean()) + 0.5 * float(-np.log(1.0 - clipped[y == 0]).mean())
+    add("class_balanced_logarithmic_loss", balanced_loss, n,
+        _undefined(balanced_loss, "no scored bars, or every scored bar went the same way"))
+    add("extreme_probability_bar_count", int(((prob <= 0.0) | (prob >= 1.0)).sum()), n)
+    add("distinct_probability_level_count", int(np.unique(prob).size), n)
     bins = calibration(y.astype(np.float64), prob) if n else []
     filled = [b for b in bins if b["scored_bar_count"]]
     ece = sum(b["scored_bar_count"] / n * abs(b["calibration_gap"]) for b in filled) if n else None
@@ -858,6 +945,11 @@ def _model_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int |
     add("brier_reliability_component", reliability, n, _undefined(reliability, "no scored bars"))
     add("brier_resolution_component", resolution, n, _undefined(resolution, "no scored bars"))
     add("brier_uncertainty_component", uncertainty, n, _undefined(uncertainty, "no scored bars"))
+    slope, intercept = calibration_regression(y, prob) if n else (None, None)
+    add("calibration_slope", slope, n,
+        _undefined(slope, "fewer than two scored bars, only one class, every P(up) the same, or the outcomes are perfectly separated by P(up)"))
+    add("calibration_intercept", intercept, n,
+        _undefined(intercept, "fewer than two scored bars, only one class, or the fit did not converge"))
     for b in bins:
         extra["calibration_bins"].append({"model_id": inputs.model_id, "scope": scope, "fold_index": fold_index, **b})
     for actual, actual_label in ((1, "up"), (0, "down")):
@@ -897,6 +989,16 @@ def _model_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int |
     add("price_forecast_bias_points", bias, count, forecast_note or _undefined(bias, "no resolved forecasts"))
     add("predicted_actual_move_correlation", correlation, count,
         forecast_note or _undefined(correlation, "fewer than two resolved forecasts, or a move series never varied"))
+    squared_skill = None
+    if count and float(np.mean(actual_move ** 2)) > 0.0:
+        squared_skill = 1.0 - float(np.mean(error ** 2)) / float(np.mean(actual_move ** 2))
+    add("price_forecast_squared_error_skill", squared_skill, count,
+        forecast_note or _undefined(squared_skill, "no resolved forecasts, or every move was zero"))
+    called = rows & np.isfinite(p["predicted_move_points"]) & (p["predicted_move_points"] != 0.0) & (p["predicted_direction"] != 0)
+    called_count = int(called.sum())
+    agreement = float(np.mean(np.sign(p["predicted_move_points"][called]) == p["predicted_direction"][called])) if called_count else None
+    add("forecast_call_agreement_fraction", agreement, called_count,
+        _undefined(agreement, "no bar had both a non-zero forecast move and a call (the model has no price forecast)"))
 
     # by confidence: how far P(up) sat from 0.5
     buckets = _confidence_bucket(prob) if n else np.empty(0, dtype=object)

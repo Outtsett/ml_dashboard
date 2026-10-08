@@ -1,0 +1,19 @@
+{
+  "description": "A metric a model names must exist in the metric registry.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics",
+        "native",
+        "metrics",
+        0,
+        "metricId"
+      ],
+      "value": "metric_that_does_not_exist"
+    }
+  ]
+}

@@ -25,6 +25,7 @@ import marketReplayRouter from "../../market/ingestion/replay.router";
 // ML Domain
 import mlRouter from "../../ml";
 import modelCatalogRouter from "../../ml/catalog.router";
+import modelMetricsRouter from "../../ml/modelMetrics.router";
 import modelsRouter from "../../ml/models.router";
 import registryRouter from "../../ml/registry.router";
 import evalRouter from "../../ml/eval.router";
@@ -117,6 +118,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", marketReplayRouter);
   app.use("/api", backtestRouter);
   app.use("/api", modelCatalogRouter);
+  app.use("/api", modelMetricsRouter);  // the metric registry and each model's own metrics record
   app.use("/api", curriculumRouter);
   app.use("/api", settingsRouter);
   app.use("/api", systemRouter);

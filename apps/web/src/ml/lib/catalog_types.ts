@@ -4,6 +4,8 @@
  * ISP: focused interfaces per concern. Components import only what they render.
  */
 
+import type { SpecificationMetrics } from "@shared/cycle/metrics";
+
 // ─── Hyperparameter (detail view only) ──────────────────────────────────────
 
 export interface CatalogHyperParam {
@@ -32,6 +34,8 @@ export interface CatalogModelSummary {
   keyFeatures: string[];
   variants: string[];
   hyperparameters: CatalogHyperParam[];
+  /** How this model is judged, natively and as run (`@shared/cycle/metrics`). */
+  metricsRecord?: SpecificationMetrics;
   hasContent: boolean;
   fileSize: number;
 }

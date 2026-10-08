@@ -80,6 +80,277 @@
           "description": "The most steps the solver takes to find the weights.",
           "argument": "max_iter"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, from a straight-line fit whose coefficients were chosen so that a handful of extreme bars could not rotate the line.",
+          "targetVariable": "The typical size and sign of a continuous outcome such as the coming price move, as set by the bulk of the bars and not by the few extreme ones",
+          "objectiveId": "huber_loss",
+          "objectiveNote": "Misses smaller than the Huber threshold are charged squared and larger ones only in proportion to their size, and the fit reaches this by repeatedly re-solving a weighted least squares problem in which each bar's weight shrinks as its miss grows past the threshold; the specification also names random sample consensus and least trimmed squares for heavier contamination.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Past the Huber threshold the fit charges misses in proportion to their size, which pulls the line toward the typical bar, so an absolute-miss comparison with forecasting no move grades it on the scale it was fitted on without letting the down-weighted outlier bars decide the result.",
+              "baseline": "The mean absolute error of forecasting no move on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The specification asks for plain squared error beside the robust loss, and on a block that includes the outlier bars this shows what discounting them cost, since a real large move the line was told to down-weight still counts in full here.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Pearson correlation is driven by the largest moves, the very bars whose pull the reweighting capped, so a line that tracks ordinary bars well can still score low here and the two readings together show where its knowledge sits.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Read beside the absolute miss, the root mean square miss in chart units shows how much of the remaining miss comes from the few extreme bars the reweighting chose not to chase.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When large moves are lopsided, capping their pull shifts the line toward the side where the ordinary bars sit, so the average signed miss shows whether the robust fit bought stability at the price of a steady tilt.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The reason to cap outlier influence is coefficients that do not jump when one crash bar enters or leaves the training span, so the share of refits in which each coefficient keeps its sign is the direct test of that promise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The Huber fit minimises a capped miss of the size of the move and never its sign, so a sign hit rate is not a native score of it; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The line gives one number per bar and no class probability, so there are no conviction deciles to separate."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The old table stamped a Gaussian density objective on a method whose whole point is to stop assuming Gaussian errors and which states no forecast variance."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter applied afterwards and not an output of the reweighted fit."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The method outputs a size of move and no probability, so a squared probability error had nothing to be computed on natively."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The Huber fit is chosen for outlier resistance and not derived from a noise distribution, and it states no forecast variance, so there is no density to evaluate at the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real Huber regression on the horizon move divided by its trailing volatility, with the scale of the misses estimated together with the coefficients by the library's solver, but random sample consensus and least trimmed squares are not offered, and the up or down call comes from a two-parameter logistic curve of the forecast fitted on the validation bars, so the forecast numbers measure the Huber line itself while the probability and trading numbers measure the line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve applied to the Huber line's forecast of the scaled move, with the curve's slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "huber_loss",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the Huber forecast of the horizon move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit, and not the Huber loss the fit minimises; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "Beyond the Huber threshold the fit charges misses in proportion to their size, so the absolute miss of its forecast against forecasting no move on resolved bars is the test closest to what the line was fitted for, without the capped outlier bars deciding the result."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the Huber forecast, so the ordering of bars is the line's own, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the curve's probability is at least one half, which is a threshold on the Huber forecast, and this is what that call earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the Huber line in points after the scaled output is multiplied back by the trailing move scale, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The specification asks for plain squared error beside the robust loss, and this shows what capping the pull of extreme bars cost on the test bars that contain them; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Read beside the mean absolute miss, the root mean square miss in points shows how much of the Huber line's remaining miss comes from the few extreme bars it was told not to chase."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Capping the pull of lopsided large moves shifts the Huber line toward the side where ordinary bars sit, so the average signed miss on test bars shows whether that produced a steady tilt."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the Huber forecast itself, before the validation curve can shift or flip it, so it shows what the outlier-resistant line alone knows about direction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the Huber forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the line."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the Huber line plus its validation curve earned after costs under the engine's fill and exit rule."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings; the Huber threshold affects it only through the sign pattern of the calls, and zero is an arithmetic marker because a random-direction trader pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the threshold call, and it is where a real large move that the line was fitted to discount shows up in money when the call was on the wrong side of it."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened when the Huber forecast crossed the curve's threshold, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the Huber-based call ended above zero after costs, and says nothing about size without the average win and loss beside it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at one half, which depends on the intercept fitted on validation bars as much as on the Huber forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The curve's intercept can push nearly every bar to one side, and averaging the hit rate over up bars and down bars shows whether the Huber forecast separates them once that tilt is discounted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the Huber forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the Huber forecast after the two-parameter curve has turned it into odds, so it is meaningful for line plus curve; the curve's slope and intercept saw validation bars, and the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same curve-made probability on a bounded squared scale; the curve is fitted with a light slope penalty, so the probability built on the Huber forecast never reaches exactly zero or one."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether a curve learned on validation bars still maps the Huber forecast to the right odds on the later test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the Huber threshold and the penalty strength; it is a trading score and not the Huber loss, and it is optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine holds a position on every bar once the first call is filled, so the share describes the engine's rule and not the Huber line."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share, known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The logged numbers are mean absolute errors and not the Huber loss the fit minimises, and the training one is scored against the clipped target while the validation one is scored against the raw target, so their gap is not an overfit measure of the kept solution's own objective."
+            }
+          ],
+          "caveats": [
+            "The engine clips the price target at the outer percentiles of the training rows before the fit, so the most extreme moves are already truncated when the Huber loss sees them and the outlier handling is applied twice.",
+            "Only the Huber variant runs; random sample consensus and least trimmed squares, which the specification prefers for heavier contamination, are not offered.",
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the Huber line plus that curve and not the line alone, and the traded call is the curve's threshold and not the forecast's sign.",
+            "The Huber threshold and the penalty strength are searched per fold on inner blocks of the training span by the trading objective, where the specification sets the threshold from a robust scale estimate or by prediction error.",
+            "The forecast is multiplied back by the trailing move scale and rounded to the tick before it is scored.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "partial_least_squares_regression": {
@@ -144,6 +415,292 @@
           "group": "Model",
           "description": "The most steps the solver takes to find the weights.",
           "argument": "max_iter"
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "point_forecast",
+        "additionalProfileIds": [
+          "projection_or_reconstruction"
+        ],
+        "native": {
+          "produces": "For every bar it outputs one number, the forecast size and sign of the target, computed from a few latent components that are weighted blends of the features chosen for how strongly they move with the target.",
+          "targetVariable": "The expected size and sign of a continuous outcome such as the coming price move",
+          "objectiveId": "covariance_maximizing_projection",
+          "objectiveNote": "Each component is the feature blend with the largest covariance with what is left of the target, both sides are then deflated before the next component is drawn, and the target is finally regressed on the few components kept, so the component count is the only dial between an underfitted line and the unstable full least squares fit.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The last step regresses the target on the kept components by least squares, so the forecast aims at the average move, and its squared miss on unseen bars beside the miss of forecasting no move tells whether the component blend found anything that lasts.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the squared miss of the component-based line in chart units, and it is the quantity the specification uses on time-ordered folds to choose how many components to keep.",
+              "baseline": "The root mean square size of the actual move on the same bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Switching off the compression leaves plain least squares on every raw indicator, and the difference in squared miss between the two on identical folds is the direct measure of what squeezing the indicators into a few target-aware components bought.",
+              "baseline": "The same least squares regression on all raw features with no components.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Every component is picked for its covariance with the target on training bars, so the natural check is whether the forecast built from those components still travels together with the realised move on bars the components never saw.",
+              "baseline": "Zero correlation, the value for a forecast unrelated to the move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The absolute miss against the no-change forecast is less swayed by a few very large bars than the squared version, so it is read beside it to see whether the components help on ordinary bars too.",
+              "baseline": "The no-change forecast on the same resolved bars.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Each added component fits the training bars more closely, so the gap between the squared miss on later bars and on the bars the components were drawn from shows when the component count has passed the point where it starts memorising noise.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The loading vectors are how this model is read, and with many correlated indicators the leading component can swing to a different indicator group on the next refit, so the recurrence of each component's dominant indicators shows whether the loadings can be named.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "The components and the regression on them aim at the size of the move, never its sign, so a sign hit rate is not a native score of this method; the Model Cycle reports one as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": null,
+              "why": "The method gives one number per bar with no confidence attached, so there are no conviction deciles to compare."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The old table stamped a Gaussian density objective on a method that maximises covariance component by component and states no forecast variance."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Scoring only the largest tenth of forecasts is a trading filter applied afterwards and not an output of the component regression."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "The method outputs a size of move and no probability, so a squared probability error had nothing to be computed on natively."
+            },
+            {
+              "name": "Feature reconstruction error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The components are chosen for covariance with the target and not to rebuild the features, so how much feature variance they keep says nothing about whether the method did its job."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The deflation steps and the final regression on components produce one number per bar and no forecast variance, so there is no density to evaluate at the realised move."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter fits the real partial least squares estimator on the horizon move divided by its trailing volatility, but the component count is chosen by the Model Cycle's per-fold search on inner blocks of the training span scored by the trading objective and not by cross-validated prediction error as specified, and the up or down call comes from a two-parameter logistic curve of the forecast fitted on the validation bars, so the forecast numbers measure the component line itself while the probability and trading numbers measure the line plus that curve.",
+          "directionMode": "from_price",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a two-parameter logistic curve applied to the forecast of the component regression, with the curve's slope and intercept fitted by unweighted maximum likelihood on the fold's validation bars only, because no classifier exists for this model.",
+          "priceForecastSource": "own_model",
+          "objectiveId": "covariance_maximizing_projection",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "price_forecast_mean_absolute_error_points",
+            "validationName": "price_forecast_mean_absolute_error_points",
+            "unit": "mean absolute error of the component-regression forecast of the horizon move divided by its trailing volatility, in trailing-volatility units and not in points, one value for the single fit; the training value is scored against the target clipped at the outer percentiles of the training rows and the validation value against the unclipped target",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The target is regressed on the kept components by least squares, so the squared miss of that forecast against forecasting no move on resolved bars is the matching test of the component line; it is derived from the recorded forecasts and not printed by the engine."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The validation curve only stretches and shifts the component-based forecast, so the ordering of bars is the components' own, and this number tests that ordering against up and down outcomes, mirrored when the fitted slope is negative."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The engine goes long when the curve's probability is at least one half, which is a threshold on the component-based forecast, and this is what that call earned after costs beyond holding the same contract through the same folds."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It compares the absolute miss of the component-based forecast, after tick rounding, with forecasting no move, and is read beside the squared version because a few components smooth the forecast and large bars weigh less here."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives the typical miss of the component line in points after the scaled output is multiplied back by the trailing move scale, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each component was drawn for its covariance with the scaled move on training bars, and this is the same co-movement of forecast and realised move measured on the test bars, where it can fade or turn negative."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the sign of the component-based forecast itself, before the validation curve can shift or flip it, so it shows what the components alone know about direction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The traded call is the validation curve applied to the component forecast and not the forecast's sign, so this share shows how often the curve's intercept or a negative slope overruled the components."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the calls from the component line plus its validation curve earned after costs under the engine's fill and exit rule."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the per-bar earnings of those curve-derived calls against their swings; the component count affects it only through the sign pattern of the calls, and zero is an arithmetic marker because a random-direction trader pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the threshold call; with very few components the forecast changes slowly and can keep one side through a long adverse run."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning and losing trades opened when the component forecast crossed the curve's threshold, after costs; one is an arithmetic marker and not a no-skill level."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades between flips of the component-based call ended above zero after costs, and says nothing about size without the average win and loss beside it."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The number of components sets how fast the forecast wiggles across the curve's threshold, so more components usually mean more flips, and each flip is a round trip of costs the forecast metrics never see."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the hard call from cutting the curve's probability at one half, which depends on the intercept fitted on validation bars as much as on the component forecast."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The curve's intercept can push nearly every bar to one side, and averaging the hit rate over up bars and down bars shows whether the component forecast separates them once that tilt is discounted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums the four cells of the curve-derived call into one number that stays near zero when the component forecast only repeats the validation base rate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the component forecast after the two-parameter curve has turned it into odds, so it is meaningful for components plus curve; the curve's slope and intercept saw validation bars, and the reference is the fold's training up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same curve-made probability on a bounded squared scale; when the components do not hold on validation bars the curve comes out nearly flat and the score sits at the base-rate value."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It checks whether a curve learned on validation bars still maps the component forecast to the right odds on the later test bars, read with the occupied-bin count because a nearly flat curve fills few bins."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on inner blocks of the training span that chose the component count, the one dial the specification says must be chosen by prediction error; here it is a trading score, and it is optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine holds a position on every bar once the first call is filled, so the share describes the engine's rule and not the component line."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the test bars' own up share, known only in hindsight, which the validation-fitted curve could never have used, so it is not a fair reference for this model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The logged numbers are mean absolute errors and not the covariance objective the component fit maximises, and the training one is scored against the clipped target while the validation one is scored against the raw target, so their gap is not an overfit measure of the kept solution's own objective."
+            }
+          ],
+          "caveats": [
+            "The component count is searched per fold on inner blocks of the training span by the trading objective, where the specification chooses it by prediction error on time-ordered folds, so the kept count is not the one the method's own criterion would pick.",
+            "The slope and intercept of the logistic curve are fitted on the validation bars, so every probability metric grades the component line plus that curve and not the line alone, and the traded call is the curve's threshold and not the forecast's sign.",
+            "The estimator's own scaling is switched off because the features are already standardised on the training rows and the target is already divided by its trailing volatility, and that target is clipped at the outer percentiles of the training rows before the fit.",
+            "The forecast is multiplied back by the trailing move scale and rounded to the tick before it is scored.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any score need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     }

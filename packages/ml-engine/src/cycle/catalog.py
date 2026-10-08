@@ -81,8 +81,18 @@ ENTRY_FIELDS = (
     "catalogSpecId", "alsoCatalogSpecIds", "displayName", "category", "subcategory", "kind", "summary",
     "implementationNote", "runnable", "unavailableReason", "implementation", "adapter", "legacyFamily",
     "direction", "price", "preprocess", "progress", "stepUnit", "explainKind", "sequence", "network",
-    "speed", "estimatedTrainingTime", "gpu", "parameters",
+    "speed", "estimatedTrainingTime", "gpu", "parameters", "metrics",
 )
+# The model's own statement of how it is judged (`docs/model-metrics.md`); ids resolve in
+# packages/config/metric_registry.json. The TypeScript twin is packages/shared/src/cycle/metrics.ts.
+METRIC_REGISTRY_FILE = CONFIG_ROOT / "metric_registry.json"
+METRICS_FIELDS = ("recordVersion", "profileIdNative", "profileIdAsRun", "additionalProfileIds", "native", "asRun")
+NATIVE_FIELDS = ("produces", "targetVariable", "objectiveId", "objectiveNote", "metrics", "notApplicable")
+NATIVE_ROW_FIELDS = ("metricId", "type", "role", "why", "baseline", "groupKind", "availability")
+AS_RUN_FIELDS = ("faithfulToSpecification", "standInNote", "directionMode", "probabilitySource", "classWeighted",
+                 "probabilityNote", "priceForecastSource", "objectiveId", "checkpointSelectedBy", "tuned", "stepQuantity",
+                 "meaningful", "measuredNotMeaningful", "caveats")
+STEP_QUANTITY_FIELDS = ("trainName", "validationName", "unit", "direction", "sameQuantityOnTrainAndValidation")
 PARAMETER_FIELDS = ("type", "default", "min", "max", "step", "logScale", "choices", "label", "group",
                     "description", "argument", "roles", "search")
 
@@ -308,6 +318,157 @@ def _validate_entry(key: str, entry: Any, shared: dict, file_name: str) -> None:
         if name in shared["cycleParameters"]:
             _fail(where, f"parameter {name!r} collides with a cycle-wide parameter")
         _validate_parameter(f"{where} parameters.{name}", name, spec, model_parameter=True)
+    _validate_metrics(f"{where} metrics", entry)
+
+
+@lru_cache(maxsize=1)
+def metric_registry() -> dict:
+    """packages/config/metric_registry.json with its id lookups: ``metrics`` (id -> entry),
+    ``objectives`` and ``profiles`` (id sets) and the allowed values of each enumerated field."""
+    document = _read(METRIC_REGISTRY_FILE)
+    return {
+        "document": document,
+        "metrics": {metric["metricId"]: metric for metric in document["metrics"]},
+        "objectives": {objective["objectiveId"] for objective in document["objectives"]},
+        "profiles": {profile["profileId"] for profile in document["profiles"]},
+        "roles": tuple(document["roleValues"]),
+        "faithful": tuple(document["faithfulToSpecificationValues"]),
+        "probability_sources": tuple(document["probabilitySourceValues"]),
+        "price_forecast_sources": tuple(document["priceForecastSourceValues"]),
+        "checkpoints": tuple(document["checkpointSelectedByValues"]),
+    }
+
+
+def _exact_fields(where: str, block: Any, fields: tuple[str, ...]) -> None:
+    if not isinstance(block, dict):
+        _fail(where, "must be an object")
+    if set(block) != set(fields):
+        _fail(where, f"fields must be exactly {fields}; missing {sorted(set(fields) - set(block))}, unknown {sorted(set(block) - set(fields))}")
+
+
+def _sentence(where: str, text: Any, *, nullable: bool = False) -> None:
+    if text is None and nullable:
+        return
+    if not isinstance(text, str) or not text.strip() or any(character in text for character in "|\n\r"):
+        _fail(where, "must be a non-empty sentence with no pipe and no line break")
+
+
+def _validate_metrics(where: str, entry: dict) -> None:
+    """The model's metrics record: two layers (native, as run), every id in the metric registry,
+    every row's type and availability the registry's own, and the as-run facts consistent with
+    the entry they sit on."""
+    block = entry["metrics"]
+    reference = metric_registry()
+    _exact_fields(where, block, METRICS_FIELDS)
+    if block["recordVersion"] != 1:
+        _fail(where, "recordVersion must be 1")
+    for field in ("profileIdNative", "profileIdAsRun"):
+        if block[field] not in reference["profiles"]:
+            _fail(where, f"{field} {block[field]!r} is not a profile in the metric registry")
+    if not isinstance(block["additionalProfileIds"], list) or any(p not in reference["profiles"] for p in block["additionalProfileIds"]):
+        _fail(where, "additionalProfileIds must be a list of metric-registry profiles")
+
+    native = block["native"]
+    _exact_fields(f"{where}.native", native, NATIVE_FIELDS)
+    _sentence(f"{where}.native.produces", native["produces"])
+    _sentence(f"{where}.native.targetVariable", native["targetVariable"])
+    _sentence(f"{where}.native.objectiveNote", native["objectiveNote"], nullable=True)
+    if native["objectiveId"] not in reference["objectives"]:
+        _fail(f"{where}.native", f"objectiveId {native['objectiveId']!r} is not in the metric registry")
+    if not isinstance(native["metrics"], list) or not native["metrics"]:
+        _fail(f"{where}.native", "metrics must be a non-empty list")
+    for row in native["metrics"]:
+        row_where = f"{where}.native.metrics {row.get('metricId') if isinstance(row, dict) else row!r}"
+        _exact_fields(row_where, row, NATIVE_ROW_FIELDS)
+        metric = reference["metrics"].get(row["metricId"])
+        if metric is None:
+            _fail(row_where, "is not in the metric registry")
+        if metric["layer"] == "as_run":
+            _fail(row_where, "is an as-run-only metric")
+        if row["type"] != metric["metricType"] or row["availability"] != metric["availability"]:
+            _fail(row_where, f"type and availability must be the registry's ({metric['metricType']}, {metric['availability']})")
+        if row["role"] not in reference["roles"]:
+            _fail(row_where, f"role must be one of {reference['roles']}")
+        _sentence(f"{row_where} why", row["why"])
+        _sentence(f"{row_where} baseline", row["baseline"], nullable=True)
+        if row["groupKind"] is not None and not isinstance(row["groupKind"], str):
+            _fail(row_where, "groupKind must be a string or null")
+    if not 1 <= sum(row["role"] == "primary" for row in native["metrics"]) <= 3:
+        _fail(f"{where}.native", "a model has one to three primary metrics")
+    if not isinstance(native["notApplicable"], list):
+        _fail(f"{where}.native", "notApplicable must be a list")
+    for row in native["notApplicable"]:
+        _exact_fields(f"{where}.native.notApplicable", row, ("name", "metricId", "why"))
+        _sentence(f"{where}.native.notApplicable name", row["name"])
+        _sentence(f"{where}.native.notApplicable why", row["why"])
+        if row["metricId"] is not None and row["metricId"] not in reference["metrics"]:
+            _fail(f"{where}.native.notApplicable", f"metricId {row['metricId']!r} is not in the metric registry")
+
+    as_run = block["asRun"]
+    run_where = f"{where}.asRun"
+    _exact_fields(run_where, as_run, AS_RUN_FIELDS)
+    for field, allowed in (("faithfulToSpecification", reference["faithful"]), ("probabilitySource", reference["probability_sources"]),
+                           ("priceForecastSource", reference["price_forecast_sources"]), ("checkpointSelectedBy", reference["checkpoints"])):
+        if as_run[field] not in allowed:
+            _fail(run_where, f"{field} must be one of {allowed}, got {as_run[field]!r}")
+    if (as_run["faithfulToSpecification"] == "faithful") != (as_run["standInNote"] is None):
+        _fail(run_where, "standInNote is null exactly when the adapter is faithful to the specification")
+    _sentence(f"{run_where}.standInNote", as_run["standInNote"], nullable=True)
+    if (as_run["faithfulToSpecification"] == "no_specification") != (entry["catalogSpecId"] is None):
+        _fail(run_where, "no_specification is used exactly when the model has no catalogSpecId")
+    _sentence(f"{run_where}.probabilityNote", as_run["probabilityNote"])
+    if not isinstance(as_run["classWeighted"], bool) or not isinstance(as_run["tuned"], bool):
+        _fail(run_where, "classWeighted and tuned must be true or false")
+    if as_run["directionMode"] != entry["direction"]["mode"]:
+        _fail(run_where, f"directionMode must be the entry's direction.mode ({entry['direction']['mode']})")
+    if (as_run["priceForecastSource"] == "none") != (entry["price"] is None):
+        _fail(run_where, "priceForecastSource is 'none' exactly when the entry has no price model")
+    if as_run["tuned"] != any("search" in spec for spec in entry["parameters"].values()):
+        _fail(run_where, "tuned is true exactly when a parameter has a search space")
+    if as_run["objectiveId"] not in reference["objectives"]:
+        _fail(run_where, f"objectiveId {as_run['objectiveId']!r} is not in the metric registry")
+    step = as_run["stepQuantity"]
+    if step is not None:
+        _exact_fields(f"{run_where}.stepQuantity", step, STEP_QUANTITY_FIELDS)
+        for field in ("trainName", "validationName"):
+            if step[field] is not None and step[field] not in reference["objectives"] and step[field] not in reference["metrics"]:
+                _fail(f"{run_where}.stepQuantity", f"{field} {step[field]!r} is neither an objective nor a metric in the registry")
+        if step["direction"] not in ("lower", "higher") or not isinstance(step["sameQuantityOnTrainAndValidation"], bool):
+            _fail(f"{run_where}.stepQuantity", "direction is lower or higher; sameQuantityOnTrainAndValidation is true or false")
+        _sentence(f"{run_where}.stepQuantity.unit", step["unit"])
+    classified: set[str] = set()
+    if not isinstance(as_run["meaningful"], list) or not as_run["meaningful"]:
+        _fail(run_where, "meaningful must be a non-empty list")
+    for row in as_run["meaningful"]:
+        row_where = f"{run_where}.meaningful {row.get('metricId') if isinstance(row, dict) else row!r}"
+        _exact_fields(row_where, row, ("metricId", "type", "role", "why"))
+        metric = reference["metrics"].get(row["metricId"])
+        if metric is None:
+            _fail(row_where, "is not in the metric registry")
+        if metric["availability"] == "not_computed":
+            _fail(row_where, "is a metric the engine does not compute")
+        if row["type"] != metric["metricType"] or row["role"] not in reference["roles"]:
+            _fail(row_where, f"type must be the registry's ({metric['metricType']}) and role one of {reference['roles']}")
+        _sentence(f"{row_where} why", row["why"])
+        if row["metricId"] in classified:
+            _fail(row_where, "is listed twice")
+        classified.add(row["metricId"])
+    if not 1 <= sum(row["role"] == "primary" for row in as_run["meaningful"]) <= 3:
+        _fail(run_where, "a model has one to three primary as-run metrics")
+    if not isinstance(as_run["measuredNotMeaningful"], list):
+        _fail(run_where, "measuredNotMeaningful must be a list")
+    for row in as_run["measuredNotMeaningful"]:
+        _exact_fields(f"{run_where}.measuredNotMeaningful", row, ("metricId", "why"))
+        if row["metricId"] not in reference["metrics"]:
+            _fail(run_where, f"measuredNotMeaningful {row['metricId']!r} is not in the metric registry")
+        if row["metricId"] in classified:
+            _fail(run_where, f"{row['metricId']} is both meaningful and measured but not meaningful")
+        classified.add(row["metricId"])
+        _sentence(f"{run_where}.measuredNotMeaningful {row['metricId']} why", row["why"])
+    if not isinstance(as_run["caveats"], list):
+        _fail(run_where, "caveats must be a list")
+    for caveat in as_run["caveats"]:
+        _sentence(f"{run_where}.caveats", caveat)
 
 
 def _validate_cross(models: dict, shared: dict) -> None:

@@ -1,0 +1,17 @@
+{
+  "description": "priceForecastSource is 'none' exactly when the model has no price model.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "metrics",
+        "asRun",
+        "priceForecastSource"
+      ],
+      "value": "none"
+    }
+  ]
+}

@@ -67,9 +67,10 @@ router.get('/model-catalog/trainable', CACHE_SEMI, (_req: Request, res: Response
 // Not CACHE_SEMI: a session finishing or a lens record being built changes the
 // answer, and the page that reads it is the one you return to after training.
 
-router.get('/model-catalog/lifecycle', (_req: Request, res: Response) => {
+router.get('/model-catalog/lifecycle', async (_req: Request, res: Response) => {
   try {
-    res.json(getCatalogLifecycle());
+    // getCatalogLifecycle is async; without the await this answered `{}` (a serialized Promise).
+    res.json(await getCatalogLifecycle());
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

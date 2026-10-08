@@ -141,6 +141,244 @@
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "Synthetic data samples made by passing random noise through a generator that was trained against a discriminator; no label, no density and no forecast.",
+          "targetVariable": "The unconditional distribution of the real data, learned only through samples.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "This is the original two-player game: the discriminator is a cross-entropy real-or-fake classifier and the generator is trained on the non-saturating form of the loss so it keeps receiving gradient while the discriminator is winning.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The discriminator the generator trained against is a moving opponent and proves nothing, so once the generator is frozen a newly trained detector tries to separate its samples from held-out data; a score close to one half is the only native evidence the noise is being turned into lifelike samples.",
+              "baseline": "One half, the score of a detector that can only guess, on the same held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The original game is the variant most prone to answering every noise draw with the same few outputs, so the share of held-out examples that some generated sample lands beside is reported as a headline beside the two-sample test.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "The share of the generator's samples that fall inside the cloud of observed data, which separates a generator that is narrow but accurate from one that sprays outputs no market ever produced.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Compares the distance from each sample to the closest fitted example with the same distance for unseen data, because a generator that reproduces stored examples would fool any detector and still have learned nothing general.",
+              "baseline": "One, the ratio when generated samples sit as far from the fitted examples as unseen examples of the same series do.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The generator's non-saturating loss and the discriminator's cross-entropy are watched together for a discriminator whose loss falls to nothing while the generator's climbs; the level of either curve is not a measure of sample quality.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The original discriminator is a cross-entropy real-or-fake classifier, not a Wasserstein critic, so the model never estimates this distance."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The generator maps noise to a sample and has no encoder, so no input is ever rebuilt."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The latent is noise drawn from its prior and nothing infers a posterior over it, so there is no divergence term."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "No embedding of observed inputs is learned, so there is no latent spread to call uniform or not."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder: the generator starts from noise and never rebuilds a given input, so there is nothing to compare a reconstruction with."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise is drawn straight from its prior and nothing infers a posterior over it, so there is no divergence between a posterior and a prior."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The data distribution is modelled implicitly through a sampler with no density and no bound, so the model cannot assign a probability to an unseen example."
+            },
+            {
+              "name": "Area under the receiver operating characteristic curve",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The specification's model is unconditional and unsupervised, so natively it has no class to rank; the ranking number exists only because the runnable version fits one generator per outcome class."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification's model is one unconditional, unsupervised generator; the adapter instead trains one generator and discriminator pair per outcome class on one bar's feature row, then trains a separate small classifier only on rows generated by the down pair and the up pair, so every as-run number measures those two generators plus that readout and none measures sample quality directly or models future paths.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "The down generator and the up generator each draw samples_per_class rows, a small network is trained by cross-entropy on those generated rows only, and the logarithm of the training class share is added to its outputs before the softmax, which is Bayes' rule under each generator's picture of its class.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "during the generator epochs the training curve is the generators' non-saturating cross-entropy against their discriminators in nats, averaged over the class pairs, with no validation value; during the classifier epochs it is cross-entropy on generated rows in nats and the validation curve is in nats on real rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The readout network never saw a real bar during training, so its ranking of real up bars above real down bars exists only if the generator fitted on down bars and the generator fitted on up bars learned clouds that differ the way the real classes do."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the probability obtained from the generated-row classifier plus the training class share against quoting that class share alone; when the two per-class generators draw the same rows the two figures coincide."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check of the same generated-row posterior; two independently trained generators can differ by accident of their own training, and a classifier that learned that accident is confidently wrong on real bars."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The training class share is added back before the softmax, so the stated odds aim at the base rate and their gap from the observed up share shows how far the two generators' pictures of their classes are from the real ones."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A wide spread on real bars with no ranking power is the signature of a classifier that learned to tell the two generators apart by their own quirks instead of by anything about down and up bars."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the generated-row posterior at one half matched the outcome, read beside the accuracy of always calling the fold's training majority class, which this readout tends to reproduce."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Because the added class share tilts every call toward the fold's majority direction, averaging the two recalls shows whether the two generators' samples taught the classifier to separate the classes at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Stays near zero when the generated-row posterior has settled on one direction, the expected outcome when the per-class generators end up drawing the same cloud."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the two generators' readout earned after costs under the engine's rule, read beside buy and hold on the same folds because a posterior stuck at the class share trades like a one-sided hold."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the two generators' readout after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed a direction call learned entirely from the two generators' synthetic rows, which shows the cost of the stretches where real bars left the region either generator covered."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the two generators' readout; one is an arithmetic marker, and with few flips a single trade can set the figure."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the two generators' readout, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count because this readout flips rarely."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second set of generators fitted separately, one per quantile bin of the scaled move, whose generated-row classifier weights each bin's mean move; this scores that second model against forecasting no change."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the per-bin generators' readout, which can only output a blend of its bin_count bin means and so cannot follow a large move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the blended bin mean from the per-bin generators' readout matched the move; it comes from different networks than the traded direction call, so the two can disagree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the generators' adversarial loss and then a cross-entropy on generated rows while the validation curve is a logarithmic loss on real rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the generators."
+            }
+          ],
+          "caveats": [
+            "Only the readout classifier is early stopped, on real validation rows; each generator is used as it stands after its last epoch, whatever state its adversarial game was in, so a collapsed generator is not caught by checkpoint selection.",
+            "The two generators are trained independently, so a difference between their samples can come from their separate training runs as well as from a real difference between down bars and up bars.",
+            "The real-against-generated accuracy that says how lifelike the generated rows are is computed once after sampling and kept only in the fit summary, not in the metric tables.",
+            "Generated rows that are not finite are dropped before the readout classifier is trained, with a warning in the run log.",
+            "Scored bars share future bars because horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
+        }
       }
     },
     "conditional_gan": {
@@ -293,6 +531,247 @@
           "label": "Price bins",
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "Synthetic samples that carry a requested condition, made by passing random noise together with the condition through a generator trained against a discriminator that also sees the condition.",
+          "targetVariable": "The distribution of the real data given the condition, learned only through samples and with no density.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "The condition is fed to both players, so the discriminator rejects a lifelike sample that carries the wrong condition and the generator is pushed to learn each condition's own distribution with one shared network.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "After the generator is frozen a newly trained detector tries to separate what it makes for each condition from held-out examples carrying that condition; a score close to one half means the conditioned discriminator was beaten for the right reason.",
+              "baseline": "One half, the score of a detector that can only guess, on the same held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Conditioning is this model's whole addition, so a classifier fitted only on its generated samples and ranked on observed ones tests whether the concatenated condition actually changed what the generator draws.",
+              "baseline": "One half, the ranking power of a score unrelated to the condition.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Measured inside each condition, it shows whether the single shared generator covers the variety of every condition or answers each label with one repeated sample.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Measured inside each condition, it is the share of generated samples that land within the cloud of observed examples carrying the same condition.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Compares how close each conditioned sample sits to the nearest fitted example with how close unseen examples sit, which exposes a generator that learned to return stored cases for each label.",
+              "baseline": "One, the ratio when generated samples sit as far from the fitted examples as unseen examples of the same series do.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The generator's and the conditioned discriminator's cross-entropy losses are watched together for one side running away from the other; neither curve says anything about how lifelike the samples are.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The conditioned discriminator is a cross-entropy real-or-fake classifier, not a Wasserstein critic, so the model never estimates this distance."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The generator maps noise and a condition to a sample and has no encoder, so no input is ever rebuilt."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The latent is noise drawn from its prior and nothing infers a posterior over it, so there is no divergence term."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "No embedding of observed inputs is learned, so there is no latent spread to call uniform or not."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder: the generator starts from noise and a condition and never rebuilds a given input."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise is drawn straight from its prior and nothing infers a posterior over it, so there is no divergence between a posterior and a prior."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The game trains a sampler with no density and no bound, so the model cannot assign a probability to an unseen example."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The adapter trains the specification's conditional generator and discriminator, with the outcome class concatenated as a one-hot condition and one-sided label smoothing, on one bar's feature row; a separate small classifier is then trained only on rows generated under the down condition and the up condition, so every as-run number measures the generator plus that readout and none measures sample quality directly or models future paths.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "The generator draws samples_per_class rows under each of the down and up conditions, a small network is trained by cross-entropy on those generated rows only, and the logarithm of the training class share is added to its outputs before the softmax, which is Bayes' rule under the generator's picture of each class.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "during the generator epochs the training curve is the generator's non-saturating cross-entropy against the conditioned discriminator in nats with no validation value; during the classifier epochs it is cross-entropy on generated rows in nats and the validation curve is in nats on real rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The readout network never saw a real bar during training, so its ranking of real up bars above real down bars exists only if the one-hot condition made the single generator draw different rows for down and for up."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the probability obtained from the generated-row classifier plus the training class share against quoting that class share alone; when the generator ignores its condition the two figures coincide."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check of the same generated-row posterior that a few very confident wrong calls, made on real bars unlike anything the generator drew, cannot dominate."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The training class share is added back before the softmax, so the stated odds aim at the base rate and their gap from the observed up share shows how far the conditioned generator's picture of each class is from the real one."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows whether the classifier trained on conditioned samples ever leaves the training class share on real bars; a spread near nothing means the down condition and the up condition produced the same rows."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the generated-row posterior at one half matched the outcome, read beside the accuracy of always calling the fold's training majority class, which this readout tends to reproduce."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Because the added class share tilts every call toward the fold's majority direction, averaging the two recalls shows whether the conditioned samples taught the classifier to separate the classes at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Stays near zero when the generated-row posterior has settled on one direction, the expected outcome when the generator treats its condition as noise."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the conditioned generator's readout earned after costs under the engine's rule, read beside buy and hold on the same folds because a posterior stuck at the class share trades like a one-sided hold."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the conditioned generator's readout after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed a direction call learned entirely from conditioned synthetic rows, which shows the cost of the stretches where real bars left the region the generator covered."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the conditioned readout; one is an arithmetic marker, and with few flips a single trade can set the figure."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the conditioned readout, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count because this readout flips rarely."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second conditional generator fitted separately with quantile bins of the scaled move as its conditions, whose generated-row classifier weights each bin's mean move; this scores that second model against forecasting no change."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the second, bin-conditioned generator's readout, which can only output a blend of its bin_count bin means and so cannot follow a large move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the blended bin mean from the second conditional generator's readout matched the move; it comes from different networks than the traded direction call, so the two can disagree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the generator's adversarial loss and then a cross-entropy on generated rows while the validation curve is a logarithmic loss on real rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the generator."
+            }
+          ],
+          "caveats": [
+            "Only the readout classifier is early stopped, on real validation rows; the generator is used as it stands after its last epoch, whatever state the adversarial game was in, so a collapsed generator is not caught by checkpoint selection.",
+            "The real-against-generated accuracy that says how lifelike the generated rows are is computed once after sampling and kept only in the fit summary, not in the metric tables.",
+            "Generated rows that are not finite are dropped before the readout classifier is trained, with a warning in the run log.",
+            "Scored bars share future bars because horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
         }
       }
     },
@@ -454,6 +933,260 @@
           "label": "Price bins",
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A generator that turns random noise into new samples, trained against a critic that gives every sample an unbounded realness score instead of a probability of being real.",
+          "targetVariable": "the distribution of real training samples, approached by shrinking the earth mover's distance between it and the generated samples",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "The critic is held to a slope of at most one, by clipping its weights in the original version and by a gradient penalty between real and generated samples in the improved one, so the value of the game estimates the earth mover's distance between the two distributions rather than a divergence that saturates.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The critic's own score cannot be the verdict because the generator was trained to raise it; a new judge fitted after the generator is frozen, on real and generated samples neither network saw, gives an independent answer to whether the forgeries pass.",
+              "baseline": "one half, the accuracy of a judge that cannot tell generated samples from real ones",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The reason to swap the discriminator for a slope-limited critic is to stop the generator collapsing onto a few kinds of sample, so the share of real samples that have a generated neighbour is the direct test of the promise this model makes.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Covering every kind of real sample is worthless if the samples are blurred averages, which this family is known to drift toward, so the share of generated samples that land among real ones is read beside the coverage figure.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "A generator that simply replays training samples would shrink the critic's distance estimate and pass the judge, so the distance from generated samples to their nearest training sample is compared with the same distance for unseen real samples.",
+              "baseline": "a ratio of one, where generated samples are no closer to the training samples than unseen real samples are",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The gap between the critic's mean score on real and on generated samples estimates the earth mover's distance and tends to fall as samples improve, which makes this curve more readable than an ordinary adversarial loss, but it is still an estimate from a critic in mid-training and not a score of the finished generator.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder, so no real sample is ever squeezed through the model and rebuilt; the row was copied from an autoencoder table."
+            },
+            {
+              "name": "Fréchet Market Distance",
+              "metricId": null,
+              "why": "Nothing here simulates price trajectories or order flow, and the image version of this distance needs a network pretrained on photographs that has no counterpart for feature rows."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The divergence term belongs to a variational autoencoder; this generator draws its noise from a fixed distribution and never infers a latent code from data."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "The latent noise is sampled from a fixed distribution rather than learned on a sphere, so its spread is set by construction and says nothing about the model."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The critic's output is a realness score with no upper or lower limit, not a density, and the generator never assigns a probability to a real sample."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder that maps a real sample back to noise, so nothing is rebuilt and there is no reconstruction error to report."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise vector is drawn from a fixed distribution and is never inferred from data, so no posterior exists to compare with a prior."
+            },
+            {
+              "name": "Fréchet inception distance",
+              "metricId": null,
+              "why": "The image literature's score needs a separate network pretrained on photographs to embed the samples; feature rows have no such embedding, so the fresh-judge test with precision and recall is used instead."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the generator draws samples and never takes a position; a trading result exists only after the Model Cycle adds a classifier and a trading rule."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification describes a generator of images or sequences trained against a slope-limited critic and judged by sample quality. The runnable adapter builds the gradient-penalty version only, never weight clipping, conditions the generator and the critic on the outcome class, generates one feature row of a bar rather than an image or a price path, and then trains a classifier only on the generated rows. The critic is not a density, so every as-run number measures the generator plus that train-on-generated-rows readout and is expected to sit near the base rate.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "After the generator epochs the adapter draws the same number of generated feature rows for the up class and the down class, trains a small perceptron on those generated rows only by cross-entropy, and adds the logarithm of the training class share to its output before the softmax, so the probability of up is Bayes' rule under the critic-trained generator's picture of up bars and down bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "nats for the validation curve and for the classifier epochs of the training curve; during the generator epochs the training curve is minus the critic's mean score of generated rows, which has no unit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The classifier never saw a real bar, only rows the critic-trained generator invented for each outcome, so ranking real test bars above chance means the generator captured a real difference between bars that precede a rise and bars that precede a fall."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The readout adds the training class share to the classifier's output, so its probability of up is meant as a real probability; the squared miss against the outcome grades it without the huge penalties an over-sure train-on-generated-rows classifier can draw."
+            },
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "The adapter logs how well a logistic judge on each feature and its square separates real validation rows from unseen generated rows; it is an independent check on the critic's own distance estimate, and near one it says the classifier learned from rows that do not look like the market."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the generated-row classifier on real test bars, but the epoch at which that classifier stopped was chosen on this same quantity over the validation rows, so it is read as supporting evidence."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A classifier fitted to generated rows that are smoother than real ones tends to be too sure on real bars; a slope below one on the test bars shows that gap between the generator's world and the market."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "No class weighting is used and the training class share is added back, so the stated odds can be compared with the observed up share, keeping in mind that odds near one half fill only a couple of bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the critic-trained generator produces up rows and down rows that look alike, the classifier answers the training class share on every bar; the spread of the probability of up shows whether the readout ever commits."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often cutting the generated-row classifier's probability at one half matches the real direction, and is read against the accuracy of always calling the fold's training majority class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the readout leans toward the training class share, the mean recall of up bars and down bars shows whether the generated rows taught it to recognise both directions or only the commoner one."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the hard calls of the generated-row classifier, which stays at zero when the readout simply repeats the commoner direction on every bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The engine goes long when the generated-row classifier's probability of up is at least one half and short otherwise, so this is what that direction call earned after costs under the engine's rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing of the same direction call under the engine's rule; only the side of one half the probability falls on reaches it, so it says nothing about how sure the readout was."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while trading the generated-row classifier's call, which shows the cost of the stretches where the generator's picture of up and down bars stopped matching the market."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trade dollars over losing trade dollars for the readout's direction call; a trade here ends when the call flips or the fold ends, so it describes the call's flips rather than each bar's prediction."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades of the readout's direction call that ended positive after costs, read with the trade count because a readout that rarely flips produces few trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The forecast line comes from a second critic-trained generator conditioned on price-move quantile bins, whose classifier's bin probabilities weight the bins' mean training moves; skill against the no-change forecast tests that second generator-plus-readout, not the direction model."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The average miss in points of the bin-weighted forecast from the second generator, read beside the no-change forecast's miss on the same bars because a forecast averaged over bin means is pulled toward a small move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the second generator's bin-weighted forecast matched the move, counted only where both are non-zero after rounding to the tick; it is a separate fit from the classifier that drives the trades."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds minus the critic's score of generated rows and then the cross-entropy on generated rows, while the validation curve holds the logarithmic loss on real rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so exposure describes the engine's rule and not anything the generator or its classifier decided."
+            }
+          ],
+          "caveats": [
+            "The generator itself has no checkpoint selection: its last epoch is kept, and only the classifier trained on its generated rows is early-stopped, on the logarithmic loss over real validation rows.",
+            "The critic's estimate of the earth mover's distance is written to the training log each reported epoch but only the generator's loss is stored as the training curve.",
+            "The validation curve is empty during the generator epochs and starts only when the classifier epochs begin, and the training curve changes quantity at that same point.",
+            "The real-versus-generated accuracy is written to the training log and the fit summary but is not stored as a metric of the run, and its judge sees only differences in each feature's level and spread.",
+            "The hyperparameter search scores each trial of hidden size and learning rate by the trading simulator on inner blocks of the training span, not by any measure of how realistic the generated rows are.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around these numbers need a block bootstrap rather than a simple binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than MNQ the costs are the MNQ figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -645,6 +1378,252 @@
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "Synthetic images of a requested class, made by passing a noise vector and a class label through a large class-conditional generator trained against a projection discriminator.",
+          "targetVariable": "The distribution of real images within each class, learned only through samples and with no density.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "The game uses the hinge form of the adversarial loss with a discriminator that scores the pairing of a sample and its class by projection, plus an orthogonality penalty on the generator's weights that makes sampling from truncated noise possible.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The moving-average generator fed truncated noise is the thing that is shipped, so a newly trained detector is asked to separate its output for each class from held-out examples of that class; a score close to one half is the only evidence the hinge game produced lifelike samples.",
+              "baseline": "One half, the score of a detector that can only guess, on the same held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "Truncating the noise deliberately trades variety for sharpness, so the share of held-out examples that some generated sample lands beside is the direct measure of how much of each class the truncation threshold threw away.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "This is the side of the truncation trade that is supposed to improve: the share of samples from the moving-average generator that fall inside the cloud of observed examples of their class.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "A generator this large can store its training set, so each sample's distance to the closest fitted example is compared with the same distance for unseen examples to show the class-conditional batch normalisation is not simply recalling stored cases.",
+              "baseline": "One, the ratio when generated samples sit as far from the fitted examples as unseen examples of the same series do.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Because every sample is requested with a class, a classifier fitted only on generated samples and then ranked on observed ones shows whether the shared class embedding put the right features into each class.",
+              "baseline": "One half, the ranking power of a score unrelated to the class.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The discriminator's hinge loss falling toward zero is the documented sign of the collapse this architecture is known for, so the two curves are watched for that jump and never read as sample quality.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The discriminator is a hinge-loss projection discriminator, not a Wasserstein critic, so the model never estimates this distance."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The generator maps noise and a class label to a sample and has no encoder, so no input is ever rebuilt."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The latent is noise drawn from its prior and nothing infers a posterior over it, so there is no divergence term."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "No embedding of observed inputs is learned, so there is no latent spread to call uniform or not."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder: the generator starts from noise and a class label and never rebuilds a given input, so there is nothing to compare a reconstruction with."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise vector is drawn straight from its prior and no network infers a posterior over it, so no divergence between a posterior and a prior exists."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The hinge game trains a sampler with no density and no bound, so the model cannot assign a probability to an unseen example."
+            },
+            {
+              "name": "Inception Score and Frechet Inception Distance",
+              "metricId": null,
+              "why": "These are the scores the original paper reports, but both rely on a pretrained image recognition network that has no counterpart for rows of market features."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The adapter keeps the class-conditional batch normalisation, the latent chunk fed to every block, spectral normalisation, the projection discriminator with hinge loss, the orthogonality penalty, the moving-average generator and the truncation threshold dial, which is off by default so that noise is drawn untruncated unless the threshold is raised above zero, but drops self-attention and generates one bar's feature row instead of an image; a separate small classifier is then trained only on rows it generated for the down class and the up class, so every as-run number measures the generator plus that readout and none measures sample quality directly.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "The moving-average generator draws samples_per_class rows for each of down and up from noise that is truncated only when the truncation threshold is above zero, which it is not by default, a small network is trained by cross-entropy on those generated rows only, and the logarithm of the training class share is added to its outputs before the softmax, which is Bayes' rule under the generator's picture of each class.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "during the generator epochs the training curve is the generator's hinge loss, minus the mean discriminator score, in discriminator score units with no validation value; during the classifier epochs it is cross-entropy on generated rows in nats and the validation curve is in nats on real rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The readout network never saw a real bar during training, so its ranking of real up bars above real down bars exists only if the class embedding made the generator draw down rows and up rows that differ the way real ones do."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the probability obtained from the generated-row classifier plus the training class share against quoting that class share alone; when the two generated class clouds overlap completely the two figures coincide."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check of the same generated-row posterior, useful because a classifier trained only on generated rows can be very sure of itself on real bars that fall between or outside the generated class clouds, and the clouds are tighter still when the truncation threshold is raised above zero."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The training class share is added back before the softmax, so the stated odds aim at the base rate and their gap from the observed up share shows how far the generator's picture of each class is from the real one."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows whether the classifier trained on moving-average samples ever leaves the training class share on real bars; a spread near nothing means the generated down rows and up rows looked alike."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the generated-row posterior at one half matched the outcome, read beside the accuracy of always calling the fold's training majority class, which this readout tends to reproduce."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Because the added class share tilts every call toward the fold's majority direction, averaging the two recalls shows whether the generated-row classifier separates the classes at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Stays near zero when the generated-row posterior has settled on one direction, which is the expected outcome when the projection discriminator could not make the generator's two classes differ."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the generated-row posterior earned after costs under the engine's rule, read beside buy and hold on the same folds because a posterior stuck at the class share trades like a one-sided hold."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the generated-row classifier's direction after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed a direction call learned entirely from synthetic rows, which shows the cost of the stretches where real bars left the region the generator covered."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the generated-row posterior; one is an arithmetic marker, and with few flips a single trade can set the figure."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the generated-row posterior, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count because this readout flips rarely."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second generator fitted separately with quantile bins of the scaled move as its classes, whose generated-row classifier weights each bin's mean move; this scores that second model against forecasting no change."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the second, bin-conditioned generator's readout, which can only output a blend of its bin_count bin means and so cannot follow a large move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the blended bin mean from the second generator's readout matched the move; it comes from different networks than the traded direction call, so the two can disagree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds a hinge loss and then a cross-entropy on generated rows while the validation curve is a logarithmic loss on real rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the generator."
+            }
+          ],
+          "caveats": [
+            "Only the readout classifier is early stopped, on real validation rows; the generator is used as it stands after its last epoch, whatever state the hinge game was in, so a collapsed generator is not caught by checkpoint selection.",
+            "The real-against-generated accuracy that says how lifelike the generated rows are is computed once after sampling and kept only in the fit summary, not in the metric tables.",
+            "Generated rows that are not finite are dropped before the readout classifier is trained, with a warning in the run log.",
+            "Scored bars share future bars because horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
+        }
       }
     },
     "style_gan": {
@@ -835,6 +1814,274 @@
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A generator that turns random noise into new samples, here images, by first mapping the noise to a style vector and then letting that style rescale every layer of a synthesis network that starts from a learned constant.",
+          "targetVariable": "the distribution of real training images, matched closely enough that a generated sample cannot be told from a real one",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "This model plays the non-saturating logistic version of the game with a gradient penalty on real samples and style mixing between two noise draws, and its later versions add a penalty that keeps small style changes producing small image changes; in the Model Cycle the image architecture is reduced to one dimension, a single feature row with no resolutions.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "A fresh judge trained after the mapping network and the style-modulated synthesis layers are frozen tries to separate their generated samples from real held-out ones; if it does no better than a coin flip the forger has passed the only test a model with no likelihood can take.",
+              "baseline": "one half, the accuracy of a judge that cannot tell generated samples from real ones",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The truncation dial pulls every style vector toward its average so that samples land where real examples live; precision is the share of generated samples that actually land there, which is the realism this architecture is built to deliver.",
+              "baseline": "the same generator sampled with truncation switched off",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Truncating styles toward their average and a discriminator that wins too easily both shrink variety, so the share of real examples that have a generated look-alike nearby shows what the gain in realism cost in coverage.",
+              "baseline": "the same generator sampled with truncation switched off",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "A style-based generator with enough capacity can replay memorised training examples, which would fool the judge and score perfect precision; comparing how close generated samples sit to training examples with how close unseen real ones sit exposes that.",
+              "baseline": "a ratio of one, where generated samples are no closer to the training examples than unseen real samples are",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The logistic losses of the generator and the discriminator, with the gradient penalty on real samples, show only whether the two-player game stayed balanced or one side overpowered the other; a low generator loss does not mean realistic samples.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "This model plays the logistic game against a discriminator and has no critic that estimates an earth mover's distance, and the registry carries no such distance between generated and real feature rows."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder, so no real sample is ever squeezed through the model and rebuilt; the row was copied from an autoencoder table."
+            },
+            {
+              "name": "Fréchet Market Distance",
+              "metricId": null,
+              "why": "Nothing here simulates price trajectories or order flow, and the image version of this distance needs a network pretrained on photographs that has no counterpart for feature rows."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The divergence term belongs to a variational autoencoder; this generator draws its noise from a fixed bell curve and never infers a latent code from data."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "The latent noise is sampled from a fixed distribution rather than learned on a sphere, so its spread is set by construction and says nothing about the model."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The synthesis network only maps noise to samples and never assigns a probability to a real example, so there is no likelihood and no bound on one to report."
+            },
+            {
+              "name": "Fréchet inception distance",
+              "metricId": null,
+              "why": "The literature's headline score compares generated and real images inside a separate network pretrained on photographs; no such pretrained embedding exists for market feature rows, so the fresh-judge test with precision and recall takes its place."
+            },
+            {
+              "name": "Perceptual path length",
+              "metricId": null,
+              "why": "The style-space score of the original StyleGAN paper measures how much the generated output changes when the style vector is moved a small step, using the distance inside a network pretrained on photographs; the registry has no latent-interpolation smoothness metric, and a single feature row has neither such an embedding nor a meaningful interpolation distance, so it is not reported."
+            },
+            {
+              "name": "Linear separability",
+              "metricId": null,
+              "why": "The paper's second style-space score fits a linear classifier in the style space against attributes that a separate pretrained attribute classifier reads off generated images; a feature row has no such attributes or attribute classifier, so it is not reported."
+            },
+            {
+              "name": "Reconstruction mean squared error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The model has no encoder that takes a real sample back to a style vector, so nothing is ever rebuilt and there is no reconstruction to measure."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise fed to the mapping network is drawn from a fixed bell curve and is never inferred from data, so there is no learned posterior to compare with a prior."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the generator draws samples and never takes a position; a trading result exists only after the Model Cycle bolts a classifier and a trading rule onto it."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The specification describes a generator of high-resolution images judged by how real its samples look. The runnable adapter keeps the mapping network, the demodulated style layers, per-layer noise, style mixing, truncation, the minibatch-deviation feature and the gradient penalty on real rows, but reduces the image architecture to one dimension, a single feature row with no resolutions, conditions it on the outcome class, and then trains a classifier only on its generated rows. Every as-run number therefore measures the generator plus that train-on-generated-rows readout, not sample quality, and is expected to sit near the base rate.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "After the generator epochs the adapter draws the same number of generated feature rows for the up class and the down class, trains a small perceptron on those generated rows only by cross-entropy, and adds the logarithm of the training class share to its output before the softmax, so the probability of up is Bayes' rule under the style generator's picture of up bars and down bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "nats for the validation curve and for the classifier epochs of the training curve; during the generator epochs the training curve is the generator's logistic adversarial loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The classifier never saw a real bar, only rows the style generator invented for each outcome, so ranking real test bars above chance means the generator captured a real difference between bars that precede a rise and bars that precede a fall."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The readout adds the training class share to the classifier's output, so its probability of up is meant as a real probability; the squared miss against the outcome grades that probability without the huge penalties an over-sure train-on-generated-rows classifier can draw."
+            },
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "The adapter logs how well a logistic judge on each feature and its square separates real validation rows from unseen generated rows; near one half the classifier learned from realistic rows, near one it learned from rows that do not look like the market and every other number here is hollow."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the stated odds of the generated-row classifier on real test bars, but the epoch at which that classifier stopped was chosen on this same quantity over the validation rows, so it is read as supporting evidence."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A classifier fitted to generated rows that are cleaner than real ones tends to be too sure on real bars; a slope below one on the test bars shows exactly that gap between the generator's world and the market."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "No class weighting is used and the training class share is added back, so the stated odds can be compared with the observed up share, keeping in mind that odds near one half fill only a couple of bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the generated up rows and down rows look alike the classifier answers the training class share on every bar; the spread of the probability of up shows whether the readout ever commits."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often cutting the generated-row classifier's probability at one half matches the real direction, and is read against the accuracy of always calling the fold's training majority class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the readout leans toward the training class share, the mean recall of up bars and down bars shows whether the generated rows taught it to recognise both directions or only the commoner one."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the hard calls of the generated-row classifier, which stays at zero when the readout simply repeats the commoner direction on every bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The engine goes long when the generated-row classifier's probability of up is at least one half and short otherwise, so this is what that direction call earned after costs under the engine's rule, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar swing of the same direction call under the engine's rule; only the side of one half the probability falls on reaches it, so it says nothing about how sure the readout was."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while trading the generated-row classifier's call, which shows the cost of the stretches where the generator's picture of up and down bars stopped matching the market."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trade dollars over losing trade dollars for the readout's direction call; a trade here ends when the call flips or the fold ends, so it describes the call's flips rather than each bar's prediction."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades of the readout's direction call that ended positive after costs, read with the trade count because a readout that rarely flips produces few trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The forecast line comes from a second style generator conditioned on price-move quantile bins, whose classifier's bin probabilities weight the bins' mean training moves; skill against the no-change forecast tests that second generator-plus-readout, not the direction model."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The average miss in points of the bin-weighted forecast from the second generator, read beside the no-change forecast's miss on the same bars because a forecast averaged over bin means is pulled toward a small move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the second generator's bin-weighted forecast matched the move, counted only where both are non-zero after rounding to the tick; it is a separate fit from the classifier that drives the trades."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the generator's adversarial loss and then the cross-entropy on generated rows, while the validation curve holds the logarithmic loss on real rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so exposure describes the engine's rule and not anything the generator or its classifier decided."
+            }
+          ],
+          "caveats": [
+            "The generator itself has no checkpoint selection: its last epoch is kept, and only the classifier trained on its generated rows is early-stopped, on the logarithmic loss over real validation rows.",
+            "The validation curve is empty during the generator epochs and starts only when the classifier epochs begin, and the training curve changes quantity at that same point.",
+            "The real-versus-generated accuracy is written to the training log and the fit summary but is not stored as a metric of the run, and its judge sees only differences in each feature's level and spread.",
+            "The hyperparameter search scores each trial of hidden size and learning rate by the trading simulator on inner blocks of the training span, not by any measure of how realistic the generated rows are.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around these numbers need a block bootstrap rather than a simple binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than MNQ the costs are the MNQ figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "self_supervised_gan": {
@@ -1007,6 +2254,276 @@
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [
+          "self_supervised_representation"
+        ],
+        "native": {
+          "produces": "Generated data rows from a generator network that turns random noise into rows meant to pass as real ones, together with the internal features of a discriminator that was also trained on a label-free puzzle.",
+          "targetVariable": "The distribution of the real data rows themselves, which the generator imitates without ever writing down a probability for any row.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "This model adds a weighted self-supervised term on the discriminator, a contrastive or transformation-prediction puzzle on augmented rows, so the discriminator keeps informative features instead of forgetting them as the generator changes.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The generator states no probability for any row, so the honest test is a fresh judge, trained after the generator is frozen and not the discriminator that played the game, trying to tell real held-out rows from newly generated ones.",
+              "baseline": "One half, the accuracy of a judge that cannot tell the two apart, which is a mathematical constant.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The claim of this model is that the discriminator's extra label-free puzzle makes the adversarial game better, so the same generator and discriminator are trained again with the self-supervised weight set to zero and the sample-quality scores are compared on the same folds.",
+              "baseline": "The same adversarial network with its self-supervised weight set to zero, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "A generator can win against its discriminator by producing one believable kind of row over and over, and this share of real rows that have a generated neighbour shows whether the quiet and the violent kinds of bar are both covered.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "It is the other half of the same check: the share of generated rows that fall inside the region real rows occupy, so rows the generator invented outside anything the market has shown are counted.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "A generator that simply memorises its training rows would fool the fresh judge and score full precision, so the distance from each generated row to its closest training row is compared with the same distance for real held-out rows.",
+              "baseline": "The same distance measured for real held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "A small classifier is taught only by generated up rows and generated down rows and then asked to order real up bars above real down bars, a train-on-generated, test-on-real check of whether the generator kept any true difference between up rows and down rows; it is the same number the Model Cycle reports for this model, it needs the class-conditional generator the adapter supplies and the specification's own generator does not, and it does not read the discriminator's features, whose own usefulness is covered only by the collapse diagnostic below and is not computed today.",
+              "baseline": "One half, the value of an ordering that carries no information, which is a mathematical constant.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "effective_rank_of_embedding",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "The contrastive puzzle on the discriminator can be solved by features that vary along only a few directions, and counting the independent directions on unseen rows shows whether the discriminator's features collapsed.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The generator and discriminator losses move against each other, so their curves show only whether one side is overpowering the other and a low generator loss is not a sign of realistic rows.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The discriminator in the stated objective is a real-or-fake classifier and not a critic that estimates this distance, so the model produces no such number; realism is tested by a fresh judge instead."
+            },
+            {
+              "name": "Reconstruction MSE",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "There is no encoder from a real row back to the noise input, so nothing is reconstructed and no reconstruction error exists."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The noise fed to the generator is drawn from a fixed distribution and no network infers a latent code from a real row, so there is no posterior to compare with a prior."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The generator only produces rows and the discriminator only scores them, so neither gives a density or a bound on one for a real row."
+            },
+            {
+              "name": "Held-out reconstruction error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The model has no encoder that maps a real row back to noise, so a real row cannot be sent through the generator and compared with itself."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The generator takes no position and predicts no direction, so any trading figure belongs to the readout and the engine's trading rule."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The adapter trains a class-conditional generator and discriminator on feature rows with a hinge loss, so unlike the specification the game reads the up or down label, and the discriminator's label-free puzzle is recognising two noisy, partly masked views of the same row and not predicting a rotation; it then draws samples_per_class generated rows for each class, trains a small classifier only on those rows and adds the logarithm of the training class share, so every as-run number measures how well generated rows teach a classifier about real bars and not sample quality or the discriminator's features.",
+          "directionMode": "classifier",
+          "probabilitySource": "classifier_trained_on_generated_rows",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up comes from a small perceptron trained by cross-entropy only on equal numbers of generated up rows and generated down rows, whose output scores are shifted by the logarithm of each class's share of the training rows before the softmax, which is Bayes' rule under the generator's picture of each class, with no calibration curve afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "the generator epochs hold the generator's hinge loss in discriminator score units and the classifier epochs hold the cross-entropy on generated rows in nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The classifier never saw a real row, so its ordering of real up bars over real down bars is a train-on-generated, test-on-real check of whether the class-conditional generator captured any true difference between up rows and down rows."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The training class share is added back to the generated-row classifier's scores, so its probability sits on the series' own scale and this proper score tests it directly; the reference is quoting the fold's training up share on every bar, which is where this model is expected to land."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded proper score of the same probability from the classifier trained on generated rows, which stays readable if unrealistic generated rows make that classifier very confident on a few real bars."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A classifier can separate generated up rows from generated down rows far more easily than real ones, so a slope below one shows that confidence learned on generated rows does not carry over to real bars."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the training class share is restored and no class weights are used, the gap between stated and observed up share is a fair check of the generated-row classifier, read with the occupied-bin count since probabilities near the base rate fill few bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the generator produces the same kind of row for both classes the classifier has nothing to learn and quotes the training up share on every bar, and a spread near zero is how that shows on the scoreboard."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of correct calls when the generated-row classifier's probability is cut at one half, read beside the majority-class accuracy because a probability hugging the training up share calls one side on nearly every bar."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate over real up bars and real down bars shows whether the generated-row classifier ever calls the minority side or only repeats the training majority."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the calls of the classifier taught by generated rows, which is zero or undefined when it calls a single side on every bar."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A probability near the training up share falls on one side of one half on almost every bar, so this share shows whether the trading numbers are the model's or simply those of holding one side."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the sign of the generated-row classifier's call earned after costs when the engine went long at one half or above and short below, to be read against buy and hold on the same folds because the call often never flips."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "The direction calls of the classifier taught by generated rows per unit of bar-to-bar swing in profit under the engine's rule and costs; zero is an arithmetic marker and not a no-skill reference because a random caller pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while following the generated-row classifier's calls, which for a call that rarely flips is close to the market's own drawdown on that side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trade dollars over losing trade dollars for trades opened and closed by flips of the generated-row classifier, which rests on very few trades when the call rarely flips."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money, where a trade lasts until the generated-row classifier flips side or the fold ends, so it is read together with the trade count."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second adversarial network whose classes are bin_count quantile bins of the scaled move, read out as the probability-weighted mean of the bins' training averages by its own classifier trained on generated rows, so this tests that second generator against forecasting no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the bin-average forecast from the second generator's classifier, which can never forecast beyond the average of its lowest or highest training bin."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bin-average forecasts from the second generator's classifier whose sign matched the move, counted only where both are non-zero after tick rounding; it is a different model from the one whose calls are traded."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the generator's hinge loss and then a cross-entropy on generated rows, while the validation curve holds the logarithmic loss on real rows, so their difference compares different quantities on different data."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in the market once the classifier has made a call, so this number describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The logged training loss changes meaning at the first classifier epoch: the generator epochs log only the generator's side of the hinge game with no validation score, and the classifier epochs log the cross-entropy of the classifier on generated rows.",
+            "Only the classifier's epoch is chosen on the real validation rows; the generator is taken as it stands after its last epoch with no selection, so an unlucky final epoch of the adversarial game passes straight into the generated rows.",
+            "The adapter measures how realistic the generated rows are with a fresh logistic regression on each feature and its square, trained on real training rows against generated rows and scored on real validation rows against unseen generated rows; that accuracy is written to the log and the fit summary and the engine does not record it as a metric.",
+            "The generator makes single feature rows for one bar and never prices or paths, so nothing here is a simulated market.",
+            "The hyperparameter search moves only the hidden size and the learning rate, and it scores trials by the trading objective on inner blocks of the training span and not by sample quality.",
+            "The price forecast is a second adversarial network on binned moves, so the forecast line and the traded call do not come from one generator.",
+            "Consecutive scored bars share future bars because the label looks label_horizon_bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the cost per side is the MNQ account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "adversarial_autoencoder": {
@@ -1169,6 +2686,262 @@
           "group": "Model",
           "description": "Price model only: the price target is cut into this many quantile bins of the training rows; each bin is one class of the generator and the forecast is the expected bin mean."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "projection_or_reconstruction"
+        ],
+        "native": {
+          "produces": "A compressed latent code for each input, a rebuilt copy of that input from the decoder, and new synthetic inputs made by feeding draws from the chosen prior through the decoder.",
+          "targetVariable": "The distribution of the input rows themselves, reached through a latent code whose overall shape a discriminator forces to match a chosen prior distribution.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "The adversarial game is played on the latent code instead of on the data: the encoder is the forger, the discriminator compares its codes with draws from the prior, and a reconstruction error term trained alongside keeps the code informative; the semi-supervised variant adds a cross-entropy term on a class head.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "The decoder is only a generator if prior draws pushed through it look like market rows, so a fresh detector is trained to separate decoder output from held-out bars; a score close to one half means the latent discriminator really did close the holes in the code space.",
+              "baseline": "One half, the score of a detector that can only guess, on the same held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "held_out_reconstruction_error_fraction",
+              "type": "reconstruction_and_representation",
+              "role": "primary",
+              "why": "The encoder and decoder are trained in the reconstruction phase to squeeze a row through the latent code and rebuild it, so the share of feature variance lost on unseen rows says how much the adversarial pressure on the code cost in detail.",
+              "baseline": "One, the error of rebuilding every unseen row as the training mean row of the same series.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Shows whether decoding prior draws reaches every kind of held-out bar or whether whole market conditions have no region of the latent prior that decodes to them.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Shows whether a draw from the prior decodes to something inside the cloud of observed bars, which fails when the encoder's codes leave parts of the prior unused and the decoder is asked to invent there.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "An autoencoder with a large code can memorise its inputs, so the distance from each decoded sample to its closest fitted bar is compared with the same distance for unseen bars to catch a decoder that is handing back stored examples.",
+              "baseline": "One, the ratio when decoded samples sit as far from the fitted bars as unseen bars of the same series do.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The same encoder, decoder and class head refitted with the adversarial weight set to zero is a plain autoencoder with a classifier, so the difference in score is the whole contribution of forcing the latent code onto the prior.",
+              "baseline": "The same model on the same folds with its adversarial weight set to zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "In the semi-supervised variant the encoder carries a class head trained by cross-entropy on the labelled rows, and that head states a probability per class whose honesty this score grades directly.",
+              "baseline": "The logarithmic loss of quoting the fold's training class share on every scored row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The reconstruction error, the latent discriminator's loss and the encoder's fooling loss are plotted side by side to see whether the discriminator overpowered the encoder or gave up; none of the three curves is a score of the samples.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "The latent discriminator is a cross-entropy classifier of prior draws against encoder codes, not a Wasserstein critic, so the model produces no such distance."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "This model replaces the Kullback-Leibler term of a variational autoencoder with a discriminator on the code, so there is no such term in its objective."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "The code is pushed toward a chosen prior, typically a Gaussian, not toward a uniform spread on a sphere, so uniformity is not what this model promises."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The adversarial autoencoder exists to replace the Kullback-Leibler term of a variational autoencoder with a discriminator on the code, so its objective contains no such term to report."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The latent discriminator matches the code to the prior without ever computing a density or a bound, so the model cannot say how probable an unseen row is."
+            },
+            {
+              "name": "Inception Score and Frechet Inception Distance",
+              "metricId": null,
+              "why": "Both need a pretrained image recognition network to embed the samples, and no such reference network exists for rows of market features."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is the semi-supervised variant the specification's Training Process section describes, built on one bar's causal feature row instead of an image and with fully connected layers; the probability of up is the encoder's own class head, so the as-run numbers measure that head and say nothing about how lifelike the decoder's samples are or how well rows are rebuilt.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The encoder's trunk feeds a class head whose softmax over down and up is read directly as the probability of up, with no generated-sample detour, no added prior and no curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "supervised_plus_unlabeled_regularizer",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows a weighted sum of the mean squared reconstruction error in squared feature units and the class head's cross-entropy in nats, with the adversarial terms left out; on validation rows nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The class head is trained by unweighted cross-entropy on the labelled bars, so its probability of up is a likelihood output aimed at the base rate and this score on test bars grades exactly what the head was fitted to state, against quoting the fold's training up share."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The class head gives a continuous score, so this tests whether the code shaped by reconstruction and by the two latent discriminators ranks up bars above down bars, whatever the scale of the stated odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded second opinion on the class head's stated odds that a handful of very confident wrong calls cannot dominate the way they dominate the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the class head is unweighted and nothing is refitted on validation rows, the gap between its stated odds and the observed up share is a fair check of the head itself, including the over-confidence the class-code discriminator can cause by pushing outputs toward one-hot."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The class-code discriminator rewards outputs that look one-hot, so the spread of the head's probabilities shows whether that pressure made the head commit or whether it stayed parked at the base rate."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the class head's probability at one half matched the outcome, read beside the accuracy of always calling the fold's training majority class."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The class head tracks the base rate, so in a one-sided fold it can score well by calling one direction; averaging the two recalls shows whether it separates both classes."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Puts the class head's four kinds of hard call into one number that stays near zero when the head has collapsed to a single direction."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the class head's call earned after costs under the engine's rule; only whether the head is above or below one half reaches this number, and it is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the class head's direction after costs; zero is an arithmetic marker here and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed the class head's calls, which shows how long a wrong regime read by the encoder kept the position on the losing side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over the trades opened and closed by flips of the class head's call; one is an arithmetic marker, since costs are charged whichever way the head calls."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the class head's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count because a steady head makes few trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second adversarial autoencoder fitted separately on quantile bins of the scaled move, whose class head weights each bin's mean move; this scores that second model against forecasting no change."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the second, bin-headed adversarial autoencoder, which can only output a blend of its bin_count bin means and so cannot follow a large move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the second model's blended bin mean matched the move; it is a different network from the direction head that is traded, so the two can disagree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is a weighted sum of reconstruction error and cross-entropy while the validation curve is the class head's logarithmic loss alone, so their difference is not an overfit gap."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the class head."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is not manufactured by masking known labels: it is the bars inside the training span whose outcome is not read, because the move stayed inside the label threshold, the horizon crossed a session gap or the bar is not a training row.",
+            "The kept epoch is chosen on the class head's validation logarithmic loss alone, so the reconstruction and adversarial terms have no say in which weights are kept and the validation figure is optimistic.",
+            "The real-against-generated accuracy of the decoder's samples is computed once after the fit and kept only in the fit summary, not in the metric tables.",
+            "Scored bars share future bars because horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
+        }
       }
     },
     "cycle_consistent_gan": {
@@ -1311,6 +3084,242 @@
           "label": "Early stopping patience",
           "group": "Model",
           "description": "Epochs without a better validation loss before the fit stops and the best translators are restored."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "implicit_sample_generator",
+        "profileIdAsRun": "implicit_sample_generator",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A translated copy of an input in the other domain, from two translators that map each domain into the other without any paired examples, plus the copy translated back again.",
+          "targetVariable": "The distribution of each of two unpaired domains, learned through samples, together with a reversible mapping between them.",
+          "objectiveId": "adversarial_minimax",
+          "objectiveNote": "Two adversarial games, one per domain, are tied together by a cycle-consistency term that charges the absolute difference between an input and its round trip through both translators, and by an optional identity term that charges a translator for changing an input already in its target domain.",
+          "metrics": [
+            {
+              "metricId": "classifier_two_sample_test_accuracy",
+              "type": "sample_fidelity_and_diversity",
+              "role": "primary",
+              "why": "A newly trained detector is asked to separate held-out members of the target domain from held-out members of the source domain after translation; a score close to one half means the translator moved its inputs all the way into the other domain.",
+              "baseline": "One half, the score of a detector that can only guess, on the same held-out rows of the same series.",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "held_out_reconstruction_error_fraction",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "There is no encoder, but the round trip through both translators rebuilds the input and the cycle-consistency term trains that directly, so a large error on unseen inputs says the mapping stopped being reversible; a translator that changes nothing rebuilds every input perfectly and also scores well, so a small error is never evidence that a translation was learned.",
+              "baseline": "One, the error of returning the training mean row of the same series for every unseen input.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_recall_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "Shows whether translated inputs spread across the whole target domain or whether the translator sends every input to the same few target-like outputs that happen to satisfy its discriminator.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_precision_fraction",
+              "type": "sample_fidelity_and_diversity",
+              "role": "secondary",
+              "why": "The share of translated inputs that land inside the cloud of observed target-domain examples, which fails when the cycle term holds outputs too close to where they started.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "generated_to_training_nearest_neighbor_distance_ratio",
+              "type": "sample_fidelity_and_diversity",
+              "role": "diagnostic",
+              "why": "Checks that a translator is transforming its own input instead of swapping it for the closest stored example of the target domain, which would satisfy the discriminator while ignoring the input.",
+              "baseline": "One, the ratio when translated inputs sit as far from the fitted target examples as unseen target examples of the same series do.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The translators' combined loss, the cycle term on its own and the two discriminators' least-squares loss are plotted to see whether the replay buffer kept the contest from oscillating; none of them scores a translation.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Wasserstein Distance",
+              "metricId": null,
+              "why": "Both discriminators use a least-squares loss and neither is a Wasserstein critic, so the model never estimates this distance."
+            },
+            {
+              "name": "Latent KL Divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The translators have no noise input and no latent posterior, so there is no divergence term anywhere in the model."
+            },
+            {
+              "name": "Latent Uniformity",
+              "metricId": null,
+              "why": "There is no latent code in this model; each translator maps one domain directly onto the other."
+            },
+            {
+              "name": "Latent Kullback-Leibler divergence",
+              "metricId": "kullback_leibler_term_nats",
+              "why": "The translators take an input and return an output with no noise vector and no latent posterior, so there is nothing to measure a divergence from a prior on."
+            },
+            {
+              "name": "Held-out log-likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The two games train translators with no density and no bound, so the model cannot assign a probability to an unseen example."
+            },
+            {
+              "name": "Paired translation error",
+              "metricId": null,
+              "why": "The domains are unpaired by design, so no input has a true counterpart in the other domain against which a translation could be measured."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "stand_in",
+          "standInNote": "The adapter trains the specification's two translators and two least-squares discriminators with cycle and identity terms and a replay buffer, but the two domains are the training span's down bars and up bars as feature rows with fully connected residual blocks; direction is then read from how far each translator moves a bar and from the gap between the two discriminators through a logistic fitted on validation rows, so the as-run numbers measure that heuristic separation score plus its curve and not translation quality.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "Each bar gets two scores, how much more the translator toward down moves it than the translator toward up does and how much more the up discriminator accepts it than the down discriminator, and a logistic with two weights and an intercept fitted by maximum likelihood on the validation bars turns the pair into the probability of up.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "adversarial_minimax",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "adversarial_minimax",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the translators' combined loss, a least-squares adversarial term plus weighted cycle and identity terms in mixed score and feature units; on validation rows nats of the logistic refitted on those same rows after each epoch",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether the blend of the translation displacement and the discriminator gap, with the weights the validation logistic gave them, ranks test up bars above test down bars; because those weights can turn a score upside down, this grades the scores together with their curve."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Grades the two translation scores after the validation-fitted logistic against quoting the fold's training up share; neither score is a likelihood, so this is a statement about the scores plus a curve whose weights and intercept saw the validation bars."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded check of the same curve-mapped probability, which matters here because a displacement score that changes sign between validation and test can leave the logistic confidently wrong."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The stated odds come entirely from the logistic fitted on validation bars, so a gap from the observed up share on test bars shows the relation between the translation scores and the outcome did not carry over from validation."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the down and up domains overlap the logistic gives both translation scores almost no weight, and a spread near nothing reveals that the probability is just the validation up share."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where cutting the curve-mapped translation score at one half matched the outcome; the cut depends on the intercept the validation bars fitted, so it carries their up share and not the training span's."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The fitted intercept can place every bar on one side of one half, so averaging the two recalls shows whether the displacement and the discriminator gap separate the directions at all."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Goes negative when the displacement score has inverted between the validation bars the logistic was fitted on and the test bars, which is this route's known failure."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What following the sign of the curve-mapped translation score earned after costs under the engine's rule, read beside buy and hold on the same folds because an uninformative score trades the validation majority direction."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar result of trading the translation score's direction after costs; zero is an arithmetic marker and not a no-skill level, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the account while it followed the translation score, which shows what an inverted displacement cost before the fold ended."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning against losing dollars over trades opened and closed by flips of the curve-mapped translation score; one is an arithmetic marker, since costs are charged whichever way the score points."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of trades, each ended by a flip of the translation score's call, a stop, a target or the fold's end, that closed above zero after costs; it is read with the trade count."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second pair of translators fitted separately on bars split by the sign of the scaled move, with a ridge regression of that move on both displacement vectors and the discriminator gap; this scores that second model against forecasting no change."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the ridge regression on the second translator pair's displacements, whose training target was clipped at its own extreme percentiles before fitting."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Whether the sign of the displacement regression's forecast matched the move; it comes from a different translator pair than the traded call and has no validation curve, so the two can disagree."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the translators' adversarial, cycle and identity loss while the validation curve is the logarithmic loss of a logistic refitted on those validation rows, so their difference compares unlike quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only switched off and no stop or target set, the engine is always in a position once the first call is made, so exposure describes the engine's rule and not the translators."
+            }
+          ],
+          "caveats": [
+            "The logistic that maps the two translation scores to a probability is refitted on the validation rows after every epoch and the kept epoch is the one with the lowest logarithmic loss on those same rows, so the validation figure is in-sample for the curve and optimistic; only the test walk is out of sample.",
+            "The real-against-translated accuracy, real up bars against down bars translated to up, is computed once after the fit and kept only in the fit summary, not in the metric tables.",
+            "The registry's declared probability field and the adapter agree for this model: the probability is a logistic curve fitted on validation rows.",
+            "Scored bars share future bars because horizons overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next open.",
+            "For roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The trading numbers are produced under the run's own settings for long only, holding bars, stop loss ticks, take profit ticks and contracts, which are recorded with the run."
+          ]
         }
       }
     }

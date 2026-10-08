@@ -199,6 +199,281 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability",
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A class probability for the task label, read from the truth values of stacked soft AND, OR and NOT units, together with a satisfaction score between zero and one for every logical rule it was given.",
+          "targetVariable": "the class of the task label (for trading, whether the future move is up or down) and the degree to which each stated logical rule holds on the bar",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "The task loss is ordinary cross-entropy and the added term charges the network whenever a rule's premise is true while its conclusion is not, using the smooth implication one minus premise plus premise times conclusion, with a weight that trades fit against obedience.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The head on top of the soft logic units is trained by cross-entropy, so the honest first question is how much probability the final truth values put on the direction that actually happened on bars the layer never saw.",
+              "baseline": "quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "The logic term in the loss exists so that predictions respect the supplied implications, and only a count of unseen bars where a true premise met a contradicting prediction shows whether the soft penalty became real obedience.",
+              "baseline": "the same layer trained with the logic weight set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "A logic layer earns its place only if the soft AND and OR units beat the same backbone with a plain dense head and beat the bare rules voting alone, on the same folds and the same proper score.",
+              "baseline": "the same backbone with the logic layer replaced by a dense head, and the rule base alone",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Soft truth values multiplied together can drive the head toward certainty, and the squared-miss score stays bounded there, so it grades the stated odds without being ruled by a handful of confident misses.",
+              "baseline": "the fold's training up share quoted on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars with a higher final truth value really went up more often than bars with a lower one, which the layer can get right even when its t-norm products and the weight on its logic penalty leave the scale wrong.",
+              "baseline": "a coin-flip ordering of the same scored bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The product t-norms that combine truth values and the weight on the logic penalty both stretch or squash the head's log-odds, and this bin-free slope shows whether the stated odds came out too bold or too timid.",
+              "baseline": "a slope of one, which is the scale being right",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The specification gives each logical rule a learnable weight and a sparsity penalty that keeps only the key rules, so the set of rules that keep weight and the weight each settles on are the readable part of the result, and a set that changes whenever the layer is refitted cannot be named as a rule base.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A supplied rule whose premise is never true, or is true on every bar, contributes a constant to the head, so the share of bars on which each rule's premise holds says whether that rule carries any information.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate from cutting the probability at one half throws away both the size of the stated odds and the rule truths, which are what this layer natively produces; the hit rate is reported on the as-run side instead."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The model never states a mean and a variance for the return, so a Gaussian likelihood has nothing to evaluate; the formula was stamped by a generator."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "No return size is forecast by the logic layer's classification head, so an error in return units does not exist for it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on a hand-picked slice of the most confident bars is a selective statistic with no registry definition, and the ranking measure already covers the whole ordering."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The layer outputs truth values and a class probability, never a mean and a variance of the return, so there is no bell curve to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": null,
+              "why": "It grades a point forecast of the size of the move, and the logic layer as specified states a class and rule truths, not a size."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss carries the rule-violation penalty and the validation score does not, so their difference mixes overfitting with the size of the penalty."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures a trading rule and its costs laid on top of the prediction, which is a property of the run and not of the logic layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the soft AND and OR layers and the implication penalty, but its literals are learned thresholds on a summary of the engine features plus the atoms of the shared technical-analysis library in cycle_rules.json, and the penalised rules are that library's rules rather than rules from the specification; each soft AND unit learns which literals to include and a temperature set by a registry parameter softens every learned threshold, and the as-run numbers therefore measure a rule-shaped network constrained by that one hand-authored library.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of a linear head applied to the log-odds of the last soft-OR layer's truth values, with no calibration map fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The head on the soft-OR truth values is fitted with up and down bars each carrying half the loss, so this is the proper score on the scale the layer actually aims at, with the natural logarithm of two as the score of saying even odds on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether a higher truth-value score from the logic layer marks bars that went up more often, and it is untouched by the class weighting and by the temperature of the soft thresholds."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "It is what the logic layer's call earned after costs when the engine went long whenever the head's probability of up reached one half and short otherwise, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the money earned by following the logic layer's call against how bumpy the bar-by-bar path was, and depends only on which side of even odds the head landed."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the head's probability on a bounded scale, with the caution that class weighting centres that probability on even odds rather than on the fold's up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the plain score of the head's probability on test bars and the same quantity that chose the kept epoch on validation bars, so it is read as a check and never as the headline."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the layer's up and down calls in one symmetric number, which stays honest when the soft thresholds make the layer call one side far more often than the other."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the fit weights both classes equally, the mean of the hit rates on up bars and on down bars is the hard-call measure that matches what the logic layer was asked to do."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the head's log-odds are stretched too far, which is what a low temperature on the predicates or a heavy implication penalty would produce."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A logic layer whose truth values barely move gives a probability stuck near even odds, and this spread shows whether the layer ever commits away from it."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of scored bars where the logic layer's call matched the move, read against the majority-class figure because the cut at one half sits on the weighted prior."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened by the logic layer's call closed in profit after costs, and it describes trades that end when the call flips rather than single predictions."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money on the layer's winning trades with the money on its losing trades after costs, read with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It is the deepest fall of the running result while following the logic layer's call, the cost in pain that came with whatever the call earned."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second logic-layer network, fitted separately with a Huber loss on the scaled move, against a forecast of no change, so it says whether the rule-shaped units can forecast size and says nothing about the classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of that second logic-layer network's forecast line, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of bars where the second network's forecast had the right sign, which can disagree with the traded call because the call comes from the classifier network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted fit centres the head's probability on even odds, so its gap to the observed up share is built in and does not show a fault of the logic layer."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the class-weighted loss plus the implication penalty and the validation curve is the plain logarithmic loss, so their difference is not an overfitting measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the figure describes the engine's rule and not the logic layer."
+            }
+          ],
+          "caveats": [
+            "The rule set is the hand-authored library in cycle_rules.json; this model mines no rules, though its soft AND units learn their own conjunctions of literals.",
+            "The training loss shown per step includes the implication penalty and class weights while the validation loss is the plain logarithmic loss, so the two curves are offset by construction; which one sits higher depends on the fold's training up share and the size of the penalty, and the offset is unrelated to fit.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap rather than a binomial formula.",
+            "For instruments other than MNQ the costs charged are the MNQ account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "neuro_symbolic_model": {
@@ -451,6 +726,281 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability",
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A task prediction from a fusion module that reads a neural embedding of the input together with the truth values, each between zero and one, of differentiable rules evaluated on that embedding.",
+          "targetVariable": "the class of the task label (for trading, whether the future move is up or down) and the truth value of each rule on the bar",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "The cross-entropy of the fused prediction is joined by a weighted logic term on the rule outputs themselves, so the encoder is pushed to produce an embedding on which the declared rule relations hold.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fusion module's output is trained by cross-entropy, so the leading question is how much probability the fused embedding and rule truths placed on what happened on bars outside the training span.",
+              "baseline": "quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "The logic term asks the rule outputs to stay consistent with the declared relations, and only a count on unseen bars shows whether the encoder learned an embedding where those relations keep holding.",
+              "baseline": "the same model trained with the logic weight set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The symbolic layer is worth its cost only if the fusion of embedding and rule truths beats the same encoder feeding the head directly with no rules, measured on the same folds.",
+              "baseline": "the same encoder and head with the symbolic layer removed",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the fused class probability on a bounded scale, which keeps a few very confident fusion outputs from deciding the whole comparison against the model's own base rate.",
+              "baseline": "the fold's training up share quoted on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks whether a higher fused output goes with more up bars regardless of scale, which tells whether the rule truths added ordering power or only reshaped the odds.",
+              "baseline": "a coin-flip ordering of the same scored bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fusion module can lean hard on a rule truth that sits near zero or one, and this bin-free slope shows whether that leaning made the stated odds bolder than the outcomes justify.",
+              "baseline": "a slope of one, which is the scale being right",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A differentiable rule whose truth stays near zero or near one on every bar hands the fusion module a constant, so the share of bars on which each rule is true shows which rules are alive.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Where the rules are learned rather than supplied, the predicates each rule joins are the explanation a person reads, and they are only an explanation if the same joins come back when the model is refitted.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate at an even-odds cut discards the size of the fused probability and the rule truths, which are the native outputs; the hit rate is reported on the as-run side."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The model produces no mean and variance of the return, so the Gaussian likelihood stamped into the table cannot be computed for it."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The classification head forecasts no return size, so an error expressed in return units has nothing to compare."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "It is a hit rate on a hand-chosen confident slice with no registry definition, and the ranking measure already covers the full ordering."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The fusion module states a class and rule truths, never a mean and a variance of the return, so there is no bell curve to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": null,
+              "why": "It grades a forecast of the size of the move, and the model as specified for classification states which class, not how far."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss includes the weighted logic term and the validation score does not, so the gap is not a clean overfitting measure."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures a trading rule and its costs laid over the prediction, which is a property of the run and not of the fused model."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network follows the encoder, rules, fusion layout, but its rules are soft conjunctions of predicates learned on the embedding, so they are symbolic in form only; the declared relations are that paired rules exclude each other and that each learned rule is pulled toward one rule of the shared library in cycle_rules.json, and the as-run numbers therefore measure close to a plain network with a rule-shaped side channel.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of a linear head on a fusion layer that reads the encoder's embedding together with the learned rule truths, with no calibration map fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fusion head is fitted with up and down bars each carrying half the loss, so this is the proper score on the scale the fused embedding and rule truths aim at, with the natural logarithm of two as the score of saying even odds on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether a higher fusion output marks bars that went up more often, untouched by the class weighting and by the temperature applied to the predicates on the embedding."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "It is what the fusion head's call earned after costs when the engine went long whenever its probability of up reached one half and short otherwise, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the money earned by following the fusion head's call against the bumpiness of the bar-by-bar path, and depends only on which side of even odds the head landed."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the fusion head's probability on a bounded scale, with the caution that class weighting centres it on even odds rather than on the fold's up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the plain score of the fusion head's probability on test bars and the same quantity that chose the kept epoch on validation bars, so it is a check and not the headline."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the fused model's up and down calls in one symmetric number, which stays honest when the head leans to one side on most bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the fit weights both classes equally, the mean of the hit rates on up bars and on down bars is the hard-call measure that matches what the fusion head was trained for."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the fusion head's log-odds are stretched too far, which early stopping on a small network and the exclusivity penalty on paired rules can both cause."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the fusion of embedding and rule truths ever commits away from even odds, since a head that always sits near one half trades on noise."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of scored bars where the fusion head's call matched the move, read against the majority-class figure because the cut at one half sits on the weighted prior."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened by the fusion head's call closed in profit after costs, and it describes trades that end when the call flips rather than single predictions."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money on the fused model's winning trades with the money on its losing trades after costs, read with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It is the deepest fall of the running result while following the fusion head's call, the cost in pain that came with whatever the call earned."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second encoder, rules and fusion network, fitted separately with a Huber loss on the scaled move, against a forecast of no change, and says nothing about the classifier network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of that second fusion network's forecast line, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of bars where the second network's forecast had the right sign, which can disagree with the traded call because the call comes from the classifier network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted fit centres the fusion head's probability on even odds, so its gap to the observed up share is built in and is not a fault of the model."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the class-weighted loss plus the exclusivity and grounding penalties and the validation curve is the plain logarithmic loss, so their difference is not an overfitting measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the figure describes the engine's rule and not the fused model."
+            }
+          ],
+          "caveats": [
+            "The rule set that grounds the learned rules is the hand-authored library in cycle_rules.json; this model mines no rules, and its own rules act on a learned embedding rather than on named indicators.",
+            "The training loss shown per step includes the rule penalties and class weights while the validation loss is the plain logarithmic loss, so the two curves are offset by construction; which one sits higher depends on the fold's training up share and the size of the penalties, and the offset is unrelated to fit.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap rather than a binomial formula.",
+            "For instruments other than MNQ the costs charged are the MNQ account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "rule_augmented_network": {
@@ -680,6 +1230,312 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability",
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A class probability for each bar from a neural network whose output is fused with the soft truth values of a set of symbolic rules, together with those rule truth values themselves.",
+          "targetVariable": "The class of the outcome the network is trained on, for trading the direction of the coming move (buy or sell), stated as a probability, alongside a degree of truth between zero and one for every rule.",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "The specification adds a rule loss, scaled by a balance weight called lambda, to an ordinary cross-entropy task loss, so the network is charged both for missing the outcome and for breaking its rules; the rule set as run is the shared library in cycle_rules.json and no rules are mined.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The task half of this model's loss is plain cross-entropy on the fused output, so the honest first question is how much probability the rule-fused network gave to what actually happened on bars it never trained on.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "The rule half of the loss exists so that calls stop contradicting the rules, and only the share of unseen-bar calls that break none of the penalised rules shows whether that lesson carried past the training span.",
+              "baseline": "The same share for the same network trained with the rule loss weight set to zero.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of rule augmentation is that the fusion layer and the rule penalty improve on the bare backbone, so the score is compared with the same backbone with the rules removed and with the rules voting alone.",
+              "baseline": "The same backbone on the same folds with the rule inputs, the fusion layer and the rule loss switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A hard rule constraint on the output can push the fused probability to the edge of its range, and this bounded squared-error score grades those bars without letting a single confident miss dominate.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Shows whether the fused output still sorts up bars above down bars after the rules have shifted its level, which a rule vote added to every bar can change without touching the ordering.",
+              "baseline": "One half, the value of an output that carries no ordering information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Fusing rule truth values into the output can stretch or flatten the stated odds, and the slope tells whether the fused probabilities kept the right scale; a penalty on rule violations acts only on the calls that break a rule, so it mostly leans the output toward the rule side, a lean the intercept would carry and not the slope.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "For each rule of this model's own library (trend following, mean reversion, momentum with trend, stretch reversion and news), it compares the up share of scored bars on which that rule concluded up with the up share of all scored bars of the same series, which is the check that the rules the network is penalised on carry any information about the next move; a rule with no separation makes obeying it uninformative.",
+              "baseline": "The up share of all scored bars of the same series.",
+              "groupKind": "rule",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The rule module can only guide the network on bars where some rule is actually true, so the share of bars on which each rule fires says how much of the tape the augmentation ever touched.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Plotting the task loss and the rule loss as separate curves by epoch shows whether the balance weight let the rule term swamp the prediction term or left it too small to change anything.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": null,
+              "why": "Natively the model states a probability; the hit rate of the hard call is measured on the as-run scoreboard as accuracy, with no invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The network has no variance output and its task loss is cross-entropy, so a Gaussian likelihood was never this model's objective or its score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The trading form of the model outputs a class probability, not a return forecast, so a return error scaled by volatility does not apply to it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "No registry metric restricts scoring to the most confident tenth of calls, and choosing that slice after the fact flatters any model."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The specification trains with cross-entropy for classification or squared error for regression and never has the network output a mean and a variance, so there is no Gaussian density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean squared error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The rule-fused output described for trading is a buy or sell class probability, not a forecast of the size of the return, so an error measured in return units has nothing to grade."
+            },
+            {
+              "name": "Top-decile directional edge",
+              "metricId": null,
+              "why": "It grades only the most confident tenth of calls at a cut chosen after the fact, and the registry holds no such quantity; the rule-fused probability is graded on every scored bar instead."
+            },
+            {
+              "name": "Directional edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of hard calls is a property of where the probability is cut and of how the calls are traded, so it belongs to the scoreboard of the model as run and not to the native probability."
+            },
+            {
+              "name": "Validation minus training objective",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss contains the rule penalty and the validation loss does not, so the difference between them mixes two quantities and says nothing about overfitting."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network follows the specification's three routes at once (rule truths appended to the input, a rule gate on the output and a hinge penalty on calls that contradict a confident rule), but its rules are the ten fixed technical-analysis rules of the shared library in cycle_rules.json and not rules written for this model, none are learned or mined, and the task loss is class-weighted; the as-run numbers therefore measure a sequence network nudged by that library.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the network's output after it is multiplied by a gate computed from the rule truths and shifted by a learned multiple of the rules' certainty-weighted vote, with no calibration curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network is fitted with up bars and down bars each carrying half the loss, so its gated output is centred on even odds and this is the proper score on the scale the fit actually aimed at."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The gated output is continuous, so this tests whether the network plus its rule gate ranks up bars above down bars regardless of where class weighting and the rule vote left the level."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The output is the network's raw output multiplied by a learned rule gate and shifted by a learned multiple of the rules' certainty-weighted vote, so the gate and that multiple can stretch or flatten the log-odds, and the slope tests whether the scale of the stated odds survived; the contradiction hinge acts only on bars whose sign opposes a confident rule and so mainly leans the output toward the rule side, a lean the calibration intercept would carry and that is measured as not meaningful here."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the gated probability on every scored bar, read knowing that class weighting centres the output on even odds and not on the series' own up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the gated probability on test bars; the kept epoch was chosen on this same quantity over validation bars, and the weighted fit does not target it, so it is read beside the class-balanced version."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the gated output earned after costs when every call is traded under the engine's rule, which is the only place the contradiction hinge's pull toward the rules turns into money."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars earned by trading the rule-gated call, costs included; it tests the direction call and the engine's holding rule together, never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity produced by trading the gated call, which shows the cost of stretches where the library's trend and reversion rules pulled the calls the wrong way."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that the gated call's flips produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the gated call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the gated probability is at least one half; because the fit is class-weighted, that cut sits at the weighted prior and not at the series' own up share."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which matches the equal weight each class carried when the gated network was fitted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the hard call of the gated network over all four outcome cells, useful when the rule vote makes the calls lean to one side."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how far the certainty-weighted rule vote and the hinge tilted the calls toward long or short, and is read beside every trading number of this model."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Tests a second rule-augmented network of the same design, fitted separately with a Huber loss on the scaled move, against forecasting no change; it says nothing about the classifier that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of that separately fitted price network after its output is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the separate price network's forecast matched the move; that network carries the same rule gate and hinge, but its sign is not the call that is traded."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient by epoch shows whether adding the rule hinge to every batch destabilised the optimiser or left the fit as smooth as a plain network's."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search score under which the rule loss weight and the other dials were picked on each fold's training span; it is a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Class weighting centres the gated probability on even odds by construction, so a gap measured against the series' observed up share reports the weighting and not a fault of the network or its rules."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The overall lean of the probability is set by the class weights and by the rule vote added to every bar, so the intercept against the observed up share is biased by design."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds weighted cross-entropy plus the rule hinge while the validation curve holds unweighted logarithmic loss, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this model."
+            }
+          ],
+          "caveats": [
+            "The share of test-bar calls that contradict a confident library rule is the quantity the hinge trains on, yet the engine does not record it, so obedience to the rules cannot be read from a run today.",
+            "The rule gate starts as the identity and the rule vote starts at zero, so a run in which training barely moves them is a plain sequence network and its numbers say nothing about the rules.",
+            "The price forecast comes from a second network of the same design fitted separately, so forecast numbers and direction numbers describe two different sets of weights.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -912,6 +1768,274 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability",
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A prediction equal to the combined output of a set of symbolic rules plus a correction learned by a neural network, so the rule output and the size of the neural correction can be read separately for each bar.",
+          "targetVariable": "the class of the task label (for trading, whether the future move is up or down), stated as a rule-based score plus a learned correction to that score",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "The task loss is taken on the sum of the rule output and the neural correction, and the added term keeps the rule part sparse or consistent, so the network is asked to explain only what the rules leave unexplained.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The rule output and the neural correction are added and trained together by cross-entropy, so the first test is how much probability their sum gave to what happened on bars neither part was trained on.",
+              "baseline": "quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The model is a sum of two named parts, so the decisive comparison is the full sum against the rule base with the correction switched off, and against the same network trained with no rule base under it.",
+              "baseline": "the rule base alone with the correction set to zero, and the correction network alone",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "secondary",
+              "why": "This model is allowed to overrule its rules, so the share of unseen bars where the final call still agrees with every rule whose premise is true measures how often the correction overturned the rule base rather than a promise kept.",
+              "baseline": "the rule base alone, which agrees with its own rules by construction",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A large correction stacked on a confident rule vote can push the sum to an extreme, and the bounded squared-miss score grades those odds without letting a few such bars rule the result.",
+              "baseline": "the fold's training up share quoted on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Comparing the ordering produced by the full sum with the ordering produced by the rule vote alone shows whether the correction sharpened which bars rank highest or only shifted every bar together.",
+              "baseline": "a coin-flip ordering of the same scored bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Two log-odds added together tend to overstate confidence when both parts read the same evidence, and this bin-free slope shows whether the rule vote plus the correction came out too bold.",
+              "baseline": "a slope of one, which is the scale being right",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "On a bar where no rule's premise is true the rule base is a constant and the correction is doing all the work, so the share of bars with a firing rule says how much of the tape the rules speak on at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate at an even-odds cut hides how the call splits between the rule output and the correction, which is this model's native product; the hit rate is reported on the as-run side."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The model never states a variance beside its summed score, so the Gaussian likelihood stamped into the table cannot be evaluated."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "No registry metric rescales a forecast error by volatility, and the classification form of the model forecasts no return size."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "It is a hit rate on a hand-chosen confident slice with no registry definition, and the ranking measure already covers the full ordering."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The sum of rule output and correction is a single score per bar with no stated variance, so no bell curve exists to be scored."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": null,
+              "why": "The registry holds no volatility-rescaled error, and for the classification form of the model the sum is a class score rather than a return size."
+            },
+            {
+              "name": "Kept solution's objective on validation minus on training",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss carries the rule regularisation term and the validation score does not, so their gap is not a clean overfitting measure."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures a trading rule and its costs laid over the prediction, which is a property of the run and not of the rule base or its correction."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network adds a neural residual to a rule vote as specified, but the rules are the shared technical-analysis library in cycle_rules.json rather than rules from the specification, and the rule weights are a penalised logistic regression on the rule truths fitted by gradient during the first rule_stage_epochs epochs and then frozen; the as-run numbers therefore measure that library's weighted vote plus a penalised correction.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the rule-vote logit (a bias plus weighted library rule truths) plus the residual network's output, with no calibration map fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Both the rule-vote stage and the residual stage are fitted with up and down bars each carrying half the loss, so this is the proper score on the scale the summed logit aims at, with the natural logarithm of two as the score of saying even odds on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether a higher rule vote plus residual marks bars that went up more often, which is where the residual has to add something beyond the ordering the weighted library rules already give."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "It is what the rule vote plus residual earned after costs when the engine went long whenever the summed probability of up reached one half and short otherwise, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the money earned by following the corrected rule vote against the bumpiness of the bar-by-bar path, and depends only on which side of even odds the sum landed."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the summed probability on a bounded scale, with the caution that class weighting centres it on even odds rather than on the fold's up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the plain score of the summed probability on test bars and the same quantity that chose the kept epoch on validation bars, so it is a check and not the headline."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the corrected rule vote's up and down calls in one symmetric number, which stays honest when the rule bias makes the model call one side on most bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because both stages weight the classes equally, the mean of the hit rates on up bars and on down bars is the hard-call measure that matches what the sum was trained for."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether adding the residual to the rule-vote logit left the log-odds stretched too far, which the penalty on the size of the residual is there to prevent."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the kept epoch is from the rule stage the probability moves only as the soft truths of the library rules rise and fall, and this spread shows how far the sum ever leaves even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of scored bars where the corrected rule vote's call matched the move, read against the majority-class figure because the cut at one half sits on the weighted prior."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened by the corrected rule vote closed in profit after costs, and it describes trades that end when the call flips rather than single predictions."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money on the model's winning trades with the money on its losing trades after costs, read with the trade count because a slow-moving rule vote flips rarely."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It is the deepest fall of the running result while following the corrected rule vote, the cost in pain that came with whatever the call earned."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second rules-plus-residual network, fitted separately with a Huber loss so that a penalised linear rule base plus a residual forecasts the scaled move, against a forecast of no change, and says nothing about the classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of that second rules-plus-residual network's forecast line, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of bars where the second network's forecast had the right sign, which can disagree with the traded call because the call comes from the classifier network."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted fit centres the summed probability on even odds, so its gap to the observed up share is built in and is not a fault of the rules or the residual."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the class-weighted loss plus the penalties on the rule weights and on the residual, and it changes meaning when the residual stage starts, while the validation curve is the plain logarithmic loss."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the figure describes the engine's rule and not the corrected rule vote."
+            }
+          ],
+          "caveats": [
+            "If the lowest validation loss falls in the rule stage, the kept model is the rule vote alone with the residual switched off, so a run can report this model while no residual was used.",
+            "The engine records no separate score for the rule vote alone, so the gain of the residual over its own rule base is not measured by any run.",
+            "The rule set is the hand-authored library in cycle_rules.json; this model mines no rules and only learns one weight per library rule.",
+            "The training loss shown per step changes at the epoch where the residual stage begins, so a jump in that curve there is the stage switch and not a fault.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap rather than a binomial formula.",
+            "For instruments other than MNQ the costs charged are the MNQ account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -1149,6 +2273,276 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "predictive_distribution",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A predictive distribution for the outcome, obtained by letting a deep network supply the parameters of a probabilistic program and then summing or sampling over the program's latent variables.",
+          "targetVariable": "the outcome of the bar (the future move or its direction) as a full distribution given the inputs, with the latent variables of the program integrated out",
+          "objectiveId": "marginal_likelihood_or_posterior",
+          "objectiveNote": "Because the integral over the latent variables is usually out of reach, the specification trains by a variational lower bound or by sampling, so the number reported during training is a bound on the marginal likelihood unless the latent variable is small enough to sum exactly.",
+          "metrics": [
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The program's product is a whole distribution of the outcome after its latent variables are integrated out, and this score grades both where that distribution is centred and how wide it is, in the units of the move.",
+              "baseline": "the same score for a no-change forecast, which equals the mean absolute move",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_predictive_density_nats",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The program is fitted by raising the likelihood of the observed outcome with the latent variables marginalised, so the same log density on unseen bars is its own objective measured where it was not trained.",
+              "baseline": "the log density of an unconditional distribution fitted to the fold's training moves",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "prediction_interval_coverage_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Uncertainty is the stated reason to add a probabilistic program to a network, and an interval drawn from its posterior samples is only useful if the realised move lands inside it as often as the interval claims.",
+              "baseline": "the nominal level of each plotted interval",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "When the program's outcome variable is the direction itself, the marginal probability of up is the query a trader reads, and its log score on unseen bars is the direction-only slice of the program's likelihood.",
+              "baseline": "quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the marginal probability of up on a bounded scale, so a latent state that the program believes with near certainty cannot swamp the comparison with one confident miss.",
+              "baseline": "the fold's training up share quoted on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars the program gives a higher marginal chance of up went up more often, a ranking test that holds even when the latent state posterior is too sharp or too flat.",
+              "baseline": "a coin-flip ordering of the same scored bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows in one histogram whether the program's distribution is too narrow, too wide or shifted, which is how a wrong prior or a collapsed variational guide shows up on unseen bars.",
+              "baseline": "the flat histogram of a correctly stated distribution",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "potential_scale_reduction_factor",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Where the program's posterior is drawn by Markov chain sampling, independent chains that disagree mean no posterior was found, and every other number from the program is then void.",
+              "baseline": "a value of one, which is chains in agreement",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate at an even-odds cut discards the whole distribution the program produces and keeps one bit of it; the hit rate is reported on the as-run side."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "It scores one number per bar and ignores the spread, and the registry holds no volatility-rescaled error; the distribution scores replace it."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on a hand-picked confident slice has no registry definition, and interval coverage already tests whether the program's confidence is earned."
+            },
+            {
+              "name": "Price forecast root mean square error alone",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Scoring only the centre of the program's distribution throws away the spread, which is the reason the program was added to the network."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": null,
+              "why": "It is an error of a single number rescaled by volatility, and it ignores the distribution the program produces in the same way the plain version does."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It grades a trading rule and its costs placed on top of the program's query, which belongs to the run and not to the program."
+            },
+            {
+              "name": "Rule satisfaction on unseen bars",
+              "metricId": "rule_satisfaction_fraction",
+              "why": "The logical relations inside a probabilistic program are part of its likelihood and hold by construction of the program, so there is no soft penalty whose obedience needs counting."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable program is one fixed small program, a mixture over a few latent market states ordered from most bearish to most bullish whose state probabilities read the encoder and the library rules of cycle_rules.json, rather than a general program written in a probabilistic language; the discrete state is summed exactly so no variational bound or chain sampling is involved, and the as-run numbers measure only the direction query of that mixture.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the exact marginal over the latent market states of each state's probability of up, with the per-state Gaussian noise averaged over a fixed set of seeded draws and no calibration map fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The marginal over the latent states is fitted by a likelihood in which up and down bars each carry half the weight, so this is the proper score on the scale the program aims at, with the natural logarithm of two as the score of saying even odds on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether bars the program gives a higher marginal chance of up went up more often, which holds or fails regardless of how sharp the latent state posterior is."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "It is what the program's marginal call earned after costs when the engine went long whenever the marginal probability of up reached one half and short otherwise, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the money earned by following the marginal call against the bumpiness of the bar-by-bar path, and depends only on which side of even odds the marginal landed."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the marginal probability on a bounded scale, with the caution that class weighting centres it on even odds rather than on the fold's up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the unweighted marginal likelihood of the direction on test bars and the same quantity that chose the kept epoch on validation bars, so it is a check and not the headline."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the program's up and down calls in one symmetric number, which stays honest when one latent state dominates and the model calls one side on most bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the likelihood weights both classes equally, the mean of the hit rates on up bars and on down bars is the hard-call measure that matches what the program was fitted for."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the mixture's log-odds are stretched too far, which the learned per-state noise is meant to temper and an over-sharp state posterior would undo."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the state posterior hardly changes from bar to bar the marginal sits at one value, and this spread shows whether the latent states actually switch the forecast."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of scored bars where the program's marginal call matched the move, read against the majority-class figure because the cut at one half sits on the weighted prior."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened by the marginal call closed in profit after costs, and it describes trades that end when the call flips rather than single predictions."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money on the program's winning trades with the money on its losing trades after costs, read with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It is the deepest fall of the running result while following the marginal call, the cost in pain that came with whatever the call earned."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second program network, fitted separately with a Huber loss, whose forecast is the state-probability-weighted mean of the per-state moves, against a forecast of no change; it scores that mixture's centre only and never its spread."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of the second program network's mixture-mean forecast line, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of bars where the mixture-mean forecast had the right sign, which can disagree with the traded call because the call comes from the classifier program."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted likelihood centres the marginal probability on even odds, so its gap to the observed up share is built in and is not a fault of the program."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the class-weighted marginal likelihood plus the state-ordering penalty and the validation curve is the plain logarithmic loss, so their difference is not an overfitting measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the figure describes the engine's rule and not the program."
+            }
+          ],
+          "caveats": [
+            "The latent market states are unsupervised and are seen only through the up or down likelihood, so their names as bearish or bullish come from the ordering penalty and not from any labelled regime.",
+            "The engine computes no score of a predictive distribution, so the native primaries of this specification (the ranked probability score in points, the log predictive density and interval coverage) are not measured by any run.",
+            "The rule set feeding the state probabilities is the hand-authored library in cycle_rules.json; this model mines no rules of its own.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap rather than a binomial formula.",
+            "For instruments other than MNQ the costs charged are the MNQ account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "neuro_symbolic_reasoning": {
@@ -1359,6 +2753,295 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability",
+          "symbolic_rule_reasoner"
+        ],
+        "native": {
+          "produces": "A class probability for the direction formed by fusing a neural embedding with the truths of fixed hand-authored predicates, with any predicate that encodes a hard constraint gating the output so that the forbidden call cannot be made.",
+          "targetVariable": "The probability of each direction class for the bar, guaranteed to respect every hard-coded rule, together with which predicates fired.",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "This model's version adds a consistency penalty on disagreement between the unconstrained neural output and the rule-consistent output, while the hard constraints themselves are enforced by a gate and not by the loss; as run the rule set is the shared library in cycle_rules.json with no mined rules added.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The specification trains the gated fusion with plain cross-entropy on the direction, so the log score of the gated probability on unseen bars is the quantity the fit aims at.",
+              "baseline": "The logarithmic loss of quoting the training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "primary",
+              "why": "The model's defining claim is that a hard predicate vetoes the forbidden call structurally, so the share of unseen-bar predictions that break no rule must be complete for the gate and is the measured result for the softly weighted rules.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The specification says the hybrid earns its complexity only if it beats both a rules-only version and a neural-only version of itself, so the gain is measured twice, once against each half switched off.",
+              "baseline": "The same model with the neural backbone removed, and the same model with the predicates and the gate removed.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A firing veto pins the probability of the forbidden side at or below even odds, and the bounded score grades those pinned bars together with the freely predicted ones.",
+              "baseline": "The Brier score of quoting the training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether the sum of the neural logit and the learned predicate weights ranks up bars above down bars, apart from where the gate and the fusion weights left the level.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fusion weights can learn large activations to outvote inconvenient predicates, and a slope below one reveals stated odds that this tug of war left more extreme than outcomes support.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "rule_coverage_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It reports on what share of bars a hard predicate fired and gated the output, since a veto that never fires leaves a plain network and one that always fires leaves a rule table.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It compares the gated probability with observed up shares in bins, and the bars a veto pins at even odds pile into the middle bins, which is where a miscalibrated gate would show.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The model predicts a direction through a gated network and fits no regime density, so there is no regime likelihood to report."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "No regimes are discovered; the discrete objects in the model are hand-authored predicates whose truth is defined in advance."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It attributes a tuning score to hyperparameters of a search and says nothing about whether the gated fusion predicts or obeys its rules."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The model is traceable by construction through which predicates fired and how they were weighted, so its own rule truths replace an added attribution method."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "The model keeps no state from bar to bar, so there is no regime run whose length could be measured."
+            },
+            {
+              "name": "Validation minus training objective",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss includes the consistency penalty and uses sigmoid-relaxed predicates, while held-out scoring uses hard thresholds and no penalty, so the two are different quantities."
+            },
+            {
+              "name": "Held-out log-likelihood per row",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The model is a discriminative predictor with a rule gate and assigns no density to feature rows."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network follows the specification's design, a neural backbone plus a learned combination of fixed predicates with a hard veto gate and a consistency penalty, but its predicates and constraints are the atoms and rules of the shared technical-analysis library in cycle_rules.json at or above the constraint_certainty setting and not a desk's own, none are mined, and the task loss is class-weighted; the as-run numbers therefore measure a sequence-summary network gated by that library.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the neural logit plus the learned predicate logit after the veto gate, which clamps a positive sum to zero when a constraint rule concluding down fires and a negative sum to zero when one concluding up fires, with hard predicate thresholds at prediction time and no calibration curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "task_loss_plus_rule_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The gated network is fitted with up bars and down bars each carrying half the loss, so its output is centred on even odds and this is the proper score on the scale the fit actually aimed at."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether the neural logit plus the predicate logit ranks up bars above down bars wherever class weighting left the level, with every bar a veto clamps tied at exactly even odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the gated probability, read knowing that class weighting centres it on even odds and that vetoed bars are pinned there whatever the backbone said."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The consistency penalty pulls the neural head toward the predicate head and their logits are then added, and the slope shows whether that sum left the stated odds more extreme than outcomes support."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the gated probability on test bars; the kept epoch was chosen on this same quantity over validation bars and the weighted fit does not target it, so it is read beside the class-balanced version."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what the sign of the gated output earned after costs when every call is traded under the engine's rule, which is the only place the veto's effect on the calls turns into money."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars earned by trading the gated call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity produced by trading the gated call, which shows the cost of stretches where the library's constraint rules held the calls on the wrong side."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the gated call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the gated call that ended above zero after costs; a trade here is a stretch between flips of the call and not a single prediction."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the gated probability is at least one half; a bar whose long call was vetoed sits at exactly one half and is therefore still counted as an up call."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It averages the hit rate on up bars and on down bars, which matches the equal weight each class carried when the gated network was fitted."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the hard call of the gated network over all four outcome cells, useful when the predicate weights make the calls lean to one side."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how far the predicate head and the veto gate tilted the calls toward long or short, counting vetoed long calls as up because they land on exactly one half."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It tests a second gated network of the same design, fitted separately with a Huber loss on the scaled move, against forecasting no change; there a firing veto clamps the forecast to zero, and none of it is the classifier that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of that separately fitted price network after its output is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the separate price network's forecast matched the move; bars where a veto clamped that forecast to zero fall out of the denominator shown with it."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient by epoch shows whether sharpening the predicates as the relaxation temperature is annealed, together with the consistency penalty, destabilised the optimiser."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search score under which the consistency weight, the relaxation temperature and the backbone dials were picked on each fold's training span; a selection score, optimistic by construction, and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Class weighting centres the gated probability on even odds by construction, so a gap measured against the series' observed up share reports the weighting and not a fault of the network or its rules."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The overall lean of the probability is set by the class weights and by the predicate logit added on every bar, so the intercept against the observed up share is biased by design."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds weighted cross-entropy plus the consistency penalty computed with relaxed predicates, while the validation curve holds unweighted logarithmic loss with hard predicates, so their difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this model."
+            }
+          ],
+          "caveats": [
+            "A firing veto against a long call clamps the output to exactly even odds, and the engine goes long at a probability of at least one half, so a vetoed long call is still traded long and counted as an up call; only the veto against a short call changes the traded side.",
+            "The engine does not record how often a constraint rule fired or how often a call broke a library rule, so the hard-constraint promise cannot be read from a run today.",
+            "The constraint_certainty setting that decides which library rules act as vetoes is not searched, so every fold uses the same veto rules.",
+            "Predicates are sigmoid-relaxed during training and hard thresholds at prediction, and early stopping can keep an epoch from before the relaxation temperature finished annealing, which leaves a gap between how rules fired in training and how they fire in the walk.",
+            "The price forecast comes from a second network of the same design fitted separately, so forecast numbers and direction numbers describe two different sets of weights.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -1575,6 +3258,273 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "rule_constrained_predictor",
+        "profileIdAsRun": "rule_constrained_predictor",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A prediction formed as a weighted sum of the outputs of a set of differentiable symbolic rules, together with the routing weights (which sum to one) that a meta-learned router assigns to those rules for each input.",
+          "targetVariable": "the class of the task label (for trading, whether to expect an up or a down move) and, beside it, the share of the decision handed to each symbolic rule",
+          "objectiveId": "task_loss_plus_rule_penalty",
+          "objectiveNote": "The task loss is averaged over a distribution of tasks with an inner update per task and an outer update across tasks, so what is learned is a router and rule parameters that work after a few adaptation steps, with an optional penalty for breaking logical relations between rules.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The routed sum of rule outputs is trained by cross-entropy on each task, so the first test is how much probability that weighted vote gave to the outcome that happened on bars from a task the router did not train on.",
+              "baseline": "quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Two parts are special here, the router and the meta-learning, so the model must beat the same rules mixed with equal fixed weights and beat itself with the inner adaptation steps switched off.",
+              "baseline": "the same rule experts with equal fixed weights, and the same router trained without inner adaptation steps",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rule_satisfaction_fraction",
+              "type": "solution_quality",
+              "role": "secondary",
+              "why": "The output is built only from rule outputs, yet routing weight on a rule that points the other way can still contradict a rule whose premise is true, and this share counts how often that happens on unseen bars.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A router that hands nearly all weight to one confident rule can push the vote to an extreme, and the bounded squared-miss score grades those odds without letting a few such bars dominate.",
+              "baseline": "the fold's training up share quoted on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether a larger routed rule vote really marks bars that went up more often, which is the part of the router's work that does not depend on the gain applied to each rule.",
+              "baseline": "a coin-flip ordering of the same scored bars",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gate_usage_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The router's weights say which rule group is trusted on each bar, and a rule group that never receives weight, or one that receives all of it, means nothing is being routed.",
+              "baseline": "equal shares across the rule experts",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "gate_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It separates a router that commits to one rule per bar from one that blends every rule evenly on every bar, two behaviours that can produce the same average usage shares.",
+              "baseline": "the natural logarithm of the number of rule experts, which is an even blend",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "A hit rate at an even-odds cut ignores both the size of the routed vote and the routing weights, which are this model's native products; it is reported on the as-run side."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "No mean and variance of the return is ever produced by the router, so the Gaussian likelihood stamped into the table has nothing to evaluate."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": null,
+              "why": "The model's output is a weighted rule decision, not a return size, so an error measured in return units does not apply."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on only the most confident slice of bars is a selective slice with no registry definition, and the ranking measure already describes the whole ordering."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": null,
+              "why": "The router blends rule outputs into one decision score and never states a mean and a variance, so no bell curve exists to be scored."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": null,
+              "why": "The routed rule vote is a decision score between the two classes, not a forecast of the size of the move in return units."
+            },
+            {
+              "name": "Adaptation gain",
+              "metricId": "adaptation_gain",
+              "why": "The registry defines it on the reward of an agent's own actions, and this router is trained on a supervised loss, so its adaptation is tested through the gain over its own ablation instead."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It grades a trading rule and its costs placed on top of the routed vote, which belongs to the run and not to the router."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter meta-learns over tasks that are time blocks: consecutive blocks of the fold's training span, each paired with the next block as its query, with a first-order approximation of the meta-gradient; the experts are rule groups of the shared library in cycle_rules.json, and no adaptation runs at prediction, so the as-run numbers measure the meta-learned starting point and never the adapted experts.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the router-weighted sum of the rule-group experts' outputs, computed with the frozen meta-learned expert parameters and no calibration map.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Every episode's support and query loss weights up and down bars equally, so this is the proper score on the scale the routed expert vote aims at, with the natural logarithm of two as the score of saying even odds on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether a larger router-weighted expert vote marks bars that went up more often, independent of the gain each expert applies and of the class weighting."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "It is what the routed expert vote earned after costs when the engine went long whenever its probability of up reached one half and short otherwise, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It sets the money earned by following the routed vote against the bumpiness of the bar-by-bar path, and depends only on which side of even odds the vote landed."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the routed vote's probability on a bounded scale, with the caution that class weighting centres it on even odds rather than on the fold's up share."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It is the plain score of the unadapted router's probability on test bars and the same quantity that chose the kept epoch on validation bars, so it is a check and not the headline."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up the router's up and down calls in one symmetric number, which stays honest when one dominant expert makes the model call one side most of the time."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Because the episodes weight both classes equally, the mean of the hit rates on up bars and on down bars is the hard-call measure that matches what the router was trained for."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows whether the experts' gains left the routed log-odds stretched too far, which matters here because the gains are tuned to work after adaptation steps that never run at prediction."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When few rules fire the experts output little more than their biases, and this spread shows whether the routed vote ever moves away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of scored bars where the routed vote's call matched the move, read against the majority-class figure because the cut at one half sits on the weighted prior."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened by the routed vote closed in profit after costs, and it describes trades that end when the call flips rather than single predictions."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the money on the router's winning trades with the money on its losing trades after costs, read with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It is the deepest fall of the running result while following the routed vote, the cost in pain that came with whatever the vote earned."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It grades a second router network, meta-learned separately with a Huber loss so that its weighted expert outputs are read as the scaled move, against a forecast of no change, and says nothing about the classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the typical miss in points of that second router network's forecast line, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It is the share of bars where the second router's forecast had the right sign, which can disagree with the traded call because the call comes from the classifier router."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted episodes centre the routed probability on even odds, so its gap to the observed up share is built in and is not a fault of the router."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is the weighted query loss after the inner adaptation steps and the validation curve is the plain logarithmic loss with no adaptation, so their difference is not an overfitting measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always in a position once it has traded, so the figure describes the engine's rule and not the router."
+            }
+          ],
+          "caveats": [
+            "Tasks are time blocks of one instrument's training span, not separate instruments or markets, so the meta-learning sees only how neighbouring blocks of the same tape differ.",
+            "The rule set is the hand-authored library in cycle_rules.json, grouped into experts; this model mines no rules of its own.",
+            "Validation and test bars are predicted with the meta-learned parameters and no inner adaptation, so the benefit of adapting is never measured by the scoreboard.",
+            "The router's softmax weights are not recorded by any run, so how much weight each rule-group expert received and how evenly the router blended them are not measured for this model.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap rather than a binomial formula.",
+            "For instruments other than MNQ the costs charged are the MNQ account figure, a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

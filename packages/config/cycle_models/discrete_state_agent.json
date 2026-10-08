@@ -111,6 +111,274 @@
             "direction"
           ]
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A lookup table holding one action value for hold, long and short in every cell of a quantile-binned market state, from which the agent reads the highest-valued action for the current cell.",
+          "targetVariable": "The expected discounted sum of future trading rewards from taking each of the actions hold, long or short in the current binned state and choosing the best action on every later bar",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "Tabular Q-learning has no loss function in the gradient sense: after each bar it moves one table entry a fraction of the way toward the reward plus the discounted best value of the next cell, whatever action the exploring policy goes on to take.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The table is a rule that maps each binned state to hold, long or short, so the fair test is the reward that rule collects per decision on later bars whose cells were filled in only from earlier bars.",
+              "baseline": "Holding flat on the same test tape, which earns zero, and holding long on every decision of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Which entries get visited often enough to settle depends on the random exploratory actions, so a table trained from a second seed can rank the actions differently in thinly visited cells, and the spread across seeds shows how much that matters.",
+              "baseline": "The same table learner on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "The table knows nothing about a cell it rarely visited, so the share of bars landing in each cell, on the training span and on the later bars, shows how much of the test tape is decided by entries that never converged.",
+              "baseline": "An equal share of bars in every cell, which quantile bins on a single feature give by construction on the training span",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The update bootstraps from the largest entry of the next cell, and the largest of several noisy entries reads high, so comparing the stored value of the action taken with the discounted reward that followed shows how inflated the table is.",
+              "baseline": "Zero, which means the stored value of the action taken equals the discounted reward that followed it",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "When costs outweigh what a handful of binned indicators can predict the hold entry is the largest in most cells, and the share of bars on which each action is the table's choice shows that directly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the correction applied to the table entries shrinks as the entries settle, so its curve over passes shows convergence of the table and cannot be read as the quality of the rule.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the traded equity path under the engine's fill rule and costs, so it is reported for the model as run and is not a native score of a value table."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It is a downside-risk ratio of the traded equity path, which exists only in the as-run layer where the table's calls are filled and charged costs."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The deepest fall of equity is a property of the traded path in the as-run layer, and the table stores expected sums of reward that ignore the path."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning against losing trade totals need closed trades, which the engine creates from the table's calls in the as-run layer and the table never produces itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The table chooses among three fixed actions and never sizes a position, so a capital fraction is a separate sizing rule and not a measurement of this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The rule is the largest table entry of the cell, which is deterministic once exploration is off, so there is no action distribution to take an entropy of."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A table entry is a value in reward units and not the odds of an up move, so natively there is no probability to grade."
+            },
+            {
+              "name": "Checkpoint selection return",
+              "metricId": "checkpoint_selection_return",
+              "why": "Classical tabular Q-learning runs until the table settles and keeps the final table, so there is no best-of-many pick on a validation tape to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent applies Watkins' update to a table over quantile-bin cells of a few feature columns crossed with the agent's own position, but its world is the training span's fixed price tape: the market does not react to the agent, and although position is part of the table's state the call is read at the flat position so that it never depends on earlier calls. Because the next cell is the same whatever the agent does, every sweep updates all position and action pairs of a bar's cell with no exploratory action, the reward is the next bar's mark to market net of half a round trip per unit of turnover, and the as-run numbers measure a discounted, cost-adjusted average move per cell.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the table's value of going long from flat minus its value of going short from flat in the bar's cell, divided by one temperature that cannot go negative and is fitted on the validation labels, or on training rows when too few validation rows are usable.",
+          "priceForecastSource": "readout",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "mean absolute temporal-difference error of one sweep in move-scaled reward units on training rows, and nats on validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The table's rewards are bar moves net of turnover cost, so profit on the walked test bars is the money version of what its long-or-short choice per cell was learned to raise, earned under the engine's rule of following the sign of the flat-position value gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The fitted temperature can never flip the sign of the value gap, so the hard call is the table's own, and averaging the hit rate over up bars and down bars tests whether the cells it marks long really differ from the cells it marks short."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "If the training span drifted up most cells end with a positive value gap and the table's rule is to stay long, so the profit left after buy and hold is removed shows whether the binned state added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of the table's cell-by-cell calls per unit of bar-to-bar swing, with zero only an arithmetic marker because a table with no edge still pays costs when the cell changes sign."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Each table entry is a discounted sum of average rewards and gives no weight to the order they arrive in, so the deepest fall of test equity shows a risk the table never priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that result when the market moves from a cell the table marks long into a cell it marks short or back."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the bar's cell changes to one with the opposite value gap, so it is read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the cell's value gap matched the move, read against the majority-class accuracy because a table that is long in every cell scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric figure for agreement between the table's long and short cells and what followed, which falls to zero when every cell carries the same sign."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the value gaps, so this ranks the table's own cells, but there are at most as many distinct levels as cells, so the curve has only a few points."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in a cell receives the same value gap, so the count of levels per fold shows how many of the cells, bin_count raised to the power state_feature_count of them, the test bars visited and how coarse any ranking number is."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars that fell in cells the table marks long, and a share at one or zero means the table learned a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the walk crossed between cells with opposite value gaps, plus stops, targets and fold ends, and is read beside every trading number."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The forecast line is the training mean of the scaled move in the bar's quantile-bin cell and does not read the value table, so this tests whether a binned state of this kind separates moves at all and not what the update rule learned."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the cell's training mean move, which sits close to the miss of forecasting no move because cell means are small beside a single bar's swing."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hit rate of the sign of the cell's mean move on bars where the tick-rounded forecast is not zero, a denominator that can be small because many cell means round to zero."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over bin_count and discount_factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a table value gap passed through one temperature fitted on validation rows, and the kept sweep is the one with the lowest validation value of this same number, so it is a preference strength and an optimistic one."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from a single fitted temperature on a value gap, so it mostly measures that one parameter and not the table."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "With one probability level per cell and a single temperature, the calibration bins hold a handful of levels and test the temperature fit instead of the table."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine reads only the long and short entries at the flat position and holds a position on every bar once the first call is made, so exposure describes the engine's rule."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the mean absolute correction applied to the table and the validation curve holds the logarithmic loss of the temperature-scaled share, so their difference compares two different quantities."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state that is read: values are taken at the flat position, so a bar's call never depends on earlier calls.",
+            "The agent's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "The table's reward is the next single bar's mark to market and looks further ahead only through discount_factor, while the label and the engine's default hold look label_horizon_bars ahead, so the table and the scoreboard do not share one horizon.",
+            "Every sweep updates all position and action pairs of each bar's cell, so no random exploratory action is ever taken and the off-policy property the specification describes is never exercised.",
+            "The kept sweep is the one with the lowest validation logarithmic loss of the temperature-scaled share, and the temperature is fitted on those same rows, so validation figures are partly in sample.",
+            "The feature columns that define the cells are the ones most rank-correlated with the long reward on the training span, and the price forecast picks its own columns against the price target, so the two may use different cells.",
+            "When the fitted inverse temperature is zero, or a cell's value gap is exactly zero, the probability of up is one half and the engine calls that bar up.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "sarsa": {
@@ -235,6 +503,274 @@
           "description": "Sweeps without a better validation log loss before training stops.",
           "roles": [
             "direction"
+          ]
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A lookup table holding one action value for hold, long and short in every cell of a quantile-binned market state, where each value is the worth of that action under the exploring policy the agent actually follows.",
+          "targetVariable": "The expected discounted sum of future trading rewards from taking each of the actions hold, long or short in the current binned state and then continuing to follow the same exploring policy, random exploratory actions included",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "SARSA moves one table entry toward the reward plus the discounted value of the action the exploring policy really picks in the next cell, so the cost of its own exploratory mistakes is written into the table where Q-learning would assume the best action.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "At inference the largest entry of the current cell is taken, so the fair test is the reward that choice collects per decision on later bars, which shows whether values learned with exploration risk priced in still point to the right action.",
+              "baseline": "Holding flat on the same test tape, which earns zero, and holding long on every decision of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Every update uses a next action drawn at random by the exploring policy, so the seed enters each single table correction and not only the path taken, and the spread across seeds shows how much of the result is that draw.",
+              "baseline": "The same table learner on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "An entry is only as good as the number of times its cell was visited, so the share of bars landing in each cell shows how much of the later tape is decided by entries the on-policy updates barely touched.",
+              "baseline": "An equal share of bars in every cell, which quantile bins on a single feature give by construction on the training span",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Because the table charges each action for the random actions that may follow it, costly switches look worse than under a greedy target, and the share of bars on which hold is the largest entry shows how cautious the table became.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "value_overestimation_gap",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The table estimates the worth of the exploring policy and not of the greedy one that is deployed, so the gap between the stored value of the action taken and the discounted reward that followed is expected to read low while exploration stayed high.",
+              "baseline": "Zero, which means the stored value of the action taken equals the discounted reward that followed it",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The correction applied to each entry keeps a noise floor set by the random next action, so its curve over passes shows the table settling as exploration is annealed and cannot be read as the quality of the rule.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the traded equity path under the engine's fill rule and costs, so it is reported for the model as run and is not a native score of an on-policy value table."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "It is a downside-risk ratio of the traded equity path, which exists only in the as-run layer where the table's calls are filled and charged costs."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The deepest fall of equity is a property of the traded path in the as-run layer, and the table stores expected sums of reward that ignore the path."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning against losing trade totals need closed trades, which the engine creates from the table's calls in the as-run layer and the table never produces itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The table chooses among three fixed actions and never sizes a position, so a capital fraction is a separate sizing rule and not a measurement of this model."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The chance of a random action is a schedule the user sets and the deployed rule is the largest table entry, so there is no learned action distribution to take an entropy of."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A table entry is a value in reward units and not the odds of an up move, so natively there is no probability to grade."
+            },
+            {
+              "name": "Checkpoint selection return",
+              "metricId": "checkpoint_selection_return",
+              "why": "Classical tabular SARSA runs until the table settles and keeps the final table, so there is no best-of-many pick on a validation tape to report."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable agent bootstraps each table entry from the action an exploring policy draws in the next cell, as the specification describes, with the chance of a random draw annealed down to exploration_rate, but its world is the training span's fixed price tape: the market does not react to the agent, and although position is part of the table's state the call is read at the flat position so that it never depends on earlier calls. Because the next cell is the same whatever the agent does, the exploring draw only lowers the bootstrapped value and never changes where the agent goes, so the as-run numbers measure a discounted, cost-adjusted average move per cell that stays close to the off-policy table's.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the table's value of going long from flat minus its value of going short from flat in the bar's cell, divided by one temperature that cannot go negative and is fitted on the validation labels, or on training rows when too few validation rows are usable.",
+          "priceForecastSource": "readout",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "mean absolute on-policy temporal-difference error of one sweep in move-scaled reward units on training rows, and nats on validation rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The on-policy table's rewards are bar moves net of turnover cost, so profit on the walked test bars is the money version of what its long-or-short choice per cell was learned to raise, earned under the engine's rule of following the sign of the flat-position value gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The fitted temperature can never flip the sign of the value gap, so the hard call is the on-policy table's own, and averaging the hit rate over up bars and down bars tests whether pricing in exploratory mistakes left the right cells marked long."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "If the training span drifted up most cells end with a positive value gap even after the exploring draws are priced in, so the profit left after buy and hold is removed shows whether the binned state added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of the on-policy table's cell-by-cell calls per unit of bar-to-bar swing, with zero only an arithmetic marker because a table with no edge still pays costs when the cell changes sign."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The specification presents this table as the cautious one because it charges for exploratory mistakes, and the deepest fall of test equity is the engine's direct check on whether that caution reached the traded path."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that result when the market moves from a cell the on-policy table marks long into a cell it marks short or back."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the bar's cell changes to one with the opposite value gap, so it is read with the trade count."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the cell's on-policy value gap matched the move, read against the majority-class accuracy because a table that is long in every cell scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric figure for agreement between the on-policy table's long and short cells and what followed, which falls to zero when every cell carries the same sign."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the value gaps, so this ranks the on-policy table's own cells, but there are at most as many distinct levels as cells, so the curve has only a few points."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in a cell receives the same value gap, so the count of levels per fold shows how many of the cells, bin_count raised to the power state_feature_count of them, the test bars visited and how coarse any ranking number is."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars that fell in cells the on-policy table marks long, and a share at one or zero means the table learned a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the walk crossed between cells with opposite value gaps, plus stops, targets and fold ends, and is read beside every trading number."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The forecast line is the training mean of the scaled move in the bar's quantile-bin cell and does not read the value table, so this tests whether a binned state of this kind separates moves at all and not what the on-policy update learned."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the cell's training mean move, which sits close to the miss of forecasting no move because cell means are small beside a single bar's swing."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hit rate of the sign of the cell's mean move on bars where the tick-rounded forecast is not zero, a denominator that can be small because many cell means round to zero."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over bin_count and discount_factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a table value gap passed through one temperature fitted on validation rows, and the kept sweep is the one with the lowest validation value of this same number, so it is a preference strength and an optimistic one."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from a single fitted temperature on a value gap, so it mostly measures that one parameter and not the on-policy table."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "With one probability level per cell and a single temperature, the calibration bins hold a handful of levels and test the temperature fit instead of the table."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine reads only the long and short entries at the flat position and holds a position on every bar once the first call is made, so exposure describes the engine's rule."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the mean absolute correction applied to the table and the validation curve holds the logarithmic loss of the temperature-scaled share, so their difference compares two different quantities."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state that is read: values are taken at the flat position, so a bar's call never depends on earlier calls.",
+            "The agent's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "The exploring draw is used only inside the bootstrapped value: every sweep still updates all position and action pairs of each bar's cell, and the next cell does not depend on the action, so the table stays close to the off-policy one and the risk sensitivity the specification describes has little room to appear.",
+            "The table's reward is the next single bar's mark to market and looks further ahead only through discount_factor, while the label and the engine's default hold look label_horizon_bars ahead, so the table and the scoreboard do not share one horizon.",
+            "The kept sweep is the one with the lowest validation logarithmic loss of the temperature-scaled share, and the temperature is fitted on those same rows, so validation figures are partly in sample.",
+            "The feature columns that define the cells are the ones most rank-correlated with the long reward on the training span, and the price forecast picks its own columns against the price target, so the two may use different cells.",
+            "When the fitted inverse temperature is zero, or a cell's value gap is exactly zero, the probability of up is one half and the engine calls that bar up.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
           ]
         }
       }
@@ -362,6 +898,274 @@
             "direction"
           ]
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "value_agent",
+        "profileIdAsRun": "value_agent",
+        "additionalProfileIds": [
+          "world_model_agent"
+        ],
+        "native": {
+          "produces": "Dyna-Q produces a table holding the learned worth of each position action in each discretised market state, together with a second lookup table that remembers the last reward and next state seen after each state and action, and it acts by taking the action with the highest worth.",
+          "targetVariable": "The discounted sum of future rewards that follows taking a given position action in a given discretised market state and acting greedily afterwards",
+          "objectiveId": "temporal_difference_error",
+          "objectiveNote": "Dyna-Q adds planning to the ordinary one-step update: after every real bar it replays a fixed number of remembered state and action pairs out of its lookup model through the very same update, so one real transition corrects the table many times; its model is conditioned on the action and predicts the next discretised state and reward, never a price or a latent code.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The action-value table exists only to pick a position, so the honest score is the reward that the highest-valued action in each market cell collects on later bars that neither the real updates nor the planning replays ever touched.",
+              "baseline": "The reward of staying flat on the same test tape, which is zero, and the reward of holding long on every bar of that tape",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "With the planning step count set to zero Dyna-Q is exactly plain Q-learning, so the test reward of the table with replays minus the test reward of the same table learned without them shows what the lookup model's replays added beyond faster convergence.",
+              "baseline": "The same agent on the same series with planning_step_count set to zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The exploring action draws and the uniformly drawn replay pairs both come from one seeded generator, so a second seed fills the table along a different path, and the spread of test reward across seeds shows whether the result belongs to the method or to one walk.",
+              "baseline": "The same agent on the same series with only the seed changed",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The mean absolute correction applied to the table on each sweep should shrink as real updates and replays agree, and a correction that stops shrinking says the learning rate is too high or that the remembered last outcome of a noisy cell keeps contradicting the new one.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "checkpoint_selection_return",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The sweep whose table is kept is chosen by looking at validation bars, so the reward of the kept greedy policy on those bars is the top of a list of sweeps and reads higher than the same table will earn on fresh bars.",
+              "baseline": "The same kept table's reward on the fold's test tape",
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "When every cell's highest-valued action is flat the table has learned only that trading costs money, so the split of bars between preferring long, short and flat shows whether the replays produced a real preference or a trivial one.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The table is learned from a per-step reward and never from a ratio of mean to spread, so natively there is no Sharpe ratio to report; it appears only once the engine trades the table's calls."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "Downside-only risk adjustment describes a traded equity path, and the Dyna-Q update and its planning replays neither compute nor target one."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The update sums discounted step rewards and is blind to the path the equity takes, so drawdown is a property of the engine's trading of the calls and not of the learned table."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Profit factor counts closed winning and losing trades, and a table of action values has no trades until an outside rule opens and closes them."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "The agent chooses among short, flat and long at a fixed size and learns no edge and odds from which a Kelly fraction could be formed, so this row was a sizing rule for a different kind of system and not a metric of Dyna-Q."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The policy read out of the table is greedy and so has no probability spread over actions; the boilerplate copied this row from stochastic policy-gradient agents."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A gap between two entries of the action-value table says which action the agent prefers and by how much reward, and it is not a stated chance that the market closes higher, so there are no odds to grade."
+            },
+            {
+              "name": "Predicted action value minus realised discounted return",
+              "metricId": "value_overestimation_gap",
+              "why": "The registry defines this check for learned critics that generalise across states, and a lookup table that stores one number per visited cell and action is outside its stated scope."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is a real tabular Dyna-Q with a last-outcome lookup model and uniform planning replays, but the market does not react to the agent: it learns on the training span's fixed price tape with next-open fills and a cost per unit of turnover, the market cell is a quantile-bin cell of a few feature columns, and the call is read at the flat position so that one bar's prediction never depends on earlier calls; the as-run numbers therefore measure whether the sign of the long-minus-short value gap in each cell matches the later move, and whether trading that sign makes money.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a Boltzmann share of the table's value of going long from flat against going short from flat in the bar's feature-bin cell, with a single non-negative inverse temperature fitted on the validation rows, or on the training rows when too few validation rows are usable; a fitted temperature of zero, or a cell the table never visited and whose value gap is therefore exactly zero, gives exactly one half, which the engine calls up, so on every such bar the call is long and not the table's own preference, while any positive temperature keeps the table's preferred side.",
+          "priceForecastSource": "readout",
+          "objectiveId": "temporal_difference_error",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "temporal_difference_error",
+            "validationName": "logarithmic_loss",
+            "unit": "on training rows the mean absolute correction to the action-value table per real update in move-scale reward units, and on validation rows nats per scored bar of the temperature-scaled long share",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The table was learned to maximise reward net of costs on the training tape, so net profit on the walked test bars is the closest engine number to its own goal, earned here by holding the side the flat-row value gap prefers, or long on every bar where the fitted temperature is zero or the cell was never visited."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The only thing the table hands the engine is which side each market cell prefers, and this one symmetric number tests whether the resulting call agreed with the later move, staying near zero when the table prefers one side in nearly every cell or when a zero fitted temperature turns every bar into an up call."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "On a rising training tape the long entry of most cells ends up above the short entry, so the profit left after subtracting holding long through the same folds shows whether the cells learned anything beyond the drift."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of the table's side calls per unit of bar-to-bar swing, and the level of zero is only an arithmetic marker because a trader with no skill still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The update summed discounted step rewards and never looked at the path, so the deepest fall of the test equity shows a risk the table was blind to while it was learned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades made with what the losing trades gave back after costs, where a trade here ends only when the bar moves into a cell whose preferred side is the opposite one."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive is read beside the profit factor, because a table that flips side only when the market cell changes can win rarely and large or often and small."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It counts how often the call matched the move, and the cut at one half sits where the table's own value gap crosses zero only while the fitted temperature is positive and the cell has a non-zero gap; a zero temperature or an unvisited cell puts the share at exactly one half, which is called up."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars shows whether the cells separate the two outcomes or whether nearly every cell simply prefers the same side."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The value gap takes one level per feature-bin cell, so ranking bars by it gives a curve of only a few points, read as a rough check that cells with a larger gap went up more often and never as a fine ranking score."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line is a separate readout, the training-span mean of the scaled move in each feature-bin cell, so this skill against the no-change forecast grades that table of cell means and says nothing about the action values."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The size in points of the miss of the cell-mean readout, read beside the no-change forecast's error on the same resolved bars, since a cell mean of a noisy move is close to zero."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the cell's mean move matched the actual move, which can disagree with the traded call because the cell means and the action values are two different tables over cells chosen separately."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows what share of bars fall in cells that prefer long, and when that share is near all or none every trading number above is close to holding one side throughout."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The count of flips of the preferred side as bars move between cells, read beside every trading number, because the table was charged cost per unit of turnover while it learned and the engine charges only when the call flips."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the bin count and the discount factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The best trial's search score minus the same quantity on the test walk shows how much of the chosen cell grid's apparent edge was the luck of picking the top trial."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The number graded is a value gap squashed by one validation-fitted temperature, which is a strength of preference and not a forecast probability, so its logarithmic loss mostly reports how flat the temperature made it."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "The same temperature-scaled preference is not a stated chance of an up close, so its squared distance from the outcome does not test anything the table claims."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The share takes only a few distinct levels, one per cell, and was never meant to match the up rate, so the binned gap between the two describes the fitted temperature and not the agent."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the mean absolute correction to the table and the validation channel holds a logarithmic loss, so their difference compares two different quantities and is not an overfitting gap."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The table often values flat highest once costs are counted, but the engine never goes flat once in a trade, so exposure describes the engine's rule and not the agent's own choice."
+            }
+          ],
+          "caveats": [
+            "The agent's own flat action, sizing and holding period are overridden: the engine holds full size on the side the flat-row gap prefers on every bar, even in cells where the table values staying flat above both, and long on every bar where the gap is exactly zero or the fitted temperature is zero.",
+            "The price tape is fixed, so the market does not react to the agent; the table does carry the agent's own position as part of its state, but the call is read at the flat row only.",
+            "The planning replays draw from a model that stores the last observed reward and next cell of each cell, position and action, so on a noisy tape they rehearse one random outcome as if it were certain.",
+            "The kept sweep is the one with the lowest validation logarithmic loss of the temperature-scaled share, and the temperature is fitted on those same validation rows, or on the training rows when too few validation rows are usable, so those rows were used twice and only the test walk is out of sample.",
+            "The registry labels this probability a logistic curve on validation, but the code fits a single non-negative temperature with no intercept.",
+            "The fitted inverse temperature is bounded below by zero, so when the table's value gap is anti-correlated with outcomes on the validation rows the fit stops at zero, the share is exactly one half on every bar, and the engine then calls every bar up; the call is the table's own preference only while the temperature is positive.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures, applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "dynamic_programming": {
@@ -456,6 +1260,252 @@
           "label": "Additive smoothing",
           "group": "Model",
           "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "planner_or_decision_solver",
+        "profileIdAsRun": "planner_or_decision_solver",
+        "additionalProfileIds": [
+          "value_agent"
+        ],
+        "native": {
+          "produces": "Dynamic programming outputs a table holding, for every state and every time step, the value of acting optimally from there and the action that achieves it, computed exactly by working backward from the known terminal payoff.",
+          "targetVariable": "The best achievable sum of discounted rewards from each state at each remaining step of the horizon, and the action that attains it, under the transition and reward model the planner was given",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "Nothing is fitted to data here: the Bellman recursion is evaluated once per time step from the horizon back to the present, so the answer is exactly optimal for the stated model and only as good as that model.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The table of best actions is exact only for the transition and reward model it was solved on, so the reward those looked-up actions collect on later bars is the one test of whether the model resembled the market.",
+              "baseline": "The reward of the flat action on the same test tape, which is zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Backward induction takes a maximum over actions at every state and step, and a maximum over noisy estimated rewards leans high, so the value the table promises at the first step is compared with what following the table really paid.",
+              "baseline": "A gap of zero, where the table's promised value equals the realised reward",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "For the finite-horizon form the recursion finishes after exactly as many backward sweeps as there are steps, so there is no residual to shrink, and the figure matters only for the value-iteration variant, where the largest change between sweeps shows the fixed point was reached.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The stored policy is a lookup of long, short or flat per state, so the share of bars on which each is the looked-up action shows whether the costs in the reward model have pushed the whole table to flat or to one side.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It measures the engine's trading of the planner's call with costs and is reported as run, never as the recursion's own score."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "A value table for one decision problem has no benchmark portfolio, so an alpha cannot be defined for it."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "It describes the traded equity path, an as-run quantity, and says nothing about whether the plan is optimal for its model."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "There is no portfolio natively, and the flip rate of the looked-up action is an as-run measurement."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "Both of its parts are traded quantities that exist only after the engine walks the test bars."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The generator stamped a portfolio tail-risk measure on a recursion that maximises an expected reward and has no loss distribution."
+            },
+            {
+              "name": "Training objective by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The recursion computes values and fits no parameter to a loss, so its sweeps are steps back through time and not points on a learning curve."
+            },
+            {
+              "name": "Value overestimation gap",
+              "metricId": "value_overestimation_gap",
+              "why": "That gap is defined for a value estimate learned from sampled rewards, while here the value is computed exactly from the given model, and the planner's own optimism is measured by the expected minus realised utility gap."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The planner ranks actions by value and states no probability of the next move, so there are no odds to score natively."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter does run exact backward induction, but on a market model estimated from the training span (k-means clusters of the bar's features, their counted transitions, each cluster's mean bar move and cost) with position as the only controlled variable and a flat liquidation at the horizon; each bar's call is the gap between the value of going long and of going short from flat in its cluster, so the as-run numbers measure a discounted, cost-adjusted expected move per cluster and not a solved execution problem.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a Boltzmann share of the value gap between long and short from the flat position in the bar's cluster, with one inverse temperature that cannot go negative fitted by maximum likelihood on the validation rows.",
+          "priceForecastSource": "none",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored bar, one value for the single fit",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The backward recursion's rewards are bar moves net of cost, so net profit on the walked test bars is what its long-or-short choice per cluster was computed to raise, here earned under the engine's rule of following the sign of the value gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The fitted temperature can never flip the sign of the value gap, so the hard call is the planner's own, and averaging the hit rate over up bars and down bars tests whether the clusters it marks long really differ from those it marks short."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "If the training span drifted up, most clusters get a positive value gap and the plan is to stay long, so the profit left after subtracting buy and hold shows whether the cluster model added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of the planner's cluster-by-cluster calls per unit of bar-to-bar swing, with zero only an arithmetic marker because a planner with no edge still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The recursion maximises an expected sum of rewards and gives no weight to the path, so the deepest fall of test equity shows a risk the value table never priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that result when the planner's call changes as the market moves from one cluster to another."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, where a trade ends mostly when the bar's cluster changes to one with the opposite value gap."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the cluster's value gap matched the move, which must be read against the majority-class accuracy because a plan that is long in every cluster scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A single symmetric figure for agreement between the planner's long and short clusters and the outcomes, which falls to zero when every cluster carries the same sign."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the value gaps, so this ranks the planner's own clusters, but there are at most as many distinct levels as clusters, so the curve has only a few points."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in a cluster receives the same value gap, so the count of levels per fold shows how many clusters the test bars visited and how coarse any ranking number is."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars that fell in clusters the plan marks long, and a share at one or zero means the plan is a constant position."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the walk crossed between clusters with opposite value gaps, read beside every trading number."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over cluster count and discount factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a value gap passed through one temperature fitted on validation rows, which makes them a preference strength and not a forecast probability."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from a single fitted temperature on a value gap, so it mostly measures that one parameter and not the plan."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "With one probability level per cluster and a single temperature, the calibration bins hold a handful of levels and test the temperature fit instead of the planner."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this planner has no price model, so no forecast line is drawn or scored."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this planner has no price model, so there is no forecast error in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this planner has no price model, so there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine overrides the planner's flat action and holds a position on every bar once the first call is made, so exposure describes the engine's rule."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent; position is part of the planning state of the backward induction, but every call is read from the flat position, so a bar's call never depends on earlier calls.",
+            "The recursion fits no training loss, so the single fit reports a validation loss only: the logarithmic loss of the Boltzmann share on the validation rows, from an inverse temperature fitted on those same validation rows, which makes that one value in-sample for the temperature.",
+            "The planner's own flat action, position sizing and holding period are overridden by the engine, which is long when the probability of up is at least one half and short otherwise.",
+            "When the fitted inverse temperature is zero, or a cluster's value gap is exactly zero, the probability of up is one half and the engine calls that bar up.",
+            "When too few validation rows are usable the temperature is fitted on training rows instead, and the run log says so.",
+            "The registry declares the probability as a logistic curve on validation, but the code fits a single temperature with no intercept.",
+            "The transitions, mean moves and mean costs of the cluster model are estimated on the training span only, so the plan is exactly optimal for that estimate and carries its sampling error.",
+            "Targets of neighbouring bars overlap by the label horizon, so intervals for these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the costs are that contract's account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -577,6 +1627,273 @@
           "group": "Model",
           "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "planner_or_decision_solver",
+        "profileIdAsRun": "planner_or_decision_solver",
+        "additionalProfileIds": [
+          "value_agent",
+          "heuristic_search_optimizer"
+        ],
+        "native": {
+          "produces": "A recommended action at the current decision state, chosen as the root child with the most visits or the highest average simulated return, together with the search tree's estimate of each alternative's value.",
+          "targetVariable": "the expected cumulative reward of each candidate action from the current decision state, estimated by averaging the returns of simulated continuations that pass through that action",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "The best action is not solved for exactly but approximated by sampling: each simulation descends the tree by an upper confidence bound that trades average return against how rarely a branch was tried, rolls out to a horizon and backs the return up the path, using a simulator that answers with a next state and reward for a given state and action.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The search exists to pick one action per decision state, and the reward its recommended root action collects on bars the simulator was never fitted on is the direct test of whether the simulated returns pointed the right way.",
+              "baseline": "the mean reward on the same test bars of always taking the flat action, which is zero",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The root reports the average simulated return of the action it recommends, and because that action was chosen for having the highest noisy average, the figure leans high; the gap to the reward actually earned measures that lean together with the simulator's error.",
+              "baseline": "zero, the value when the root's average simulated return for the chosen action is what the action went on to earn",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "Every rollout draws random actions and random simulator outcomes, so two searches from the same state can recommend different actions, and the spread of the result across seeds says how much of it is the search and how much is the dice.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "best_objective_by_evaluation_count",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The search can be stopped after any number of simulations, so plotting the value of the best root action against the simulation count shows whether the budget was enough for the recommendation to stop changing.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Read here as the change in the root's action values over the last block of simulations beside the root visit counts; a tree search carries no proof of optimality, so a small change shows only that the estimate has settled for the simulator it was given.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "If the root recommends the same action from every decision state, the search has reduced to a constant position, and the share of bars under each recommended action shows it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The search outputs a recommended action and value estimates for one decision state; a Sharpe ratio grades the Model Cycle's trading rule applied to that recommendation and belongs to the as-run record only."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The search maximises simulated cumulative reward and knows no benchmark index, so no alpha is defined for it."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "Backed-up returns are averages over simulated continuations and carry no equity path; drawdown exists only once the Model Cycle trades the recommendation."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "Trading cost can sit inside the simulator's reward, but the search itself rebalances no portfolio, so turnover is reported for the as-run trading rule."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It divides a return by a drawdown, and the search natively produces neither; the as-run record carries it for the traded call."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The search backs up mean simulated returns and keeps no loss distribution, so neither it nor the engine produces a tail-loss figure."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "Plain tree search has no offline training; every simulation is spent inside the search for one decision, so there is no loss curve across steps."
+            },
+            {
+              "name": "Value overestimation gap",
+              "metricId": "value_overestimation_gap",
+              "why": "The root value is an average of simulated returns and not the output of a learned value network in the plain form the specification describes, so the learned-critic check does not apply."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The search ranks actions by simulated return and states no probability that the market will rise, so there are no odds to score."
+            },
+            {
+              "name": "Relative optimality gap",
+              "metricId": "relative_optimality_gap_fraction",
+              "why": "The search returns the best action it found within its simulation budget and proves no bound on how far that is from the best possible action."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter runs a real tree search at every bar with selection by an upper confidence bound on normalised returns, expansion, uniform random rollouts and backup, over sequences of short, flat and long positions. Its simulator is a market model fitted on the same training span: k-means clusters of a few feature columns, their counted transitions, and step rewards resampled from each cluster's own training bars net of switching cost. The market does not react to the agent, the root splits its simulations evenly over its three actions instead of selecting among them, and every search starts from the flat position, so the as-run numbers measure the sign of the root's mean return of long minus short, which is the cluster model's expected-return ranking re-derived with sampling noise, except where the validation-fitted temperature falls to zero and every bar becomes long.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a Boltzmann share of the root's mean simulated return of going long minus going short from flat in the bar's cluster, with one inverse temperature fitted on the fold's validation rows. The temperature is never negative, so it cannot invert the search's side, but it can fall to zero when the validation rows favour the opposite side or the gap has no spread; every probability of up is then exactly one half and the engine's rule makes every bar long, so the search's side is lost.",
+          "priceForecastSource": "none",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the logarithmic loss of the Boltzmann share of the root's return gap, the probability of up, on the fold's validation rows, one value for the single fit; no training loss is reported because the market model fit returns none, and the inverse temperature is fitted on those same validation rows, or on training rows when too few validation rows are usable",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The simulated rewards are bar moves net of switching cost, so net profit on the walked test bars is what the root's long-or-short preference was searched to raise, here earned under the engine's rule of following the sign of the root's return gap."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The fitted temperature can never flip the sign of the root's return gap, so wherever it is above zero the hard call is the search's own, and averaging the hit rate over up bars and down bars tests whether clusters the rollouts favour long really differ from those they favour short; where the temperature fell to zero the call is constant long and this metric reads one half."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "If the training span drifted up, the resampled rewards favour long from most clusters and the search recommends staying long, so the profit left after subtracting buy and hold shows whether the tree added a decision."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates the profit of the root's bar-by-bar recommendations per unit of bar-to-bar swing, with zero only an arithmetic marker because a search with no edge still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The search backs up average simulated returns and gives no weight to the path, so the deepest fall of test equity shows a risk the root statistics never priced."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that result when the root's preferred side changes, whether because the bar entered another cluster or because sampling noise tipped a near-even gap."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, read with the trade count because a trade here can end on a noise-driven flip of the root's preference as well as on a change of cluster."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Each bar's search draws its own random rollouts, so bars in the same cluster can receive opposite calls when the return gap is small, and the count of flips shows how much trading that noise creates."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It counts how many trades the root's flipping preference creates per session day, so the reader can see how much cost the noise-driven flips between neighbouring bars of the same cluster generate; the share of the pre-cost profit those costs consume is read from the cost share of net profit before costs."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the root's return gap matched the move, read against the majority-class accuracy because a search that favours long from every cluster scores the up share."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A single symmetric figure for agreement between the search's long and short recommendations and the outcomes, which falls to zero when every cluster's rollouts favour the same side."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the return gaps, so this ranks the search's own scores, but within a cluster the differences between bars are rollout noise, so the ranking carries real information only between clusters."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows the share of test bars on which the root favoured long, and a share at one or zero means the search has reduced to a constant position."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over cluster count and discount factor scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are a simulated return gap passed through one temperature fitted on validation rows, which makes them a preference strength and not a forecast probability."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from a single fitted temperature on a simulated return gap, so it mostly measures that one parameter and not the search."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Comparing the Boltzmann share with observed up frequencies checks only the single fitted temperature, because the search never claimed its return gap was a probability."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this planner has no price model, so no forecast line is drawn or scored against the no-change forecast."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this planner has no price model, so there is no forecast move whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this planner has no price model, so there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule; the search's own flat action is overridden."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state: the simulator's cluster transitions ignore the action and every bar's search starts from the flat position, so a call never depends on the position actually held, and the agent's own flat action, sizing and holding period are overridden by the engine.",
+            "Each bar's search is seeded by the run seed and the bar's row, so a rerun reproduces the same calls, but a different seed can flip the call on bars whose long and short returns are close.",
+            "The inverse temperature is never negative but can fall to zero, as when the validation rows favour the side opposite to the search's or the gap has no spread; every probability of up is then exactly one half, the engine's rule makes every bar long, and the search's side is lost for that fold, so the hard-call and trading numbers then describe a constant long position.",
+            "Rollouts choose positions uniformly at random and pay the switching cost on every change, so the simulated returns below the root understate what a sensible continuation would earn.",
+            "When the validation span holds too few usable rows the temperature is fitted on training rows instead, which the run log states.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval on these numbers needs a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption, and the last bar of each fold exits at its close."
+          ]
+        }
       }
     },
     "zero_sum_game": {
@@ -669,6 +1986,251 @@
           "label": "Additive smoothing",
           "group": "Model",
           "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "planner_or_decision_solver",
+        "profileIdAsRun": "planner_or_decision_solver",
+        "additionalProfileIds": [
+          "certified_mathematical_program"
+        ],
+        "native": {
+          "produces": "From an estimated payoff matrix over the players' actions it returns an equilibrium strategy for each player, either one action or a probability mix over actions, together with the value of the game at that equilibrium.",
+          "targetVariable": "the best strategy for a trader whose payoff depends on what other participants choose at the same time, stated as probabilities over the trader's own actions and the payoff guaranteed at equilibrium",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "The zero-sum version maximises the worst-case expected payoff over the opponent's replies, which is an exact linear programme, while the general-sum version looks for a profile where no player gains by deviating and is only approached by repeated best responses.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The equilibrium mix is exactly right only for the payoff matrix it was given, so the payoff its chosen actions actually collect on later bars is the test of whether the estimated matrix described the real counterparties.",
+              "baseline": "the payoff of the same player using a fixed non-strategic rule, such as always the same quote or position, on the same later bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The solver promises the game value against any reply, and the specification's main risk is a misestimated payoff matrix; the promised value minus the payoff realised on unseen bars measures exactly how wrong the matrix was.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "relative_optimality_gap_fraction",
+              "type": "solution_quality",
+              "role": "secondary",
+              "why": "For the zero-sum matrix game the row player's maximin and the column player's minimax programmes are duals, so the gap between them certifies that the returned mix really is the equilibrium of the stated matrix.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "Fictitious play and similar best-response iterations for general-sum games only approach an equilibrium, so the drift of the mixed strategy between iterations must be tracked instead of trusting a fixed iteration count.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "constraint_violation_residual",
+              "type": "solution_quality",
+              "role": "diagnostic",
+              "why": "A mixed strategy must be non-negative and sum to one and must leave no opponent reply paying below the game value, so the largest violation with the solver's termination status shows whether the returned mix is a valid strategy at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the solver stops at an equilibrium strategy and a game value; the Sharpe ratio is an as-run number for the engine's rule applied to the equilibrium position of each market cluster."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "No benchmark-relative return exists for a solved matrix game and the registry holds no alpha metric; as run the reference is buy and hold on the same folds."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A drawdown is a path property of the as-run trading account and not of the minimax solution of a payoff matrix."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The equilibrium mix defines no portfolio natively; turnover is counted only as run from the engine's closed trades."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It needs a traded return and a drawdown, and a game solver supplies only a strategy and a guaranteed value."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The worst case is already built into the minimax value, no loss distribution is produced, and the registry holds no conditional value at risk metric."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A mixed strategy is a probability of the trader's own action, chosen to be unexploitable, and not a forecast probability that the price will rise."
+            },
+            {
+              "name": "Training objective by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "Nothing is learned by descending a loss; the payoff matrix is estimated by counting and the equilibrium is solved, so there is no learning curve."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model solves a real minimax linear programme, but the opponent is not a strategic counterparty: per k-means market cluster the trader picks short, flat or long against a market that may only move a set amount of probability between outcome bins of that cluster's training moves, and the equilibrium position is then pushed through a one-parameter temperature fitted on validation rows, so the as-run numbers grade the sign of each cluster's worst-case edge and not a game against reasoning participants.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "Each bar is assigned to a k-means cluster, the cluster's equilibrium mix over short, flat and long gives an expected position between minus one and plus one, and a logistic function with one non-negative inverse temperature fitted on validation rows turns that position into the probability of up without ever reversing its sign, although a fit that prefers a negative value is clamped to zero and then gives every bar a probability of exactly one half.",
+          "priceForecastSource": "none",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per scored bar of the temperature-scaled equilibrium position on the validation rows, one value for the single fit that reports epoch one of one; the fit returns no training value so no training loss is logged, and the validation value is in-sample for the one temperature fitted on those same rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The solver's product is a position per market cluster, so the money earned after costs when the engine follows the sign of that equilibrium position is the direct test of whether the training outcome tables described the test bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "The sign of the equilibrium position is the model's own and the fitted temperature never reverses it, so the hit rate averaged over up bars and down bars tests the per-cluster worst-case edge sign without leaning on the fitted scale; if the temperature is clamped to zero every bar is called long and this number falls to the level of calling one side throughout."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The cluster-by-cluster equilibrium positions against simply holding the instrument over the same folds, the only same-series trading reference the engine computes."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Share of scored bars where the sign of the cluster's equilibrium position matched the move, with a flat equilibrium counted as an up call because a zero position maps to exactly one half."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number for the long or short side the minimax solution picked per cluster, staying near zero when most clusters resolve to the same side."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The score takes one value per cluster and the equilibrium mixes only at ties, so there are few levels and this ranking number is a curve of a few points that only says whether more bullish clusters went up more often."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net result of trading the equilibrium sign over its variability; zero is an arithmetic marker because a random-direction trader still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the account when each cluster's equilibrium side is traded, the realised counterpart of the worst case the adversarial market was allowed inside its probability radius."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning over losing trade totals for the engine's rule; a trade ends when consecutive bars fall in clusters with opposite equilibrium sides."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "Share of closed trades that made money after costs, each trade covering a run of bars whose clusters share one equilibrium side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "How often the bar moved between clusters with opposite equilibrium sides, which sets the costs paid and belongs beside every trading number."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows how many bars sit in long or flat clusters, which matters because the engine turns every flat equilibrium into a long call, and it reads one when a zero temperature has collapsed the whole fold to a long call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over the cluster count is scored on inner training blocks by the shared selection objective, an optimistic selection score and not a result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The probability is an equilibrium position stretched by one fitted temperature, a preference for a side and not a forecast probability, so its logarithmic loss grades the temperature fit."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "The same position-through-temperature value is scored, and it was never meant to state how often the price rises, so the squared gap to the outcome says nothing about the game solution."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Calibration asks whether stated odds match frequencies, and a minimax position per cluster passed through a temperature states no odds."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: the registry price block is null because the game solver has no price model, so no forecast line is drawn."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: the game solver returns positions and a game value and no predicted move in points."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long only off and no stop or target the engine is always long or short once it has traded, so the solver's flat equilibrium never shows up as time out of the market."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "A single solve logs no training loss; the only logged number is the validation logarithmic loss of the temperature-scaled position, so there is nothing to subtract."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state: the opponent is a bounded distortion of each cluster's training outcome frequencies, not a counterparty that answers the trader.",
+            "A cluster whose equilibrium is flat has a zero score, which maps to a probability of exactly one half, and the engine goes long at one half, so the solver's choice to stand aside is traded as a long position.",
+            "The trader's payoff charges the round-trip cost for any non-flat position, so a cluster needs a worst-case edge larger than costs before the equilibrium leaves flat, and with a wide ambiguity radius many clusters can resolve to flat.",
+            "The temperature is fitted on validation rows, or on training rows when too few validation rows have a usable label, and it never reverses the sign of a cluster's equilibrium position; but when the fit prefers a negative value, or the positions have no spread, it is clamped to zero, every bar then has a probability of exactly one half, and the engine goes long on every bar including bars in clusters whose equilibrium is short.",
+            "Consecutive scored bars share future bars because horizon targets overlap, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "Dials in force by default: long only off, holding bars equal to the label horizon, no stop loss, no take profit, one contract; a same-direction call at holding expiry is kept at no cost and the fold's last bar exits at its close.",
+            "For roots other than MNQ the cost per side is the MNQ account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -821,6 +2383,289 @@
           "group": "Model",
           "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "decision_graph_or_utility_model",
+        "profileIdAsRun": "decision_graph_or_utility_model",
+        "additionalProfileIds": [
+          "predictive_distribution",
+          "multi_criteria_decision_framework"
+        ],
+        "native": {
+          "produces": "For each candidate decision it outputs the expected utility of the trade's estimated lottery of profit-and-loss outcomes, the certainty equivalent of that lottery, and the decision that scores highest: trade or no trade and the fraction of capital to risk.",
+          "targetVariable": "The decision-maker's preference over uncertain profit-and-loss outcomes of a trade, expressed as the expected utility of wealth and the capital fraction that maximises it; it is a statement about what to do given an outcome distribution, not a forecast of the next move.",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "This model's version passes every outcome through a curved utility of wealth (constant relative risk aversion, constant absolute risk aversion, or a loss-averse prospect value with distorted probability weights) before averaging, so the best decision is the one a risk-averse trader prefers and not the one with the highest average profit; the log-utility case gives the Kelly fraction.",
+          "metrics": [
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The sizing rule promises a level of utility computed from a trailing window of wins, losses and payoff sizes, and this compares that promise with the utility the same fraction delivered on the trades that came after, where a positive gap is the oversizing an overconfident outcome estimate produces.",
+              "baseline": "The same utility function applied to a zero position on the same later trades, which earns the utility of unchanged wealth.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The curved utility is this model's special part, so the test is the realised growth of the utility-sized positions minus that of the same trades sized at a constant small fraction with the utility curve switched off, the simpler rule the specification says it must beat.",
+              "baseline": "The same trades on the same series sized at a fixed fraction of capital regardless of the estimated edge.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The optimal fraction is driven by the win probability fed into the lottery, so regressing later wins and losses on the log-odds of that estimated win probability shows whether the edge was overstated, which is the error that turns a Kelly-style fraction into a ruin-prone one.",
+              "baseline": "A slope of one, the mathematical value at which the stated win odds match the realised ones.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The expected-utility sum runs over the whole estimated distribution of trade outcomes, and placing each realised outcome inside that distribution shows whether it was too narrow, the case in which the tails that a concave utility punishes hardest were left out of the calculation.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "rank_stability_under_weight_perturbation",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The risk-aversion coefficient, the loss-aversion coefficient and the probability-weighting exponent are stated preferences rather than measured facts, so this shows how far they must be moved before the ranking of candidate trades by certainty equivalent changes its top choice.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "It never was a native score of a utility curve, because it swaps the stated risk preference for mean over standard deviation; it stays only on the as-run scoreboard of the runnable model."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "A sizing preference has no benchmark exposure to subtract, so excess return over a benchmark never applied to this model and no registry metric carries it."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "It measures one realised equity path under a trading rule, which the per-lottery expected-utility calculation does not describe; it stays only on the as-run scoreboard."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The utility model decides the size of one trade and says nothing about how often trades change, so turnover belongs to the engine's rule and is shown only as run."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It is a path-based ratio of profit to the deepest drawdown, a criterion different from the utility curve the model maximises; it stays only on the as-run scoreboard."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "The model handles tail losses through the curvature of its utility function and never computes a conditional value at risk, and the registry holds no such metric."
+            },
+            {
+              "name": "Mean test-tape return of the policy's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "A utility model is a preference applied to a supplied outcome distribution and has no reward tape or frozen policy, and grading it by the utility it defines would let the chosen curve mark its own work."
+            },
+            {
+              "name": "Structure stability",
+              "metricId": "structure_stability_recurrence_fraction",
+              "why": "Unlike a decision network, the utility model learns no chance structure of edges or selected features that could recur or vanish between refits; its inputs are a stated curve and an estimated lottery."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "Natively the model states no probability of an up move; it consumes outcome probabilities supplied to it and returns a preferred position."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter does maximise expected utility, but the specification ranks decisions for a supplied outcome distribution while the adapter must make a direction call on every bar: it groups training bars into k-means market clusters, treats each cluster's training-span horizon moves net of round-trip cost as an equally likely lottery, and searches a grid of positions between fully short and fully long for the one with the highest utility under risk parameters that are set and not fitted to revealed choices. Only the sign of that position is traded at a fixed contract count, so the as-run numbers measure a cluster-conditional long-or-short rule shaped by risk preference and not the sizing the specification is about.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic function of the utility-optimal position of the bar's market cluster multiplied by one inverse temperature that cannot go negative and is fitted by maximum likelihood on the fold's validation rows, so the side is always the utility maximiser's own and only the distance from one half is fitted.",
+          "priceForecastSource": "readout",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit; the single fit reports epoch one of one with the logarithmic loss of the temperature-scaled probability of up on the validation rows whose bar falls in a market cluster, and the training line holds no number because the fit returns none; the second fit, which averages the price target per cluster, logs the mean absolute error of the cluster mean in volatility-scaled move units instead",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Each cluster's lottery is built from horizon moves net of round-trip cost, so net profit on the walked test bars is what the sign of the utility-optimal position earned where it was not computed, with the size the risk curve chose replaced by the engine's fixed contracts."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "A cluster whose optimal position is exactly zero is still traded long by the engine, and a rising training span makes most other clusters long as well, so the profit left after subtracting buy and hold shows whether the cluster lotteries added any decision at all."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It restates what following the sign of each cluster's utility-optimal position earned per unit of bar-to-bar swing, with zero only an arithmetic marker because a rule with no edge still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Risk aversion acted through the size of the position, which the engine discards, so the deepest fall of test equity shows the path risk that remains when only the long-or-short side of the risk-averse choice is kept."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares the winning with the losing trades that open and close when the bars move between clusters whose utility-optimal positions have opposite signs."
+            },
+            {
+              "metricId": "calmar_ratio",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It sets what the sign of each cluster's utility-optimal position earned against the deepest fall of test equity, so it shows how much return came with the path risk that remains once the size chosen by the risk-averse curve is discarded, and it is empty when the walk never fell below a previous peak."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that ended positive, read with care because a loss-averse or risk-averse curve can prefer a side that wins less often when its losses are smaller."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the walk crossed between clusters with opposite position signs, which is the only way this rule ever changes side."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It spreads the side changes of the cluster walk over the session days traded, so it shows how often the utility-optimal positions of neighbouring bars flip sign each day, which is the turnover the engine's rule adds to a model that natively sizes one decision."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The share of scored bars where the sign of the cluster's optimal position matched the move, to be read against the majority-class accuracy because zero-position clusters are called up by default."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The temperature cannot flip the side, so the hard call is the utility maximiser's own, and averaging the hit rate over up bars and down bars removes the credit earned by the default long call in clusters where the best position was zero."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "A single symmetric figure for whether clusters given a long position rose and clusters given a short position fell, which drops to zero when every cluster ends on the same side."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The temperature keeps the order of the optimal positions, so this checks whether clusters assigned a larger long position rose more often, on at most as many levels as there are clusters and position grid steps."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in a cluster receives the same optimal position and several clusters can share a grid step, so the count of levels per fold shows how coarse any ranking number is."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of test bars in clusters with a long or a zero optimal position, and a share at one means cost and risk aversion left no cluster worth shorting."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast is the smoothed training mean of the horizon move in the bar's cluster, the centre of the same kind of lottery the utility sum reads, so beating the no-change forecast shows the clusters separate bars with different average moves at all."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in price points of the cluster's mean move, which sits close to the no-change miss because a cluster mean is small beside the spread of the moves inside it."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hit rate of the sign of the cluster's mean move on bars where the tick-rounded forecast is not zero, a denominator that shrinks because many cluster means round to zero."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The forecast follows the sign of the cluster's mean move while the traded call follows the utility-optimal position, so the share of bars where they agree shows how often cost, risk aversion or loss aversion overrode the plain average."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search over cluster count scores each trial on inner blocks of the training span, so the best trial's score is a selection score and reads optimistic."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The stated odds are an optimal position passed through one temperature fitted on validation rows, a strength of preference under a risk curve and not a forecast probability of an up move."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "It grades the size of odds that come from one fitted temperature applied to a preferred position, so it mostly measures that single parameter and not the utility rule."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Comparing the scaled position with observed up frequencies checks only the fitted temperature, because a risk-averse position is smaller than the edge by design and was never claimed to be a probability."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "The engine holds a position on every bar once the first call is made and trades zero-position clusters long, so exposure describes the engine's rule and not the utility maximiser's wish to stand aside."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The fit maximises utility per cluster and logs no training loss, while the logged validation number is the logarithmic loss of the temperature-scaled position, so the two cannot be differenced."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state: each bar's call is a lookup of its cluster's optimal position and never depends on earlier calls.",
+            "The engine overrides the utility maximiser's own flat choice, sizing and holding period: the size of the optimal position, which is where risk aversion acts, is discarded and a fixed contract count is traded on its sign.",
+            "A cluster whose best position is exactly zero, or one with fewer than two training outcomes, gives a probability of up of one half, which the engine calls up, so standing aside is traded as a long.",
+            "The risk-aversion, loss-aversion, value-curvature and probability-weighting parameters are set in the registry and not fitted to revealed choices, so the numbers describe that stated preference and would change with it.",
+            "The single inverse temperature is fitted on the fold's validation rows, or on training rows when too few validation rows have a finite position, so the validation logarithmic loss is partly in-sample; the registry labels this a logistic curve on validation, but the code fits one temperature with no intercept.",
+            "The price forecast is a second fit that clusters the bars again and averages the price target per cluster with additive smoothing; it is a readout of cluster means and not an output of the utility calculation.",
+            "The lottery in each cluster is the set of training-span horizon moves, which overlap from bar to bar, so they are not independent draws and any interval around these numbers needs a block bootstrap or a Newey-West variance.",
+            "For roots other than the micro Nasdaq contract the round-trip cost inside the lottery and in the simulator is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "markov_decision_process": {
@@ -929,6 +2774,248 @@
           "group": "Model",
           "description": "Pseudo-counts added to every transition and state mean, so a rare state leans on the prior instead of a handful of bars."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "planner_or_decision_solver",
+        "profileIdAsRun": "planner_or_decision_solver",
+        "additionalProfileIds": [
+          "value_agent"
+        ],
+        "native": {
+          "produces": "A recommended action for every discrete state (buy, sell or hold) and the converged value of each state, computed by value iteration on a transition model and reward table estimated from history.",
+          "targetVariable": "the long-run discounted reward, net of transaction costs, that follows from taking each action in each discrete state of position and market condition",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "Nothing is learned by gradient: the Bellman backup is applied to an already estimated transition and reward model until the largest value change falls below a tolerance, so the plan is optimal for that model and only as good as its counts.",
+          "metrics": [
+            {
+              "metricId": "mean_test_tape_return_of_own_action",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The table lookup of the converged policy names an action per state, and the reward those actions collect on bars after the transition counts were taken is the only test of the plan outside its own model.",
+              "baseline": "Staying flat on every decision of the same test tape, which earns zero and pays no cost",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "primary",
+              "why": "The largest change of any state value in the last Bellman sweep, with the sweep count, certifies that the value function is the fixed point of the estimated model and not a table stopped early.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The maximum inside the Bellman backup picks whichever action the counted model flatters most, so the value promised for the chosen action is compared with what that action went on to earn.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "With a transaction cost in the reward table the converged policy may choose hold in nearly every state, and the share of states mapped to each action shows whether the plan ever trades.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Log-Likelihood",
+              "metricId": null,
+              "why": "A decision process is solved for the best action, not fitted as a density over bars, so it produces no likelihood of any regime."
+            },
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The discrete states are an input chosen by the modeller, not a structure the solver discovers, so their separation is not a result of the model."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This decomposes a hyperparameter search surface and does not describe a value function obtained by repeated Bellman backups."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The policy is a lookup from a discrete state to an action with no per-feature contributions, so there is no attribution to keep stable."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "The solver outputs an action and a value, never a probability of an outcome, so there are no stated odds to compare with observed frequencies."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "How long the market stays in a state is a property of the estimated transition model given to the solver, not a measure of the quality of its plan."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The sweeps of value iteration are solver passes over a fixed model, not learning steps over data, so the shrinking value change is a convergence residual and not a loss curve."
+            },
+            {
+              "name": "Value overestimation gap",
+              "metricId": "value_overestimation_gap",
+              "why": "The action values are computed exactly from the estimated model rather than learned by a critic, so the optimism to check is the model's, covered by the expected against realised reward comparison."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The policy names an action and never states a probability of up, so a score of stated odds has nothing native to grade."
+            },
+            {
+              "name": "Policy entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The extracted policy is the single best action per state, a deterministic lookup with no spread of action probabilities."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter solves the specification's discounted problem by value iteration, on market clusters found by k-means with transitions and mean step rewards counted from the training span and position as part of the planning state. The market does not react to the agent, and the action values are always read at the flat position so a bar's call never depends on earlier calls; the as-run numbers therefore measure the sign of the long-minus-short value gap of the bar's cluster, or an always-long trader in a fold where the fitted temperature comes out as zero.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_temperature_only",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is a Boltzmann share of the converged action value of going long from flat minus going short from flat in the bar's market cluster, with one non-negative inverse temperature fitted on the fold's validation rows, so while that temperature is positive the side is the planner's own and only the distance from one half is fitted; a fit that comes out negative is set to zero, which makes every probability exactly one half.",
+          "priceForecastSource": "none",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only because the value-iteration closure returns no training loss; the one temperature is fitted on those same rows",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The sign of the long-minus-short value gap is the planner's own preference between the two sides in the bar's cluster, so this is what following that preference earned on unseen bars after costs."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "A positive temperature keeps the sign of the value gap, so the hard call is the planner's alone, and its hit rate averaged over up bars and down bars tests whether clusters valued long were followed by rises; in a fold where the fitted temperature is zero every call is long and this score describes an always-long call instead."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from holding the side with the higher converged value in the current cluster, under the engine's rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while following the per-cluster value gap, which keeps one side for as long as the bars stay in clusters that favour it."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the bar moves to a cluster whose value gap has the opposite sign."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of cluster-switch trades that closed with a gain after costs, read with the trade count because the planner already charged a switching cost when valuing each side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how often the bars crossed between clusters with opposite value gaps, which shows whether the cost-aware plan trades less than a cost-blind one would."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up in every cluster where going long from flat is valued above going short from flat, the planner's own sign at the engine's cut."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the per-cluster side moves with the realised direction, which is zero when every cluster's value gap has the same sign."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "A positive temperature keeps the order of the value gaps, so ranking tests whether clusters with a larger long-minus-short value rise more often, on only as many levels as there are clusters; with a zero temperature every bar ties and the ranking carries no information."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in a cluster gets the same value gap, so the output takes at most cluster_count levels and every ranking number rests on that many points; it takes exactly one level when the fitted temperature is zero."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of bars in clusters whose value gap favoured long, including clusters with a zero gap, which the engine resolves to long; it reads as all bars when the fitted temperature is zero, because every probability is then exactly one half."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "The distance of the output from one half is a value gap passed through one temperature fitted on validation rows, a strength of preference and not a forecast probability of an up move."
+            },
+            {
+              "metricId": "brier_score",
+              "why": "The same output is a preference between two actions scaled by one fitted temperature, so a score of stated odds grades the temperature rather than the plan."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "why": "Comparing the Boltzmann share with observed up frequencies checks only the single fitted temperature, because the planner never claimed its value gap was a probability."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this planner has no price model, so no forecast line exists to compare with the no-change forecast."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this planner has no price model, so there is no forecast move whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this planner has no price model, so there is no forecast sign to compare with the realised move."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the plan."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The solver's quantity is a Bellman value change per sweep and no training loss is logged, while the one logged number is the validation logarithmic loss of the temperature-scaled share, so there is no training-side value to subtract."
+            }
+          ],
+          "caveats": [
+            "The engine overrides the planner's own flat action, sizing and holding period: a cluster where both sides are valued below staying flat is still traded on the sign of the gap.",
+            "The market does not react to the agent, and although position is part of the planning state the values are read at the flat position, so a call never depends on the positions the engine actually holds.",
+            "The single inverse temperature is fitted on the fold's validation rows, or on training rows when too few validation rows have a finite gap, so the validation logarithmic loss is partly in-sample.",
+            "When the validation rows rank against the value gap, or the gap has no spread or is missing, the fitted inverse temperature is zero, every probability is exactly one half and the engine calls every bar long, so the trading and hard-call metrics then describe an always-long trader and not the planner's preference.",
+            "Transitions and mean rewards are counted per cluster on the training span with additive smoothing, so the plan is optimal only for that counted model and a thinly visited cluster leans on the prior.",
+            "The state features are the columns with the largest training-span rank correlation with the reward, a selection step that reads training outcomes before the clusters are formed.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "markov_chain": {
@@ -1015,6 +3102,257 @@
           "label": "Remove training drift",
           "group": "Model",
           "description": "Centre the simulated moves on the training span's mean move, so the table carries the chain's serial dependence rather than one window's drift."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "regime_density",
+        "profileIdAsRun": "vote_share_or_frequency",
+        "additionalProfileIds": [
+          "ordered_category_probability"
+        ],
+        "native": {
+          "produces": "A probability for each possible next discrete state given the current observed state, read from one row of a counted transition matrix, plus the long-run share of time in each state.",
+          "targetVariable": "the next bar's discrete state, for example which return bucket the next bar falls in, given the bucket the current bar is in",
+          "objectiveId": "mixture_or_sequence_likelihood",
+          "objectiveNote": "The states are observed rather than hidden, so the likelihood of the state sequence is maximised in closed form by counting transitions and normalising each row, with an additive smoothing constant standing in for a prior.",
+          "metrics": [
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The counted transition row is a forecast of the next bucket, and the mean log probability it gave to the bucket that actually came next on unseen bars is the likelihood the counting maximised, measured out of sample.",
+              "baseline": "The log probability from the unconditional training frequency of each bucket, which ignores the current state",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "ranked_probability_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Return buckets are ordered from most negative to most positive, so a transition row that puts its weight one bucket away from the truth should lose less than one that puts it at the far end.",
+              "baseline": "The same score for the unconditional training frequency of each bucket",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The whole claim of the chain is that the current bucket changes the odds of what follows, so the following up share inside each current state is compared with the series as a whole.",
+              "baseline": "The up share of all scored bars of the same series",
+              "groupKind": "state",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "An over-fine discretisation leaves most transition counts near zero, and the share of bars in each bucket, set beside the stationary distribution, shows which rows of the matrix rest on a handful of bars.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "mean_state_duration_bars",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The diagonal of the transition matrix says how long the process stays in a bucket, which is the persistence-versus-flip reading the chain is used for.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "This decomposes a hyperparameter search surface, and a counted transition table has no fitted response surface for it to describe."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The chain conditions on one discrete state and has no feature inputs to attribute a prediction to, so an attribution score has nothing to rank."
+            },
+            {
+              "name": "Expected Calibration Error",
+              "metricId": "expected_calibration_error",
+              "why": "Natively the output is a probability over several next states rather than a probability of up, so the binned up-or-down check does not match what the transition row states."
+            },
+            {
+              "name": "Assignment stability",
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "why": "The states are observed buckets with fixed edges rather than fitted hidden labels, so two fits cannot disagree about which state a bar is in."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The transition matrix comes from one counting pass with no iterations, so there is no curve of a loss over steps."
+            },
+            {
+              "name": "Silhouette coefficient",
+              "metricId": "silhouette_coefficient",
+              "why": "Bucket membership is set by thresholds on one number, not found by grouping rows, so cluster tightness is fixed by the thresholds and measures nothing."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The transition table is the specification's counted and smoothed estimator, on a higher-order state made of the last markov_order buckets of the volatility-scaled one-bar move. The specification reads the next state from one row; the adapter instead simulates path_count paths of label-horizon length from each state, with the training drift removed by default, so the as-run numbers measure the share of simulated paths that end up.",
+          "directionMode": "classifier",
+          "probabilitySource": "frequency_or_vote_share",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up for a bar is a table lookup on its chain state: the share of that state's simulated horizon-length paths whose summed move is positive, ties counting half, where each step draws the next bucket from the counted transition row and a move from that bucket's training moves; nothing is fitted on validation rows.",
+          "priceForecastSource": "readout",
+          "objectiveId": "mixture_or_sequence_likelihood",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit, on the validation rows only because the counting fit returns no training loss and bars with no chain state are dropped",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The stated number is a share of simulated paths, a frequency that can in principle reach zero or one, and this bounded proper score grades how well each chain state's share matched what followed."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The call depends only on which recent-move pattern the bar is in, so this is what trading the chain's continuation-or-reversal table earned after costs."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Return per unit of bar-to-bar variation from following the simulated up share of the current recent-move pattern under the engine's rule with costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest equity fall while trading the pattern table, which turns over quickly because the chain state changes with every new one-bar move."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Winning against losing trade totals for trades that open and close when the recent-move pattern moves to a state with the opposite simulated lean."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of pattern-driven trades that closed with a gain after costs, read with the trade count because a state that changes every bar produces many short trades."
+            },
+            {
+              "metricId": "trades_per_session_day",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The state is rebuilt from the latest one-bar moves, so the call can flip bar to bar, and turnover shows how much of the gross result the round-trip cost consumes."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up whenever the current state's simulated up share is at or above one half, which tests the table's continuation or reversal lean on unseen bars."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "With the training drift removed the shares sit close to one half and exact ties resolve to long, so averaging the hit rate over up bars and down bars removes the credit for that default side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One number for whether the state-by-state call moves with the realised direction, which is what serial dependence in the bucketed moves would produce."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "There is one probability per chain state, bin_count raised to the power markov_order of them, so every ranking and calibration number here rests on that small set of levels."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Ranking by the simulated up share orders the chain states rather than the bars, so the curve has only as many points as there are states and is read as a coarse check."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The share is unweighted and unvalidated, so its gap to the observed up share shows whether the simulated lean of each state was real; with drift removed nearly all bars fall in the two middle bins."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A state whose every simulated path ended on one side states exactly zero or one, and counting those bars shows how much of the logarithmic loss a single miss would decide."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread of the simulated up share across bars shows whether any recent-move pattern leans away from one half once the training drift is taken out."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows the share of bars in states whose simulated up share reached one half, including exact ties, which the engine resolves to long."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast is the mean summed move of the current state's simulated paths, so this tests whether the chain's serial dependence alone predicts the size and sign of the move better than assuming no move."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in price points of the state's mean simulated move, which is near zero by construction once the drift is removed and so sits close to the no-change miss."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The hit rate of the sign of the state's mean simulated move on bars where the tick-rounded forecast is not zero, a denominator that shrinks because most state means round to zero."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "why": "A share of simulated paths can be exactly zero or one, where the engine clips and one miss dominates the mean, so the Brier score is the proper score for this output."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is always long or short once the first call is made, so the share of bars in a position describes the engine's rule and not the chain."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The table is counted from transitions and logs no training loss, while the one logged number is the validation logarithmic loss of the simulated up share, so there is no training-side value to subtract and nothing here measures how well the transition counts generalise."
+            }
+          ],
+          "caveats": [
+            "The chain state is built from closes and move scales at or before the bar, not from the feature row, so this model ignores every feature the other models read.",
+            "With remove_training_drift on, the simulated moves are centred on the training mean move, so the probability carries only serial dependence and stays near one half except after extreme recent moves.",
+            "The up share is a Monte Carlo estimate from path_count seeded paths per state, so a share within simulation noise of one half can land on either side between seeds.",
+            "A bar whose recent one-bar steps cross a session gap has no chain state, so it gets no prediction and the engine holds its position.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around any of these numbers need a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

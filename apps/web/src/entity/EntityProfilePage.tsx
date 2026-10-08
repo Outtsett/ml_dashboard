@@ -19,7 +19,8 @@ import {
   MessageSquare,
   ScatterChart
 } from "lucide-react";
-import { ModelFamilyAnalytics } from "@/ml/analytics/ModelFamilyAnalytics";
+import { SpecificationMetricsPanel } from "@/ml/metrics/panels";
+import { ModelRunsPanel } from "@/ml/metrics/ModelRunsPanel";
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import RegressionPage from "@/market/regression/RegressionPage";
 
@@ -193,12 +194,12 @@ export default function EntityProfilePage() {
                   <h3 className="text-sm font-medium text-neutral-300 mb-4 uppercase tracking-wider">Quick Stats</h3>
                   {type === 'model' && metrics && metrics.length > 0 ? (
                     <div className="flex flex-col gap-3">
-                      {Object.entries((metrics[metrics.length - 1] || {}) as Record<string, any>)
+                      {Object.entries((metrics[metrics.length - 1] || {}) as Record<string, unknown>)
                         .filter(([k]) => k !== 'timestamp')
                         .map(([k, v]) => (
                           <div key={k} className="flex justify-between items-center pb-2 border-b border-neutral-800 last:border-0 last:pb-0">
                             <span className="text-sm text-neutral-400 capitalize">{k.replace(/_/g, ' ')}</span>
-                            <span className="text-sm font-medium text-[#E69F00]">{typeof v === 'number' ? v.toFixed(4) : v}</span>
+                            <span className="text-sm font-medium text-[#E69F00]">{typeof v === 'number' ? v.toFixed(4) : String(v ?? '')}</span>
                           </div>
                       ))}
                     </div>
@@ -217,7 +218,11 @@ export default function EntityProfilePage() {
           {type === 'model' && (
             <>
               <Tabs.Content value="analytics" className="h-full focus:outline-none">
-                <ModelFamilyAnalytics model={{ id, name: profile?.name || id, category: profile?.category, tags: profile?.tags }} />
+                {/* how the model is judged (its own metrics record) and what it has measured (its real runs); nothing is estimated */}
+                <div className="h-full space-y-4 overflow-y-auto p-4">
+                  <ModelRunsPanel specificationId={id} name={profile?.name || id} />
+                  <SpecificationMetricsPanel specificationId={id} name={profile?.name || id} />
+                </div>
               </Tabs.Content>
               <Tabs.Content value="metrics" className="h-full focus:outline-none">
                 <EntityMetrics metrics={metrics || []} />

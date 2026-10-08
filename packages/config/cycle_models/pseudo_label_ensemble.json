@@ -135,6 +135,319 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A class probability from one base classifier that was refitted round after round on the labelled bars plus the unlabelled bars it had labelled itself with confidence.",
+          "targetVariable": "the class label of an input row, which here is whether the close a fixed number of bars ahead is above the current bar's close",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Self-training adds no new loss term: each round refits the base learner's ordinary supervised loss on a training set that has grown by the pool rows whose top class probability cleared the confidence threshold, so the unlabelled data acts through the rows admitted and not through a penalty.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The final base learner states a probability after several rounds of refitting on its own confident labels, and this score on unseen bars says whether those odds still match what happens.",
+              "baseline": "the logarithmic loss of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of self-training is that the rounds of self-labelling beat a single fit, so the score is set against the identical base learner after its first fit on the truly labelled rows, before any pool row was admitted.",
+              "baseline": "the same base learner fitted once on the labelled bars with no pool row admitted",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Every admitted row is one the learner was already confident about and is then refitted as if it were certain, which ratchets the odds outward, and a slope below one reveals that ratchet.",
+              "baseline": "a slope of one, which means the stated odds have the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the final learner's probability that stays readable when the confidence ratchet produces a few extreme misses that would swamp the logarithmic loss.",
+              "baseline": "the Brier score of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Shows whether the refitted learner still orders up bars above down bars, which can hold even when the rounds of self-labelling have stretched the scale of its odds.",
+              "baseline": "one half, the value of an ordering that carries no information",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "The admission rule trusts rows above the confidence threshold, so the up share of the scored bars in the learner's highest-confidence bin against all scored bars checks that the trusted region really is more often right.",
+              "baseline": "the up share of all scored bars of the same series",
+              "groupKind": "score bin",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The pool's true labels are hidden rather than missing, so each round's admitted labels can be checked against them, which shows the round at which the learner began admitting its own errors.",
+              "baseline": "the larger of the up share and the down share of the masked bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts how much of the pool cleared the confidence threshold in each round; a pool that is never entered means the method reduced to its base learner, and one swallowed in a single round means the threshold filtered nothing.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy_lift_over_majority_class",
+              "why": "A hit rate above the majority class depends on cutting the probability at one half, which is the engine's rule and not part of the method, so it is reported in the as-run layer only."
+            },
+            {
+              "name": "Macro F1-Score",
+              "metricId": "macro_f_one_score",
+              "why": "It grades hard calls made by cutting the probability at one half, a cut the method itself does not define, so it is reported in the as-run layer and not as a native score."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The self-trained classifier states a class probability and no density over the size of the move, so there is nothing for a density score to grade."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The method labels rows and takes no position, so a risk-adjusted return belongs to the engine's trading rule and is listed only in the as-run layer."
+            },
+            {
+              "name": "Training loss by round",
+              "metricId": "training_objective_value_by_step",
+              "why": "Each round is a fresh complete fit on a different training set, so there is no single loss curve whose fall across rounds would mean progress."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the self-training loop of scikit-learn written out round by round over one feature row per bar, with a base learner chosen by a dial among logistic regression, histogram gradient boosting and a random forest, where the specification's example is a convolutional network over price windows. The unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, so the as-run numbers measure the base learner after its last refit on the kept labels plus the pool rows it admitted above the confidence threshold.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the predicted class probability of the single base learner as its last refit left it, read from the bar's feature row alone, with no class weighting and no calibration curve fitted afterwards. It is a likelihood probability for the logistic and the boosted learner, but when the fold's base learner is the random forest it is a share of leaf votes that can be exactly zero or one, so the logarithmic loss is then dominated by those bars and the Brier score is the proper reading. The source is one learner's own probability and not the mean of several, so it differs from the adapter-wide readout named for the other models of this adapter.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats on the validation channel; the training channel holds the count of pool rows admitted in the round and is not a loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The base learner is fitted without class weights and no round is picked on validation rows, so this score on test bars grades the odds the learner states after refitting on its own confident labels; it is clean for the logistic and the boosted learner, but when the fold's base learner is the random forest its leaf share can be exactly zero or one and a few such bars decide the score, which then needs the Brier score beside it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Tests whether the learner that came out of the self-labelling rounds ranks up bars above down bars, which is the part of its output that survives even when the rounds stretched its odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the final learner's probability, read beside the logarithmic loss because rows admitted as certain can push a few test odds to extremes, and the forest choice of base learner can state a share of exactly zero or one."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Each round the learner is refitted on rows it had labelled itself as if those labels were certain, and the slope shows whether that ratchet left its odds more extreme than the outcomes support."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the final learner's stated odds with the observed up share in each bin is a fair test; it is read with the count of occupied bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how widely the final learner's odds spread; a spread that grew across the self-labelling rounds without a better logarithmic loss means the rounds bought confidence and not skill."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the final learner's probability is at least one half; with an unweighted fit that cut sits against the up share of the labelled and self-labelled rows, so it is read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether admitting mostly one class of confident pool rows tilted the learner toward that class."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the final learner's hard call over all four outcome cells, which stays near zero when the self-labelled rows made the call one-sided."
+            },
+            {
+              "metricId": "macro_f_one_score",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Averages the precision and recall balance of the up call and of the down call of the final learner, so a learner that self-labelled its way into calling one side scores poorly on the other."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the final learner's call earned after costs when every call is traded under the engine's rule; only the side of one half the probability falls on reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the self-trained learner's call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity from trading the self-trained learner's call, which shows the cost of the stretches where its self-confirmed view of the market was wrong."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the self-trained learner's call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the self-trained learner's call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the self-trained learner called both directions or drifted to one side as it admitted its own labels, and is read beside every trading number together with the count of closed trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Tests a second, separately fitted model, a bootstrap committee of three regressors that admits each round the pool rows it disagrees on least at the committee's mean, against forecasting no change; it says nothing about the classifier that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the regression committee's mean forecast after it is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the regression committee's forecast matched the move, over bars where both are non-zero after tick rounding; that sign is not the call that is traded."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the scored bars on which the final base learner stated a probability of exactly zero or exactly one, which only the random forest choice of base learner can do and which, after rounds of refitting on its own certain labels, hands a few bars the whole of the logarithmic loss."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The accuracy of calling every scored bar the class that was commoner in the fold's training labels, which is the bar the final learner's hit rate must clear before the rounds of self-labelling can be said to have taught it anything."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The final learner's hit rate minus the hit rate of always calling the commoner training class, so a learner whose admitted rows only strengthened its lean toward one class shows a lift of about zero."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the closed trades that flips of the self-trained learner's call produced; few trades mean a net profit resting on a handful of stretches, and many trades mean costs paid on every small change of the probability across one half."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "What holding one position through the same test bars earned after one round trip per fold, which is the only same-series money reference for the self-trained learner's trading call, because a random-direction trader would pay costs too."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The net profit of trading the self-trained learner's call minus the buy-and-hold profit of the same folds, which separates a call that added something from one that rode the drift of the series."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "training_objective_value_by_step",
+              "why": "The training channel of each round holds the count of pool rows admitted in that round and not a loss, so its curve is an admission tally and cannot be read as convergence."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The validation channel holds a logarithmic loss while the training channel holds a count of admitted rows, so their difference is not a quantity of anything."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this learner."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the learner with part of its labels deliberately hidden and not a learner that had no more labels to use.",
+            "The share of labels kept and the kind of base learner are both dials of the hyperparameter search, so the size of the handicap and the learner behind the numbers can differ from fold to fold, and the fold's recorded parameters say which were used.",
+            "When the fold's base learner is the random forest the probability of up is a leaf vote share that can be exactly zero or one, so the logarithmic loss of that fold is dominated by those bars and only the Brier score and the count of such bars should be trusted; with the logistic or boosted learner the probability is a likelihood probability and the logarithmic loss stands.",
+            "No round is selected: the learner of the last refit is kept even when an earlier round had a lower validation logarithmic loss, and the best-round flag in the step record is a report only.",
+            "The engine records the count of pool rows admitted per round but not how many of those self-given labels matched the hidden true labels, so the round at which the learner began admitting its own errors cannot be read from a run today.",
+            "The comparison with the same base learner fitted once on the kept labels alone, which is the test of whether the self-labelling rounds helped, is not run by the engine.",
+            "The price forecast comes from a separately fitted committee of regressors with its own admission rule, so forecast numbers and direction numbers describe two different sets of fitted models.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by this learner's own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "tri_training": {
@@ -256,6 +569,333 @@
             "high": 0.3,
             "log": false
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "vote_share_or_frequency"
+        ],
+        "native": {
+          "produces": "A class call from three classifiers that were started on different bootstrap samples of the labelled bars and then each taught with the unlabelled bars on which the other two agreed.",
+          "targetVariable": "the class label of an input row, which here is whether the close a fixed number of bars ahead is above the current bar's close",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Tri-training of Zhou and Li adds no loss term: each learner minimises its ordinary supervised loss on its labelled rows plus the pool rows its two peers agree on, and a learner is only refitted when the peers' joint error on the labelled rows fell and the paper's size conditions hold.",
+          "metrics": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The method's output is a vote among three learners, so the share of learners calling up takes only a few values and reaches exactly zero and exactly one; the Brier score is a bounded proper score that can grade such a share, where logarithmic loss would charge an unbounded price for every unanimous miss.",
+              "baseline": "the Brier score of quoting the fold's training up share on every scored bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Three bootstrap learners combined by vote already gain something from bagging, so the peer-teaching rounds must be set against the identical three learners right after their bootstrap fits, before any agreed pool row was passed around.",
+              "baseline": "the same three bootstrap learners combined before any peer-labelled pool row was added",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification's final prediction is the class that at least two of the three learners call, so the hit rate of that majority call on unseen bars is a quantity of the method itself and not a cut that the engine imposes on a probability; averaging the hit rate on up bars and on down bars stops a committee that agreed its way toward the commoner class from looking skilled.",
+              "baseline": "one half, the value of a call that carries no information about the direction",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Measures whether the committee's vote share orders up bars above down bars; three learners can split into only a few levels, so the curve has few points and is read with that in mind.",
+              "baseline": "one half, the value of an ordering that carries no information",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "Tri-training treats agreement between two learners as evidence of a correct label, so the up share of scored bars where the committee is most united against all scored bars tests whether unanimity really marks the surer bars.",
+              "baseline": "the up share of all scored bars of the same series",
+              "groupKind": "score bin",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The pool's true labels are only hidden, so the labels two peers agreed on can be checked against them, which is the direct measurement of the error rate that the paper's update condition tries to bound from the labelled rows.",
+              "baseline": "the larger of the up share and the down share of the masked bars",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Shows how many pool rows each learner actually received from its peers per round; when the error condition never holds no row is passed and the method is plain bagging of three learners.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "return_dispersion_across_seeds",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The three starting learners come from random bootstrap draws and the paper's subsampling step is random too, so the headline score is repeated over seeds to see how much of it is the luck of those draws.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Peers that label rows for each other grow more alike, and a bar on which all three learners agree is called with full unanimity, so this one symmetric number over the four outcome cells of the majority call shows whether that agreement collapsed the vote toward one side.",
+              "baseline": "zero, the value of a call that is independent of the outcome",
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "Three classifiers voting on a class produce no Gaussian density of the move, so a Gaussian likelihood never applied to this model."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "Tri-training as specified is a classifier and makes no forecast of the size of the move; the regression form in the runnable adapter is a separate second model."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The committee votes on a class and states no density over the size of the move, so there is nothing for a density score to grade."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "The committee's own output is a majority vote of three learners whose share reaches exactly zero or one, and one unanimous miss would cost an unbounded amount, so logarithmic loss grades only the averaged probabilities of the runnable adapter in the as-run layer."
+            },
+            {
+              "name": "Calibration slope",
+              "metricId": "calibration_slope",
+              "why": "A vote share of exactly zero or one has infinite log-odds, so the regression of the outcome on the log-odds of the probability of up cannot be fitted on the committee's own vote."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The three learners label rows and take no position, so a risk-adjusted return belongs to the engine's trading rule and is listed only in the as-run layer."
+            },
+            {
+              "name": "Training loss by round",
+              "metricId": "training_objective_value_by_step",
+              "why": "Each round refits whole learners on changed training sets, so no single loss curve exists whose fall across rounds would mean progress."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable model is the tri-training of Zhou and Li with the paper's error-rate and size conditions, which the specification omits, over one feature row per bar with a base learner chosen by a dial, and it combines the three learners by averaging their probabilities where the specification takes a majority vote. The bootstrap samples are drawn as if rows were independent and not in time blocks, and the unlabelled pool is manufactured by masking the labels of embargoed blocks of the training span, which deliberately handicaps the model against full supervision, so the as-run numbers measure that averaged committee after its peer-teaching rounds.",
+          "directionMode": "classifier",
+          "probabilitySource": "mean_of_base_learners",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the plain average of the predicted class probabilities of the three learners as the last peer-teaching round left them, read from the bar's feature row alone, with no class weighting and no calibration curve fitted afterwards. When the fold's base learner is the random forest each learner's probability is a share of leaf votes, and the average of three such shares can still be exactly zero or one on a bar where all three agree completely.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats on the validation channel; the training channel holds the count of pool rows handed to updated learners in the round and is not a loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The three learners are fitted without class weights and no round is picked on validation rows, so this score on test bars grades the averaged odds the committee states after teaching itself; it is clean for the logistic and the boosted learner, but with the random forest the averaged shares can reach exactly zero or one and a few unanimous misses decide the score, which then needs the Brier score beside it."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Because the committee's output is an average of three probabilities and not a bare vote, it is continuous, and this tests whether that average ranks up bars above down bars."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the averaged probability of the three learners on every scored bar, read beside the logarithmic loss so a few bars where all three were confidently wrong do not decide the verdict alone."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Averaging three learners normally tempers their odds, but peers that label rows for one another grow alike and lose that tempering, and the slope shows which effect won."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The fit is not class-weighted, so comparing the committee's averaged odds with the observed up share in each bin is a fair test; it is read with the count of occupied bins because averaged odds cluster near one half."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Shows how far the averaged odds of the three learners spread from their mean; averaging learners that disagree pulls every bar toward the middle, so a very small spread means the committee rarely commits."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the average of the three learners' probabilities is at least one half, which is close to but not the same as their majority vote, read beside the majority-class accuracy."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averages the hit rate on up bars and on down bars, which shows whether the rows the peers agreed on were mostly one class and tilted all three learners the same way."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the committee's hard call over all four outcome cells, which stays near zero when peer agreement drove the three learners to one side."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "What the sign of the committee's averaged call earned after costs when every call is traded under the engine's rule; only the side of one half the averaged probability falls on reaches this number."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The steadiness of the per-bar dollars from trading the three learners' averaged call, costs included; it tests the direction call and the engine's holding rule together and never the size of the probability."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "The deepest fall of the equity from trading the committee's call, which shows the cost of the stretches where all three peer-taught learners held the wrong side together."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning dollars over losing dollars of the closed trades that flips of the committee's averaged call produced, after costs; it reflects the direction call under the engine's exit rule."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades from the committee's averaged call that ended above zero after costs; a trade here is a stretch between flips of the call, not a single prediction."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Shows whether the committee called both directions or whether peer agreement collapsed it to one side, and is read beside every trading number together with the count of closed trades."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "Tests a second, separately fitted model, three regressors in which each is taught with the pool rows where the other two disagree least at their mean, against forecasting no change; it says nothing about the classifiers that are traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the three regressors' forecast after it is scaled back and rounded to the tick, read against the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the three regressors' forecast matched the move, over bars where both are non-zero after tick rounding; that sign is not the call that is traded."
+            },
+            {
+              "metricId": "extreme_probability_bar_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the scored bars on which the average of the three learners' probabilities was exactly zero or exactly one, which can happen with the random forest choice of base learner when peer teaching has made the three learners agree completely, and which hands those bars the whole of the logarithmic loss."
+            },
+            {
+              "metricId": "majority_class_accuracy",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The accuracy of calling every scored bar the class that was commoner in the fold's training labels, which is the bar the committee's hit rate must clear before the peer-teaching rounds can be said to have taught it anything beyond bagging."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The committee's hit rate minus the hit rate of always calling the commoner training class, so a committee whose peers agreed their way toward one class shows a lift of about zero."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Counts the closed trades that flips of the committee's averaged call produced; few trades mean a net profit resting on a handful of stretches, and many trades mean costs paid on every small change of the averaged probability across one half."
+            },
+            {
+              "metricId": "buy_and_hold_net_profit_usd",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "What holding one position through the same test bars earned after one round trip per fold, which is the only same-series money reference for the committee's trading call, because a random-direction trader would pay costs too."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The net profit of trading the committee's averaged call minus the buy-and-hold profit of the same folds, which separates a call that added something from one that rode the drift of the series."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "training_objective_value_by_step",
+              "why": "The training channel of each round holds the count of pool rows handed to the learners that were updated and not a loss, so its curve is a tally of peer teaching and cannot be read as convergence."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The validation channel holds a logarithmic loss while the training channel holds a count of handed-over rows, so their difference is not a quantity of anything."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target set the engine is never flat once it has traded, so the share of bars in a position describes the engine's rule and not this committee."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking the labels of embargoed blocks of a fully labelled training span, so every number here is the committee with part of its labels deliberately hidden and not a committee that had no more labels to use.",
+            "The three starting samples are drawn with replacement as if rows were independent, although neighbouring bars share most of their label window, so the three learners start out less different than the method assumes.",
+            "When the paper's error condition never holds no pool row is passed and the result is plain bagging of three learners on the kept labels, and the count of learner updates in the fit summary says whether that happened.",
+            "The share of labels kept and the kind of base learner are both dials of the hyperparameter search, so the size of the handicap and the learners behind the numbers can differ from fold to fold, and the fold's recorded parameters say which were used.",
+            "When the fold's base learner is the random forest each learner's probability is a leaf vote share, and the average of three such shares can be exactly zero or one, so the logarithmic loss of that fold is dominated by those bars and only the Brier score and the count of such bars should be trusted; with the logistic or boosted learner the logarithmic loss stands.",
+            "No round is selected: the learners of the last round are kept even when an earlier round had a lower validation logarithmic loss, and the best-round flag in the step record is a report only.",
+            "The engine records how many pool rows were handed over per round but not how many of those agreed labels matched the hidden true labels, and it does not run the comparison with the same three bootstrap learners before any peer teaching.",
+            "The price forecast comes from a separately fitted trio of regressors with its own agreement rule, so forecast numbers and direction numbers describe two different sets of fitted models.",
+            "The hyperparameter search inside each fold scores trials by the per-bar Sharpe ratio of the real simulator on the training span, not by these learners' own loss, and its best score is optimistic by construction.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of every fold exits at its own close while every other exit fills at the next bar's open.",
+            "On roots other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -424,6 +1064,267 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "Two classifiers, each reading one view of the same bar, that teach each other by handing over their most confident labels for unlabelled bars, ending in a combined class probability per bar.",
+          "targetVariable": "The class of the bar (for this instrument, whether the close a set number of bars ahead is above or below the current close), stated as a probability by each view's classifier.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "Co-training has no separate unlabelled penalty: each view's classifier minimises its ordinary supervised loss on a labelled set that grows every round with the rows the other view labelled most confidently, so the unlabelled bars enter the loss as borrowed labels.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The two view classifiers end in one stated probability of up per bar, and this score punishes that combined probability by how little weight it gave to what happened, which is where mislabelled rows traded between the views show up.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Co-training only earns its keep if the two views trading labels beats the same two view classifiers fitted once on the truly labelled bars and never exchanging a single pseudo-label, so the ablation named here is the label exchange.",
+              "baseline": "The same two view classifiers fitted on the labelled bars only, with no rounds of label exchange.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Each view is refitted on rows it was handed precisely because the other view was most confident about them, and the final step multiplies the two views' odds as if they were independent witnesses, so the combined odds are expected to be stretched too far from even.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars the two views jointly score higher really go up more often than bars they score lower, which stays readable even when the multiplied odds are too extreme to trust as percentages.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Multiplying two confident views can drive the combined probability almost to certainty, and this bounded score grades such a bar without letting one overconfident miss dominate the whole fold.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Every round adds a fixed number of up rows and a fixed number of down rows whatever the true mix is, which shifts each view's sense of the base rate, so the hard call is judged per class rather than by a raw hit rate.",
+              "baseline": "One half, what calling every bar the same direction scores.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Because the pool was made by hiding real labels, each round's rows that one view handed to the other can be checked against the hidden truth, which shows directly whether the views are teaching each other or spreading each other's mistakes.",
+              "baseline": "The labelled bars' majority class share, what assigning one direction to every admitted row would score.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Each view admits only its few most confident up and down rows from a small working pool per round, so this share shows how much of the hidden pool the exchange ever reached before the rounds ran out.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "Co-training fits two classifiers with a classification loss and never outputs a mean and variance for the return, so a Gaussian likelihood was never its objective or its score."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The specification describes classifiers exchanging class labels, which produce no return forecast whose error could be measured in points or scaled by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth of bars, and for this model that slice is exactly where the multiplied odds of the two views are least trustworthy."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The two view classifiers state a class probability, not a bell curve with a centre and a spread for the size of the move, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio as the model's own score",
+              "metricId": "sharpe_ratio",
+              "why": "Natively co-training labels bars and never takes a position, so a risk-adjusted return describes the trading rule and costs wrapped around it, which belongs to the as-run layer."
+            },
+            {
+              "name": "Real versus generated two-sample test",
+              "metricId": "classifier_two_sample_test_accuracy",
+              "why": "Co-training generates labels for existing rows, not new feature rows, so there are no synthetic samples for a judge to tell apart from real ones."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter follows the Blum and Mitchell rounds, but the unlabelled pool is manufactured by masking the labels of contiguous blocks of an otherwise fully labelled training span, and the two views are groups of this one instrument's feature columns (grouped by what they measure) rather than independent sources, so the as-run numbers measure label exchange between correlated views under a deliberate label handicap.",
+          "directionMode": "classifier",
+          "probabilitySource": "mean_of_base_learners",
+          "classWeighted": false,
+          "probabilityNote": "Each view's base learner (by default an unweighted logistic regression on that view's columns) gives its own probability of up, and the adapter combines the two as independent evidence by multiplying their odds, with no curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "validation channel in nats per scored validation bar; training channel is a count of pool rows pseudo-labelled in that pass, not a loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the multiplied odds of the two view learners on test bars neither view was fitted or selected on, so it shows whether the labels the views traded produced honest probabilities or doubled-up overconfidence."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether bars the two views jointly score higher go up more often, which is the part of the label exchange that survives even when multiplying the odds has made the scale too extreme."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Multiplying two confident views can push a bar close to certainty, and this bounded score grades the same combined probability without one such miss dominating the fold."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The view learners are fitted without class weights, so comparing the combined probability with the observed up share is a fair test here, and it exposes the stretching caused by treating two correlated views as independent witnesses."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A slope under one is the expected mark of combining two correlated feature views as if independent after each was refitted on the other's most confident rows, and it is read without bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows how far the multiplied odds spread the output from even, which must be read beside the logarithmic loss to tell commitment from skill."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the direction call made from the two views' combined probability, with the caveat that the fixed up and down quotas per round shift the base rate each view learned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the same direction call per class, which protects against the combined views leaning one way after rounds that added equal numbers of up and down rows regardless of the true mix."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It summarises all four outcomes of the two views' joint direction call in one number that stays near zero when the call is no better than its own lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what following the sign of the two views' combined call earned under the engine's position rule after costs, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar result of trading the combined call of the two views to its variability under the engine's rule and costs; zero is an arithmetic marker, not a no-skill line, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest fall of the equity path produced by trading the two views' combined call, which reflects how long their shared mistakes persisted."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades from the combined call made with what the losing ones lost after costs, a trade-level view of the same direction call."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how often a trade opened on the two views' call closed positive, where a trade ends when the call flips or the fold ends, so it describes runs of agreement rather than single bars."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It grades a second, separately fitted co-regression loop in which two view regressors adopt pool rows they agree on at their average forecast, so it tests that price model and not the direction classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the size in points of the miss of the separate two-view regression loop's averaged forecast, to be read against the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the separate two-view regression forecast, which can disagree with the traded call because the direction comes from the classifier loop."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the count of rows pseudo-labelled in a pass and the validation channel holds a logarithmic loss, so their difference compares two unrelated quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target set the engine is always in a position once it has traded, so the share describes the engine's rule and not the two views' call."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, which deliberately handicaps the model against a fully supervised fit on the same bars.",
+            "No pass is selected: the validation logarithmic loss is logged after every round and flagged when it is the best so far, but the learners as they stand after the last round are the ones that walk the test bars.",
+            "The two views are feature groups of one instrument (price geometry, volume and order flow, volatility, news) merged down to two, or a seeded random split of the columns when names are unknown, so the independence that co-training assumes does not hold.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "multi_view_learning": {
@@ -555,6 +1456,271 @@
             "log": false
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "semi_supervised_classifier",
+        "profileIdAsRun": "semi_supervised_classifier",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "One classifier per view of the same bar, trained so that the views agree with each other on unlabelled bars, giving a consensus class probability per bar.",
+          "targetVariable": "The class of the bar (for this instrument, whether the close a set number of bars ahead is above or below the current close), stated as a probability by every view and by their consensus.",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "objectiveNote": "The multi-view version of the objective adds a consensus term to each view's supervised loss: on bars with no label, a view is charged for disagreeing with what the other views say about the same bar.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The consensus of the views is a stated probability of up for each bar, and this score checks whether pulling the views toward agreement on unlabelled bars left honest odds or merely a confident chorus.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The consensus term is the whole method, so the test is the same per-view classifiers fitted with the consensus weight set to zero, which leaves each view fitted on the labelled bars alone and never told what the others think.",
+              "baseline": "The same per-view classifiers fitted on the labelled bars only, their outputs combined in the same way, with no consensus term and no exchange of pseudo-labels.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Views that are trained to echo each other on unlabelled bars can agree loudly without being right, and this slope shows whether the combined probability is stretched further from even odds than the outcomes justify.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether bars the consensus scores higher go up more often than bars it scores lower, the part of the views' agreement that survives even if the scale of the combined probability is off.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Several views pulled toward agreement can still land close to certainty on a bar, so this bounded squared-error score is a steady second reading of the same probability beside the logarithmic loss.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard direction call of the views' consensus is judged per class so that a consensus which drifted toward calling one direction after the views were refitted on the rows they were most confident about cannot look skilled just by matching the commoner outcome.",
+              "baseline": "One half, what calling every bar the same direction scores.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "In the co-training form of the specification each view hands its high-confidence predictions on unlabelled bars to the other views as training labels, and because the pool's true labels were only hidden, the share of those admitted labels that are right can be measured each round.",
+              "baseline": "The labelled bars' majority class share, what assigning one direction to every admitted row would score.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_admitted_fraction",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The specification's co-training form admits an unlabelled bar only when a view's most confident class probability reaches its confidence threshold, so this share shows how much of the hidden pool ever reached the other views as labels.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The specification iterates the cross-training until convergence or a fixed number of iterations, so the largest change in any view's probability on an unlabelled bar between iterations shows whether the views settled into agreement or were cut off at the iteration limit.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The specification's own objective is a classification loss per view plus a consensus term, never a Gaussian likelihood of the return, so this loss was never fitted or reported."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The views classify bars and agree on class probabilities, so natively there is no return forecast whose error in points could be scaled by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no hit rate restricted to the most confident tenth of bars, and a slice chosen by the views' own confidence is not a set of bars known to be easier."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "Each view states a class probability and the consensus combines them, so no forecast density over the size of the move exists to be scored."
+            },
+            {
+              "name": "Sharpe ratio as the model's own score",
+              "metricId": "sharpe_ratio",
+              "why": "Natively the views label bars and take no position, so a risk-adjusted return grades the trading rule and costs added around them, which is the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter implements one of the specification's several algorithms, the co-expectation-maximisation consensus of Nigam and Ghani, with no canonical correlation or deep multi-view variant; the unlabelled pool is manufactured by masking labels in blocks of a labelled span and the views are feature groups of one instrument, so the as-run numbers measure consensus among correlated views under a deliberate label handicap.",
+          "directionMode": "classifier",
+          "probabilitySource": "mean_of_base_learners",
+          "classWeighted": false,
+          "probabilityNote": "Each view's base learner (by default an unweighted logistic regression on that view's columns) gives a probability of up and the adapter reports the plain mean across the views, with no curve fitted afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "supervised_plus_unlabeled_regularizer",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "solver_convergence_residual",
+            "validationName": "logarithmic_loss",
+            "unit": "validation channel in nats per scored validation bar; training channel is the largest change in any view's probability on a pool bar since the previous pass, a probability difference",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It grades the mean probability of the view learners on test bars none of them was fitted on, showing whether refitting each view on the others' soft labels left honest odds or a confident echo."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether bars the averaged views score higher go up more often, the ordering that the consensus rounds either sharpened or merely copied between views."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The mean of several views rarely reaches the extremes, so this bounded score is a stable second reading of the same averaged probability."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The view learners carry no class weights, so comparing the averaged probability with the observed up share is a fair test, and it shows whether soft labels passed between views inflated their confidence."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Each view is refitted on every pool bar weighted by what the other views believe, which can reinforce a shared lean, and this bin-free slope shows whether the averaged odds ended up stretched or flattened."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Averaging views pulls the output toward even odds, so the spread of the probability shows whether the consensus commits to anything at all."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the direction call made from the mean of the view probabilities, which depends on the base rate the views absorbed from their soft-labelled pool."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the averaged views' direction call per class, so a consensus that drifted toward one direction on the pool is not rewarded for matching the commoner outcome."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It condenses the four outcomes of the averaged views' direction call into one number that stays near zero when the call only reflects its own lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what following the sign of the averaged views' call earned under the engine's position rule after costs, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar result of trading the consensus call to its variability under the engine's rule and costs; zero is an arithmetic marker, not a no-skill line, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest fall of the equity path from trading the consensus call, which is where views agreeing on the same wrong direction for a stretch becomes visible."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning trades opened on the consensus call with the losing ones after costs, a trade-level view of the same direction call."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how often a trade opened on the averaged views' call closed positive, where a trade ends when the consensus flips or the fold ends."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It grades a second, separately fitted consensus loop in which each view's regressor is refitted with the other views' mean forecast as the target on pool bars, so it tests that price model and not the direction classifier."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It is the size in points of the miss of the separate regression consensus, to be read against the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the separate regression consensus, which can disagree with the traded call because the direction comes from the classifier loop."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the largest movement of the views' pool probabilities between passes and the validation channel holds a logarithmic loss, so their difference compares two unrelated quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target set the engine is always in a position once it has traded, so the share describes the engine's rule and not the consensus call."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, which deliberately handicaps the model against a fully supervised fit on the same bars.",
+            "No pass is selected: the validation logarithmic loss is logged after every round and flagged when it is the best so far, but the view learners as they stand after the last round are the ones that walk the test bars.",
+            "The views are feature groups of one instrument (price geometry, volume and order flow, volatility, news) merged down to the view count, or a seeded random split of the columns when names are unknown, so they are correlated rather than independent.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
+        }
       }
     },
     "transductive_support_vector_machine": {
@@ -681,6 +1847,255 @@
           "label": "Maximum fit rows",
           "group": "Model",
           "description": "Cap on the rows the SVM fits (half labelled, evenly spaced)."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "score_or_margin",
+        "profileIdAsRun": "score_or_margin",
+        "additionalProfileIds": [
+          "semi_supervised_classifier"
+        ],
+        "native": {
+          "produces": "A signed distance from a separating boundary for every bar, where the boundary was placed with the widest margin over both the labelled bars and the guessed labels of the unlabelled bars.",
+          "targetVariable": "The class of the bar (for this instrument, whether the close a set number of bars ahead is above or below the current close), stated as the side of the boundary and the distance from it, not as a probability.",
+          "objectiveId": "hinge_margin",
+          "objectiveNote": "The semi-supervised version adds a second hinge penalty on the unlabelled bars under whatever labels the solver assigns them, with those labels themselves part of the search, which makes the problem non-convex and pushes the boundary through sparse regions.",
+          "metrics": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The transductive machine outputs only a distance from its boundary, so the honest question is whether bars further on the up side went up more often than bars further on the down side, with no claim about percentages.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Which side of the margin a bar falls on is this model's native call, and the per-class form matters because the solver forces the guessed labels to keep the labelled bars' up share, which fixes the split of its calls.",
+              "baseline": "One half, what calling every bar the same direction scores.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks whether the bars sitting furthest out on the up side of the margin, the ones the boundary is most committed to, are in fact up bars rather than just far from the crowd.",
+              "baseline": "The up share of the scored bars, what a random ordering scores.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The unlabelled penalty is what distinguishes this from an ordinary support vector machine, and because a margin states no probability the gain is read as the difference in area under the receiver operating characteristic curve between this machine and the same machine fitted on the labelled bars alone, which is the starting boundary before any label guessing and swapping.",
+              "baseline": "The same support vector machine fitted on the labelled bars only, with the unlabelled penalty at zero, scored by area under the receiver operating characteristic curve.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "pseudo_label_accuracy_fraction",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The solver ends with a guessed label on every unlabelled bar it trained on, and because the truth there was only hidden, the share of those final guesses that were right shows whether the swapping converged on the real classes or on a tidy wrong split.",
+              "baseline": "The labelled bars' majority class share, what giving every pool bar one direction would score.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Each annealing pass swaps pairs of guessed labels that both sit on the wrong side of the margin, so the number of swaps per pass falling to zero is the sign that the non-convex search settled rather than being stopped by its switch limit.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A margin classifier labels bars and takes no position, so natively it has no return stream; a risk-adjusted return appears only once the engine trades its call, which is the as-run layer."
+            },
+            {
+              "name": "Sortino Ratio",
+              "metricId": "sortino_ratio",
+              "why": "Downside-adjusted return needs a stream of trading results, which the transductive machine does not produce on its own terms; it belongs to the engine's trading rule."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A boundary between up bars and down bars has no equity curve, so there is no peak or trough to measure natively."
+            },
+            {
+              "name": "Profit Factor",
+              "metricId": "profit_factor",
+              "why": "Winning and losing trades exist only after the engine turns the side of the margin into positions with costs, not in the classifier itself."
+            },
+            {
+              "name": "Half-Kelly Sizing",
+              "metricId": null,
+              "why": "Position sizing from an edge estimate is a money-management rule, and this model outputs no probability or payoff from which a sizing fraction could be derived."
+            },
+            {
+              "name": "Policy Entropy",
+              "metricId": "policy_entropy_nats",
+              "why": "The row was stamped from a reinforcement learning template: a support vector machine has a fixed boundary, not a random policy over actions, so it has no entropy to report."
+            },
+            {
+              "name": "Logarithmic loss",
+              "metricId": "logarithmic_loss",
+              "why": "A distance from the margin is not a probability, so natively there is nothing for a probability score to grade; any such number grades an added curve as well."
+            },
+            {
+              "name": "Calibration slope",
+              "metricId": "calibration_slope",
+              "why": "Calibration asks whether stated odds come true, and the transductive machine states no odds, only a side and a distance."
+            },
+            {
+              "name": "Admitted share of the unlabelled pool",
+              "metricId": "pseudo_label_admitted_fraction",
+              "why": "The transductive solver labels every unlabelled bar it is given from the first pass, so there is no admission step and the share is the whole pool by construction."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter follows Joachims' transductive procedure (a labelled fit, balance-constrained guessed labels, an unlabelled penalty doubled each pass while pairs of misplaced guesses are swapped), but rows are capped, pairs are swapped in batches per refit without a warm start, and the unlabelled pool is manufactured by masking labels in blocks of a labelled span; the probability of up is a logistic curve of the decision value fitted on validation bars, so the as-run probability numbers measure the margin plus that curve.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The machine outputs a signed decision value per bar, and the adapter turns it into a probability of up with a two-parameter logistic curve (slope and intercept) fitted by maximum likelihood on the fold's validation bars only.",
+          "priceForecastSource": "none",
+          "objectiveId": "hinge_margin",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "validation channel in nats per scored validation bar, through a curve refitted on those same validation bars each pass; training channel is a count of guessed-label pairs swapped in that pass, not a loss",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "A margin promises only an ordering of bars by distance from the boundary, and the fitted curve preserves that ordering unless its slope came out negative, so this is the cleanest test of the transductive boundary itself."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "primary",
+              "why": "It scores the side-of-the-boundary call per class, which matters because the solver forced its guessed pool labels to keep the labelled bars' up share and the validation curve then moved the cut."
+            },
+            {
+              "metricId": "average_precision",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks whether the bars the boundary places furthest on the up side are really up bars, the part of the margin the trading call leans on most."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the margin together with the validation-fitted logistic curve, so it tests whether the decision value carries enough information for two fitted parameters to turn it into honest odds."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same margin-plus-curve probability on a bounded scale, a steadier reading when the curve maps large decision values close to certainty."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It tests the logistic curve that was fitted on validation bars when applied to test bars, so a large gap means the relation between decision value and outcome did not carry over."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It scores the direction call after the validation curve has placed the cut, so it reflects the boundary plus the curve's intercept rather than the raw sign of the decision value."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It condenses the four outcomes of the boundary's direction call into one number that stays near zero when the curve's intercept pushed nearly every bar to one side."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what following the side given by the margin and its curve earned under the engine's position rule after costs, read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar result of trading the boundary's call to its variability under the engine's rule and costs; zero is an arithmetic marker, not a no-skill line, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest fall of the equity path from trading the boundary's call, where a boundary settled on a tidy but wrong split of the pool shows as a sustained slide."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares the winning trades opened on the boundary's call with the losing ones after costs, a trade-level view of the same direction call."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how often a trade opened on the boundary's call closed positive, where a trade ends when a bar crosses to the other side of the cut or the fold ends."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this model has no price model, because a transductive support vector machine has no regression form in the adapter."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: this model has no price model, so there is no forecast move to compare with the actual move."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: this model has no price model, so there is no forecast sign to compare with the actual direction."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training channel holds the count of guessed-label pairs swapped in a pass and the validation channel holds a logarithmic loss, so their difference compares two unrelated quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only switch off and no stop or target set the engine is always in a position once it has traded, so the share describes the engine's rule and not the boundary's call."
+            }
+          ],
+          "caveats": [
+            "The unlabelled pool is manufactured by masking: labels are hidden in contiguous blocks of the training span with an embargo of the label horizon, which deliberately handicaps the model against a fully supervised fit on the same bars.",
+            "The logistic curve's slope and intercept are fitted on the fold's validation bars, so validation probability scores are partly in sample and only the test walk is out of sample.",
+            "The validation logarithmic loss logged after each pass uses a curve refitted on the very validation bars it is then scored on, so the per-pass curve is optimistic and is not comparable with the test value.",
+            "No pass is selected: the boundary as it stands after the last annealing pass is the one that walks the test bars.",
+            "Training rows are capped at the maximum fit rows setting, half labelled and evenly spaced, and guessed-label pairs are swapped in batches per refit because the library has no warm start.",
+            "There is no price model, so the forecast line and every price forecast metric are absent for this model.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval around these numbers must use a block bootstrap or a Newey-West variance, never a binomial interval.",
+            "For roots other than the micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

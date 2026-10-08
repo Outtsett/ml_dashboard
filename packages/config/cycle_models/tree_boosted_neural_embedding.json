@@ -193,6 +193,336 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch's weights are kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "projection_or_reconstruction",
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A class probability from a small neural head that reads, for each row, the embedded leaf index of every tree in a frozen boosted ensemble together with the standardised continuous features, plus the leaf embedding vector itself as a dense description of the market bucket the row fell into.",
+          "targetVariable": "The direction of the move after the feature bar, or which barrier of a triple-barrier label is touched first, stated as the head's probability for each class.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The fit is in two stages: the trees are first grown by boosting on the logarithmic loss and then frozen, and only afterwards are the leaf embedding tables and the head trained by cross-entropy, so no gradient from the head ever moves a split, and mean squared error replaces cross-entropy when the target is a forward return.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Both stages aim at the same penalty, the trees by boosting on it and the embedding head by descending it, so on unseen rows it grades exactly what the leaf lookups and the head were tuned to state: the odds of the direction that happened.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of the design is that embedding the leaf indices adds something, so the head's score is compared with the frozen trees' own probability and with the same head fed only the continuous features, which is what the model reduces to when the embedding tables stay at their small starting values.",
+              "baseline": "The same pipeline on the same folds with one part removed: the boosted ensemble alone, and the head on standardised features with the leaf embeddings switched off.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Rows landing in thinly populated leaves get embedding vectors learned from a handful of bars and can push the head to extreme odds, and this bounded score grades the head without letting those few rows dominate.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It shows whether the combination of market bucket from the leaf lookups and position inside the bucket from the continuous features orders up rows above down rows, whatever the scale of the head's output.",
+              "baseline": "One half, the value when the head's ordering carries no information about direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The specification presents the head as recalibrating the ensemble's raw score, yet the leaf indices it embeds were assigned to the very rows the trees were grown on, so this slope on unseen rows shows whether that reuse left the head over-confident.",
+              "baseline": "One, the slope when the stated odds are on the right scale.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "On training rows every leaf index already encodes what the trees learned about those same rows, so the cross-entropy there is flattered, and the gap to held-out rows measures how much of the head's fit is that second helping of the training labels.",
+              "baseline": "Zero, the gap when the kept head fits unseen rows as well as the rows it was trained on.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "effective_rank_of_embedding",
+              "type": "reconstruction_and_representation",
+              "role": "diagnostic",
+              "why": "The leaf embedding is offered as a reusable similarity space for finding analogous bars, and its effective rank on unseen rows shows whether the tables spread the market buckets over many directions or collapsed them onto a few.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Only the second stage has a learning curve, the head's cross-entropy by epoch on fixed leaf indices, and it is read to see that the embeddings moved away from their small start and never as a grade of the predictions.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of the hard call depends on where the head's probability is cut, so it lives in the as-run layer as accuracy and is not how a model fitted by cross-entropy is judged on its own terms."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The Algorithm section fits trees and head by cross-entropy, or mean squared error for a return target, and the head outputs no variance, so a Gaussian likelihood never applied."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared-error figure belongs only to the forward-return form of the model, which is a separately fitted ensemble and head, and says nothing about the classifier."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on the most confident tenth of rows is one hand-picked cut of the ranking that the area under the receiver operating characteristic curve already covers, and the registry holds no such metric."
+            },
+            {
+              "name": "Held-out reconstruction error",
+              "metricId": "held_out_reconstruction_error_fraction",
+              "why": "The leaf embedding is learned through the supervised head and is never asked to rebuild the input features, so there is no reconstruction to measure."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head outputs class probabilities, or a single return estimate in its regression form, and never a variance, so there is no forecast density to score."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "Every tree contributes one leaf embedding to every row and the vectors are joined or summed with no gate choosing among them, so no usage share exists."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a tabular classifier with no position rule or cost, so a money figure measures the trading rule around it and belongs to the as-run layer."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter follows the specification's two stages, a boosted ensemble frozen after one fit on the training rows and then leaf embeddings plus a projection of the standardised features read by a one-hidden-layer head, but it sums the per-tree leaf vectors instead of joining them, has no sequence branch, attention pooling or joint refit, warm-starts the head's bias at the training base-rate log-odds, and trains the head with a positive-class weight instead of plain cross-entropy, so the as-run probability is centred on even odds rather than on the up share of the series.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the head's single output for the current row, computed from the sum of the embedded leaf indices of the frozen trees plus the projected standardised features, with no calibration step afterwards; the trees were boosted on plain logarithmic loss but the head was trained with up bars weighted by the ratio of down bars to up bars, so one half means even odds between two equally weighted classes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, for the head's epochs only because the tree stage is one fit with no logged steps",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The head that turns leaf embeddings into odds was trained with up bars and down bars each carrying half the loss, so the score that weights the classes equally on test bars grades it on the scale it was fitted to, with the natural logarithm of two as the value of always quoting even odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether rows that the trees routed to leaves with higher embedded scores, adjusted by the continuous features, were followed by up moves more often than rows scored lower, which the class weighting and the scale of the sigmoid cannot change."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted version is what early stopping watched on the validation rows to pick the kept head, so on test bars it shows that same quantity out of sample, with the warning that it charges the head for being centred on even odds whenever the series leaned one way."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Leaves that caught only a few training bars own embedding rows learned from almost nothing and can push the head to extreme odds, and this bounded score grades the output without letting those rows dominate, though it too is measured against the up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The head learns from leaf indices assigned to the same training rows the trees were grown on, which flatters its inputs, and the slope on test bars shows whether that left its log-odds stretched too far, a question the class weighting does not settle."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The warm start sets only the output bias, so even with the leaf tables near their small starting values the projected features move the odds from bar to bar; this spread shows whether the head commits away from the training base rate at all, and the gain over the head without leaf embeddings, a native metric, is what shows whether the leaf lookups helped."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the head's output is positive, so the hit rate tests the decision boundary drawn over leaf embeddings and features, read against the fold's training majority class and with the reminder that the boundary sits at even odds between weighted classes."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It subtracts what always calling the fold's training majority direction would have scored, the plain test of whether routing a row through the trees and the head beat knowing only which way the training span leaned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars matches the equal class weights the head was trained with, so it is the hard-call number on the same footing as the loss the head minimised."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It reduces the four cells of called against actual direction to one symmetric number, showing whether the sign of the head's output moves with the market at all, where zero means the calls are unrelated to the outcome."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long whenever the head's output is positive and short otherwise, filled at the next open with costs, so it tests only the sign of the call under the engine's rule and is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A head that leans long in a rising fold earns the drift without any help from the leaf embeddings, and subtracting buy and hold on the same folds removes that drift from the money figure."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily following the sign of the head's output earned money per bar after costs, and because only the sign is traded the size of the probability plays no part in it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole the account fell into while the position followed the head's call bar after bar, which is the risk paid for whatever those calls earned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades earned with what the losing trades gave back after costs, where a trade ends when the sign of the head's output flips, and it is shown with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that ended in profit under the engine's exit rule, so it describes how the head's flips of direction fared as trades and is read together with the predicted up share."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "This model reads one row at a time with no memory of the previous bar, so a row crossing a tree's split can flip the call, and the count of closed trades shows how often that happened and how much cost it invited."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the head called up, and a share near all or nothing means the output has collapsed to one direction and every trading number is then just that direction's drift."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second pair, trees boosted on squared error of the clipped scaled move and a head fitted with Huber loss on their leaf embeddings, so this skill against the no-change forecast tests that second fit and not the direction model that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the price-fitted trees and head missed the move on average, to be read beside the no-change error on the same bars and never as a grade of the direction call."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It shows how often the sign of the price model's forecast matched the move, a second opinion from separately fitted trees and head that can disagree with the traded call."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curve covers only the head's epochs, with the weighted cross-entropy on training rows and the unweighted logarithmic loss on validation rows, so each is read for its own shape and the two are never compared level for level."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the size of the head's gradient before clipping, averaged over an epoch, and shows whether the embedding tables and the projection are still being moved or the fit has gone quiet; the frozen trees receive no gradient."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score the search used on inner blocks of the training span to pick the tree count, depth, tree learning rate, embedding size and hidden size, optimistic by construction and useful only beside the test value of the same quantity."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "It compares the stated odds with the observed up share, but the positive-class weight deliberately centres the head on even odds, so a gap appears by construction whenever the series leaned one way."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "It is the worst bin of the same comparison with the observed up share, which the class-weighted head was never aiming at, and it usually rests on a bin holding very few bars."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean against the up share of the series, and the class weighting removes exactly that lean on purpose, so a non-zero value restates the weighting and not a fault."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the up share of the test bars themselves, known only in hindsight, while the head was centred on even odds, so the comparison mixes the weighting with the skill."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is a weighted cross-entropy on rows whose leaf indices the trees already fitted, and the validation curve is an unweighted logarithmic loss, so their difference is not a measure of overfitting."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the model."
+            }
+          ],
+          "caveats": [
+            "The trees are fitted once with no early stopping, and the head is then trained on leaf indices of the same training rows the trees were grown on, so the head's training inputs are more informative than the leaf indices it will see on validation and test rows.",
+            "The label horizons of neighbouring bars overlap, so scored bars are not independent and any interval around these numbers needs a block bootstrap or a Newey-West variance rather than a binomial formula.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open.",
+            "For any root other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The kept head is the epoch with the lowest unweighted logarithmic loss on the validation rows, so that validation number is optimistic and only the test walk is out of sample.",
+            "No loss-surface diagnostics are recorded for this adapter, and the price forecast comes from a second set of trees and a second head rather than from the direction model whose call is traded."
+          ]
+        }
       }
     }
   }

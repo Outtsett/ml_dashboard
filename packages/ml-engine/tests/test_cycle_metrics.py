@@ -16,9 +16,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from scipy import stats
-from sklearn import metrics as sk
-
 from cycle.metrics import (
     METRIC_NAMES,
     MINIMUM_CREDIBLE_TRADES,
@@ -36,8 +33,11 @@ from cycle.metrics import (
     sortino_ratio,
     trade_statistics,
 )
+from scipy import stats
+from sklearn import metrics as sk
 
-SCHEMA = Path(__file__).resolve().parents[1] / "src" / "shared" / "cycle" / "schema.ts"
+# the wire schema lives in the shared package (packages/shared), a sibling of this one
+SCHEMA = Path(__file__).resolve().parents[2] / "shared" / "src" / "cycle" / "schema.ts"
 PERIODS = 19_656.0   # e.g. 78 bars a day, 252 days
 
 

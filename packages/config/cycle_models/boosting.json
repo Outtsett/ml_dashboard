@@ -135,6 +135,285 @@
           "label": "Early stopping rounds",
           "group": "Model"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability for each class, read off as the sigmoid of the summed leaf weights of many depth-limited trees, each grown level by level on the first and second derivatives of the loss left by the trees before it.",
+          "targetVariable": "The class of the labelled outcome for each row, which for a trading signal is whether the row is a buy or a sell, stated as a probability of the positive class.",
+          "objectiveId": "regularized_boosted_log_loss",
+          "objectiveNote": "XGBoost's version writes the penalty into the objective itself, charging each tree for its number of leaves and for the squared and absolute size of its leaf weights, and scores every candidate split with a gain built from gradients and hessians; the specification also allows squared error when the target is a size instead of a class.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The split gain and every leaf weight in XGBoost are computed from the gradient and hessian of this loss, so its value on unseen rows is the direct test of whether those penalised leaf weights add up to honest odds.",
+              "baseline": "The logarithmic loss of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The leaf-weight penalties pull every tree's contribution toward zero, so this share of the constant forecast's loss that the ensemble removed shows whether anything survived the penalties that helps on rows the trees never saw.",
+              "baseline": "Zero, the value of a constant forecast with no tree added.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A deep tree with a small minimum child weight can hand a few rows a very large leaf weight, and this squared miss grades the same probabilities while capping what any one such row can cost.",
+              "baseline": "The Brier score of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The squared penalty on leaf weights shrinks each tree's push on the log-odds while more rounds keep adding pushes, and this slope shows whether the balance between the two left the summed score too bold or too timid on unseen rows.",
+              "baseline": "One, the slope of stated odds whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The sum of penalised leaf weights is a continuous score, and this tests whether it places rows that turned out positive above rows that turned out negative even when the penalties have squeezed its scale.",
+              "baseline": "One half, the value of a score that orders rows no better than a coin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the split gain never beats the charge for an extra leaf the trees stay stumps with tiny weights, and this spread of the stated probabilities shows whether XGBoost is committing on any row or sitting at its constant.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The regularised objective is meant to keep the training loss from outrunning the truth, so the gap between the kept ensemble's logarithmic loss on held-out rows and on training rows measures how well the leaf penalties did that job.",
+              "baseline": "Zero, no gap between held-out rows and training rows.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "XGBoost's leaf weights are fitted to the logarithmic loss of a probability, not to a hit count, so a direction hit rate with a pass mark was never its own yardstick and the hard-call hit rate is reported only as run."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is a task loss such as the logarithmic loss with penalties on leaves and leaf weights, and the classifier fits no mean and variance of the return for a Gaussian likelihood to grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared miss on the size of the return grades a regressor, and the classifier described here states only the odds of a class, so the row belongs to the regression form of XGBoost."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on only the most confident tenth of rows depends on an arbitrary cut and a tiny sample; the ranking score and the calibration slope already test whether XGBoost's confident rows deserve their confidence."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specified XGBoost classifier outputs a class probability from summed leaf weights and fits no spread for the size of the move, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a classifier and names no position rule, fill or cost, so a return per unit of risk exists only once the Model Cycle trades the call."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The size of the move is not an output of the class-probability ensemble; a size forecast belongs to a separate XGBoost regressor trained on squared error."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the XGBoost booster's own output under its binary logistic objective, the sigmoid of the summed leaf weights of the trees up to the round with the lowest validation logarithmic loss, with no class weights and no calibration step afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "regularized_boosted_log_loss",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The leaf weights were solved from the gradient and hessian of this unweighted loss on the up or down label, so on test bars it grades exactly the odds XGBoost was trained to state, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The summed leaf weights of the kept trees form a continuous score, and this shows whether that score ranks bars that went up above bars that went down, even where the leaf-weight penalty has squeezed its scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades XGBoost's probabilities on a bounded scale, so a deep branch that handed a few test bars a large leaf weight and missed cannot decide the reading the way it can in the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "XGBoost is run without class weights, so its odds are meant to match the up share of the series, and this binned gap checks that on test bars with the occupied-bin count beside it because the odds cluster near one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The squared penalty on leaf weights and the minimum child weight hold each tree's push on the log-odds down while early stopping decides how many pushes are kept, and this slope shows whether the result is too bold or too timid on test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "On a noisy series early stopping often keeps only a few penalised trees, and this spread of the probability of up shows whether the kept leaf weights say anything different from bar to bar."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Training and validation curves both hold XGBoost's unweighted logarithmic loss, so their gap at the kept round is a like-for-like reading of how well the leaf-weight penalty kept the trees from memorising the training bars."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up whenever the summed leaf weights put the probability at or above one half, so the hit rate tests XGBoost's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "With no class weights a lightly trained booster leans toward whichever direction was more common in training, and averaging the hit rate on up bars and on down bars shows whether the leaf weights do more than follow that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It puts into one symmetric number whether the side of one half that XGBoost's probability falls on moves with the actual direction, with zero meaning the leaf weights add nothing beyond the training lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when XGBoost's probability of up is at or above one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of XGBoost's call earned money per bar after costs, and it is also what the hyperparameter search steered the tree depth, learning rate, row and column sampling, minimum child weight and leaf penalty toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following XGBoost's call, which matters because splits learned on one training window keep routing test bars to the same leaf weights after the relationship they captured has faded."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by XGBoost's call made with what the losing ones gave back after costs, read with the trade count because a probability that hovers near one half flips often."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when XGBoost's call flipped ended in profit after costs, which describes the shape of the trading results and is not the direction hit rate of the bars."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is kept while the probability stays on one side of one half, so this counts how often XGBoost's summed leaf weights crossed that line, and every trading number of this model is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often XGBoost called up, which exposes an unweighted booster that kept few trees and is in effect long or short on nearly every bar."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second XGBoost booster trained with the squared-error objective on the scaled move and stopped on validation mean absolute error, so this tests that booster against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second XGBoost booster's forecast of the move landed from the realised move after tick rounding, read beside the size of the typical move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the squared-error booster's forecast on bars where both forecast and move are non-zero after tick rounding, and because that booster is a separate fit it can disagree with the classifier's call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on which the tree depth, learning rate, sampling shares, minimum child weight and leaf penalty of this XGBoost run were picked inside the training span, so it is optimistic by construction and is read only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "XGBoost is fitted without class weights, so its odds are centred on the training up share and a score that gives each class half the weight grades a target it was not trained toward."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is long or short on every bar once the first call is made, so the share of bars in the market describes the engine's rule and not XGBoost."
+            }
+          ],
+          "caveats": [
+            "The validation bars are XGBoost's early-stopping set, so the validation logarithmic loss at the kept round is the number the round was chosen on and is optimistic; only the test walk is out of sample.",
+            "The run uses the histogram tree method and sets only the squared penalty on leaf weights, so the absolute-size penalty and the per-leaf charge named in the specification stay at the library defaults.",
+            "The forecast line is a second, separately fitted XGBoost booster whose training target is clipped at its training tails, and its numbers describe that booster and not the classifier that is traded.",
+            "Labels of neighbouring bars share future bars because the horizon spans several bars, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For instruments other than the micro Nasdaq future the cost figure is the micro Nasdaq account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "lightgbm": {
@@ -276,6 +555,285 @@
           "label": "Early stopping rounds",
           "group": "Model"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability for each class, read off as the sigmoid of the summed leaf values of many trees grown leaf by leaf on binned features, each tree correcting what the earlier trees got wrong.",
+          "targetVariable": "The class of the labelled outcome for each row, which for a trading signal is whether the row is a buy or a sell, stated as a probability of the positive class.",
+          "objectiveId": "regularized_boosted_log_loss",
+          "objectiveNote": "LightGBM's version finds splits on feature histograms and always splits the single leaf with the largest loss reduction, with limits on leaf count, rows per leaf and a penalty on leaf values holding that greedy growth back; the specification also allows squared error when the target is a size instead of a class.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Leaf-wise growth chases the largest drop in this loss at every split, which makes LightGBM quick to fit and quick to overfit, so its value on unseen rows is the direct check on whether those greedy splits found real odds.",
+              "baseline": "The logarithmic loss of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "LightGBM starts every row at the same constant and the leaf-wise trees are all that moves a row away from it, so this share of the constant's loss that was removed says whether the trees earned anything on rows they never saw.",
+              "baseline": "Zero, the value of the starting constant with no tree added.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A leaf grown down to a few rows can state near-certain odds, and this squared miss grades the same probabilities while capping how much any one such leaf can cost, which the logarithmic loss does not.",
+              "baseline": "The Brier score of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Small leaves give large leaf values, so the leaf count and the minimum rows per leaf decide how extreme the summed score becomes, and this slope shows whether the kept ensemble's odds came out too bold for unseen rows.",
+              "baseline": "One, the slope of stated odds whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Binning the features into histograms coarsens where splits can fall but the sum over many leaf-wise trees is still a fine-grained score, and this tests whether that score ranks positive rows above negative ones regardless of its scale.",
+              "baseline": "One half, the value of a score that orders rows no better than a coin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the leaf limits and the leaf-value penalty are set tight the trees stop after a split or two, and this spread of the stated probabilities shows whether LightGBM is committing on any row or repeating its starting constant.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Leaf-wise growth drives the training loss down faster than level-wise growth does, so the gap between the kept ensemble's logarithmic loss on held-out rows and on training rows is the plainest sign of leaves that memorised noise.",
+              "baseline": "Zero, no gap between held-out rows and training rows.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "LightGBM's leaves are fitted to the logarithmic loss of a probability, not to a hit count, so a direction hit rate with a pass mark was never its own yardstick and the hard-call hit rate is reported only as run."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is a task loss such as the logarithmic loss with tree regularisation, and the classifier fits no mean and variance of the return for a Gaussian likelihood to grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared miss on the size of the return grades a regressor, and the classifier described here states only the odds of a class, so the row belongs to the regression form of LightGBM."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on only the most confident tenth of rows depends on an arbitrary cut and a tiny sample; the ranking score and the calibration slope already test whether LightGBM's confident leaves deserve their confidence."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specified LightGBM classifier outputs a class probability from summed leaf values and fits no spread for the size of the move, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a classifier and names no position rule, fill or cost, so a return per unit of risk exists only once the Model Cycle trades the call."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The size of the move is not an output of the class-probability ensemble; a size forecast belongs to a separate LightGBM regressor trained on squared error."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the LightGBM booster's own output under its binary objective, the sigmoid of the summed leaf values of the leaf-wise trees up to the round with the lowest validation logarithmic loss, with no class weights and no calibration step afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "regularized_boosted_log_loss",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The leaf-wise trees were grown to cut this unweighted loss on the up or down label, so on test bars it grades exactly the odds LightGBM was trained to state, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The summed leaf values of the kept leaf-wise trees form a continuous score, and this shows whether that score ranks bars that went up above bars that went down, whatever early stopping did to its scale."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades LightGBM's probabilities on a bounded scale, so a small leaf that stated near-certain odds on a few test bars and missed cannot decide the reading the way it can in the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "LightGBM is run without class weights, so its odds are meant to match the up share of the series, and this binned gap checks that on test bars with the occupied-bin count beside it because the odds cluster near one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The leaf count and the minimum rows per leaf decide how large each leaf value can grow before early stopping ends the run, and this slope shows whether the kept leaves left the odds too bold or too timid on test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Early stopping on a noisy series often keeps only the first few leaf-wise trees, and this spread of the probability of up shows whether the kept ensemble says anything different from bar to bar."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Training and validation curves both hold LightGBM's unweighted binary logarithmic loss, so their gap at the kept round is a like-for-like reading of how much the greedy leaf-wise splits memorised the training bars."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up whenever the summed leaf values put the probability at or above one half, so the hit rate tests LightGBM's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "With no class weights the booster's starting score leans toward whichever direction was more common in training, and averaging the hit rate on up bars and on down bars shows whether the leaves do more than follow that lean."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It puts into one symmetric number whether the side of one half that LightGBM's probability falls on moves with the actual direction, with zero meaning the leaves add nothing beyond the training lean."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when LightGBM's probability of up is at or above one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of LightGBM's call earned money per bar after costs, and it is also what the hyperparameter search steered the leaf count, learning rate, row and column sampling and leaf penalty toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following LightGBM's call, which matters because leaves fitted to one training window keep issuing the same calls through the test span even after the pattern they caught has gone."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by LightGBM's call made with what the losing ones gave back after costs, read with the trade count because a probability that hovers near one half flips often."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when LightGBM's call flipped ended in profit after costs, which describes the shape of the trading results and is not the direction hit rate of the bars."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is kept while the probability stays on one side of one half, so this counts how often LightGBM's summed leaf values crossed that line, and every trading number of this model is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often LightGBM called up, which exposes an unweighted booster that kept few trees and is in effect long or short on nearly every bar because of its starting score."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second LightGBM booster trained with the squared-error regression objective on the scaled move and stopped on validation mean absolute error, so this tests that booster against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second LightGBM booster's forecast of the move landed from the realised move after tick rounding, read beside the size of the typical move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the regression booster's forecast on bars where both forecast and move are non-zero after tick rounding, and because that booster is a separate fit it can disagree with the classifier's call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on which the leaf count, learning rate, sampling shares and leaf penalty of this LightGBM run were picked inside the training span, so it is optimistic by construction and is read only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "LightGBM is fitted without class weights, so its odds are centred on the training up share and a score that gives each class half the weight grades a target it was not trained toward."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is long or short on every bar once the first call is made, so the share of bars in the market describes the engine's rule and not LightGBM."
+            }
+          ],
+          "caveats": [
+            "The validation bars are LightGBM's early-stopping set, so the validation logarithmic loss at the kept round is the number the round was chosen on and is optimistic; only the test walk is out of sample.",
+            "Every column of the Model Cycle's feature matrix is numeric, so the native categorical splits the specification describes are never used in this run.",
+            "The forecast line is a second, separately fitted LightGBM booster whose training target is clipped at its training tails, and its numbers describe that booster and not the classifier that is traded.",
+            "Labels of neighbouring bars share future bars because the horizon spans several bars, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For instruments other than the micro Nasdaq future the cost figure is the micro Nasdaq account figure applied as a stated assumption."
+          ]
+        }
       }
     },
     "catboost": {
@@ -384,6 +942,286 @@
           "group": "Model",
           "description": "Stop adding trees after this many rounds without a better validation loss; the best round is kept.",
           "argument": "early_stopping_rounds"
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability for each class, read off as the sigmoid of the summed leaf values of many symmetric trees that were added one after another, each one fitted to the errors the earlier trees left behind.",
+          "targetVariable": "The class of the labelled outcome for each row, which for a trading signal is whether the row is a buy or a sell, stated as a probability of the positive class.",
+          "objectiveId": "regularized_boosted_log_loss",
+          "objectiveNote": "CatBoost's version adds ordered boosting, where each row's gradient is estimated from trees that never saw that row, ordered target statistics for categorical columns, and symmetric trees that ask the same question across a whole level; the specification also allows squared error when the target is a size instead of a class.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Every symmetric tree CatBoost adds is fitted to the gradient of this exact loss, so on unseen rows it shows whether the odds stated by the summed leaf values are honest or whether the ensemble only memorised the training rows.",
+              "baseline": "The logarithmic loss of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The specification starts the ensemble at zero or at a constant and CatBoost's logistic default starts at even odds, so this share of the loss of quoting the training up share that the finished ensemble removed on rows it never saw says in one number whether the boosting rounds learned anything beyond a flat prior.",
+              "baseline": "Zero, the skill of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A deep stack of symmetric trees can push a few rows to near-certain odds, and this squared miss grades the same probabilities without letting those few confident misses swamp the reading the way they do in the logarithmic loss.",
+              "baseline": "The Brier score of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The learning rate, the tree depth and the penalty on leaf values all set how far the summed leaf values run from zero, so this slope shows whether the ensemble ended too bold after many rounds or too timid after heavy shrinkage.",
+              "baseline": "One, the slope of stated odds whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each symmetric tree sorts rows into a small table of leaves and the sum over trees is a fine-grained score, so this asks only whether that score puts rows that turned out positive above rows that turned out negative, whatever its scale.",
+              "baseline": "One half, the value of a score that orders rows no better than a coin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Ordered boosting and the leaf penalty exist to hold CatBoost back on noisy data, and this spread of the stated probabilities shows whether they held it back so far that every row gets nearly the same odds.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "CatBoost's claim is that ordered boosting keeps the training loss from running ahead of the truth, so the gap between the kept ensemble's logarithmic loss on held-out rows and on its own training rows tests that claim directly.",
+              "baseline": "Zero, no gap between held-out rows and training rows.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "CatBoost's trees are fitted to the logarithmic loss of a probability, not to a hit count, so a direction hit rate with a pass mark was never its own yardstick and the hard-call hit rate is reported only as run."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's own objective is a task loss such as the logarithmic loss with a penalty on the trees, and the classifier fits no mean and variance of the return for a Gaussian likelihood to grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared miss on the size of the return grades a regressor, and the classifier described here states only the odds of a class, so the row belongs to the separate regression form of CatBoost."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on only the most confident tenth of rows depends on an arbitrary cut and a tiny sample; the ranking score and the calibration slope already test whether CatBoost's confident rows deserve their confidence."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specified CatBoost classifier outputs a class probability from summed leaf values and fits no spread for the size of the move, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a classifier and names no position rule, fill or cost, so a return per unit of risk exists only once the Model Cycle trades the call."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The size of the move is not an output of the class-probability ensemble; a size forecast belongs to a separate CatBoost regressor trained on squared error."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The run is the real CatBoost library with symmetric trees, the logarithmic loss, a penalty on leaf values and early stopping, but at the library default it grows the trees with plain boosting, so the ordered boosting that the specification names as its central principle is not applied, and every feature is numeric, so the ordered target statistics for categorical columns have nothing to act on.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the CatBoost classifier's own probability for the up class, the sigmoid of the summed leaf values of the symmetric trees kept up to the round with the lowest validation logarithmic loss, with no class weights and no calibration step afterwards.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "regularized_boosted_log_loss",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The symmetric trees were fitted to this unweighted loss on the up or down label, so on test bars it grades exactly the odds CatBoost was trained to state, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The summed leaf values of the kept symmetric trees form a continuous score, and this shows whether that score ranks bars that went up above bars that went down, which holds even if early stopping left its scale off."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same CatBoost probabilities on a bounded scale, so a few bars where deep symmetric trees stated near-certain odds and missed cannot decide the reading the way they can in the logarithmic loss."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "CatBoost is run without class weights, so its odds are meant to match the up share of the series, and this binned gap checks that on test bars with the occupied-bin count beside it because the odds cluster near one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The run keeps the round with the lowest validation loss, which fixes how far the summed leaf values run from zero, and this slope shows whether that stopping point left the odds too bold or too timid on test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "On a noisy series early stopping often keeps only a handful of symmetric trees, and this spread of the probability of up shows whether the kept ensemble says anything different from bar to bar."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Training and validation curves both hold the unweighted logarithmic loss of the same CatBoost ensemble, so their gap at the kept round is a like-for-like reading of how much the symmetric trees overfitted the training bars."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up whenever the summed leaf values put the probability at or above one half, so the hit rate tests CatBoost's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up whenever the summed leaf values put the probability at or above one half, and CatBoost starts from even odds, so a few kept trees give a call that follows small leaf-value differences and not a standing training lean; averaging the hit rate on up bars and on down bars shows whether those small differences carry any direction."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It puts into one symmetric number whether the side of one half that CatBoost's probability falls on moves with the actual direction, with zero meaning the calls carry no relation to the direction the bars took."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when CatBoost's probability of up is at or above one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of CatBoost's call earned money per bar after costs, and it is also what the hyperparameter search steered the tree depth, learning rate and leaf penalty toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following CatBoost's call, which matters because an ensemble frozen at the end of training keeps trading the same leaf table through the whole test span even if the market changes."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by CatBoost's call made with what the losing ones gave back after costs, read with the trade count because a probability that hovers near one half flips often."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when CatBoost's call flipped ended in profit after costs, which describes the shape of the trading results and is not the direction hit rate of the bars."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is kept while the probability stays on one side of one half, so this counts how often CatBoost's summed leaf values crossed that line, and every trading number of this model is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often CatBoost called up; an ensemble that kept few trees states odds close to one half, so the share called up is set by small leaf-value differences and the position can flip often, which is why it is read beside the closed trade count."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second CatBoost model, a regressor trained on squared error against the scaled move and stopped on validation mean absolute error, so this tests that regressor against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second CatBoost regressor's forecast of the move landed from the realised move after tick rounding, read beside the size of the typical move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the CatBoost regressor's forecast on bars where both forecast and move are non-zero after tick rounding, and because the regressor is a separate fit it can disagree with the classifier's call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on which the tree depth, learning rate and leaf penalty of this CatBoost run were picked inside the training span, so it is optimistic by construction and is read only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "CatBoost is fitted without class weights, so its trees are fitted to the unweighted up share of the training bars and a score that gives each class half the weight grades a target it was not trained toward."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is long or short on every bar once the first call is made, so the share of bars in the market describes the engine's rule and not CatBoost."
+            }
+          ],
+          "caveats": [
+            "The validation bars are CatBoost's early-stopping set, so the validation logarithmic loss at the kept round is the number the round was chosen on and is optimistic; only the test walk is out of sample.",
+            "The run uses the library default of plain boosting, so the ordered boosting that the specification names as CatBoost's central principle is not applied, and every column of the Model Cycle's feature matrix is numeric, so the ordered target statistics for categorical columns that the specification highlights have nothing to act on in this run.",
+            "CatBoost's logistic loss starts every row at even odds and does not start from the training up share, so an ensemble that kept few trees states odds close to one half.",
+            "The forecast line is a second, separately fitted CatBoost regressor whose training target is clipped at its training tails, and its numbers describe that regressor and not the classifier that is traded.",
+            "Labels of neighbouring bars share future bars because the horizon spans several bars, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For instruments other than the micro Nasdaq future the cost figure is the micro Nasdaq account figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -507,6 +1345,285 @@
           "label": "Early stopping rounds",
           "group": "Model",
           "description": "Stop adding trees after this many rounds without a better validation loss; the best round is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [],
+        "native": {
+          "produces": "A probability for each class, read off as the sigmoid of a starting log-odds plus the shrunken outputs of many shallow trees, each fitted to the pseudo-residuals the trees before it left.",
+          "targetVariable": "The class of the labelled outcome for each row, which for a trading signal is whether the row is a buy or a sell, stated as a probability of the positive class.",
+          "objectiveId": "regularized_boosted_log_loss",
+          "objectiveNote": "Friedman's machine fits each shallow tree to the negative gradient of the loss, scales it by a line-search step and a learning rate, and regularises through shrinkage, depth limits and row subsampling instead of an explicit penalty on leaf values; the specification also allows squared error when the target is a size instead of a class.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each shallow tree is fitted to the pseudo-residuals of this loss and the line search picks the step that lowers it most, so on unseen rows it is the direct test of whether the accumulated steps describe real odds.",
+              "baseline": "The logarithmic loss of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The machine is initialised at the log-odds of the training classes, which is exactly this reference forecast, so the skill reads as the share of the starting loss that the added trees removed on rows they never saw.",
+              "baseline": "Zero, the value of the initial constant with no tree added.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "With a small learning rate the machine moves the log-odds in small steps and rarely reaches extreme odds, and this squared miss confirms the reading of the logarithmic loss on a scale that a handful of confident rows cannot dominate.",
+              "baseline": "The Brier score of quoting the training up share of the same series on every row.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Shrinkage and the number of trees trade off directly here: too few shrunken steps leave the log-odds too close to the start, too many drive them too far, and this slope says which side the kept ensemble landed on.",
+              "baseline": "One, the slope of stated odds whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The sum of shrunken tree outputs is a continuous score, and this tests whether that sum places rows that turned out positive above rows that turned out negative even if the shrinkage left its scale wrong.",
+              "baseline": "One half, the value of a score that orders rows no better than a coin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A heavily shrunken machine with few trees barely leaves its starting log-odds, and this spread of the stated probabilities exposes an ensemble that is honest only because it says the same thing on every row.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Every added tree lowers the training loss by construction, so the gap between the kept ensemble's logarithmic loss on held-out rows and on training rows shows how much of that descent was fitting noise in the pseudo-residuals.",
+              "baseline": "Zero, no gap between held-out rows and training rows.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The trees are fitted to pseudo-residuals of the logarithmic loss, not to a hit count, so a direction hit rate with a pass mark was never the machine's own yardstick and the hard-call hit rate is reported only as run."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is a task loss such as the logarithmic loss with tree regularisation, and the classifier fits no mean and variance of the return for a Gaussian likelihood to grade."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared miss on the size of the return grades a regressor, and the classifier described here states only the odds of a class, so the row belongs to the regression form of the machine."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate on only the most confident tenth of rows depends on an arbitrary cut and a tiny sample; the ranking score and the calibration slope already test whether the machine's confident rows deserve their confidence."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specified classifier turns summed tree outputs into a class probability and fits no spread for the size of the move, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a classifier and names no position rule, fill or cost, so a return per unit of risk exists only once the Model Cycle trades the call."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The size of the move is not an output of the class-probability machine; a size forecast belongs to a separate boosted regressor trained on squared error."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "faithful",
+          "standInNote": null,
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the scikit-learn gradient boosting classifier's own probability, the sigmoid of the starting log-odds plus the shrunken tree outputs, after the ensemble has been cut back to the round with the lowest validation logarithmic loss, with no class weights and no calibration step.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "regularized_boosted_log_loss",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "Each shallow tree was fitted to the pseudo-residuals of this unweighted loss on the up or down label, so on test bars it grades exactly the odds the machine was built to state, read against quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The starting log-odds plus the shrunken tree outputs is a continuous score, and this shows whether it ranks bars that went up above bars that went down, which does not depend on the cut-back round having set the scale right."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the machine's probabilities on a bounded scale, which suits an ensemble that after cutting back to few rounds states odds close to its starting value and is told apart from it only by small differences."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The machine starts at the log-odds of the training up share and carries no class weights, so its odds should match the up share of the series, and this binned gap checks that on test bars with the occupied-bin count beside it."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The ensemble is cut back to its best validation round, which decides how many shrunken steps the log-odds took, and this slope shows whether that many steps left the odds too bold or too timid on test bars."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When validation loss bottoms out after the first few rounds the machine is cut back almost to its starting log-odds, and this spread of the probability of up shows whether anything is left that differs from bar to bar."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Training and validation curves both hold the unweighted logarithmic loss of the same staged ensemble, so their gap at the kept round is a like-for-like reading of how much the shallow trees fitted noise in the pseudo-residuals."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up whenever the shrunken sum of trees puts the probability at or above one half, so the hit rate tests the machine's own decision line against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The machine begins at the training log-odds, so with few kept rounds it calls the training majority direction on nearly every bar, and averaging the hit rate on up bars and on down bars shows whether the trees moved it off that default."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It puts into one symmetric number whether the side of one half that the machine's probability falls on moves with the actual direction, with zero meaning the trees add nothing beyond the starting log-odds."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when the machine's probability of up is at or above one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of the machine's call earned money per bar after costs, and it is also what the hyperparameter search steered the learning rate, tree depth, row subsample and leaf size toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the machine's call, which matters because a call that sits on the training majority direction rides the whole of any move against that direction."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by the machine's call made with what the losing ones gave back after costs, read with the trade count because an ensemble near its starting log-odds can flip rarely."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the machine's call flipped ended in profit after costs, which describes the shape of the trading results and is not the direction hit rate of the bars."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "A position is kept while the probability stays on one side of one half, so this counts how often the shrunken sum of trees crossed that line, and every trading number of this model is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the machine called up, which exposes an ensemble cut back so far that its starting log-odds makes it long or short on nearly every bar."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second scikit-learn boosted model, a regressor trained on squared error against the scaled move and cut back on validation mean absolute error, so this tests that regressor against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the boosted regressor's forecast of the move landed from the realised move after tick rounding, read beside the size of the typical move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the boosted regressor's forecast on bars where both forecast and move are non-zero after tick rounding, and because the regressor is a separate fit it can disagree with the classifier's call."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score on which the learning rate, tree depth, row subsample and leaf size of this run were picked inside the training span, so it is optimistic by construction and is read only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The machine is fitted without class weights and starts at the training log-odds, so a score that gives each class half the weight grades a target it was not trained toward."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the default dials the engine is long or short on every bar once the first call is made, so the share of bars in the market describes the engine's rule and not the machine."
+            }
+          ],
+          "caveats": [
+            "Every round is scored on the validation bars and the ensemble is cut back to the best of them, so the validation logarithmic loss at the kept round is the number it was chosen on and is optimistic; only the test walk is out of sample.",
+            "The scikit-learn estimator applies shrinkage, depth limits and row subsampling but no explicit penalty on leaf values, so the regularisation term in the objective is carried by those limits.",
+            "The forecast line is a second, separately fitted boosted regressor whose training target is clipped at its training tails, and its numbers describe that regressor and not the classifier that is traded.",
+            "Labels of neighbouring bars share future bars because the horizon spans several bars, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next open.",
+            "For instruments other than the micro Nasdaq future the cost figure is the micro Nasdaq account figure applied as a stated assumption."
+          ]
         }
       }
     }

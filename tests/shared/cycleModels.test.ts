@@ -8,8 +8,10 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { indexMetricRegistry, metricRegistrySchema } from "@shared/cycle/metrics";
 import {
   crossCheckCycleRegistry,
+  crossCheckCycleRegistryMetrics,
   cycleModelFileSchema,
   cycleSharedRegistrySchema,
   type CycleModelEntry,
@@ -19,6 +21,8 @@ import {
 const ROOT = path.resolve(__dirname, "..", "..");
 const REGISTRY = path.join(ROOT, "packages", "config", "cycle_models");
 const INVALID = path.join(ROOT, "tests", "fixtures", "cycle_models_invalid");
+// every model's metrics record names its metrics, objectives and profiles from this registry
+const METRIC_INDEX = indexMetricRegistry(metricRegistrySchema.parse(JSON.parse(readFileSync(path.join(ROOT, "packages", "config", "metric_registry.json"), "utf-8"))));
 
 type Files = Record<string, Record<string, unknown>>;
 
@@ -49,7 +53,7 @@ function validate(files: Files): string[] {
       registry.files[key] = name;
     }
   }
-  return [...problems, ...crossCheckCycleRegistry(registry)];
+  return [...problems, ...crossCheckCycleRegistry(registry), ...crossCheckCycleRegistryMetrics(registry, METRIC_INDEX)];
 }
 
 type Operation =

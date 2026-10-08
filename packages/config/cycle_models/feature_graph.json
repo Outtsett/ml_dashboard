@@ -186,6 +186,335 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component",
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For every node of a market graph (a currency pair or a time step), a class probability for its next move read from features averaged over its neighbours through the degree-normalised adjacency with self-loops, or one pooled prediction for the whole graph; the regression variant emits a price estimate instead.",
+          "targetVariable": "The direction of each node's next price move, or in the regression variant its size, where a node is a currency pair or a time step joined to others by thresholded correlation or temporal edges.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification leaves the loss task-specific and writes mean squared error for a price target before cross-entropy for classes; the graph convolution adds no loss term of its own, because its neighbour averaging uses fixed degree-normalised weights and only the layer weight matrices are learned.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The class head reads node features that each convolution layer has averaged over the normalised adjacency and is fitted by plain cross-entropy, so the same score on unseen graphs is the direct test of what the neighbour averaging bought.",
+              "baseline": "Quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The convolution claims that a node is better predicted once its neighbours' features are mixed in, so the reference is the same layers with the adjacency replaced by the identity, which leaves each node reading only itself.",
+              "baseline": "The same network with the adjacency matrix replaced by the identity matrix, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Averaged node features usually give cautious odds, and the squared miss grades those small departures from the base rate on a bounded scale that one confident wrong node cannot dominate.",
+              "baseline": "The squared miss of quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Each convolution pulls a node's logit toward its neighbourhood's common level, so whether up nodes still sort above down nodes is asked separately from whether the scale of the stated odds is right.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification names accuracy among its classification metrics, so the hit rate of calling a node up when the probability read from the convolved node features is at least one half is read natively too, as the mean of the recall on up nodes and on down nodes so that the base rate of the series does not flatter it.",
+              "baseline": "One half, the value of a call that carries no information about the direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Stacked neighbour averaging shrinks the spread of the logits while a long fit stretches it again, and the slope shows without bins which of the two pulls won.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression variant the Training section writes first fits each node's next price by mean squared error, and its fair score is how much of the squared miss of forecasting no change the convolved features remove.",
+              "baseline": "Forecasting no move on the same resolved nodes.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Too many convolution layers on a dense graph over-smooth until every node carries the same features, and a spread of probabilities near zero is how that collapse shows up.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The adjacency is built by thresholding correlations between pairs and is never learned, so the share of edges that return when it is rebuilt on the next window says whether the fixed wiring the convolution averages along is a stable fact.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Natively the cross-entropy is one quantity on training and held-out graphs, so a widening gap shows the layer weight matrices memorising the training window despite the smoothing.",
+              "baseline": "Zero, the gap of a fit that does as well on unseen graphs as on its own.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is mean squared error or cross-entropy and its head outputs no variance, so a Gaussian likelihood was never this model's loss."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and the ranking it tries to show is already measured over every node by the receiver operating characteristic area."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head emits a class probability or one price estimate per node and no variance, so there is no forecast density whose likelihood could be scored."
+            },
+            {
+              "name": "Attention weight entropy",
+              "metricId": "attention_weight_entropy_nats",
+              "why": "The graph convolution weighs neighbours by fixed degree-normalised adjacency entries and learns no attention coefficients, so there is no attention distribution to describe."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network states a probability, not a position, so any return per unit of risk belongs to the trading rule and costs applied to its call and is an as-run number only."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification builds its graph over currency pairs, but a Model Cycle run holds one instrument, so the nodes of the feature graph are this instrument's feature columns and its edges are the strongest absolute correlations between columns, refitted on each fold's training span; each column's recent values plus a learned identity form its node state, the layers follow the specification's degree-normalised averaging with self-loops, and one graph-level readout gives a single prediction per bar, so the as-run numbers measure a fixed regrouping of this bar's own features rather than cross-market information.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit the head reads from the pooled node states after the graph convolutions (mean over columns, maximum over columns and a learned weighted sum joined together), with no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The convolution network was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars is the one that matches what its sigmoid output was trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit read from column states averaged over the correlation graph is continuous, and how well it orders up bars above down bars does not depend on the even prior the class weighting centred it on."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the convolution network's logit earned after costs under the engine's rule of following the latest call and filling at the next open; only the side of one half the probability falls on reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the calls made from the graph-averaged features added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the convolution network's call, costs included, divided by its variability, describes how steadily the direction calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from the convolution network's calls shows the worst stretch a trader following the sign of its logit would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the convolution network's call flips, so it reflects how often the logit changes sign as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the convolution network's call flips, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the sign of the convolution network's logit flipped, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars the convolution network called up shows whether its profit is a real two-sided call or a one-sided lean that happened to match the trend of the fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid of the convolution network's logit is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the convolution network's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, so it is the hard-call number most in line with how the convolution network was trained."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the convolution network calls a single side on every bar even if that side happened to be common."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the convolution network's sigmoid output on test bars; it is read knowing the class weighting shifted the output toward an even prior, which costs a little when the series leans one way."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the sigmoid output on test bars is the same quantity that chose the kept epoch on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior rather than the series' up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Repeated averaging over the correlation graph narrows the spread of the logits, and the slope asks whether that spread is right without bins and without being moved by the shift toward an even prior."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Stacked graph convolutions can smooth the column states until the pooled readout barely leaves one half, and the spread of the probability shows whether that over-smoothing happened."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second convolution network of the same design, fitted separately with Huber loss on the volatility-scaled move, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same graph convolution design, after its output is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second convolution network's forecast matched the move; it can disagree with the traded call because the two networks are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient before clipping through the convolution weight matrices each epoch shows whether training was stable or was being held together by the clip."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the convolution network settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the neighbour count, hidden size and layer count on inner blocks of the training span; it is a selection score and flattering by construction, shown only beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the convolution network."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the convolution network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss and the validation curve holds the unweighted logarithmic loss, so their gap compares two different quantities and is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so no cross-market information enters the model.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     },
     "graph_attention_network": {
@@ -389,6 +718,336 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component",
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For every node of a market graph (a currency pair or a time step), a class probability for its next move read from features that each attention head has blended from the node's neighbours, or one pooled prediction for the whole graph; the regression variant emits a price estimate instead.",
+          "targetVariable": "The direction of each node's next price move, or in the regression variant its size, where a node is a currency pair or a time step joined to others by correlation or temporal edges.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification leaves the loss task-specific and writes mean squared error for a price target before cross-entropy for classes; what the graph attention network adds is that the softmax attention coefficients over each node's neighbours are trained through that same loss, with no separate attention objective.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The class head sits on features that the attention heads have already blended across neighbours and is fitted by plain cross-entropy, so the same score on unseen graphs is the direct test of what the learned neighbour weighting bought.",
+              "baseline": "Quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole claim of this network is that learned attention coefficients pick the neighbours that matter, so the reference is the same layers with every neighbour given an equal coefficient, and the same head with no neighbours at all.",
+              "baseline": "The same network with the attention coefficients fixed to equal shares over each node's neighbours, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A head that concentrates its attention on one neighbour can state near-certain odds, and the squared miss stays bounded when such a confident call is wrong, so a few bad nodes cannot dominate the score.",
+              "baseline": "The squared miss of quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Attention reweights which neighbours feed a node, which can sort up nodes above down nodes correctly even when the scale of the stated odds is off, so the ordering is asked about separately from the scale.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification names accuracy among its classification metrics, so the hit rate of calling a node up when the probability built from the attention-blended features is at least one half is read natively too, as the mean of the recall on up nodes and on down nodes so that the base rate of the series does not flatter it.",
+              "baseline": "One half, the value of a call that carries no information about the direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Concatenating several attention heads widens the vector the class head reads and makes over-confident logits easy to reach, and the slope shows without bins whether the stated odds are stretched.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression variant the Training section writes first fits each node's next price by mean squared error, and its fair score is how much of the squared miss of forecasting no change the attention-blended features remove.",
+              "baseline": "Forecasting no move on the same resolved nodes.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "attention_weight_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The attention coefficients are the part of this model a trader can read: low entropy means each node listens to one or two dominant neighbours, entropy near its maximum means the heads have fallen back to plain averaging.",
+              "baseline": "The logarithm of the neighbour count, the entropy of equal coefficients.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The edges are thresholded correlations between pairs, so the share of edges that return when the graph is rebuilt on the next window says whether the neighbourhoods the attention chooses within are a stable fact.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Natively the cross-entropy is one quantity on training and held-out graphs, so a widening gap shows the attention heads memorising which neighbours mattered in the training window.",
+              "baseline": "Zero, the gap of a fit that does as well on unseen graphs as on its own.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is mean squared error or cross-entropy and its head outputs no variance, so a Gaussian likelihood was never this model's loss."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and the ranking it tries to show is already measured over every node by the receiver operating characteristic area."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head emits a class probability or one price estimate per node and no variance, so there is no forecast density whose likelihood could be scored."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network states a probability, not a position, so any return per unit of risk belongs to the trading rule and costs applied to its call and is an as-run number only."
+            },
+            {
+              "name": "Expected calibration error by bins",
+              "metricId": "expected_calibration_error",
+              "why": "Natively the bin-free slope already checks the scale of the stated odds; the binned figure depends on where the bin edges fall when most outputs sit close to one half."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification builds its graph over currency pairs, but a Model Cycle run holds one instrument, so the nodes of the feature graph are this instrument's feature columns and its edges are the strongest absolute correlations between columns, refitted on each fold's training span; each column's recent values plus a learned identity form its node state, attention heads weigh each column's correlated neighbours and are concatenated, and one graph-level readout gives a single prediction per bar, so the as-run numbers measure a learned regrouping of this bar's own features rather than cross-market information.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit the head reads from the pooled node states after the attention layers (mean over columns, maximum over columns and a learned weighted sum joined together), with no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The attention network was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars is the one that matches what its sigmoid output was trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit read from the attention-weighted column states is continuous, and how well it orders up bars above down bars does not depend on the even prior the class weighting centred it on."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the attention network's logit earned after costs under the engine's rule of following the latest call and filling at the next open; only the side of one half the probability falls on reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the calls made from the attention-weighted features added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the attention network's call, costs included, divided by its variability, describes how steadily the direction calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from the attention network's calls shows the worst stretch a trader following the sign of its logit would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the attention network's call flips, so it reflects how often the logit changes sign as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the attention network's call flips, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the sign of the attention network's logit flipped, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars the attention network called up shows whether its profit is a real two-sided call or a one-sided lean that happened to match the trend of the fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid of the attention network's logit is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the attention network's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, so it is the hard-call number most in line with how the attention network was trained."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the attention network calls a single side on every bar even if that side happened to be common."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the attention network's sigmoid output on test bars; it is read knowing the class weighting shifted the output toward an even prior, which costs a little when the series leans one way."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the sigmoid output on test bars is the same quantity that chose the kept epoch on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior rather than the series' up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Concatenated attention heads hand the head a wide vector that can produce stretched logits, and the slope asks whether their spread is right without bins and without being moved by the shift toward an even prior."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the heads spread their coefficients evenly over each column's neighbours the pooled readout barely moves from bar to bar, and the spread of the probability shows whether the output ever leaves one half."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second attention network of the same design, fitted separately with Huber loss on the volatility-scaled move, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same attention design, after its output is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second attention network's forecast matched the move; it can disagree with the traded call because the two networks are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient before clipping through the attention scoring vectors and projections each epoch shows whether training was stable or was being held together by the clip."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the attention network settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the neighbour count, head count and hidden size on inner blocks of the training span; it is a selection score and flattering by construction, shown only beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the attention network."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the attention network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss and the validation curve holds the unweighted logarithmic loss, so their gap compares two different quantities and is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so no cross-market information enters the model.",
+            "The attention coefficients over each column's neighbours are recorded for the inside view but no entropy or usage summary of them is computed, so the scoreboard cannot say whether the heads learned to choose or fell back to averaging.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
         }
       }
     },
@@ -598,6 +1257,341 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component",
+          "point_forecast"
+        ],
+        "native": {
+          "produces": "For every node of a market graph (a currency pair or a time step), a class probability for its next move read from the node's state after several rounds of aggregating its neighbours' states by mean, sum or maximum, or one prediction for the whole graph from a readout that pools every node; the regression variant emits a price estimate instead.",
+          "targetVariable": "The direction of each node's next price move, or for the graph-level readout the market regime, or in the regression variant the size of the move, where a node is a currency pair or a time step joined to others by correlation or temporal edges.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification leaves the loss task-specific and writes mean squared error for a price target before cross-entropy for classes; message passing adds no loss term of its own, and the choice of aggregation function is a setting rather than something the loss learns.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The class head reads node states refined by several rounds of message passing and is fitted by plain cross-entropy, so the same score on unseen graphs is the direct test of what the exchanged messages bought.",
+              "baseline": "Quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Message passing claims that a node's neighbours tell it something its own features do not, so the reference is the same update layers with every edge removed, where each node receives an empty message.",
+              "baseline": "The same network with every edge removed so that no messages are exchanged, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Summed messages grow with the number of neighbours and can push a well-connected node's logit to an extreme, and the squared miss stays bounded when such a confident call is wrong.",
+              "baseline": "The squared miss of quoting the training up share of the same series on every scored node.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The aggregation choice changes the scale of a node's state (a sum grows with degree, a mean does not), so whether up nodes sort above down nodes is asked separately from whether the stated odds have the right scale.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The specification names accuracy among its classification metrics, so the hit rate of calling a node up when the probability read from the message-refined node states is at least one half is read natively too, as the mean of the recall on up nodes and on down nodes so that the base rate of the series does not flatter it.",
+              "baseline": "One half, the value of a call that carries no information about the direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Each further round of message passing lets a node hear from neighbours of neighbours and compounds whatever scale the aggregation produced, and the slope shows without bins whether the final odds are stretched or squashed.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The regression variant the Training section writes first fits each node's next price by mean squared error, and its fair score is how much of the squared miss of forecasting no change the message-refined node states remove.",
+              "baseline": "Forecasting no move on the same resolved nodes.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Many rounds of mean aggregation make every node's state converge on the graph average, and a spread of probabilities near zero is how that loss of individual signal shows up.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Messages only travel along edges built from thresholded correlations or temporal links, so the share of edges that return when the graph is rebuilt on the next window says whether the routes the messages take are a stable fact.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Natively the cross-entropy is one quantity on training and held-out graphs, so a widening gap shows the message and readout weights memorising the training window.",
+              "baseline": "Zero, the gap of a fit that does as well on unseen graphs as on its own.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective is mean squared error or cross-entropy and its head outputs no variance, so a Gaussian likelihood was never this model's loss."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and the ranking it tries to show is already measured over every node by the receiver operating characteristic area."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head emits a class probability or one price estimate per node and no variance, so there is no forecast density whose likelihood could be scored."
+            },
+            {
+              "name": "Attention weight entropy",
+              "metricId": "attention_weight_entropy_nats",
+              "why": "The generic message-passing rule combines neighbours by mean, sum or maximum with no learned attention coefficients, so there is no attention distribution to describe."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network states a probability, not a position, so any return per unit of risk belongs to the trading rule and costs applied to its call and is an as-run number only."
+            },
+            {
+              "name": "Silhouette of the node embeddings",
+              "metricId": "silhouette_coefficient",
+              "why": "The specification suggests plotting node embeddings, but the network is not trained to form groups, so cluster tightness of those embeddings says nothing about its predictions."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification builds its graph over currency pairs or time steps, but a Model Cycle run holds one instrument, so the nodes of the feature graph are this instrument's feature columns and its edges are the strongest absolute correlations between columns, refitted on each fold's training span; each column's recent values plus a learned identity form its node state, a small learned network writes a message for every pair of linked columns, the messages are combined by mean, sum or maximum and added back to the column's own state, and one graph-level readout gives a single prediction per bar, so the as-run numbers measure a learned regrouping of this bar's own features rather than cross-market information.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit the head reads from the pooled node states after the message-passing layers (mean over columns, maximum over columns and a learned weighted sum joined together), with no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The message-passing network was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars is the one that matches what its sigmoid output was trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit read from column states updated by their neighbours' messages is continuous, and how well it orders up bars above down bars does not depend on the even prior the class weighting centred it on."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the message-passing network's logit earned after costs under the engine's rule of following the latest call and filling at the next open; only the side of one half the probability falls on reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the calls made from the message-updated features added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the message-passing network's call, costs included, divided by its variability, describes how steadily the direction calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from the message-passing network's calls shows the worst stretch a trader following the sign of its logit would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the message-passing network's call flips, so it reflects how often the logit changes sign as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the message-passing network's call flips, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the sign of the message-passing network's logit flipped, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars the message-passing network called up shows whether its profit is a real two-sided call or a one-sided lean that happened to match the trend of the fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid of the message-passing network's logit is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the message-passing network's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, so it is the hard-call number most in line with how the message-passing network was trained."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the message-passing network calls a single side on every bar even if that side happened to be common."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the message-passing network's sigmoid output on test bars; it is read knowing the class weighting shifted the output toward an even prior, which costs a little when the series leans one way."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the sigmoid output on test bars is the same quantity that chose the kept epoch on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior rather than the series' up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "A sum of messages grows with how many neighbours a column has and can stretch the logits where a mean would not, and the slope asks whether their spread is right without bins and without being moved by the shift toward an even prior."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Several rounds of averaged messages can pull every column's state toward the same value until the pooled readout barely leaves one half, and the spread of the probability shows whether that happened."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second message-passing network of the same design, fitted separately with Huber loss on the volatility-scaled move, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same message-passing design, after its output is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second message-passing network's forecast matched the move; it can disagree with the traded call because the two networks are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient before clipping through the message and update networks each epoch shows whether training was stable or was being held together by the clip."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the message-passing network settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the neighbour count, the aggregation rule and the hidden size on inner blocks of the training span; it is a selection score and flattering by construction, shown only beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the message-passing network."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the message-passing network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss and the validation curve holds the unweighted logarithmic loss, so their gap compares two different quantities and is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so no cross-market information enters the model.",
+            "The aggregation rule (mean, sum or maximum) is chosen by the hyperparameter search inside each fold, so two folds of the same run can combine messages differently.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     },
     "graph_augmented_lstm": {
@@ -785,6 +1779,326 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "For every instrument in the panel, a logit that becomes a class probability for its forward move (or, in the regression variant, a forward-return estimate), read from recurrent final states mixed across the instrument graph.",
+          "targetVariable": "The direction of each instrument's price move over the bars strictly after its trailing window, one label per node of the instrument graph.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification sums the per-node loss over every instrument in the graph and allows weighting nodes by liquidity so a thin market does not dominate the gradient.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The head on the graph-mixed recurrent state is fitted by summed per-node cross-entropy with no class weights, so the same score on unseen bars is the direct test of what the gates and the neighbour averaging learned.",
+              "baseline": "Quoting the fold's training up share on every scored bar of the same instrument.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The model's claim is that mixing final hidden states across neighbouring instruments adds information a lone recurrent network cannot see, so the same shared recurrent encoder with the graph convolution removed is the reference that tests it.",
+              "baseline": "The same shared recurrent network and head with the graph mixing step switched off, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The squared miss of the per-node probability stays bounded when the recurrent state saturates the head toward certainty, so it gives a second honest score that a few confident misses cannot dominate.",
+              "baseline": "The squared miss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Neighbour smoothing pulls every instrument's logit toward the panel's common factor, so the question of whether bars still get ordered correctly is asked separately from whether the scale is right.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Averaging hidden states over neighbours shrinks the spread of the logits while early stopping can stretch it, and the slope shows without bins which of the two won.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A graph that is too dense over-smooths until every instrument's output collapses to the panel mean, and a spread of probabilities near zero is how that collapse shows up.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The adjacency is rebuilt from trailing correlation inside each fold, so the share of edges that return in the next fold says whether the relational prior the hidden states are mixed along is a stable fact.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Natively the per-node cross-entropy is the same quantity on training and validation bars, so a widening gap shows the shared recurrent weights memorising the training window.",
+              "baseline": "Zero, the gap of a fit that does as well on unseen bars as on its own.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "Natively the per-node head is judged on the probability it states, and a hit rate needs a cut at one half that the specification never fixes; the hit rate is measured only as run, against the majority-class call of the same series and without the invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's head produces a logit or a point estimate of return and no variance, so a Gaussian likelihood was never this model's objective."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared error of a return forecast applies only to the regression variant of the head; the classification model described here states a probability and forecasts no size."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and the ranking it tries to show is already measured over every bar by the receiver operating characteristic area."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head emits one logit or one return estimate per node and no variance, so there is no forecast density whose likelihood could be scored."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network outputs a probability, not a position, so any return per unit of risk belongs to the trading rule and costs applied to its call and is an as-run number only."
+            },
+            {
+              "name": "Silhouette of the mixed hidden states",
+              "metricId": "silhouette_coefficient",
+              "why": "The mixed hidden states are a by-product that could serve as a cross-sectional embedding, but the model is not trained to form groups, so cluster tightness says nothing about it."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification mixes hidden states across a panel of instruments, but a Model Cycle run holds one instrument, so the nodes of the feature graph are this instrument's feature columns and its edges are the strongest absolute correlations between columns, refitted on each fold's training span; one shared recurrent network reads each column's own recent values, graph convolutions mix the final states once at the last bar, and a single graph-level readout gives one prediction, so the as-run numbers measure a regrouping of this bar's own features rather than cross-market information.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit the head reads from the pooled graph-mixed final states of the shared recurrent network, with no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The recurrent graph network was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars is the one that matches what its sigmoid output was trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit read from the graph-mixed column states is continuous, and its ordering of up bars above down bars does not depend on the even prior the class weighting centred it on."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the network's logit earned after costs under the engine's rule of following the latest call and filling at the next open; only the side of one half the probability falls on reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the calls of the recurrent graph network added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the network's call, costs included, divided by its variability, describes how steadily the direction calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from this network's calls shows the worst stretch a trader following the logit's sign would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the network's call flips, so it reflects how often the logit changes sign as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the network's call flips, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the sign of the network's logit flipped, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars the network called up shows whether its profit is a real two-sided call or a one-sided lean that happened to match the trend of the fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid output is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the network's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, so it is the hard-call number most in line with how this network was trained."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the network calls a single side on every bar even if that side happened to be common."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the sigmoid output on test bars; it is read knowing the class weighting shifted the output toward an even prior, which costs a little when the series leans one way."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the sigmoid output on test bars is the same quantity that chose the kept epoch on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior rather than the series' up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope asks whether the spread of the logits is right without using bins, and unlike the intercept it is not moved by the shift toward an even prior that class weighting causes."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Mixing the columns' final states over the correlation graph can smooth the readout until the output barely leaves one half, and the spread of the probability shows whether that happened."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second recurrent graph network of the same design, fitted separately with Huber loss on the volatility-scaled move, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same design, after its output is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second network's forecast matched the move; it can disagree with the traded call because the two networks are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The size of the gradient before clipping through the shared recurrent weights each epoch shows whether training was stable or was being held together by the clip."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the recurrent graph network settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the neighbour count, hidden size and layer count on inner blocks of the training span; it is a selection score and flattering by construction, shown only beside the test result."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the network."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the graph network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss and the validation curve holds the unweighted logarithmic loss, so their gap compares two different quantities and is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so no cross-market information enters the model.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
         }
       }
     },
@@ -990,6 +2304,328 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "For every instrument in the panel, class probabilities or a return estimate read from the last bar's representation after layers that add causal self-attention along time to message passing across the instrument graph, plus the attention maps and aggregation weights.",
+          "targetVariable": "The direction of each instrument's price move over the bars strictly after its trailing window, one label per node of the instrument graph.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification sums the loss over every instrument node and softens the classification targets with label smoothing, switching to Huber loss when the head forecasts a return instead.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The per-node head on the last bar's token is fitted by summed cross-entropy with no class weights, so the same score on unseen bars is the direct test of what the causal attention and the neighbour messages learned together.",
+              "baseline": "Quoting the fold's training up share on every scored bar of the same instrument.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Each hybrid layer adds a graph message to the attention output, so the same causal encoder with the message-passing term removed shows whether the second axis earns its cost.",
+              "baseline": "The same causal attention encoder and head with the message-passing term switched off, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A deep attention stack on a small sample can become very sure of itself, and the bounded squared miss grades those confident per-node probabilities without letting a few of them dominate.",
+              "baseline": "The squared miss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Label smoothing deliberately flattens the scale of the logits, so whether the tokens still order up bars above down bars is asked separately from whether the stated odds are right.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Label smoothing pulls the head toward under-confidence while a deep encoder overfitting a short panel pushes toward over-confidence, and the slope shows without bins which effect won.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "attention_weight_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The causal attention maps are one of the model's two stated explanation channels, and their entropy describes whether the last bar looks back at a few bars or spreads evenly over the window.",
+              "baseline": "The natural logarithm of the window length, the entropy of attending to every past bar equally.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The instrument graph is estimated inside each fold, so the share of edges that return in the next fold says whether the neighbours the messages travel along are a lasting relationship.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The specification warns that attention layers diverge without learning-rate warm-up, and the size of the gradient per step is where that divergence is seen first.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "Natively the per-node head is judged on the probability it states, and a hit rate needs a cut at one half that the specification never fixes; the hit rate is measured only as run, against the majority-class call of the same series and without the invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The Algorithm section trains with label-smoothed cross-entropy or Huber loss and predicts no variance, so a Gaussian likelihood was never this model's objective."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared error of a return forecast applies only to the regression variant, which the specification trains with Huber loss precisely because squared error is too sensitive to fat tails."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and the ranking it tries to show is already measured over every bar by the receiver operating characteristic area."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The head emits class logits or one return estimate per node and no variance, so there is no forecast density whose likelihood could be scored."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network outputs a probability, not a position, so any return per unit of risk belongs to the trading rule and costs applied to its call and is an as-run number only."
+            },
+            {
+              "name": "Training loss against validation loss",
+              "metricId": "validation_minus_training_objective",
+              "why": "With label smoothing the training loss is measured against softened targets while a validation score uses the real outcomes, so the two curves are offset by construction."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The specification passes messages between instruments, but a Model Cycle run holds one instrument, so the nodes of the feature graph are this instrument's feature columns and its edges are the strongest absolute correlations between columns, refitted on each fold's training span; every column at every bar is a token, each layer adds a graph message across columns to causal attention along that column's bars, a single graph-level readout of the last bar gives one prediction, and the loss is class-weighted with no label smoothing, so the as-run numbers measure a regrouping of this bar's own features rather than cross-market information.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single logit the head reads from the pooled last-bar column tokens after the hybrid attention and graph-message layers, with no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The hybrid attention and graph network was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars is the one that matches what its sigmoid output was trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit read from the last bar's column tokens is continuous, and its ordering of up bars above down bars does not depend on the even prior the class weighting centred it on."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the hybrid network's logit earned after costs under the engine's rule of following the latest call and filling at the next open; only the side of one half the probability falls on reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the calls of the attention and graph layers added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the hybrid network's call, costs included, divided by its variability, describes how steadily the direction calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from the hybrid network's calls shows the worst stretch a trader following the logit's sign would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the hybrid network's call flips, so it reflects how often the logit changes sign as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the hybrid network's call flips, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the sign of the token readout flipped, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The share of bars the hybrid network called up shows whether its profit is a real two-sided call or a one-sided lean that happened to match the trend of the fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid of the token readout is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the hybrid network's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, so it is the hard-call number most in line with how the attention and graph layers were trained."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the token readout calls a single side on every bar even if that side happened to be common."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the sigmoid output on test bars, which grades the confident outputs a deep attention stack can produce on a short window without letting a few of them dominate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the sigmoid output on test bars is the same quantity that chose the kept epoch on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior rather than the series' up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The runnable network uses no label smoothing, so an attention stack that overfits a short window shows up as a slope below one, and the slope is not moved by the shift toward an even prior."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread of the probability shows whether the readout of the last bar's tokens ever leaves one half or whether the graph messages averaged the columns into a constant."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second hybrid attention and graph network of the same design, fitted separately with Huber loss on the volatility-scaled move, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same design, after its output is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second network's forecast matched the move; it can disagree with the traded call because the two networks are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Attention layers are the part most likely to diverge early in the learning-rate cycle, and the size of the gradient before clipping each epoch shows whether training was stable."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the attention and graph layers settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the neighbour count, model dimension, head count and layer count on inner blocks of the training span; it is a selection score and flattering by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the sigmoid output on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the network."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the hybrid network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss and the validation curve holds the unweighted logarithmic loss, so their gap compares two different quantities and is not an overfit measure."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so no cross-market information enters the model.",
+            "The cost of a forward pass grows with the number of columns times the square of the window length, so windows are kept short and the attention sees less history than the specification's ranges suggest.",
+            "The attention weights along bars are not recorded in the trace for this network kind, so the specification's attention-map explanation channel is not available as run.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     },
     "spatiotemporal_fusion_network": {
@@ -1177,6 +2813,303 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "point_forecast",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "One forecast number per bar, read by a dense layer from a state that fuses a graph network's snapshot of how related assets stand at that bar with a recurrent network's memory of how those snapshots evolved.",
+          "targetVariable": "The future value of the series at the forecast step, such as the coming price or return of an asset in the graph.",
+          "objectiveId": "squared_error",
+          "objectiveNote": "The specification minimises the mean squared miss of the dense layer's forecast from the fused spatial and temporal state, optionally after pretraining each branch and with helper losses such as reconstruction.",
+          "metrics": [
+            {
+              "metricId": "price_forecast_squared_error_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The graph branch, the recurrent branch and the fusion layer are all trained together to shrink the squared miss, so the fair out-of-sample reading is how much of the squared size of the realised move the fused forecast removes compared with forecasting no move.",
+              "baseline": "The no-change forecast on the same resolved bars of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It restates the network's own training loss in points, so a trader sees how far the dense layer's forecast from the fused state typically lands from the realised move on unseen bars.",
+              "baseline": "The root mean square size of the realised move on the same bars, which is the error of forecasting no move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "predicted_actual_move_correlation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It checks whether bars where the fused state calls for a bigger move are followed by bigger moves, which can hold even when the scale of the dense layer's output is off.",
+              "baseline": "Zero, the value when the forecast carries no linear relation to the realised move.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A recurrent branch trained through a trending stretch can learn to lean one way on every bar, and this mean signed miss shows whether the fused forecast carries such a lean into the test bars.",
+              "baseline": "Zero points, a forecast with no lean in either direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The spatial branch passes messages along the edges of a graph, so when those edges are estimated from data this shows how many of them reappear when the graph is rebuilt on the next stretch of history, since a link that vanishes cannot be a lasting relation between assets.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The squared error by step on training and validation rows shows whether the stacked graph and recurrent branches kept learning together or whether one branch stalled, and it is read as training health and never as a score of the forecast.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the total gradient size over all weights of the network, and the specification calls for gradient clipping to keep the recurrent layers stable, so a sudden rise by step shows instability in the recurrent or graph layers without saying which of the two caused it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The specification trains the dense layer on the size of the miss, not on a hit or miss of direction, so a direction hit rate with a pass mark is not this network's own measure and is reported only as run."
+            },
+            {
+              "name": "Confidence Edge",
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "why": "The specified network states a forecast number and no conviction about direction, so there are no conviction deciles for a ranking score to separate."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification's objective and pseudocode use the mean squared error of a single forecast, and a distribution output is mentioned only as an option that is never trained, so the Gaussian likelihood was stamped on by the generator."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Cutting out the most confident tenth of bars needs a stated confidence, and the specified network outputs only a forecast number, so this slice and its pass mark were invented by the generator."
+            },
+            {
+              "name": "Brier Score",
+              "metricId": "brier_score",
+              "why": "A Brier score grades a stated probability, and natively this network states a forecast size with no probability attached, so it applies only to the runnable adapter's sigmoid output."
+            },
+            {
+              "name": "Brier score",
+              "metricId": "brier_score",
+              "why": "The specified network outputs a forecast number under squared error and states no probability of up, so a probability score applies only to the runnable adapter, which ends in a sigmoid."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "The fusion step blends one spatial readout with one temporal state and does not route bars among competing experts, so there are no expert shares to report."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a forecaster with no trading rule, position size or cost, so a return per unit of risk appears only once the Model Cycle trades the sign of the call."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the specification's three parts, graph convolutions at every bar, a long short-term memory network over those snapshots and a learned logistic gate that fuses the two at the last bar, but the feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span from the correlations between those columns, so there is no graph of related assets, and the head is a sigmoid trained on class-weighted cross-entropy for direction instead of a forecast under squared error, so the as-run numbers measure a regrouping of one bar's own features.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The fusion gate mixes the spatial readout of the last bar's feature graph with the recurrent state at that bar, a linear head turns the mix into one logit, and the probability of up is the sigmoid of that logit after training with a positive-class weight equal to the training count of down bars over up bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fused network is trained with up bars and down bars each carrying half the loss, so its sigmoid output is centred on an even prior, and this score grades the stated odds on that same footing, read against the natural logarithm of two that quoting one half on every bar would give."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit from the gated mix of the graph readout and the recurrent state is a continuous score, so this shows whether it orders up bars above down bars regardless of the class weighting that shifted its scale."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The kept epoch is the one with the lowest unweighted value of this quantity on validation rows, so the test value is worth reading, with the warning that the class-weighted training pulls the odds toward an even prior and away from the series' own up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded scale, so a handful of bars where the fusion gate left the network almost certain cannot dominate it the way they dominate a logarithmic score."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A deep stack of graph convolutions and a recurrent layer that learned nothing outputs nearly the same logit on every bar, and this spread shows at once whether the fused network ever commits away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is up when the sigmoid of the fused logit is at least one half, which under class weighting means above the even prior, so the hit rate is read against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The class weighting was put there so the network cannot win by calling the more common direction, and averaging the hit rate on up bars and on down bars tests the calls on the same footing the loss used."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up in one symmetric number whether the sign of the fused logit moves with the actual direction, with zero meaning the graph and recurrent branches together found nothing."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when the sigmoid of the fused logit is at least one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the sign of the fused logit earned money per bar after costs, and it is also what the hyperparameter search steered the neighbour count, layer count and hidden size toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the fused call, which matters because the correlation graph is frozen at the training span and the calls keep using it after the relations between the feature columns have moved."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by the fused call made with what the losing ones gave back after costs, read with the trade count because a call that rarely flips produces few trades."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the fused call flipped ended in profit after costs, which describes the shape of the trading result and is not a direction hit rate."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the fused logit crossed zero, since a position is kept while the call stays on one side, and every trading number of this network is read with it."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Class weighting should leave the calls split roughly evenly between up and down, so a share far to one side shows the fused network drifted on the test bars."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second network of the same graph, recurrent and gate design trained separately on Huber loss, so this tests that second network's size forecasts against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives in points the typical miss of the second, separately trained fusion network's forecast, read beside the no-change forecast's miss on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the separately trained regression network's forecast, which shares no weights with the classifier that makes the traded call, so the two can disagree on a bar."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the total gradient size over every weight of the network, taken before clipping and averaged over an epoch's batches, so by step it shows whether training was stable or exploding at all, and it cannot say how much of that signal reached the graph convolutions."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It describes how narrow the valley around the kept weights of the fused network is, which hints at how much a small shift in the features between training and test bars could move the logit."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the selection score that chose the neighbour count of the graph, the hidden size, the layer count and the learning rate on training blocks, flattered by that choosing and shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted loss centres the sigmoid output on an even prior by design, so comparing it bin by bin with the series' actual up share reports that built-in offset and not a fault of the fused network."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The overall lean it measures is the gap between the even prior the class weighting imposes and the series' own up share, which is present by construction."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the hindsight up share of the scored test bars, while the network's odds are centred on an even prior, so the comparison mixes two different base rates."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted cross-entropy and the validation curve holds the unweighted logarithmic loss, so their difference is offset by construction and is not an overfitting gap."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only setting off and no stop or target the engine holds a position on every bar once the first trade is open, so this share describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The feature graph's nodes are this instrument's feature columns and its edges are refitted on each fold's training span, so the spatial branch only regroups one bar's own features and no gain over a plain network on the same columns is assured.",
+            "The price forecast is produced by a second, separately trained network of the same design, so price forecast numbers and the traded call can point in different directions on the same bar.",
+            "Because of the class weighting a probability of one half means above the even prior and not above the series' own up share, so every hard-call number depends on that fitted prior.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so intervals around these numbers need a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The trading numbers follow the run's own long-only, holding bars, stop loss ticks, take profit ticks and contracts settings, the last bar of each fold exits at its close while every other exit fills at the next open, and for roots other than the micro Nasdaq contract the cost figure is that contract's figure applied as a stated assumption."
+          ]
         }
       }
     },
@@ -1459,6 +3392,329 @@
           "label": "Patience (epochs)",
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A class probability for the forward-looking label (or a return estimate) formed as the path-mass-weighted mixture of leaf logits, together with the leaf mass vector, the latent adjacency and the dominant routing path.",
+          "targetVariable": "The outcome strictly after the trailing bar window: next-bar direction, a triple-barrier outcome or the forward return, as the specification allows.",
+          "objectiveId": "cross_entropy_plus_leaf_entropy_penalty",
+          "objectiveNote": "The specification trains on cross-entropy against the forward label, or squared error for the return variant, and adds an entropy penalty on the leaf mass distribution so the decision graph cannot collapse onto a single leaf, and it anneals the routing temperature from soft to sharp during training.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The mixture of leaf logits weighted by the mass reaching each leaf is trained by cross-entropy on the forward label, so the same score on unseen bars tests the whole chain from latent cross-attention to routing gates.",
+              "baseline": "Quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The decision graph is the part that makes this model readable, so it has to be shown that routing the pooled latent through the gates does not score worse than a plain linear head on the same pooled latent.",
+              "baseline": "The same latent encoder and message passing with the decision graph replaced by one linear head, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "architecture_behaviour_shares",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "The specification itself names the mass on the busiest leaf as the collapse indicator, and the share of bars each leaf receives says whether the readable paths are really distinct routes or one route with spare leaves.",
+              "baseline": "Equal mass on every leaf, the state the zero-initialised gate biases start from.",
+              "groupKind": "decision_leaf",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "When the annealed temperature makes routing nearly hard the mixed logit can jump to an extreme leaf value, and the bounded squared miss grades those confident bars without letting a handful dominate.",
+              "baseline": "The squared miss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The final routing temperature sets how sharp the mixture of leaves is, so a slope away from one shows directly whether the anneal ended too sharp or stayed too blurred for the stated odds to be believed.",
+              "baseline": "One, the slope of a probability whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "With few leaves and sharp routing the output takes a limited set of values, so the ordering of bars is checked on its own to see whether the paths separate up bars from down bars at all.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The specification treats spread-out path mass as a no-trade signal because the mixed output then sits near neutral, so the spread of the probability shows how often the graph commits to a path.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "attention_weight_entropy_nats",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Each latent node reads the bar window through cross-attention, and the entropy of those weights describes whether a latent watches a few bars or smears over the whole window.",
+              "baseline": "The natural logarithm of the window length, the entropy of attending to every bar equally.",
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "Natively the leaf mixture is judged on the probability it states, and a hit rate needs a cut at one half that the specification never fixes; the hit rate is measured only as run, against the majority-class call of the same series and without the invented pass mark."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The Algorithm section's objective is cross-entropy or squared error plus a leaf-entropy penalty; no variance is predicted, so a Gaussian likelihood never applied."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared forecast error belongs only to the variant whose leaves hold return estimates; the classification model described first states a probability and forecasts no size."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "Hit rate on only the most confident slice is a selected subset with no registry definition, and for this model confidence is better read from the mass on the dominant path."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The leaves hold bare logits and the output is one mixed number, so the model states no variance and has no forecast density to score."
+            },
+            {
+              "name": "Training loss against validation loss",
+              "metricId": "validation_minus_training_objective",
+              "why": "The training loss includes the leaf-entropy penalty and is taken at that epoch's routing temperature while a validation score has no penalty, so the two are different quantities and their gap is not an overfit measure."
+            },
+            {
+              "name": "Expert usage shares of a gate",
+              "metricId": "gate_usage_fractions",
+              "why": "The leaves here are bare logits reached through several layers of routing, not separate expert networks behind one gate, so leaf mass is reported under the architecture's own routing unit instead."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network follows the specification's chain of latent cross-attention, message passing over a soft latent adjacency, softmax routing with an annealed temperature and a leaf-entropy penalty, but its decision graph is fixed as layers in which every node sends mass to every node of the next layer, its leaves hold one bare logit for the single up or down question, routing stays soft at inference, the entropy penalty is taken on the batch's mean leaf mass, and the loss weights the classes equally, so the as-run numbers measure that specific layered version answering one binary label.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the sum over leaves of the path mass reaching each leaf times that leaf's logit, with soft routing at the temperature saved with the kept epoch and no calibration map, after a fit whose loss weights up bars by the ratio of down bars to up bars in the training span.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_cross_entropy_plus_leaf_entropy_penalty",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_cross_entropy_plus_leaf_entropy_penalty",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, with the leaf-entropy penalty added on the training side only",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The leaf mixture was fitted with up and down bars each carrying half the loss, so the score that gives each class half the weight on test bars matches what the mass-weighted leaf logits were trained to state."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "Soft routing keeps the mixed leaf logit continuous, and its ordering of up bars above down bars does not depend on the even prior the class weighting centred it on or on how sharp the final temperature left it."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "This is what the sign of the mixed leaf logit earned after costs under the engine's rule of following the latest call and filling at the next open; how much mass the winning path carried never reaches it."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "Subtracting what simply holding the same instrument earned over the same folds shows whether the decision graph's calls added anything beyond the drift of the series."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "The per-bar profit of following the decision graph's call, costs included, divided by its variability, describes how steadily the routed calls paid; zero is an arithmetic marker here, not a no-skill reference, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall of the equity built from the decision graph's calls shows the worst stretch a trader following the dominant path would have sat through."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Winning trades' dollars over losing trades' dollars for trades that end when the leaf mixture changes sign, so it reflects how often the routing switches side as much as how right it is."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of closed trades that made money after costs; a trade lasts until the leaf mixture flips sign, so this counts flips that paid, not bars predicted correctly."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a repeated call keeps the position open, the count shows how often the mass moved to leaves of the opposite sign, which is needed to read every trading number above."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "If the leaves collapse onto one path the graph calls the same side on nearly every bar, and the share of bars called up exposes that before the profit figure is trusted."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hit rate of calling up when the sigmoid of the leaf mixture is at least one half; for this class-weighted fit one half means above an even prior, not above the series' own up share."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sets the decision graph's hit rate against always calling the fold's training majority class on the same bars, the same-series reference that a bare accuracy lacks."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the recall on up bars and on down bars matches a fit in which each class carried half the loss, and it cannot be inflated by a collapsed graph that sends every bar to one leaf."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "One symmetric number over all four cells of the call table, which stays near zero when the routing sends every bar to leaves of a single sign."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The bounded squared miss of the leaf mixture's probability on test bars, which grades the confident outputs a sharp final temperature produces without letting a few of them dominate."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "diagnostic",
+              "why": "The unweighted score of the leaf mixture on test bars is the same quantity that chose the kept epoch and its routing temperature on validation bars, and it carries a built-in penalty because the weighted fit centred the output on an even prior."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The routing temperature saved with the kept epoch sets how sharp the mixture is, and the slope shows without bins whether that sharpness overstates or understates the odds."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When path mass spreads over many leaves the mixed logit sits near neutral, so the spread of the probability shows how often the graph committed to a route at all."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "This grades a second latent decision graph of the same design, fitted separately with Huber loss on the volatility-scaled move so its leaves hold move sizes, against forecasting no change on the same bars; it does not test the direction network."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the separately fitted price network of the same design, after its leaf mixture is multiplied back by the trailing move scale and rounded to the tick."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The share of bars where the sign of the second network's forecast matched the move; it can disagree with the traded call because the two decision graphs are fitted separately on different targets."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Path mass is a product of gates, which amplifies instability as the temperature falls, and the size of the gradient before clipping each epoch is where that shows."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The curvature of the weighted loss around the kept weights describes whether the latent encoder and gates settled in a wide valley or a narrow one that the next fold may miss."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The score that picked the latent count, decision depth and width, both temperatures and the leaf-entropy weight on inner blocks of the training span; it is a selection score and flattering by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The weighted fit centres the leaf mixture on an even prior, so its gap from the observed up share in each bin is partly built in and does not show a fault of the routing."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the decision graph itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean toward up or down, and weighting the classes equally moves it by construction whenever the training span was not evenly split."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted loss plus the leaf-entropy penalty at that epoch's temperature while the validation curve holds the plain logarithmic loss, so their gap compares different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the decision graph."
+            }
+          ],
+          "caveats": [
+            "The training loss adds the leaf-entropy penalty and is measured while the routing temperature is still falling, so the training curve cannot be compared with the validation curve or with the natural logarithm of two.",
+            "The routing temperature is saved with the weights of the kept epoch, so an early best epoch leaves the graph softer than the configured final temperature.",
+            "The share of mass each leaf receives is recorded only as a trace for the inside view and is not yet a computed metric, so leaf collapse cannot be read from the scoreboard.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "The correlation graph over feature columns is still computed from each fold's training span for this network kind, but the latent decision graph does not read it; its only graph is the soft adjacency between its own latents.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
         }
       }
     }

@@ -9,6 +9,8 @@
  * The folder hierarchy encodes: TopCategory / Subcategory / ModelName.md
  */
 
+import type { SpecificationMetrics } from '@shared/cycle/metrics';
+
 // --- Top-level category (from folder names) ---------------------------------
 
 export type AlgoModelCategory =
@@ -85,6 +87,12 @@ export interface ParsedModelSpec {
 
   /** Hyperparameters extracted from Training Methodology section */
   hyperparameters: ExtractedHyperparameter[];
+
+  /**
+   * How this model is judged, natively and as run by the Model Cycle: the record in the
+   * specification's Evaluation Metrics section (`packages/shared/src/cycle/metrics.ts`).
+   */
+  metricsRecord?: SpecificationMetrics;
 
   /** Whether this spec has content (> 0 bytes) */
   hasContent: boolean;

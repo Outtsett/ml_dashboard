@@ -192,6 +192,314 @@
           "group": "Model",
           "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A class distribution for the outcome after the shared final bar, read from a head that fuses a slow pathway over a long coarse window with a fast pathway over a fine window, together with the fusion gate values that say how much each pathway was used.",
+          "targetVariable": "The class of the outcome resolved forward of the bar on which both windows end, such as the direction of the coming move, stated as a probability per class.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification minimises cross-entropy on the fused head for classification, or mean squared error when the head is a scalar forecast, and trains both pathways and their lateral connections jointly from scratch so the fast pathway's signal is injected into the slow one at several depths.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fused head is trained by cross-entropy, so the probability it states after mixing the slow context with the fast reaction is graded by the same quantity on bars the two pathways never trained on.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The whole case for two unequal pathways is that the pair beats either lens alone, so the fused network is scored against the same network with the fast pathway zeroed and with the slow pathway zeroed, which is the test the specification's pathway dropout prepares it for.",
+              "baseline": "The same network reading only its slow pathway, and the same network reading only its fast pathway, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The fused logit is a continuous score, so this shows whether combining a long view with a short view orders up bars above down bars even when the scale of the stated odds is off.",
+              "baseline": "One half, the value when the fused score orders the bars no better than a coin.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same fused probability on a bounded scale, so a few bars where both pathways agreed strongly and were wrong cannot dominate the reading the way they dominate a logarithmic score.",
+              "baseline": "Quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is the class the fused head favours, and averaging its hit rate over up bars and down bars shows whether the context pathway merely leans with the prevailing trend or the pair calls both directions.",
+              "baseline": "One half, the value of calling every bar the same direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "When the slow and fast pathways carry overlapping information the fused head counts the same evidence twice and overstates its odds, and a slope below one on unseen bars is how that shows up.",
+              "baseline": "One, the slope when the stated odds move in step with the observed odds.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If one pathway dies because its inputs were not normalised separately and the other learns little, the fused head says nearly the same odds on every bar, and the spread of the stated probability reveals that.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gate_usage_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The fusion gate is the specification's own report of how much the model leaned on context versus reaction, so the mean gate value over the slow pathway's units set beside the mean over the fast pathway's units, taken across scored bars, shows which pathway drove the fused head and whether one of them was shut out.",
+              "baseline": "Equal mean gate value on the units of the two pathways, the reading when neither pathway is favoured.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Two encoders plus lateral connections hold many weights for a short tape, and the cross-entropy of the fused head on validation bars minus on training bars shows how much of the fit is memorised.",
+              "baseline": "Zero, the gap of a fit that scores the same on bars it trained on and bars it did not.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The specification trains the fused head on cross-entropy or on mean squared error and gives it no variance output, so a Gaussian likelihood was never its objective."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The record describes the classification head, which states a probability per class and no size of move, so there is no forecast error to scale by volatility."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "The registry holds no metric restricted to the most confident slice of bars, and the ranking measure already tests whether stronger fused scores are more often right."
+            },
+            {
+              "name": "Gaussian negative log-likelihood loss",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The fused head outputs a class distribution or a single forecast number and never a mean with a variance, so there is no forecast density to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a predictor and names no position rule or cost, so a return per unit of risk appears only once the Model Cycle trades the fused call."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the two unequal lenses and the gated fusion head, but each pathway is a forward-only gated recurrent unit instead of a causal convolution stack, both pathways have the same width, the slow view is every few bars of the one window counted back from the last bar and not a coarser timeframe, both pathways read every feature, and fusion happens once at the head with no lateral connections and no pathway dropout. The loss is the Model Cycle's class-weighted cross-entropy, so the as-run numbers measure a late-fusion pair of recurrent encoders.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The final states of the fast and slow gated recurrent units are joined, scaled unit by unit by a learned logistic gate, passed through a fusion perceptron to one logit, and the probability of up is the sigmoid of that logit after training with a positive-class weight equal to the training count of down bars over up bars.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The fused head is trained with up bars and down bars each carrying half the loss, so its sigmoid output is centred on an even prior, and this score grades the stated odds on that same footing, read against the natural logarithm of two that saying one half on every bar would give."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The logit from the gated mix of the fast pathway's state and the slow pathway's state is a continuous score, so this shows whether reading reaction and context together orders up bars above down bars regardless of the class weighting that shifted its scale."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The kept epoch is the one with the lowest unweighted value of this quantity on validation bars, so the test value is worth reading, with the warning that class-weighted training pulls the fused odds toward an even prior and away from the series' own up share."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same fused sigmoid output on a bounded scale, so the few bars where the fast and slow pathways agreed strongly and were wrong cannot dominate it as they dominate a logarithmic score."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slow view is a thinned copy of the same window the fast view ends, so the two pathways partly repeat each other, and a slope below one shows the fusion perceptron counted that shared evidence twice."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the logistic gate shuts most units of both pathways the fusion perceptron outputs nearly the same logit on every bar, and this spread shows whether the fused network ever commits away from one half."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The hard call is up when the sigmoid of the fused logit is at least one half, which under class weighting means above the even prior, so the hit rate is read against calling every bar the fold's training majority direction."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The class weighting is there so the slow pathway cannot win by leaning with the prevailing drift, and averaging the hit rate on up bars and on down bars tests the fused calls on the footing the loss used."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It sums up in one symmetric number whether the sign of the fused logit moves with the actual direction, with zero meaning the two pathways together found nothing."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long when the sigmoid of the fused logit is at least one half and short otherwise under the engine's fill rule and costs, read against buy and hold on the same folds."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily the fused call earned per bar after costs, and it is also the score the hyperparameter search steered the fast window length, the slow stride and the pathway width toward on training blocks."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole dug while following the fused call, which is where a slow pathway that keeps leaning with an old trend after the fast pathway has turned would show its cost."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It compares what the winning trades opened by the fused call made with what the losing ones gave back after costs, read beside the trade count because a fast pathway that dominates the gate flips the call often."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts how many trades opened when the fused call flipped ended in profit after costs, which describes the shape of the trading result and is not the direction hit rate."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the fused logit crossed zero, since a position is kept while the call stays on one side, and it hints at whether the fast or the slow pathway is steering the call."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Class weighting should leave the fused calls split roughly evenly between up and down, so a share far to one side shows the network drifted on the test bars."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast line comes from a second network of the same two-pathway design trained separately on Huber loss, so this tests that second network's size forecasts against forecasting no move and says nothing about the traded call."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "It gives in points the typical miss of the second, separately trained two-pathway network's forecast, read beside the miss of the no-change forecast on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It checks the sign of the separately trained regression network's forecast, which shares no weights with the classifier that makes the traded call, so the two can disagree on a bar."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The two gated recurrent units unroll over different numbers of steps, set by the fast window length and the slow stride, and the size of the gradients by step shows whether training reached both pathways or one of them starved behind a closed gate."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It describes how narrow the valley around the kept weights of the fused network is, which hints at how much a small shift in the features between training and test bars could move the fused logit."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the selection score that chose the fast window length, slow stride, pathway width, fusion width and learning rate on training blocks, flattered by that choosing and shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "The class-weighted loss centres the fused sigmoid output on an even prior by design, so comparing it bin by bin with the series' actual up share reports that built-in offset and not a fault of the two pathways."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "The largest bin gap inherits the same built-in shift toward an even prior and usually comes from a thinly filled bin, so it says nothing about the fused network itself."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The overall lean it measures is the gap between the even prior the class weighting imposes and the series' own up share, which is present by construction."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted cross-entropy and the validation curve holds the unweighted logarithmic loss, so their difference is offset by construction and is not an overfitting gap."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only setting off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "Both views are cut from the one window of bars at one timeframe, so the slow pathway sees a thinned copy of the same tape and not an independent higher timeframe.",
+            "When the fast window setting is longer than the window of bars the adapter shortens it to the window and records that it did.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation bars, so the validation loss is optimistic and only the test walk is out of sample.",
+            "The price forecast comes from a second network of the same design fitted with Huber loss and kept on validation Huber loss, not from the direction network.",
+            "Consecutive scored bars share future bars because the label looks several bars ahead, so any interval on these numbers needs a block bootstrap or a Newey-West variance and never a simple binomial interval.",
+            "The last bar of each fold exits at its close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the costs charged are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     }
   }

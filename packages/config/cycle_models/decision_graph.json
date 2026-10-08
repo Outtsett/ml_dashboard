@@ -137,6 +137,270 @@
           "group": "Model",
           "description": "Variance penalty in the utility node: U = d x mean - aversion x d^2 x variance - |d| x cost."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "decision_graph_or_utility_model",
+        "profileIdAsRun": "decision_graph_or_utility_model",
+        "additionalProfileIds": [
+          "graphical_or_probabilistic_logic",
+          "value_agent"
+        ],
+        "native": {
+          "produces": "The decision alternative with the highest expected utility at each decision node given today's evidence, that expected utility, and the posterior distribution of every chance node in the graph.",
+          "targetVariable": "the expected utility of each decision alternative, obtained by weighting the utility node's payoff by the posterior probabilities of the unobserved chance nodes given the observed evidence",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "The chance-node tables are counted from history with additive smoothing and the graph may be learned by a penalised likelihood search, but the quantity the network maximises is the expected utility of the decision node, with the utility function stated from risk preferences and not learned.",
+          "metrics": [
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The network promises an expected utility for the alternative it picks, computed from probability tables counted on past bars, and this gap shows how far the utility actually earned on later bars fell short of that promise.",
+              "baseline": "zero, the value when the utility the network computed for its chosen alternative is what that alternative went on to earn",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Every expected utility is a sum over the posterior of the outcome chance node, so the log score of that posterior on bars the tables never counted says whether the beliefs feeding the decision node deserve trust.",
+              "baseline": "the logarithmic loss of quoting the outcome node's training frequencies on every bar",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The conditional tables are built from a few discretisation bins and smoothed pseudo-counts, so the posterior moves in steps, and the slope tests whether a parent configuration that looked strong in training keeps its odds on unseen bars.",
+              "baseline": "one, the slope when the posterior of the outcome node is on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "When the arcs are found by greedy hill climbing on a penalised likelihood score, an arc into the outcome node that disappears on the next refit was a coincidence of one window, and the auditable graph is only as good as the arcs that come back.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A decision node that picks the same alternative for every evidence pattern has learned nothing from its information arcs, and the share of bars given to each alternative makes that visible at a glance.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network outputs an expected-utility ranking of alternatives and never trades; a Sharpe ratio grades the Model Cycle's trading rule applied to its call and belongs to the as-run record only."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The network has no benchmark index and produces no return stream of its own, so there is nothing to regress against a benchmark."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A one-shot expected-utility computation has no equity path; drawdown appears only once the Model Cycle trades the call and is reported there."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The specification describes a decision node over hedging or sizing alternatives, not a portfolio that is rebalanced, so turnover is a property of the as-run trading rule."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It divides a return by a drawdown, and natively the network has neither; the as-run record carries it for the traded call."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Tail risk enters this model only through the shape of the stated utility function, and no tail-loss figure is produced by the inference or computed by the engine."
+            },
+            {
+              "name": "Mean test-tape return of the policy's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "The network is solved once from its tables and holds no reward tape or frozen policy to replay, so its decisions are checked by comparing promised with earned utility instead."
+            },
+            {
+              "name": "Value overestimation gap",
+              "metricId": "value_overestimation_gap",
+              "why": "The expected utility is computed exactly by inference over the graph and is not a learned value estimate, so there is no critic whose optimism could be measured."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "Nothing is descended step by step: the tables are counted once and the decision is computed by exact inference, so there is no learning curve to read."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter builds a real discrete network with exact variable elimination and a decision and utility node, but nothing is hand-specified: the chance nodes are the feature columns whose training-quantile bins share the most information with the training direction, the arcs are learned on the training span, and the utility is the training mean of each outcome bin of the scaled move times the position, less cost. The decision is short, flat or long instead of a hedge ratio, and the as-run numbers measure the expected-utility gap between long and short after a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The exact posterior over the outcome bins given the bar's feature bins is turned into the expected utility of long minus the expected utility of short, and the probability of up is a logistic curve of that gap whose slope and intercept are fitted on the fold's validation rows.",
+          "priceForecastSource": "readout",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the logarithmic loss of the validation-fitted curve's probability of up on the fold's validation rows, one value for the single fit; no training loss is reported because the network fit returns none, and the curve is fitted on the same validation rows it is scored on",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The network exists to choose a side, and this is what going long when the curve-reshaped utility gap reached one half, and short otherwise, earned after costs on bars the tables never counted."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the posterior over outcome bins times each bin's training mean move, the same kind of expectation the utility gap is built from but taken from a second fit of the network, scored with no fitted curve in between against forecasting no move."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It scores the utility gap after the validation-fitted curve on test bars that neither the tables nor the curve saw, so it grades the network and the curve together and not the posterior alone."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-reshaped utility gap, which takes only as many values as there are distinct bin combinations around the outcome node."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether bin combinations with a larger long-minus-short utility are followed by more up bars; the level count may be small because every bar with the same evidence bins ties."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It reports how many different utility gaps the binned evidence produced on a fold, which is the number of points under every ranking and calibration figure of this network."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows on test bars whether the slope the curve learned on validation rows still scales the utility gap correctly, which thinly populated parent configurations in the tables can upset."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The tables and the curve are unweighted, so the binned gap between the reshaped utility gap and observed up shares is a fair check, read with the occupied-bin count because the output has few levels."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It tests the hard call at one half of the reshaped utility gap, a cut placed by the curve's intercept and not by the decision node, so it grades the network and the curve together."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the evidence patterns called up and those called down both hit, or whether the curve's intercept left nearly every bin combination on one side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It folds the four outcome cells of the binned call into one symmetric number that stays at zero when every bin combination is called the same way."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of calls that change only when the bar moves to a different bin combination to its variability; zero is an arithmetic marker, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest loss run while the position followed the side the utility gap favoured; with the default risk aversion of zero the utility node gives no weight to such a run."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning and losing dollars of the trades that begin and end when a change of evidence bins carries the reshaped utility gap across one half, after costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts winning trades among the stretches between flips of the binned call, which can be long because the call holds while the evidence stays in the same bins."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the posterior-weighted bin means after scaling back and tick rounding, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The sign of the second fit's posterior expected move is the side that fit's own decision node would prefer between long and short before any curve, so its hit rate on bars with a non-zero rounded forecast tests the second fit's preferred side and not the network behind the traded call."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The utility gap behind the traded call is twice the expected move of the classification fit's posterior, while the forecast is the expected move of the second fit made on the scaled move, so the two disagree where the validation curve's intercept or a negative slope moved the call and where the two fits chose different feature nodes or graphs, and this share shows how often that happened."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows what share of bars fell into bin combinations the reshaped utility gap calls up and is read beside every trading number of this network."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the search score under which the node cap, the bins per node, the structure search method, the parent limit, the prior strength and the outcome bin count were picked on each fold's training span; a selection score, optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule; the decision node's flat alternative is never used."
+            }
+          ],
+          "caveats": [
+            "The cost and the risk-aversion penalty in the utility node are the same for long and for short and cancel out of the score, and the flat alternative is never compared, so the traded call depends only on the sign of the posterior expected move as reshaped by the validation curve.",
+            "The validation curve's slope is not constrained to be positive, so on a fold where the utility gap pointed the wrong way on validation rows the curve inverts the network's own preference.",
+            "The forecast line comes from a second fit of the same network in which the feature nodes are chosen against the sign of the scaled move, so its graph can differ from the graph behind the traded call.",
+            "The learned arcs are associations among binned features on one training span and carry no causal meaning.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval on these numbers needs a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption, and the last bar of each fold exits at its close."
+          ]
+        }
       }
     },
     "dynamic_decision_network": {
@@ -249,6 +513,277 @@
             "high": 0.99
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "decision_graph_or_utility_model",
+        "profileIdAsRun": "decision_graph_or_utility_model",
+        "additionalProfileIds": [
+          "planner_or_decision_solver",
+          "regime_density",
+          "value_agent"
+        ],
+        "native": {
+          "produces": "An optimal decision for every time slice and every chance-node state, the value function behind it, and the sequence of decisions that policy recommends when run forward on observed data.",
+          "targetVariable": "the expected discounted sum of immediate utilities over the time slices for each decision in each chance-node state, under a transition model that says how the state evolves given the state and the decision",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "The same chance, decision and utility template is repeated at every time slice and linked by a counted, smoothed transition table, and the policy is computed exactly by backward induction on that table, so only the transition model is estimated and the utility function is stated.",
+          "metrics": [
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Backward induction returns a value for every state under the counted transition table, and this gap compares that promised cumulative utility with what the same decisions earned on later bars, which is the only test of a policy that is optimal merely for its own model.",
+              "baseline": "zero, the value when the cumulative utility the value function promised is what the policy went on to earn",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The whole policy rests on the table of next-state probabilities, and the specification asks for its one-step-ahead predictions to be checked on a later block, which is the mean log probability the table gives to the state that actually came next.",
+              "baseline": "the same quantity for a table that ignores the current state and quotes the training frequency of each state",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "For the stationary variant the value function is swept until it stops changing, and the largest change in the last sweep shows the policy was read from a settled table; it certifies the solve and says nothing about the market.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "mean_state_duration_bars",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "Acting on tomorrow's state only pays if states persist, so the mean run length of a discretised chance-node state shows whether the transition arcs carry anything the decision can use before the state changes again.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A policy table that picks the same decision in every state and every slice has collapsed to a constant, and the share of bars under each decision shows that directly.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network returns a policy table and a value function, not trades; a Sharpe ratio grades the Model Cycle's trading rule applied to its call and belongs to the as-run record only."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The model has no benchmark and maximises a stated utility over time slices, so no alpha against an index is defined for it."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "The objective is an expected discounted sum that gives no weight to the path, and an equity path exists only once the Model Cycle trades the call."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "Switching between decisions is priced inside the immediate utility when the modeller chooses to, and no portfolio is rebalanced, so turnover is reported for the as-run trading rule."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It divides a return by a drawdown, neither of which the solved policy table contains; the as-run record carries it for the traded call."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Backward induction maximises an expectation and produces no loss distribution, so no tail-loss figure comes out of the model or the engine."
+            },
+            {
+              "name": "Mean test-tape return of the policy's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "The network is solved from its transition table and stated utility and keeps no reward tape, so the registry checks its decisions through promised against earned utility."
+            },
+            {
+              "name": "Value overestimation gap",
+              "metricId": "value_overestimation_gap",
+              "why": "The value function is computed exactly by backward induction and is not a learned estimate, so there is no critic to be optimistic."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The transition table is counted once and the policy is computed, so the sweeps of value iteration are solver steps and not a learning curve."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is the partially observable variant with a single hidden regime variable: a Gaussian hidden Markov model fitted by Baum-Welch on the leading principal components of the training feature rows supplies the transition and emission models, the regime belief at each bar comes from the forward filter alone over the last history_bars bars, and backward induction over regime and position with a round-trip cost gives action values that are averaged under the belief. The regime transitions do not depend on the decision, because the market does not react to the agent, and every bar is valued from the flat position, so the as-run numbers measure the belief-weighted value gap between long and short after a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The forward-filtered belief over hidden regimes weights each regime's backward-induction value of going long from flat minus going short from flat, and the probability of up is a logistic curve of that belief-weighted gap whose slope and intercept are fitted on the fold's validation rows.",
+          "priceForecastSource": "readout",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the logarithmic loss of the validation-fitted curve's probability of up, a logistic curve of the belief-weighted value gap, on the fold's validation rows, one value for the single fit; no training loss is reported because the regime model fit returns none, and the curve is fitted on the same validation rows it is scored on",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "Backward induction valued each side from the regimes' training drift net of switching cost, and this is what following the sign of the belief-weighted value gap, as reshaped by the curve, earned after costs on unseen bars."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "The regime belief moves continuously from bar to bar, so the value gap is a continuous score, and this tests whether bars where the filter leans toward regimes valued long are followed by more up moves, untouched by the curve unless its slope turns negative."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast pushes the filtered belief forward through the regime transition matrix by the label horizon and weights each regime's training mean move, so it tests the regime model's own expectation against forecasting no move, with no fitted curve involved."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It scores the belief-weighted value gap after the validation-fitted curve on test bars, so it grades the regime filter, the plan and the curve together and not a probability the network itself stated."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-reshaped value gap, useful beside the logarithmic loss because regimes fitted on bar features separate direction weakly and the output stays near one half."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows on test bars whether the slope fitted on validation rows still scales the value gap correctly once the filter meets a stretch of bars whose regime mix differs from the validation span."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The curve is unweighted, so the binned gap between the reshaped value gap and observed up shares is a fair check, read with the occupied-bin count because weakly separated regimes fill only the middle bins."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread of the output across bars shows whether the regime belief ever moves the value gap away from its average, or whether the regimes carry too little drift for the plan to commit."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It tests the hard call at one half of the reshaped value gap, a cut set by the curve's intercept, so it grades the filter, the plan and the curve together."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether bars filtered into long-valued regimes and bars filtered into short-valued regimes both hit, or whether the curve's intercept left nearly every bar on one side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric figure for agreement between the regime-driven call and the outcome, which falls to zero when every regime's value gap ends on the same side of the curve."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of calls that turn only when the filtered belief shifts between regimes to its variability; zero is an arithmetic marker, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "Persistent regimes keep the call on one side for long stretches, and the deepest fall of equity shows the cost of a regime whose training drift did not carry into the test bars."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning and losing dollars of the trades that open and close when the filter's belief crosses from long-valued to short-valued regimes, after costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of regime-switch trades that closed with a gain, read with the trade count because the plan already charged a switching cost when it valued each side."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It counts how often the filtered belief carried the call across one half, which shows whether the hidden regimes persist as their transition matrix claims or flicker on the test bars."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the belief-weighted regime mean move after scaling back and tick rounding, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "How often the sign of the belief-weighted regime mean move matched the realised move, counted only on bars where the rounded forecast is not zero, which small regime drifts make a short list."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The forecast uses regime mean moves while the call uses discounted, cost-adjusted values through a fitted curve, and the share of bars where the two point the same way shows how much the plan and the curve changed the plain regime expectation."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows the share of bars on which the reshaped value gap called up and is read beside every trading number, since a share at either extreme means the regimes never changed the side."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the search score under which the number of principal components, the regime count, the planning stages and the discount factor were picked on each fold's training span; a selection score, optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule; the plan's own flat action is never used."
+            }
+          ],
+          "caveats": [
+            "The market does not react to the agent and its position is not in the state: regime transitions ignore the decision and every bar is valued from the flat position, so a bar's call never depends on the position actually held.",
+            "The action values are averaged under the belief as if the regime would be revealed after one step, an approximation that gives no value to waiting for information.",
+            "The validation curve's slope is not constrained to be positive, so on a fold where the value gap pointed the wrong way on validation rows the curve inverts the plan's own preference.",
+            "The forecast line comes from a second fit of the same regime model, and Baum-Welch is seeded, so the two fits agree only as far as the seed and the training rows make them.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval on these numbers needs a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption, and the last bar of each fold exits at its close."
+          ]
+        }
       }
     },
     "influence_diagram": {
@@ -353,6 +888,261 @@
           "label": "Risk aversion",
           "group": "Model",
           "description": "Variance penalty in the utility node: U = d x mean - aversion x d^2 x variance - |d| x cost."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "decision_graph_or_utility_model",
+        "profileIdAsRun": "decision_graph_or_utility_model",
+        "additionalProfileIds": [
+          "graphical_or_probabilistic_logic",
+          "value_agent"
+        ],
+        "native": {
+          "produces": "The maximum expected utility of the whole decision problem and, for every decision node, a policy that names the best alternative for each configuration of the information known when that decision is made.",
+          "targetVariable": "the expected utility of each decision alternative for each configuration of its informational parents, obtained by summing out the chance nodes of a graph whose arcs a person specified",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "objectiveNote": "The diagram is solved by node removal, summing out chance nodes and maximising over decision nodes in an order that respects the arcs; the structure and the utility are stated from knowledge of the decision problem and only the chance-node tables are estimated from history.",
+          "metrics": [
+            {
+              "metricId": "expected_minus_realized_utility_gap",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "Node removal ends with one number, the maximum expected utility of the diagram, and this gap compares that number with the utility the solved policy table earned on later bars, exposing tables that were too sure of themselves.",
+              "baseline": "zero, the value when the utility left at the end of node removal is what the policy went on to earn",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The specification asks for the out-of-sample calibration of the chance-node tables to be checked before the solved policy is trusted, and the slope does that without bins for the outcome probabilities each row of the tables quotes.",
+              "baseline": "one, the slope when the chance-node probabilities are on the right scale",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "Each policy entry is a maximum over utilities weighted by the outcome node's conditional table, so the log score of that table on unseen bars tells whether the information arcs really carry news about the outcome.",
+              "baseline": "the logarithmic loss of quoting the outcome node's training frequencies whatever the informational parents show",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "action_share_by_position_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "If the solved policy names the same alternative for every configuration of its informational parents, the arcs into the decision node were worth nothing, and the share of bars under each alternative shows it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Realized Sharpe Ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The diagram returns a policy table and its expected utility and never trades; a Sharpe ratio grades the Model Cycle's trading rule applied to its call and belongs to the as-run record only."
+            },
+            {
+              "name": "Annualized Alpha",
+              "metricId": null,
+              "why": "The diagram has no benchmark index and no return series of its own, so no alpha can be measured on it."
+            },
+            {
+              "name": "Maximum Drawdown",
+              "metricId": "maximum_drawdown_usd",
+              "why": "A solved policy table has no equity path; drawdown appears only when the Model Cycle trades the call and is reported there."
+            },
+            {
+              "name": "Portfolio Turnover",
+              "metricId": "trades_per_session_day",
+              "why": "The decision node chooses among stated alternatives and no portfolio is rebalanced, so turnover belongs to the as-run trading rule."
+            },
+            {
+              "name": "Calmar Ratio",
+              "metricId": "calmar_ratio",
+              "why": "It needs a return and a drawdown, and the solved diagram natively contains neither; the as-run record carries it for the traded call."
+            },
+            {
+              "name": "CVaR (99% Tail Risk)",
+              "metricId": null,
+              "why": "Risk enters the diagram only through the stated utility node, and neither node removal nor the engine produces a tail-loss figure."
+            },
+            {
+              "name": "Structure stability",
+              "metricId": "structure_stability_recurrence_fraction",
+              "why": "The arcs of an influence diagram are written down from the decision maker's own informational and causal assumptions and are not searched for, so there is no learned structure whose recurrence could be counted."
+            },
+            {
+              "name": "Mean test-tape return of the policy's own action",
+              "metricId": "mean_test_tape_return_of_own_action",
+              "why": "The diagram is solved from its tables and stated utility and keeps no reward tape, so its policy is checked through promised against earned utility."
+            },
+            {
+              "name": "Training objective value by step",
+              "metricId": "training_objective_value_by_step",
+              "why": "The tables are counted once and the policy follows by node removal, so nothing is trained step by step and there is no curve to read."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter solves a real diagram by node removal, but its structure is fixed by a rule and not by a person's knowledge of the decision: one condition node per feature modality, each the first principal component of that modality's columns cut into training-quantile bins, an outcome node of binned scaled moves whose parents are all the conditions, and a short, flat or long decision informed by every condition. The utility is each outcome bin's training mean move times the position, less cost, and the as-run numbers measure the expected-utility gap between long and short for the bar's row of the table after a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The bar's condition bins select a row of the outcome table, a missing condition is summed out against its prior, the expected utility of long minus short is read for that row, and the probability of up is a logistic curve of that gap whose slope and intercept are fitted on the fold's validation rows.",
+          "priceForecastSource": "readout",
+          "objectiveId": "expected_utility_or_bellman_optimality",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar of the logarithmic loss of the validation-fitted curve's probability of up, a logistic curve of the row's long-minus-short utility gap, on the fold's validation rows, one value for the single fit; no training loss is reported because the diagram fit returns none, and the curve is fitted on the same validation rows it is scored on",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "The solved diagram is a small table that names a side for each combination of market conditions, and this is what trading the curve-reshaped long-minus-short utility of the bar's row earned after costs on unseen bars."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "primary",
+              "why": "The forecast is the row's outcome probabilities times each bin's training mean move, the expectation left after the outcome node is removed in a second fit of the diagram, scored with no fitted curve against forecasting no move."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It scores the row's utility gap after the validation-fitted curve on test bars, so it grades the condition table and the curve together and not a probability the diagram itself stated."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-reshaped utility gap, which takes at most one value per combination of condition bins, a short list by design."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Every bar in the same combination of condition bins gets the same utility gap, so the level count per fold shows how many rows of the policy table the test bars visited and how coarse every other number is."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "diagnostic",
+              "why": "It orders the rows of the policy table and not the bars, and the level count may be small because all bars in a row tie, so the curve has few points and stays descriptive."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It shows on test bars whether the slope fitted on validation rows still scales the row utilities correctly, which rows that held few training bars and lean on the smoothing prior can upset."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The table and the curve are unweighted, so the binned gap between the reshaped utility gap and observed up shares is a fair check, read with the occupied-bin count because a small table fills few bins."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It tests the hard call at one half of the reshaped utility gap, a cut placed by the curve's intercept and not by the diagram's own maximisation, so it grades the table and the curve together."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the condition combinations called up and those called down both hit, or whether the curve's intercept left nearly every row on one side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It folds the four outcome cells of the row-by-row call into one symmetric number that stays at zero when every row of the table is called the same way."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of calls that change only when a market condition crosses into another bin to its variability; zero is an arithmetic marker, because a random caller still pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest loss run while the position followed the side the bar's row favoured, which lasts as long as the slow-moving conditions stay in the same bins."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning and losing dollars of the trades that begin and end when the conditions move the bar to a row on the other side of one half, after costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts winning trades among the stretches between changes of row, read with the trade count since a table with few rows on the short side trades rarely."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The typical miss in points of the row's probability-weighted bin means after scaling back and tick rounding, read beside the miss of forecasting no move on the same bars."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The sign of the row's expected move in the second fit is the side that fit's own maximisation would prefer between long and short before any curve, so its hit rate on bars with a non-zero rounded forecast tests the second fit's policy table and not the table behind the traded call."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The utility gap behind the traded call is twice the expected move of the row in the classification fit's table, while the forecast is the row's expected move in the second fit made on the scaled move, so the two disagree where the validation curve's intercept or a negative slope moved the call and where the two fits chose different conditions or tables, and this share shows how often that happened."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows what share of bars sat in rows the reshaped utility gap calls up and is read beside every trading number of this diagram."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the search score under which the number of condition nodes, the bins per node, the prior strength and the outcome bin count were picked on each fold's training span; a selection score, optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule; the flat entries of the solved policy table are never traded."
+            }
+          ],
+          "caveats": [
+            "The cost and the risk-aversion penalty in the utility node are the same for long and for short and cancel out of the score, and the flat alternative of the logged policy table is never traded, so the call depends only on the sign of the row's expected move as reshaped by the validation curve.",
+            "The validation curve's slope is not constrained to be positive, so on a fold where the utility gap pointed the wrong way on validation rows the curve inverts the diagram's own preference.",
+            "Each condition node's sign is flipped to correlate positively with the training direction and the conditions kept are those sharing the most information with it, so the structure is fixed in form but its content is selected on training labels.",
+            "The forecast line comes from a second fit of the same diagram in which the conditions are selected against the sign of the scaled move, so its table can differ from the table behind the traded call.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval on these numbers needs a block bootstrap or a Newey-West variance.",
+            "For roots other than the Micro Nasdaq contract the cost figures are that contract's account figures applied as a stated assumption, and the last bar of each fold exits at its close."
+          ]
         }
       }
     },
@@ -466,6 +1256,276 @@
             "high": 20.0,
             "log": true
           }
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "graphical_or_probabilistic_logic",
+        "profileIdAsRun": "graphical_or_probabilistic_logic",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A joint distribution over discretised market variables factored along a directed acyclic graph into one conditional probability table per node, which answers the posterior probability of any queried node given the evidence observed on the others.",
+          "targetVariable": "The posterior probability of each state of a query node, such as the direction of the coming move, given the observed states of the other nodes of the graph.",
+          "objectiveId": "no_training_objective",
+          "objectiveNote": "The conditional probability tables are Dirichlet-smoothed counts in closed form, and only the optional structure search optimises anything, a penalised likelihood score over candidate graphs; the graph's nodes are this instrument's discretised feature columns and its edges are refitted on each fold's training span.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network's product is the posterior it reads off its tables by variable elimination, and the log score punishes that posterior by how little probability it gave the direction that followed.",
+              "baseline": "The logarithmic loss of quoting the training up share on every bar, which is the network with every edge into the query node removed.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The specification's own acceptance test is that conditioning on the query node's parents sharpens the posterior beyond the unconditional frequency, and this is that comparison as one number.",
+              "baseline": "The fold's training up share quoted on every scored bar.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A parent configuration seen only a few times can push a table entry close to certainty, and the bounded squared-error score grades the posterior without letting those few bars dominate.",
+              "baseline": "The Brier score of quoting the training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Each posterior comes from a table cell estimated on the bars that fell into one parent configuration, and the slope shows whether sparse cells left the stated odds more extreme than outcomes support.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The network is a joint distribution over the binned variables, the specification itself says the smoothing strength is to be tuned against held-out likelihood, and the mean log probability the product of tables gives to the binned evidence and direction of bars it never counted is that likelihood.",
+              "baseline": "The same network with every edge removed, so that each binned variable is scored by its own training frequency alone.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "When the graph is searched and not drawn by hand, an edge into the direction node is a claim about the market only if the same edge is found again on the next training span; the learned edges are associations, not causes.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The tables are fitted without class weights, so comparing the posterior with observed up shares is fair, though discretised evidence yields only a handful of distinct posteriors and therefore few occupied bins.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "candidate_evaluation_count",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Structure search scores many candidate graphs on the same training bars before keeping one, so the number tried says how much of the kept graph's score could be luck.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The network partitions nothing into regimes; its discrete states are bins a person or a quantile rule defined, so there are no discovered groups whose separation could be measured."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It apportions a tuning score among hyperparameters, which describes a search over bin counts and parent limits and not the fitted tables."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The network explains itself through its edges and tables, and the stability that matters is whether those edges recur across refits, not the stability of an added attribution method."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "A static network has no state that carries from one bar to the next; persistence belongs to its dynamic variant with edges between time slices."
+            },
+            {
+              "name": "Price forecast root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A network whose query node is a discrete direction has no node for the size of the move, so it states no point forecast to score."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The network has chance nodes only and no decision node, so a trading result measures the engine's rule applied to the posterior and not the network itself."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter builds a real discrete network with learned structure, Dirichlet-smoothed tables and exact variable elimination, but its nodes are chosen for it: the feature columns whose training-quantile bins share the most information with the training direction, capped at input_feature_count, so nothing is hand-specified, the edges are associational, and the posterior is passed through a logistic curve fitted on validation rows before it is scored or traded.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "The network's exact posterior of up given the bar's feature bins, with any missing feature summed out, is turned into log-odds, and the reported probability is a logistic curve of those log-odds whose slope and intercept are fitted on the fold's validation rows.",
+          "priceForecastSource": "none",
+          "objectiveId": "no_training_objective",
+          "checkpointSelectedBy": "none",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": null,
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar, one value for the single fit: the logarithmic loss of the validation-curve-reshaped posterior on the validation rows, with no training figure because the count tables are closed form",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "It scores the posterior read from the count tables after the validation-fitted curve, on test bars that neither the tables nor the curve saw, which is the network's own query graded as run."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded score of the curve-reshaped posterior, which takes only as many values as there are distinct bin combinations in the direction node's neighbourhood."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It tests whether bin combinations with a higher table posterior are followed by more up bars, though with a few bins per feature the ranking has few levels and many ties."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "It reports how many different posteriors the binned evidence produced on a fold, which says how coarse every ranking and calibration number of this network is."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "It measures on test bars whether the slope the curve learned on validation rows still scales the table posterior's log-odds correctly, which sparse parent configurations can upset."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The tables and the curve are unweighted, so the binned gap between the reshaped posterior and observed up shares is a fair check, read with the occupied-bin count because the posterior has few levels."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what trading long whenever the curve-reshaped table posterior reached one half, and short otherwise, earned after costs under the engine's rule."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of calls that change only when the bar moves to a different bin combination to its variability; zero is an arithmetic marker, because a random caller pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest loss run while the position followed the side the table posterior favoured for the current bin combination."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning and losing dollars of the trades that begin and end when the bar's bin combination moves the posterior across one half, after costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts winning trades among the stretches between flips of the binned call, which can be long because the call holds while the evidence stays in the same bins."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It tests the hard call at one half of the reshaped posterior, a cut placed by the curve's intercept, so it grades the tables and the curve together."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the bin combinations called up and those called down both hit, or whether the curve's intercept left nearly every combination on one side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It condenses the four outcome cells of the binned call into one symmetric number that stays at zero when every bin combination is called the same way."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows what share of bars fell into bin combinations the reshaped posterior calls up and is read beside every trading number of this network."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the search score under which the bin count, the node cap, the structure search method and the parent limit were picked on each fold's training span; a selection score, optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this network has a direction node only and no price model, so no forecast line is drawn or scored."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: no price model exists for this network, so there is no forecast whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The network records no training loss because its count tables are closed form, so only the validation figure exists and there is no training figure to subtract it from."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is never flat once in a trade, so exposure describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "No training loss is recorded because the count tables are closed form and the fit returns no training figure, so the step record holds the validation loss of the curve-reshaped posterior alone.",
+            "The feature columns that become nodes are picked by their shared information with the training direction, and the edges are relearned on each fold's training span, so the graph differs from fold to fold and is associational, not causal.",
+            "The learned edges and the direction node's neighbourhood are written to the fit summary only, so whether an edge recurs across folds cannot be read from the scoreboard.",
+            "The curve's slope and intercept are fitted on the fold's validation rows, so the validation loss shown for the fit is partly in sample and only the test walk is out of sample.",
+            "A fitted curve with a negative slope inverts the call of the table posterior, and the fitted slope is written to the run log only.",
+            "Feature bins are cut at training quantiles, so a test bar outside the training range lands in an end bin and is treated like the most extreme training bars.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     },
@@ -624,6 +1684,275 @@
           "label": "Message damping",
           "group": "Model",
           "description": "Share of the old message kept at every update."
+        }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "graphical_or_probabilistic_logic",
+        "profileIdAsRun": "graphical_or_probabilistic_logic",
+        "additionalProfileIds": [
+          "class_probability"
+        ],
+        "native": {
+          "produces": "A joint distribution over discretised variables factored into potential tables on the edges of an undirected graph, and an approximate posterior marginal for any queried variable obtained by passing messages between neighbouring nodes.",
+          "targetVariable": "The approximate posterior probability of each state of a queried node given the observed states of the other nodes, in the Markov random field form the Algorithm section describes.",
+          "objectiveId": "undirected_graph_pseudo_likelihood",
+          "objectiveNote": "Exact maximum likelihood needs the partition function, a sum over every joint configuration, so the specification fits each node's conditional distribution given its neighbours instead, with a squared penalty pulling the potentials toward zero; the graph's nodes are this instrument's discretised feature columns and its potentials are refitted on each fold's training span.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The field is used by clamping the observed nodes and reading the belief at the query node, and the log score punishes that belief by how little probability it gave the direction that followed.",
+              "baseline": "The logarithmic loss of quoting the training up share on every bar, which is the query node with every edge removed.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "logarithmic_loss_skill_versus_training_base_rate",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The specification's own acceptance test is that the graph-conditioned marginal sharpens predictions beyond each variable's unconditional frequency, and this is that comparison as one number.",
+              "baseline": "The fold's training up share quoted on every scored bar.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "solver_convergence_residual",
+              "type": "convergence_and_efficiency",
+              "role": "secondary",
+              "why": "On a graph with cycles the messages are not guaranteed to settle, so the largest message change at the last sweep and the sweep count say for which bars the belief can be trusted at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Loopy message passing counts the same evidence more than once as it travels around a cycle, which makes beliefs overconfident, and a slope below one is the direct sign of it.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "An approximate belief can sit very close to certainty after evidence has circled a loop, and the bounded squared-error score grades it without those few bars deciding the result.",
+              "baseline": "The Brier score of quoting the training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "held_out_pseudo_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The specification scores the fitted field by the summed conditional log-likelihood of each node given its neighbours, which is the quantity its pseudo-likelihood fit raises and the one that sidesteps the intractable partition function, so the same sum on bars the potentials never saw is the honest likelihood-type test of the field.",
+              "baseline": "The same field with every edge removed, so that each node is scored by its own training frequency alone.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "structure_stability_recurrence_fraction",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "An undirected edge asserts that two variables move together, and adding edges between variables that only co-moved in one window is the stated overfitting risk, so each edge should reappear when the field is refitted.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The potentials are fitted without class weights, so a binned comparison of the query node's belief with observed up shares is a fair second view of the overconfidence the slope measures.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Regime Separation Index",
+              "metricId": null,
+              "why": "The field's variables are discretised indicators and not discovered groups of bars, so there is no partition whose separation could be measured."
+            },
+            {
+              "name": "fANOVA Variance Explained",
+              "metricId": null,
+              "why": "It apportions a tuning score among hyperparameters of a search and says nothing about the fitted potentials or the beliefs they produce."
+            },
+            {
+              "name": "SHAP Stability Score",
+              "metricId": null,
+              "why": "The field explains itself through its edges and potential tables, and the stability that matters is whether those edges recur across refits."
+            },
+            {
+              "name": "Regime Persistence Ratio",
+              "metricId": null,
+              "why": "The field described has no edge between one bar and the next, so no state persists whose run length could be measured; that belongs to the chain-structured variant."
+            },
+            {
+              "name": "Held-out log-likelihood per row",
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "why": "The joint likelihood of an undirected field needs its partition function, which is intractable on anything but the smallest graphs, so the joint is not reported and the held-out pseudo-likelihood stands in its place."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The field has no decision node, so a trading result measures the engine's rule applied to the belief and not the field itself."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable adapter is a pairwise Markov random field queried by damped loopy belief propagation as the specification describes, but it is conditional: the binned features are always clamped, hidden regime nodes are added and summed out exactly during training, the potentials are fitted on the conditional likelihood of the direction and not by pseudo-likelihood or contrastive divergence, the edge layout is fixed and not learned, and the belief is passed through a logistic curve fitted on validation rows.",
+          "directionMode": "classifier",
+          "probabilitySource": "validation_fitted_curve",
+          "classWeighted": false,
+          "probabilityNote": "With the bar's feature bins clamped, damped loopy belief propagation over the direction node and the hidden regime nodes gives a belief that the bar goes up, and the reported probability is a logistic curve of the log-odds of that belief whose slope and intercept are fitted on the fold's validation rows.",
+          "priceForecastSource": "none",
+          "objectiveId": "binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "A bounded proper score of the curve-reshaped belief on test bars, and unlike the logarithmic loss it is not the quantity on which the kept epoch and the curve were chosen."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether a higher belief at the direction node, formed from the clamped feature bins and the hidden regime nodes, goes with more up bars, and it is untouched by the curve unless its slope turns negative."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted score of the reshaped belief on test bars; the potentials are fitted on this kind of loss, but the epoch kept and the curve were both chosen on its validation value, so it is not the headline."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Training sums the hidden nodes exactly while prediction uses loopy messages that count evidence around the cycle more than once, and the slope on test bars shows whether the curve absorbed that overconfidence."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The potentials and the curve are unweighted, so the binned gap between the reshaped belief and observed up shares is a fair check, read with the occupied-bin count because binned evidence gives a limited set of beliefs."
+            },
+            {
+              "metricId": "distinct_probability_level_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The belief depends only on which bins the chosen features fall into, so the number of distinct values per fold says how coarse the ranking and calibration numbers are."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is what trading long whenever the curve-reshaped belief reached one half, and short otherwise, earned after costs under the engine's rule."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It relates the per-bar profit of calls that change only when the clamped bins change the belief's side to its variability; zero is an arithmetic marker, because a random caller pays costs."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "It shows the deepest loss run while the position followed the side of the belief at the direction node."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares winning and losing dollars of the trades that begin and end when a change of feature bins carries the belief across one half, after costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts winning trades among the stretches between flips of the belief's side and is read beside the trade count, since each flip pays a round trip."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It tests the hard call at one half of the reshaped belief, a cut placed by the curve's intercept, so it grades the field and the curve together."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It shows whether the beliefs called up and those called down both hit, or whether the curve's intercept left nearly every bar on one side."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It condenses the four outcome cells of the belief's call into one symmetric number that stays at zero when every bar is called the same way."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows what share of bars the reshaped belief calls up and is read beside every trading number of this field."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the search score under which the bin count, the node cap, the number and size of hidden regime nodes, the learning rate and the squared-weight penalty were picked on each fold's training span; a selection score, optimistic by construction."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "price_forecast_skill",
+              "why": "Not computed: this field has a direction node only and no price model, so no forecast line is drawn or scored."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "why": "Not computed: no price model exists for this field, so there is no forecast whose miss could be measured."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "why": "Not computed: with no price model there is no forecast sign to compare with the move."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the exact conditional loss plus the squared-weight penalty, while the validation curve holds the loss of a loopy belief after a curve refitted on those validation rows, so the difference compares two different quantities."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long_only off and no stop or target the engine is never flat once in a trade, so exposure describes the engine's rule and not the field."
+            }
+          ],
+          "caveats": [
+            "The curve is refitted on the validation rows at every epoch and the kept epoch is the one with the lowest validation loss of that curve, so the validation figure is optimistic twice over and only the test walk is out of sample.",
+            "Training sums the hidden regime nodes exactly while prediction uses damped loopy belief propagation, and how far the messages still moved at the last sweep is not recorded, so a belief that never settled cannot be told apart from one that did.",
+            "The feature columns that become nodes are picked by their shared information with the training direction on each fold's training span, and the edge layout is fixed, so nothing about the structure is learned and the nodes can differ from fold to fold.",
+            "Each epoch is a single optimiser step on the whole training span, so the training curve has one point per step and the patience setting counts steps.",
+            "A fitted curve with a negative slope inverts the call of the belief, and the fitted slope is written to the run log only.",
+            "Consecutive scored bars share future bars because the label horizon overlaps, so any interval needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "For roots other than the Micro Nasdaq contract the cost figure is that contract's account figure applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open."
+          ]
         }
       }
     }

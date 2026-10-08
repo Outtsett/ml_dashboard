@@ -171,6 +171,325 @@
             "high": 1.0
           }
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "regime_density",
+        "profileIdAsRun": "combiner_or_calibrator",
+        "additionalProfileIds": [
+          "path_simulator",
+          "combiner_or_calibrator"
+        ],
+        "native": {
+          "produces": "A three-state hidden Markov model gives the probability that each bar is in a flat, uptrend or downtrend regime from the average directional index, the candle body-to-range ratio, range compression, the distances from the confirmed swing high and swing low and the higher-high and higher-low structure, a regime-switching Student-t simulation turns those probabilities into a fan of price paths over the label horizon, and gradient-boosted trees weigh that fan with the Kronos candle forecast and the FinBERT news columns into one probability that the close will be higher.",
+          "targetVariable": "The hidden trend regime of each bar (flat, uptrend or downtrend), the distribution of the one-bar log return given that regime, and the probability that the close label horizon bars ahead is above this bar's close.",
+          "objectiveId": "mixture_or_sequence_likelihood",
+          "objectiveNote": "The regime model is fitted by expectation maximisation (Baum-Welch) on the sequence likelihood of the eight structural features, seeded from a heuristic labelling and held near its seed means by a prior, each regime then gets its own Student-t of the one-bar log return by maximum likelihood on the training bars the forward filter assigns to it, and only the final gradient-boosted trees over the stacked signals are fitted on the direction label.",
+          "metrics": [
+            {
+              "metricId": "held_out_log_likelihood_nats_per_row",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The forward filter gives a one-step-ahead density for the next bar's structural features (average directional index, body-to-range ratio, range compression, swing distances, bars since the last pivot, higher-high and higher-low score and the sign of the last two pivots), and this is the score of that density on test bars the Baum-Welch fit never saw, so it says whether the flat, uptrend and downtrend emissions learned on the training span still describe the tape; it grades the structural features and not the return.",
+              "baseline": "The held-out density of a single diagonal Gaussian over the same structural features fitted on the same training span, which is the same model with no regime structure.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "continuous_ranked_probability_score_points",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The simulator's whole output at a bar is the cloud of simulated end-of-horizon moves drawn from the regime-switching Student-t returns, and this score compares that cloud with the move that really happened, rewarding a fan that is both centred and no wider than it needs to be.",
+              "baseline": "The same score for a fan drawn from the pooled training returns with no regime switching, and the mean absolute actual move, which is the score of forecasting no move.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The decision trees only earn their place if their probability of up scores better than the simulation's own share of paths ending higher, and better than the same trees refitted with the Kronos signals or the FinBERT columns removed, on the same folds.",
+              "baseline": "The simulation's own probability of up on the same scored bars, and the same decision trees with one signal group removed.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "probability_integral_transform_uniformity",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "Ranking each realised horizon move among the simulated paths of its bar shows whether the fan is too narrow or too wide when the filter says flat, uptrend or downtrend, which the per-regime Student-t scales are meant to prevent, so a rank histogram that is not flat within one regime shows that regime's Student-t scale is wrong.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "conditional_outcome_separation",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "Grouping test bars by the regime the forward filter thinks most likely shows whether the absolute forward move, and the up share, differ from regime to regime, which is the whole reason the simulation starts from the filtered regime probabilities.",
+              "baseline": "The up share and the mean absolute forward move of all scored bars of the same series.",
+              "groupKind": "state",
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "assignment_stability_adjusted_rand_index",
+              "type": "stability_and_robustness",
+              "role": "secondary",
+              "why": "The three regimes carry fixed names ordered by the mean of the higher-high and higher-low counter, and the decision trees read each regime probability by that name, so this checks that bars two adjacent folds share receive the same regime from both fits and that a fold does not swap what uptrend means.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "mean_state_duration_bars",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The simulator re-draws the regime on every simulated bar from the fitted transition matrix, so a regime whose runs are shorter than the label horizon adds almost nothing to the fan beyond the pooled return distribution.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "state_occupancy_fractions",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "A regime to which the forward filter assigns too few training bars falls back to the pooled Student-t of all training returns, so the share of bars per regime shows how many of the three regimes carry a return distribution of their own.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "monte_carlo_standard_error",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The simulation's probability of up is a share of simulation_count paths, and the same random draws are reused at every bar, so this error bar says how much of a small lean away from one half is the path count and not the regime.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "trade_gate_open_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The stack only enters on bars where the trees' probability of up is among the most confident share set by gate_open_fraction, and it can open on fewer bars than that share because bars with equal probability are admitted together or not at all, so the share of bars with an open gate says how often this model has an opinion strong enough to act on at all.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "not_computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Silhouette coefficient",
+              "metricId": "silhouette_coefficient",
+              "why": "The regimes are defined by diagonal Gaussian densities over the structural features and by which regime tends to follow which, so a distance-based tightness score would grade a shape the hidden Markov model never promised."
+            },
+            {
+              "name": "Kronos forecast error as a trained quantity",
+              "metricId": null,
+              "why": "Kronos is a pretrained model that this stack only reads, with greedy decoding and pinned weights, so nothing about it is fitted here and its forecast error is an input property, not a result of this model's training."
+            },
+            {
+              "name": "Training objective value by step for the simulator",
+              "metricId": "training_objective_value_by_step",
+              "why": "The Monte Carlo stage minimises nothing step by step; its Student-t parameters come from one maximum-likelihood fit per regime, and only the decision trees have a round-by-round loss curve."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "no_specification",
+          "standInNote": "No catalog specification describes this stack, so the adapter code is the definition: the as-run numbers measure the gradient-boosted decision trees' probability of up over the regime, simulation, Kronos and FinBERT signals, traded only where the model's own gate is open, and a separate regime simulation supplies the price forecast.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": false,
+          "probabilityNote": "The probability of up is the logistic output of the xgboost decision trees, fitted without class weights on the stacked signals and read at the early-stopped round, so it tracks the training up share and is not the simulation's share of paths ending higher, which is only one of the trees' inputs.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "regularized_boosted_log_loss",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "logarithmic_loss",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per row, one value per boosting round",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": true
+          },
+          "meaningful": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The decision trees are fitted by unweighted logistic loss, so on test bars this is the same quantity they minimised, and it says whether the regime, simulation, Kronos and FinBERT signals together state better odds than quoting the fold's training up share on every bar."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "primary",
+              "why": "This stack carries its own entry rule, the gate that stands aside on bars where the trees' probability of up is not among the most confident share set by gate_open_fraction, so the money earned after costs tests the direction call and the model's choice of when to act together."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "The boosted trees give a continuous probability, so this shows whether bars the stack scored higher really went up more often, separately from whether the size of the stated odds is right."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A bounded second opinion on the trees' stated odds that a handful of very confident wrong bars cannot dominate, read against the score of always quoting the fold's training up share."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The gate acts on the distance of the probability from one half, so a slope below one, meaning the trees' leans are larger than the outcomes justify, would mean the gate opens on confidence that is not real."
+            },
+            {
+              "metricId": "expected_calibration_error",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The trees are fitted without class weights, so their probability is meant to match observed up shares directly, and the binned gap is a fair check, read with the occupied-bin count because the probabilities of this stack sit close to one half."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "Per-bar net money over its spread for the gated calls of this stack, with bars on which the closed gate left it flat counted as zero, so a wider gate lowers both the return and the risk it is divided by."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "The deepest fall in the money curve of the gated calls, which shows whether standing aside on low-conviction bars actually kept the stack out of its worst stretches."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "The gated direction calls of this stack against simply holding the same contract through the same folds, which is the same-series reference for a model whose probability stays near the base rate."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The price forecast is the mean simulated move of the regime-switching Student-t paths, so this tests the regime model and the simulator alone, without the trees, against forecasting no move on the same bars."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "Money won over money lost across the closed trades the open gate allowed, which describes how the gated entries pay off and is not a no-skill reference at one because every trade pays costs."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "The share of the gated trades that closed with a profit after costs, read together with the trade count because a tight gate can leave only a few trades per fold."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The engine scores the up or down call of every bar at one half whether or not the gate was open, so this is the hit rate of the trees' lean on all scored bars, most of which the stack itself would not have traded."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "Because the unweighted trees lean toward the training majority direction, the mean of the up recall and the down recall shows whether the calls do more than repeat that majority."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "One symmetric number for the every-bar calls of the trees that stays near zero when the stack calls nearly every bar the same direction, which accuracy alone would hide."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "The spread of the trees' probability around its mean decides how many distinct distances from one half exist for the share gate to rank, so a very small spread or few distinct probabilities leaves the gate shut or nearly shut."
+            },
+            {
+              "metricId": "flat_fraction",
+              "type": "risk_and_cost",
+              "role": "diagnostic",
+              "why": "A closed gate makes no new entry, so the share of bars with no position is this model's own behaviour and shows how much of the tape it chose to sit out under the holding period in force."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "The number of closed trades the gate allowed, which is the sample every trade-level number of this stack rests on and grows with gate_open_fraction."
+            },
+            {
+              "metricId": "forecast_call_agreement_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "The price forecast comes from the simulation alone and the traded call from the trees, so the share of bars on which their directions agree shows how far Kronos and FinBERT moved the decision away from the regime simulation."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "The average size, in points, of the miss of the simulation's mean move, read beside the no-change forecast error on the same bars because a mean of many simulated paths is close to zero."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "The sign of the simulation's mean move comes from the Student-t locations of the regimes the filter favours, and after rounding to the tick many forecasts are exactly zero, so it is read with its denominator."
+            },
+            {
+              "metricId": "price_forecast_bias_points",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "Each regime's Student-t location is the drift seen on its training bars, so a mean forecast error away from zero shows that training-span drift being carried into the test bars."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "Both curves are unweighted logarithmic loss of the same trees, so the gap is a fair overfit check, with the note that training rows carry out-of-fold regime signals while validation rows carry signals from the regime model fitted on the whole training span."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The search tunes the flat-regime average directional index seed, the swing confirmation length, the tree depth, the learning rate and the gate's share of bars on blocks of the training span, so this is the selection score that picked them and is optimistic by construction."
+            },
+            {
+              "metricId": "search_optimism_gap",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "How much of the score that chose the regime seed, swing length, tree settings and above all the gate's share of bars survived on the fold's test walk, which matters here because a share chosen on few gated trades is easy to overfit."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "why": "The decision trees are fitted without class weights, so their probability targets the base rate and a score that gives each direction half the weight grades a prior this model never aimed at."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "why": "It counts the every-bar call at one half, and an unweighted fit near the base rate calls almost every bar the training majority direction, so it says little about the bars the gate actually traded."
+            }
+          ],
+          "caveats": [
+            "The engine scores the direction call of every bar, but it enters a trade only where this model's own gate is open, and a closed gate makes no new entry while a held position runs to its holding period, so classification numbers cover all scored bars and trading numbers cover only the gated ones.",
+            "The price forecast does not come from the decision trees: the engine builds a second copy of the adapter that refits the regime model and reports the mean simulated move, so price-forecast numbers test the regime simulation and never the Kronos or FinBERT signals.",
+            "The gate's threshold is the smallest distance from one half that at most gate_open_fraction of the kept model's validation probabilities reach, so the validation rows both stop the boosting and set the gate; bars with equal probability are admitted together or not at all, and a model that gives few distinct probabilities can leave the gate shut for a whole fold, in which case the trading numbers of that fold are empty.",
+            "The reported validation loss is the number that stopped the boosting, so it is optimistic and only the test-bar logarithmic loss is a fair score.",
+            "Kronos is a pretrained model loaded at a pinned revision, and the adapter does not check whether its pretraining data overlaps the test bars, so its signal may carry knowledge of the period being walked.",
+            "Only the regime and simulation signals of the training rows are made out of fold, in stacking_fold_count blocks purged by the label horizon on both sides; the Kronos and FinBERT signals are used as they are because nothing of theirs is fitted on these bars.",
+            "The lake holds news for only a small part of the history, so on most bars the FinBERT columns carry no information and the trees decide from the regime, simulation and Kronos signals.",
+            "Consecutive scored bars share future bars because their horizons overlap, so any interval around these numbers needs a block bootstrap or a Newey-West variance and never a binomial interval.",
+            "The same random draws are reused at every bar and every fit, so two runs with the same seed agree exactly and a different seed changes the simulated probability by the Monte Carlo error of simulation_count paths.",
+            "For roots other than MNQ the commission and fee figures are the MNQ account figures applied as a stated assumption.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open.",
+            "The explainer cannot reload this model because its saved arrays hold only closes, while the regime model reads open, high and low and Kronos reads whole candles with volume, so the model is explained by the regime forecasts recorded during its run."
+          ]
+        }
       }
     }
   }

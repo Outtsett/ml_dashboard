@@ -196,6 +196,340 @@
           "group": "Model",
           "description": "How many epochs without a better validation loss before training stops."
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A probability for each class, read from a dense softmax layer on the last hidden state of a recurrent network that has stepped through the feature maps a convolutional network extracted at every time step.",
+          "targetVariable": "The class label of the whole input sequence, which on bars is whether the close several bars ahead finishes above or below the close of the last bar in the window.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The specification trains the convolution filters and the recurrent memory together with one unweighted cross-entropy on the softmax output, sending the error back through time for the recurrent part, and it offers mean squared error only for a regression variant of the same stack; its convolutions are two-dimensional filters over an image at each time step, so on bars this image architecture is reduced to one dimension, a filter sliding along the bar axis.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The convolution filters and the recurrent memory are trained end to end on an unweighted cross-entropy of the softmax output, so on unseen bars this is the same penalty the stack was built to shrink: how little probability it gave to the direction that actually happened.",
+              "baseline": "The logarithmic loss of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A recurrent memory fed by convolution maps can become very sure of itself after a run of similar bars, and this bounded score grades the same softmax odds without letting a handful of near-certain misses dominate the picture.",
+              "baseline": "The Brier score of quoting the fold's training up share on every scored bar of the same series.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks only whether windows whose short bar shapes and running memory pushed the output higher were followed by up moves more often than windows scored lower, which stays true even when the scale of the softmax odds is off.",
+              "baseline": "One half, the value when the ordering of windows carries no information about direction.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The stack is stopped by dropout, weight decay and a fixed number of epochs rather than by any calibration step, so this slope shows whether the softmax odds coming off the last hidden state are stretched too far or squeezed too flat on bars it never saw.",
+              "baseline": "One, the slope when the stated odds are on the right scale.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "If the recurrent memory learns nothing from the convolution maps the dense layer falls back to one constant answer, and the spread of the probability across bars shows at a glance whether the hybrid ever commits away from that constant.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "The specification itself warns that a convolution stack plus a recurrent stack has enough capacity to memorise small datasets, and the gap between the cross-entropy on held-out windows and on training windows is the direct reading of that memorisation.",
+              "baseline": "Zero, the gap when the kept weights fit unseen windows as well as the windows they were trained on.",
+              "groupKind": null,
+              "availability": "derivable"
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The cross-entropy curve by epoch shows whether backpropagation through time is still teaching the recurrent memory or has stalled, and it is read as the health of the fit and never as a grade of the predictions.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed_not_recorded"
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "Errors must travel back through every recurrent step and then through the convolution layers, the path on which the specification names vanishing gradients as a weakness, so the size of the gradient by step shows whether the early filters are still receiving a usable signal.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of the hard call depends on where the softmax output is cut and on the prior it was trained toward, so it is reported in the as-run layer as accuracy and is not how a likelihood-trained sequence classifier is judged on its own terms."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The hybrid is trained on cross-entropy over a softmax and outputs no variance, so a Gaussian likelihood of returns was never its objective or its output."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "The classifier makes no size forecast, and a squared-error figure would only describe the separate regression variant of the same convolution and recurrent stack."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate restricted to the most confident tenth of windows is a hand-picked slice of the ranking that the area under the receiver operating characteristic curve already summarises over every cut, and the registry holds no such metric."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": "held_out_log_predictive_density_nats",
+              "why": "The hybrid's dense layer outputs class probabilities or a single regression value and never a mean together with a variance, so there is no forecast density to score."
+            },
+            {
+              "name": "Volatility-adjusted root mean square error",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared-error figure belongs to the regression variant of the stack, which is a separately trained network, and says nothing about the classifier described here."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "The specification describes a sequence classifier with no position rule, fill rule or cost, so any money figure measures the trading rule wrapped around it and belongs to the as-run layer."
+            },
+            {
+              "name": "Expected calibration error against the base rate",
+              "metricId": "expected_calibration_error",
+              "why": "Natively it would be valid for the unweighted softmax, but it needs bins that probabilities clustered near one half barely fill, so the bin-free calibration slope is listed instead."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the specification's sequential layout, convolutions feeding a recurrent network whose last hidden state feeds the head, but the image architecture is reduced to one dimension: the filters slide along the bar axis with the features as channels and are padded on the left so each position reads only earlier bars, there is no pooling and no fusion layer, a gated recurrent unit replaces the long short-term memory cell, and the loss is a binary cross-entropy with a positive-class weight instead of the plain cross-entropy, so the as-run probability is centred on even odds rather than on the up share of the series.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of the single number the head produces from the gated recurrent unit's hidden state at the last bar of the window, with no calibration step afterwards, and because up bars were weighted by the ratio of down bars to up bars during training the value one half means even odds between two equally weighted classes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The network was trained with up bars and down bars each carrying half the loss, so the score that gives each class half the weight on test bars grades the head's odds on the same scale the convolution and recurrent weights were fitted to, with the natural logarithm of two as the value of always quoting even odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether windows whose convolution maps and recurrent memory pushed the head's output higher were followed by up moves more often than windows scored lower, which does not depend on the class weighting or on the scale of the sigmoid output."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted version is what early stopping watched on the validation rows to choose the kept epoch, so on test bars it shows that same quantity out of sample, with the warning that it charges the network for being centred on even odds whenever the series leaned one way."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded scale, so a few windows where the recurrent memory became nearly certain cannot swamp it, though like the unweighted logarithmic loss it is measured against the up share and the network was centred on even odds."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope asks only whether the head's log-odds are stretched or squeezed, which the class weighting does not decide, so it shows whether stopping on validation loss left the recurrent network over-confident on bars it never saw."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "A network whose recurrent memory found nothing in the convolution maps quotes almost the same number on every window, and this spread shows whether the head ever moves away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the head's output is positive, so the hit rate tests the network's own decision boundary, read against the fold's training majority class and with the reminder that the boundary sits at even odds between weighted classes."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It subtracts what always calling the fold's training majority direction would have scored, which is the plain test of whether reading a window of bars through filters and memory beat knowing only which way the training span leaned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars matches the equal class weights the network was trained with, so it is the hard-call number that sits on the same footing as the loss the weights minimised."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It reduces the four cells of called against actual direction to one symmetric number, showing whether the sign of the head's output moves with the market at all, where zero means the calls are unrelated to the outcome."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long whenever the head's output is positive and short otherwise, filled at the next open with costs, so it tests only the sign of the network's call under the engine's rule and is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A network that leans long in a rising fold earns the drift without reading anything, and subtracting buy and hold on the same folds removes that drift from the money figure."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily following the sign of the head's output earned money per bar after costs, and because only the sign is traded the size of the probability plays no part in it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole the account fell into while the position followed the network's call bar after bar, which is the risk paid for whatever those calls earned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades earned with what the losing trades gave back after costs, where a trade ends when the sign of the head's output flips, and it is shown with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that ended in profit under the engine's exit rule, so it describes how the network's flips of direction fared as trades and is read together with the predicted up share."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a call in the same direction keeps the position open, this counts how often the sign of the head's output flipped, which shows whether the recurrent memory holds a view or flickers bar to bar and pays cost each time."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the network called up, and a share near all or nothing means the head has collapsed to one direction and every trading number is then just that direction's drift."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second network of the same convolution and recurrent design fitted separately with Huber loss on the scaled move, so this skill against the no-change forecast tests that second fit and not the direction network that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second, price-fitted copy of the hybrid missed the move on average, to be read beside the no-change error on the same bars and never as a grade of the direction call."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It shows how often the sign of the price network's forecast matched the move, which is a second opinion from a separately trained copy of the architecture and can disagree with the traded call."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the weighted cross-entropy the optimiser minimised and the validation curve holds the unweighted logarithmic loss that chose the kept epoch, so each is read for its own shape and the two are never compared level for level."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the size of the gradient before clipping, averaged over an epoch, and shows whether the error signal still reaches the convolution filters after travelling back through every step of the gated recurrent unit."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It describes how steep the loss is around the kept convolution and recurrent weights, where a sharp narrow valley warns that the fit may not carry to the next fold; it is a description of the fit and not a score."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score the search used on inner blocks of the training span to pick the channel count, kernel size, layer counts and hidden size, optimistic by construction and useful only beside the test value of the same quantity."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "It compares the stated odds with the observed up share, but the positive-class weight deliberately centres this network on even odds, so a gap appears by construction whenever the series leaned one way."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "It is the worst bin of the same comparison with the observed up share, which the class-weighted fit was never aiming at, and it usually rests on a bin holding very few bars."
+            },
+            {
+              "metricId": "calibration_intercept",
+              "why": "The intercept measures an overall lean against the up share of the series, and the class weighting removes exactly that lean on purpose, so a non-zero value restates the weighting and not a fault."
+            },
+            {
+              "metricId": "brier_skill_score",
+              "why": "Its reference is the up share of the test bars themselves, known only in hindsight, while the network was centred on even odds, so the comparison mixes the weighting with the skill."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve is a weighted cross-entropy and the validation curve an unweighted logarithmic loss, two different quantities, so their difference does not measure overfitting."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With long-only off and no stop or target the engine is always long or short once the first call is made, so the share of bars in the market describes the engine's rule and not the network."
+            }
+          ],
+          "caveats": [
+            "The label horizons of neighbouring bars overlap, so scored bars are not independent and any interval around these numbers needs a block bootstrap or a Newey-West variance rather than a binomial formula.",
+            "The last bar of each fold exits at its own close while every other exit fills at the next bar's open.",
+            "For any root other than the Micro Nasdaq contract the cost per side is that contract's account figure applied as a stated assumption.",
+            "The kept epoch is the one with the lowest unweighted logarithmic loss on the validation rows, so that validation number is optimistic and only the test walk is out of sample.",
+            "The price forecast line comes from a second network of the same design fitted with Huber loss and chosen on validation Huber loss, not from the direction network whose call is traded."
+          ]
+        }
       }
     }
   }

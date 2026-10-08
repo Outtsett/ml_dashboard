@@ -177,6 +177,342 @@
           "label": "Early stopping patience",
           "group": "Model"
         }
+      },
+      "metrics": {
+        "recordVersion": 1,
+        "profileIdNative": "class_probability",
+        "profileIdAsRun": "class_probability",
+        "additionalProfileIds": [
+          "architecture_component"
+        ],
+        "native": {
+          "produces": "A probability for each class of the label at the last bar of a window, read from a controller network that stepped through the bars while writing facts to and reading them back from an external memory matrix through soft, trainable read and write heads.",
+          "targetVariable": "The class of the outcome that resolves after the window's final bar, such as the direction of the next move, stated as a probability, together with the read weightings over the memory slots.",
+          "objectiveId": "binary_cross_entropy",
+          "objectiveNote": "The cross-entropy of the head's output is passed back through every read, erase and add step and every addressing weight over the memory slots, so the controller learns what to store and where to look as well as what to predict; the specification also allows a squared error for a regression head.",
+          "metrics": [
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The head reads the controller's last state joined with what the read heads pulled from memory and outputs a class probability, so the honest grade is how much probability it put on the outcome that then happened.",
+              "baseline": "Quoting the fold's training up share on every bar, with no controller and no memory.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gain_over_own_ablation",
+              "type": "stability_and_robustness",
+              "role": "primary",
+              "why": "The external memory is the only thing that separates this model from a plain recurrent network, so the same controller with its read vectors switched off, on the same folds, is the comparison that says whether storing and recalling earned anything.",
+              "baseline": "The same controller network with the memory reads removed, on the same folds.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "architecture_behaviour_shares",
+              "type": "interpretability_and_behaviour",
+              "role": "secondary",
+              "why": "The share of read and write weight each memory slot receives shows whether the heads learned to address distinct slots or smeared every write evenly across the matrix, in which case the memory holds only an average and recalls nothing.",
+              "baseline": "Equal shares, one divided by the number of memory slots.",
+              "groupKind": null,
+              "availability": "not_computed"
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "A sharply focused read can hand the head one stored pattern and drive it to near certainty, and this squared-error grade of the probability stays finite on those windows where the logarithmic grade is dominated by them.",
+              "baseline": "Quoting the fold's training up share on every bar.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "secondary",
+              "why": "It asks whether windows for which the controller and its memory reads pushed the head higher were followed by up moves more often than windows scored lower, whatever the scale of the output.",
+              "baseline": "One half, the value of an ordering that carries no information.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The key strength that sharpens the addressing has no upper limit, so a head fed by very focused reads can overstate its odds, and the slope shows whether the stated probabilities are too confident on unseen windows.",
+              "baseline": "One, the slope of probabilities whose scale is right.",
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the heads read the same blurred average on every window the head has nothing to tell windows apart with, and this spread shows whether its probability ever leaves the middle.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The specification warns that the sharpening exponent and the softmax over key strength produce heavy-tailed gradients and prescribes clipping, so the size of the gradient by step shows whether the addressing is training calmly or in bursts.",
+              "baseline": null,
+              "groupKind": null,
+              "availability": "computed"
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "A memory that can store exact windows can also memorise them, so the gap between the cross-entropy on held-back windows and on fitted windows shows whether the heads learned a recall rule or a lookup of the training span.",
+              "baseline": "Zero, the gap of a fit that scores unseen windows as well as the windows it learned from.",
+              "groupKind": null,
+              "availability": "derivable"
+            }
+          ],
+          "notApplicable": [
+            {
+              "name": "Directional Edge",
+              "metricId": "accuracy",
+              "why": "The hit rate of the hard call depends on where the head's probability is cut and on the prior it was trained toward, so it is reported in the as-run layer as accuracy and is not how a cross-entropy-trained memory network is judged on its own terms."
+            },
+            {
+              "name": "Gaussian NLL Loss",
+              "metricId": null,
+              "why": "The specification trains the head on cross-entropy or a squared error and gives it no variance output, so a Gaussian likelihood of returns was never its objective or its output."
+            },
+            {
+              "name": "Volatility-Adjusted RMSE",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "A squared-error figure describes only the regression head the specification allows, and the classification head of the memory network makes no forecast of the size of the move."
+            },
+            {
+              "name": "Top-Decile Directional Edge",
+              "metricId": null,
+              "why": "A hit rate restricted to the most confident tenth of windows is a hand-picked slice of the ordering that the area under the receiver operating characteristic curve already summarises over every cut, and the registry holds no such metric."
+            },
+            {
+              "name": "Gaussian negative log-likelihood",
+              "metricId": null,
+              "why": "The head outputs class probabilities or one scalar and no spread, so there is no forecast distribution of the move whose likelihood could be scored."
+            },
+            {
+              "name": "Root mean square error of the price forecast",
+              "metricId": "price_forecast_root_mean_square_error_points",
+              "why": "It belongs to the regression head the specification allows as an alternative, and says nothing about the class probability the classification head produces."
+            },
+            {
+              "name": "Sharpe ratio",
+              "metricId": "sharpe_ratio",
+              "why": "A controller with a memory takes no position; the ratio grades the Model Cycle's trading rule and costs applied to its call and so belongs to the as-run layer only."
+            },
+            {
+              "name": "Expert usage shares",
+              "metricId": "gate_usage_fractions",
+              "why": "The soft weights here run over memory slots that hold stored vectors, not over expert networks that each give an answer, so slot usage is reported as an architecture behaviour share instead."
+            }
+          ]
+        },
+        "asRun": {
+          "faithfulToSpecification": "partial",
+          "standInNote": "The runnable network keeps the specification's controller, external memory, erase and add writes and reads by cosine similarity, but addresses by content only: the interpolation gate, the circular shift to neighbouring slots and the sharpening exponent are omitted, so a head cannot step through stored entries in order; there is one write head, the controller is a gated recurrent unit cell, the memory starts each window from a learned matrix instead of a constant, and the loss is a binary cross-entropy with a positive-class weight instead of the plain cross-entropy, so the as-run probability is centred on even odds rather than on the up share of the series.",
+          "directionMode": "classifier",
+          "probabilitySource": "own_likelihood_probability",
+          "classWeighted": true,
+          "probabilityNote": "The probability of up is the sigmoid of one linear head applied to the controller's state at the last bar of the window joined with the vectors the read heads pulled from memory at that bar, with no calibration step afterwards, and because up bars were weighted by the ratio of down bars to up bars during training the value one half means even odds between two equally weighted classes.",
+          "priceForecastSource": "second_model_same_family",
+          "objectiveId": "class_weighted_binary_cross_entropy",
+          "checkpointSelectedBy": "validation_logarithmic_loss",
+          "tuned": true,
+          "stepQuantity": {
+            "trainName": "class_weighted_binary_cross_entropy",
+            "validationName": "logarithmic_loss",
+            "unit": "nats per bar",
+            "direction": "lower",
+            "sameQuantityOnTrainAndValidation": false
+          },
+          "meaningful": [
+            {
+              "metricId": "class_balanced_logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "primary",
+              "why": "The controller and its heads were trained with up bars and down bars each carrying half the loss, so the score that gives each class half the weight on test bars grades the head's odds on the scale they were fitted to, with the natural logarithm of two as the value of always quoting even odds."
+            },
+            {
+              "metricId": "area_under_receiver_operating_characteristic_curve",
+              "type": "discrimination",
+              "role": "primary",
+              "why": "It tests whether windows for which the controller state and the memory reads pushed the head's output higher were followed by up moves more often than windows scored lower, which does not depend on the class weighting or on the scale of the sigmoid."
+            },
+            {
+              "metricId": "logarithmic_loss",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "The unweighted version is what early stopping watched on the validation rows to choose the kept epoch, so on test bars it shows that same quantity out of sample, with the warning that it charges the memory network for being centred on even odds whenever the series leaned one way."
+            },
+            {
+              "metricId": "brier_score",
+              "type": "proper_scoring_rule",
+              "role": "secondary",
+              "why": "It grades the same sigmoid output on a bounded scale, so a few windows where a sharply focused read made the head nearly certain cannot swamp it, though it is measured against the up share while the network was centred on even odds."
+            },
+            {
+              "metricId": "calibration_slope",
+              "type": "calibration_and_sharpness",
+              "role": "secondary",
+              "why": "The slope asks only whether the head's log-odds are stretched or squeezed, which the class weighting does not decide, so it shows whether the unbounded key strength of the content addressing left the head over-confident on windows it never saw."
+            },
+            {
+              "metricId": "probability_up_sharpness",
+              "type": "calibration_and_sharpness",
+              "role": "diagnostic",
+              "why": "When the read heads return the same blurred average of the slots on every window the head has little to tell windows apart with, and this spread shows whether its output ever moves away from even odds."
+            },
+            {
+              "metricId": "accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "The call is up when the head's output on the controller state and memory reads is positive, so the hit rate tests the network's own decision boundary, read against the fold's training majority class and with the reminder that the boundary sits at even odds between weighted classes."
+            },
+            {
+              "metricId": "accuracy_lift_over_majority_class",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It subtracts what always calling the fold's training majority direction would have scored, which is the plain test of whether writing a window of bars into memory and reading it back beat knowing only which way the training span leaned."
+            },
+            {
+              "metricId": "balanced_accuracy",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "Averaging the hit rate on up bars and on down bars matches the equal class weights the controller and heads were trained with, so it is the hard-call number that sits on the same footing as the loss they minimised."
+            },
+            {
+              "metricId": "matthews_correlation_coefficient",
+              "type": "threshold_classification",
+              "role": "secondary",
+              "why": "It reduces the four cells of called against actual direction to one symmetric number, showing whether the sign of the head's output moves with the market at all, where zero means the calls are unrelated to the outcome."
+            },
+            {
+              "metricId": "net_profit_usd",
+              "type": "decision_return",
+              "role": "secondary",
+              "why": "It is the money made by going long whenever the head's output on the controller state and memory reads is positive and short otherwise, filled at the next open with costs, so it tests only the sign of the call under the engine's rule and is read beside buy and hold on the same folds."
+            },
+            {
+              "metricId": "net_profit_minus_buy_and_hold_usd",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "A memory network that leans long in a rising fold earns the drift without recalling anything, and subtracting buy and hold on the same folds removes that drift from the money figure."
+            },
+            {
+              "metricId": "sharpe_ratio",
+              "type": "risk_adjusted_return",
+              "role": "secondary",
+              "why": "It measures how steadily following the sign of the head's output earned money per bar after costs, and because only the sign is traded neither the size of the probability nor how focused the reads were plays any part in it."
+            },
+            {
+              "metricId": "maximum_drawdown_usd",
+              "type": "risk_and_cost",
+              "role": "secondary",
+              "why": "It shows the deepest hole the account fell into while the position followed the memory network's call bar after bar, which is the risk paid for whatever those calls earned."
+            },
+            {
+              "metricId": "profit_factor",
+              "type": "risk_adjusted_return",
+              "role": "diagnostic",
+              "why": "It compares what the winning trades earned with what the losing trades gave back after costs, where a trade ends when the sign of the head's output flips, and it is shown with the trade count because few flips make it unstable."
+            },
+            {
+              "metricId": "win_rate",
+              "type": "decision_return",
+              "role": "diagnostic",
+              "why": "It counts the closed trades that ended in profit under the engine's exit rule, so it describes how the memory network's changes of direction fared as trades and is read together with the predicted up share."
+            },
+            {
+              "metricId": "trade_count",
+              "type": "coverage_and_baseline",
+              "role": "diagnostic",
+              "why": "Because a call in the same direction keeps the position open, this counts how often the sign of the head's output flipped; the memory is rebuilt from scratch for every window, so consecutive bars share most of what was written and frequent flips mean the last bar is outweighing what was stored."
+            },
+            {
+              "metricId": "predicted_up_fraction",
+              "type": "interpretability_and_behaviour",
+              "role": "diagnostic",
+              "why": "It shows how often the memory network called up, and a share near all or nothing means the head's bias has taken over and every trading number is then just that direction's drift."
+            },
+            {
+              "metricId": "price_forecast_skill",
+              "type": "point_forecast_error",
+              "role": "secondary",
+              "why": "The forecast comes from a second controller with its own memory, fitted separately with Huber loss on the scaled move, so this skill against the no-change forecast tests that second fit and not the direction network that is traded."
+            },
+            {
+              "metricId": "price_forecast_mean_absolute_error_points",
+              "type": "point_forecast_error",
+              "role": "diagnostic",
+              "why": "It states in points how far the second, price-fitted memory network missed the move on average, to be read beside the no-change error on the same bars and never as a grade of the direction call."
+            },
+            {
+              "metricId": "price_forecast_direction_accuracy",
+              "type": "threshold_classification",
+              "role": "diagnostic",
+              "why": "It shows how often the sign of the price network's forecast matched the move, which is a second opinion from a separately trained controller and memory and can disagree with the traded call."
+            },
+            {
+              "metricId": "training_objective_value_by_step",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "The training curve holds the weighted cross-entropy the optimiser minimised through every write and read of the window and the validation curve holds the unweighted logarithmic loss that chose the kept epoch, so each is read for its own shape and the two are never compared level for level."
+            },
+            {
+              "metricId": "gradient_norm",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It is the size of the gradient before clipping, averaged over an epoch, and shows whether the error signal that travels back through the content addressing and the erase and add writes of every bar arrives steadily or in the bursts this design is known for."
+            },
+            {
+              "metricId": "loss_surface_sharpness",
+              "type": "convergence_and_efficiency",
+              "role": "diagnostic",
+              "why": "It describes how steep the loss is around the kept weights, which matters here because a small change in a key or its strength can move a read from one memory slot to another and change the head's input abruptly."
+            },
+            {
+              "metricId": "hyperparameter_search_objective_value",
+              "type": "stability_and_robustness",
+              "role": "diagnostic",
+              "why": "It is the score that picked the controller width, the number and width of the memory slots, the number of read heads and the training dials inside each fold's training span, so it is optimistic by construction and is shown only beside the test value."
+            }
+          ],
+          "measuredNotMeaningful": [
+            {
+              "metricId": "expected_calibration_error",
+              "why": "It compares the stated probability with the observed up share, but the positive-class weight centred the head's output on even odds on purpose, so a gap here is built in and says nothing about the controller or its memory."
+            },
+            {
+              "metricId": "maximum_calibration_error",
+              "why": "It is the worst bin of the same comparison against the observed up share, which the class weighting shifts by construction, and the sigmoid output near one half fills only a few bins."
+            },
+            {
+              "metricId": "validation_minus_training_objective",
+              "why": "The training curve holds the class-weighted cross-entropy and the validation curve holds the unweighted logarithmic loss, so their difference mixes two quantities and is not an overfit measure for this network."
+            },
+            {
+              "metricId": "exposure_fraction",
+              "why": "With the long-only dial off and no stop or target set the engine never goes flat once the first call is filled, so the share of bars in a position describes the engine's rule and not the memory network."
+            }
+          ],
+          "caveats": [
+            "The memory is reset to its learned starting matrix at the start of every window, so nothing the network stored while reading one bar's window is available when it reads the next bar's window, and recall never reaches further back than the sequence length.",
+            "The read and write weightings over the memory slots are shown in Inside the model but no slot usage share is computed as a metric, so whether the heads address distinct slots is seen in the trace and not on the scoreboard.",
+            "The price forecast is drawn by a second network with its own controller and memory, fitted separately on the scaled move with Huber loss, so the forecast line and the traded call can disagree.",
+            "Consecutive scored bars share most of the future bars inside their label horizon, so any interval around a classification metric must come from a block bootstrap or a Newey-West variance and never from a binomial formula.",
+            "The last open position of each fold is closed at the fold's final close while every other exit fills at the next bar's open.",
+            "For any root other than MNQ the commission and fee figures are the MNQ account figures applied as a stated assumption."
+          ]
+        }
       }
     }
   }
