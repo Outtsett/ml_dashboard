@@ -54,7 +54,6 @@ Overall progress (``cursor.overallFraction``), monotonic:
 
 from __future__ import annotations
 
-import json
 import math
 import os
 import time
@@ -1215,12 +1214,7 @@ class CycleEngine:
         artifacts (`data/models/<id>/loss_surfaces.json.zst`): the run page reads
         it back for a recorded run. A failed write is a warning, never a lost fold."""
         try:
-            os.makedirs(self.settings.artifact_directory, exist_ok=True)
-            path = os.path.join(self.settings.artifact_directory, self.LOSS_SURFACES_FILE)
-            tmp = path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as handle:
-                json.dump(self.loss_surfaces, handle)
-            os.replace(tmp, path)
+            self._write_json_list(self.LOSS_SURFACES_FILE, self.loss_surfaces)
         except Exception as error:  # noqa: BLE001 - the run must not fail over its surface file
             self.log(f"[save] loss surfaces could not be written: {error}", "warn")
 
