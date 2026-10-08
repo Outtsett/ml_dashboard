@@ -41,12 +41,12 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shared import protocol
 
 from cycle.adapter import StopRequested
 from cycle.features import history_valid
 from cycle.metrics import classification_metrics, sharpe_ratio
 from cycle.simulate import Simulator
-from shared import protocol
 
 if TYPE_CHECKING:
     from cycle.engine import CycleEngine, FoldSpec
@@ -67,8 +67,10 @@ def inner_blocks(window_start: int, window_end: int, block_count: int, purge: in
     return blocks
 
 
-def simulate_block(engine: CycleEngine, rows: np.ndarray, probability: dict[int, float]) -> np.ndarray:
-    """Per-bar net USD of the run's trading rules over contiguous ``rows``."""
+def simulate_block(engine: CycleEngine, rows: np.ndarray, probability: dict[int, float],
+                   gate: dict[int, bool] | None = None) -> np.ndarray:
+    """Per-bar net USD of the run's trading rules over contiguous ``rows``. ``gate`` (a model
+    with its own trade gate) closes a row: its call stands aside (signal 0), as in the walk."""
     s = engine.settings
     d = engine.data
     simulator = Simulator(
@@ -80,6 +82,8 @@ def simulate_block(engine: CycleEngine, rows: np.ndarray, probability: dict[int,
         i = int(i)
         p = probability.get(i)
         signal = None if p is None else (1 if p >= 0.5 else -1)
+        if signal is not None and gate is not None and not gate.get(i, True):
+            signal = 0
         last = j == rows.size - 1
         result = simulator.step(i, int(d.timestamps[i]), d.open[i], d.high[i], d.low[i], d.close[i], signal, p, decide=not last)
         nets[j] = result.net_usd
@@ -96,8 +100,12 @@ def _block_objective(engine: CycleEngine, objective: str, adapter, scored_rows: 
         if predictable.size else np.empty(0)
     )
     by_row = {int(row): float(p) for row, p in zip(predictable, probabilities) if math.isfinite(p)}
+    gate_of = getattr(adapter, "trade_gate", None)
+    gate = None
+    if callable(gate_of) and predictable.size:
+        gate = {int(row): bool(opened) for row, opened in zip(predictable, np.asarray(gate_of(engine.features, predictable), dtype=bool))}
     if objective == "sharpe_ratio":
-        value = sharpe_ratio(simulate_block(engine, scored_rows, by_row), engine.periods_per_year)
+        value = sharpe_ratio(simulate_block(engine, scored_rows, by_row, gate), engine.periods_per_year)
         return 0.0 if value is None else float(value)
     labelled = [row for row in by_row if math.isfinite(engine.labels[row])]
     if not labelled:
@@ -290,9 +298,18 @@ def _best(study) -> tuple[float | None, int | None]:
 
 
 def _split(rows: np.ndarray, validation_fraction: float, purge: int) -> tuple[np.ndarray, np.ndarray]:
+    """One inner block's own chronological cut: the first part fits, the last
+    ``validation_fraction`` early-stops.
+
+    It is the same cut the fold itself uses, with no test block: an inner block lives
+    entirely inside the fold's training window, and its trailing slice is the block the
+    trial is scored on. So the test share is zero and the test block comes back empty;
+    the ``purge`` rows between the two are the same rows the fold's own split charges.
+    """
     from cycle.engine import split_window
 
-    return split_window(rows, validation_fraction, purge)
+    fit_rows, early_stop_rows, _test_rows, _discarded = split_window(rows, validation_fraction, 0.0, purge)
+    return fit_rows, early_stop_rows
 
 
 def engine_time(timestamp) -> str:

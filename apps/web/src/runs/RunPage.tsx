@@ -31,6 +31,7 @@ import { MetricReadouts } from "@/runs/foldGrid";
 import { Configuration } from "@/runs/Configuration";
 import { AttentionPanel } from "@/runs/analytics/AttentionPanel";
 import { GateRoutingPanel } from "@/runs/analytics/GateRoutingPanel";
+import { RegimePanel } from "@/runs/analytics/RegimePanel";
 import { VersionsView } from "@/runs/compare/ComparePage";
 
 function Section({ category, findings, children }: { category: RunCategory; findings: RunView["verdicts"]; children: React.ReactNode }) {
@@ -164,6 +165,7 @@ function RunBody({ run, focusTime, onFocusTime }: { run: RunView; focusTime: num
         </Section>
         <Section category="prediction" findings={of("prediction")}>
           <Tiles tiles={tilesOf("prediction")} />
+          {panels.has("regime_forecast") && <RegimePanel forecasts={run.regimeForecasts} modelLabel={run.setup?.modelLabel ?? null} focusTime={focusTime} onFocusTime={onFocusTime} />}
           <div className="grid gap-2 xl:grid-cols-2">
             <CalibrationChart bins={run.calibration} />
             <ConfusionGrid cells={run.confusion} />

@@ -477,6 +477,11 @@ class CycleEngine:
         self.epoch_records: list[dict] = []
         self.loss_surfaces: list[dict] = []              # one per final neural fit, as emitted (`cycle_loss_surface`)
         self.gate_routings: list[dict] = []              # one per fold of a mixture of experts (`cycle_gate_routing`)
+        # one per fold of a regime Monte Carlo decision model (`cycle_regime_forecast`, merged from its stretches)
+        self.regime_forecasts: list[dict] = []
+        self._regime_rows: list[dict] = []               # the walk's bars not yet sent, with their timestamps
+        self._regime_adapter = None                      # the adapter whose bars they are (None: a kind with no regimes)
+        self._regime_fold: int | None = None
         self.trial_records: list[dict] = []
         self.prediction_rows: dict[int, dict] = {}     # row -> record (insertion ordered)
         self.trades: dict[int, Trade] = {}
@@ -1042,6 +1047,7 @@ class CycleEngine:
         self._walk_test(spec, adapter, accumulator, price_adapter)
         testing_seconds = self.clock() - testing_started
         self._record_gate_routing(spec, adapter)
+        self._record_regime_forecasts(spec)
         self.test_seconds += testing_seconds
         record["testingSeconds"] = testing_seconds
 
@@ -1201,6 +1207,62 @@ class CycleEngine:
             self.log(f"{self.fold_prefix(spec.fold_index)}[routing] gate over {len(rows):,} test bars: {usage}")
         except Exception as error:  # noqa: BLE001 - the routing is a picture of the fit, not the fit
             self.log(f"{self.fold_prefix(spec.fold_index)}[routing] gate routing not recorded: {error}", "warn")
+
+    REGIME_FORECASTS_FILE = "regime_forecasts.json"
+    # the per-bar columns of a regime forecast stretch (everything else is the fold's constants)
+    REGIME_FORECAST_COLUMNS = (
+        "timestamps", "close", "regimeProbabilities", "mostLikelyRegime", "monteCarloProbabilityUp",
+        "monteCarloExpectedMovePoints", "monteCarloPercentile10Points", "monteCarloPercentile50Points",
+        "monteCarloPercentile90Points", "kronosOpen", "kronosHigh", "kronosLow", "kronosClose",
+        "kronosPredictedMovePoints", "decisionProbabilityUp", "gateOpen",
+    )
+
+    def _flush_regime_forecasts(self) -> None:
+        """Send the walk's bars a regime model has spoken for since the last flush as one
+        ``cycle_regime_forecast`` stretch, and fold them into the fold's record."""
+        rows, self._regime_rows = self._regime_rows, []
+        adapter = self._regime_adapter
+        if not rows or adapter is None:
+            return
+        try:
+            payload = protocol.emit_cycle_regime_forecast(
+                fold_index=self._regime_fold, model_role="direction", rows=rows, **adapter.regime_forecast_context())
+        except Exception as error:  # noqa: BLE001 - the forecasts are a picture of the model, not the walk
+            self.log(f"{self.fold_prefix(self._regime_fold or 0)}[regime] {len(rows)} bars of regime forecasts not sent: {error}", "warn")
+            return
+        record = next((entry for entry in self.regime_forecasts if entry.get("foldIndex") == payload["foldIndex"]), None)
+        if record is None:
+            self.regime_forecasts.append(payload)
+            return
+        for name, value in payload.items():
+            if name in self.REGIME_FORECAST_COLUMNS:
+                record[name].extend(value)
+            else:
+                record[name] = value
+
+    def _record_regime_forecasts(self, spec: FoldSpec) -> None:
+        """At the end of a fold's test walk: write every fold's regime forecasts beside the
+        artifacts and say in one line what the fold's regimes and gate did."""
+        self._flush_regime_forecasts()
+        self._regime_adapter = None
+        record = next((entry for entry in self.regime_forecasts if entry.get("foldIndex") == spec.fold_index), None)
+        if record is None:
+            return
+        try:
+            self._write_json_list(self.REGIME_FORECASTS_FILE, self.regime_forecasts)
+        except Exception as error:  # noqa: BLE001 - a failed write is a warning, never a lost fold
+            self.log(f"{self.fold_prefix(spec.fold_index)}[regime] regime forecasts could not be written: {error}", "warn")
+        bars = len(record["timestamps"])
+        opened = sum(1 for value in record["gateOpen"] if value)
+        counts = [0] * int(record["regimeCount"])
+        for regime in record["mostLikelyRegime"]:
+            if regime is not None:
+                counts[int(regime) - 1] += 1
+        occupancy = ", ".join(f"regime {k + 1} {count / max(bars, 1) * 100:.0f}%" for k, count in enumerate(counts))
+        self.log(
+            f"{self.fold_prefix(spec.fold_index)}[regime] {bars:,} test bars: most likely {occupancy}; "
+            f"trade gate open on {opened:,} ({opened / max(bars, 1) * 100:.1f}%)"
+        )
 
     def _write_json_list(self, file_name: str, rows: list[dict]) -> None:
         """One zstandard-compressed JSON file (``<name>.zst``) of every entry so far beside the run's artifacts, written atomically."""
@@ -1413,6 +1475,16 @@ class CycleEngine:
         price_valid = history_valid(self.features, int(price_adapter.minimum_history())) if price_adapter is not None else None
         bar_count = len(d)
         walk_started = self.clock()
+        # a model with its own trade gate (regime_montecarlo_decision): every bar's call is still
+        # scored, but the engine enters only where the gate is open and stands aside (signal 0) elsewhere
+        trade_gate = getattr(adapter, "trade_gate", None)
+        trade_gate = trade_gate if callable(trade_gate) else None
+        # a model that speaks per bar for its regimes streams them during the test walk
+        regime_forecast = getattr(adapter, "regime_forecast", None)
+        regime_forecast = regime_forecast if callable(regime_forecast) and span.writes_run_state else None
+        self._regime_adapter = adapter if regime_forecast is not None else None
+        self._regime_fold = k
+        self._regime_rows = []
 
         for j in range(count):
             self.checkpoint()
@@ -1441,6 +1513,12 @@ class CycleEngine:
                 direction, signal = 0, None
             else:
                 direction = signal = 1 if probability >= 0.5 else -1
+                if trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
+                    signal = 0
+                if regime_forecast is not None:
+                    said = regime_forecast(i)
+                    if said is not None:
+                        self._regime_rows.append({**said, "timestamp": int(d.timestamps[i])})
             # the price model: its output times the causal scale at this bar, in points
             predicted_move: float | None = None
             scale = float(self.move_scale[i])
@@ -1601,6 +1679,7 @@ class CycleEngine:
             )
             self._record_bars("processed", frame["foldIndex"], frame["timestamps"], frame["open"], frame["high"],
                               frame["low"], frame["close"], frame["volume"], span=frame["span"])
+            self._flush_regime_forecasts()
             self.emit_cursor(force=True)
         actions, self._post_frame = self._post_frame, []
         for action in actions:

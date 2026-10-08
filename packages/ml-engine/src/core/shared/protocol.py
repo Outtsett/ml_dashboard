@@ -1078,6 +1078,87 @@ def emit_cycle_gate_routing(*, fold_index, model_role: str, timestamps, probabil
     _emit_cycle("cycle_gate_routing", cycle_gate_routing_payload(fold_index=fold_index, model_role=model_role, timestamps=timestamps, probabilities=probabilities))
 
 
+def _number_or_none(value, digits: int):
+    """A finite float rounded to ``digits`` places, or None (NaN and infinity are not numbers on the wire)."""
+    import math
+
+    if value is None:
+        return None
+    value = float(value)
+    return round(value, digits) if math.isfinite(value) else None
+
+
+def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: int, simulation_count: int,
+                                  decision_threshold: float, kronos_model: str, regimes: list[dict],
+                                  transition_matrix, feature_weights: list[dict], rows: list[dict]) -> dict:
+    """The wire shape of a regime Monte Carlo decision model's per-bar forecasts
+    over a stretch of its test walk (``regime_montecarlo_decision``): for every
+    bar, the filtered regime probabilities, the Monte Carlo fan (10th / 50th /
+    90th percentile move paths in points to the horizon, P(up) and the expected
+    move), Kronos' predicted candles, the decision model's P(up) and whether
+    its trade gate was open. ``rows`` are the adapter's ``regime_forecast(row)``
+    records plus ``timestamp``. The fold's constants (regimes, transition
+    matrix, feature weights) travel with every stretch, so any one event is
+    readable on its own. Other model kinds send none."""
+    if model_role not in ("direction", "price"):
+        raise ValueError(f"cycle_regime_forecast: model role must be direction or price, got {model_role!r}")
+    regime_count = len(regimes)
+
+    def path(values):
+        return [_number_or_none(value, 4) for value in values]
+
+    def candles(row, column):
+        values = row["kronos_candles"]
+        return [_number_or_none(candle[column], 4) for candle in values]
+
+    probabilities = []
+    most_likely = []
+    for row in rows:
+        values = [_number_or_none(value, 4) for value in row["probabilities"]]
+        if len(values) != regime_count:
+            raise ValueError(f"cycle_regime_forecast: {len(values)} regime probabilities for {regime_count} regimes")
+        probabilities.append(values)
+        known = [value for value in values if value is not None]
+        most_likely.append(int(max(range(regime_count), key=lambda k: values[k] or -1.0)) + 1 if known else None)
+    return {
+        "foldIndex": None if fold_index is None else int(fold_index),
+        "modelRole": model_role,
+        "regimeCount": regime_count,
+        "horizonBars": int(horizon_bars),
+        "simulationCount": int(simulation_count),
+        "decisionThreshold": float(decision_threshold),
+        "kronosModel": str(kronos_model),
+        "regimes": [dict(regime) for regime in regimes],
+        "transitionMatrix": [[_number_or_none(value, 6) for value in row] for row in transition_matrix],
+        "featureWeights": [{"name": str(item["name"]), "gainShare": _number_or_none(item["gainShare"], 6)}
+                           for item in feature_weights],
+        "timestamps": [int(row["timestamp"]) for row in rows],
+        "close": [_number_or_none(row["close"], 4) for row in rows],
+        "regimeProbabilities": probabilities,
+        "mostLikelyRegime": most_likely,
+        "monteCarloProbabilityUp": [_number_or_none(row["probability_up"], 4) for row in rows],
+        "monteCarloExpectedMovePoints": [_number_or_none(row["expected_move_points"], 4) for row in rows],
+        "monteCarloPercentile10Points": [path(row["percentile_10_points"]) for row in rows],
+        "monteCarloPercentile50Points": [path(row["percentile_50_points"]) for row in rows],
+        "monteCarloPercentile90Points": [path(row["percentile_90_points"]) for row in rows],
+        "kronosOpen": [candles(row, 0) for row in rows],
+        "kronosHigh": [candles(row, 1) for row in rows],
+        "kronosLow": [candles(row, 2) for row in rows],
+        "kronosClose": [candles(row, 3) for row in rows],
+        "kronosPredictedMovePoints": [_number_or_none(row["kronos_move"], 4) for row in rows],
+        "decisionProbabilityUp": [_number_or_none(row["decision_probability_up"], 4) for row in rows],
+        "gateOpen": [bool(row["gate_open"]) for row in rows],
+    }
+
+
+def emit_cycle_regime_forecast(**arguments) -> dict:
+    """A stretch of a regime model's per-bar forecasts (see ``cycle_regime_forecast_payload``);
+    returns the payload it sent."""
+    payload = cycle_regime_forecast_payload(**arguments)
+    _emit_cycle("cycle_regime_forecast", payload)
+    return payload
+
+
 def emit_cycle_trade(trade: dict) -> None:
     """A trade opened (``status="open"``) or closed (``status="closed"``).
 

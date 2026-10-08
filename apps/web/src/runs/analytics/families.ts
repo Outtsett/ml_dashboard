@@ -12,9 +12,11 @@
  *   probabilistic  statistical / Bayesian / generative models: distributions, calibration
  *   clustering     unsupervised groupings: the force-directed graph of the clusters
  *   agent          reinforcement-learning and planning agents: reward, policy
+ *   regime         hidden-Markov regimes + regime Monte Carlo + Kronos + FinBERT into a decision model:
+ *                  regime bands, the simulated fan, Kronos' candles, the trade gate, the feature weights
  *   other          anything else: the shared panels only
  */
-export type AnalyticsFamily = "trees" | "neural" | "transformers" | "mixture" | "multimodal" | "probabilistic" | "clustering" | "agent" | "other";
+export type AnalyticsFamily = "trees" | "neural" | "transformers" | "mixture" | "multimodal" | "probabilistic" | "clustering" | "agent" | "regime" | "other";
 
 export const FAMILY_LABELS: Record<AnalyticsFamily, string> = {
   trees: "Gradient-boosted and random trees",
@@ -25,6 +27,7 @@ export const FAMILY_LABELS: Record<AnalyticsFamily, string> = {
   probabilistic: "Probabilistic and statistical",
   clustering: "Clustering",
   agent: "Reinforcement-learning agent",
+  regime: "Regime Monte Carlo decision stack",
   other: "Model",
 };
 
@@ -38,6 +41,7 @@ export type AnalyticsPanel =
   | "gate_routing"      // which expert the gate chose, bar by bar (mixture)
   | "stream_contribution" // what each input stream contributed (multimodal)
   | "cluster_graph"     // force-directed graph of the clusters (clustering)
+  | "regime_forecast"   // regime bands, Monte Carlo fan, Kronos candles, trade gate, feature weights (regime)
   | "calibration";      // probability honesty (probabilistic)
 
 const SHARED: AnalyticsPanel[] = ["search", "readouts"];
@@ -51,6 +55,7 @@ export const FAMILY_PANELS: Record<AnalyticsFamily, AnalyticsPanel[]> = {
   probabilistic: ["calibration", ...SHARED],
   clustering: ["cluster_graph", ...SHARED],
   agent: ["learning_curves", ...SHARED],
+  regime: ["regime_forecast", "learning_curves", ...SHARED],
   other: ["learning_curves", ...SHARED],
 };
 
@@ -58,6 +63,7 @@ export const FAMILY_PANELS: Record<AnalyticsFamily, AnalyticsPanel[]> = {
 export function analyticsFamilyOf(kind: string | null | undefined, modelKey: string | null | undefined): AnalyticsFamily {
   const key = (modelKey ?? "").toLowerCase();
   const k = (kind ?? "").toLowerCase();
+  if (key.includes("regime_montecarlo") || k.includes("regime simulation")) return "regime";
   if (key.includes("mixture_of_experts") || key.includes("moe")) return "mixture";
   if (key.includes("multimodal") || key.includes("multi_modal")) return "multimodal";
   if (key.includes("transformer") || key.includes("attention") || k.includes("transformer")) return "transformers";

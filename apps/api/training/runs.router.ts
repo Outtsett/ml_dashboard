@@ -17,6 +17,7 @@ import { Router, type Request, type Response } from "express";
 import fs from "fs";
 import zlib from "node:zlib";
 import path from "path";
+import zlib from "zlib";
 import { z } from "zod";
 
 import { getNestApp } from "../infrastructure/lib/nest-context";
@@ -32,7 +33,7 @@ import { buildCycleModelsResponse, readCatalogSnapshot } from "./cycleModels.rou
 import { buildRunView, type LogCursor, type RunReportTables } from "@shared/runs/view";
 import type { RunListItem, RunnableModel, RunView, StartRunResponse } from "@shared/runs/types";
 import { runName, runPurpose, runVersions } from "@shared/runs/naming";
-import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
+import type { CycleGateRouting, CycleLogLine, CycleLossSurface, CycleRegimeForecast, CycleRunSummary, CycleSnapshot } from "@shared/cycle/schema";
 import type { TrainingRequest } from "@shared/trainingTypes";
 
 const router = Router();
@@ -525,6 +526,30 @@ async function readGateRoutings(modelId: string): Promise<CycleGateRouting[]> {
   }
 }
 
+// Beside the artifacts (`engine._record_regime_forecasts`): one entry per fold, its stretches merged. Written as
+// plain JSON by this branch's engine; read compressed first (`.zst`, zstandard through Node 22's zlib, typed
+// locally because @types/node 20 predates it) so a run written by the compressing engine reads the same.
+const REGIME_FORECASTS_FILE = "regime_forecasts.json";
+const zstandard = zlib as unknown as { zstdDecompressSync?: (input: Buffer) => Buffer };
+
+async function readRegimeForecasts(modelId: string): Promise<CycleRegimeForecast[]> {
+  const terminal = terminalPath(modelId);
+  if (!terminal) return [];
+  const directory = path.dirname(terminal);
+  for (const name of [`${REGIME_FORECASTS_FILE}.zst`, REGIME_FORECASTS_FILE]) {
+    try {
+      const raw = await fs.promises.readFile(path.join(directory, name));
+      if (name.endsWith(".zst") && !zstandard.zstdDecompressSync) continue;
+      const text = name.endsWith(".zst") ? zstandard.zstdDecompressSync!(raw).toString("utf-8") : raw.toString("utf-8");
+      const parsed: unknown = JSON.parse(text);
+      return Array.isArray(parsed) ? (parsed as CycleRegimeForecast[]) : [];
+    } catch {
+      // not there in this form: try the next
+    }
+  }
+  return [];
+}
+
 const REPORT_REFRESH_MILLISECONDS = 20_000;
 const reportCache = new Map<string, { at: number; report: RunReportTables | null }>();
 const reportRefresh = new Map<string, Promise<void>>();
@@ -556,15 +581,16 @@ const archiveCache = new Map<string, { snapshot: CycleSnapshot; report: RunRepor
 async function archivedRun(modelId: string): Promise<{ snapshot: CycleSnapshot; report: RunReportTables | null } | null> {
   const cached = archiveCache.get(modelId);
   if (cached) return cached;
-  const [snapshot, report, terminal, lossSurfaces, gateRoutings] = await Promise.all([
+  const [snapshot, report, terminal, lossSurfaces, gateRoutings, regimeForecasts] = await Promise.all([
     loadArchivedCycleSnapshot(modelId),
     loadCycleReport(modelId).catch(() => null),
     readTerminal(modelId),
     readLossSurfaces(modelId),
     readGateRoutings(modelId),
+    readRegimeForecasts(modelId),
   ]);
   if (!snapshot) return null;
-  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, lossSurfaces, gateRoutings }, report };
+  const entry = { snapshot: { ...snapshot, logs: terminal ?? snapshot.logs, lossSurfaces, gateRoutings, regimeForecasts }, report };
   archiveCache.set(modelId, entry);
   if (archiveCache.size > ARCHIVE_CACHE_SIZE) archiveCache.delete(archiveCache.keys().next().value as string);
   return entry;

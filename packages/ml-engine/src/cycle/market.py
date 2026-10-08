@@ -25,7 +25,12 @@ Read rules (the contract every bridge is tested against, see
 - ``open``, ``high`` and ``low`` are **fit-only** (a reward tape's next-open fill
   and intrabar excursions over the training span). They are ``None`` in the
   explainer's view, so a model that reads them at predict time fails loudly
-  there instead of quietly differing from the run.
+  there instead of quietly differing from the run. ``volume`` (the bars' traded
+  volume) is the same: the engine's view carries it, the explainer's does not.
+  One model reads open, high, low and volume at rows <= t at predict time —
+  ``regime_montecarlo_decision`` (Kronos reads whole candles, its regime model
+  reads volume) — which is causal, and which is why that model refuses to be
+  reloaded by the explainer rather than predicting from a different input.
 - **Fitting** may read targets and labels only for rows of
   ``fit_rows(train_index)`` — the span from the first to the last training row.
   Every such row resolves at r + horizon <= train_index[-1] + horizon, which the
@@ -54,11 +59,11 @@ from cycle.labels import horizon_crosses_gap
 # or target data behind realised_until (see the module docstring).
 PREDICT_FIELDS = ("timestamps", "close", "raw_features", "feature_names", "move_scale",
                   "horizon", "tick_size", "round_trip_cost_points")
-FIT_ONLY_FIELDS = ("open", "high", "low")
+FIT_ONLY_FIELDS = ("open", "high", "low", "volume")
 TARGET_FIELDS = ("price_targets", "labels")
 # every array field; each is stored read-only (see MarketView.__post_init__)
 ARRAY_FIELDS = ("timestamps", "close", "open", "high", "low", "raw_features", "price_targets", "move_scale", "labels",
-                "crosses_gap", "one_bar_crosses_gap")
+                "crosses_gap", "one_bar_crosses_gap", "volume")
 
 
 @dataclass(frozen=True, eq=False)
@@ -76,7 +81,8 @@ class MarketView:
     ``crosses_gap`` bool, the h-bar horizon of the row spans a session gap;
     ``one_bar_crosses_gap`` bool, the gap after the row (to row + 1) is a
     session gap; ``tick_size`` points; ``round_trip_cost_points`` the cost of
-    one round trip of one contract in points (USD cost / point value)."""
+    one round trip of one contract in points (USD cost / point value);
+    ``volume`` float64 traded volume per bar (None in the explainer's view)."""
 
     timestamps: np.ndarray
     close: np.ndarray
@@ -93,11 +99,12 @@ class MarketView:
     one_bar_crosses_gap: np.ndarray
     tick_size: float
     round_trip_cost_points: float
+    volume: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         count = int(np.asarray(self.timestamps).shape[0])
         for name in ("close", "open", "high", "low", "raw_features", "price_targets", "move_scale", "labels",
-                     "crosses_gap", "one_bar_crosses_gap"):
+                     "crosses_gap", "one_bar_crosses_gap", "volume"):
             values = getattr(self, name)
             if values is not None and int(np.asarray(values).shape[0]) != count:
                 raise ValueError(f"MarketView: {name} has {np.asarray(values).shape[0]} rows, timestamps {count}")
@@ -190,18 +197,18 @@ class MarketView:
         return replace(self, timestamps=cut(self.timestamps), close=cut(self.close), open=cut(self.open),
                        high=cut(self.high), low=cut(self.low), raw_features=cut(self.raw_features),
                        price_targets=price_targets, move_scale=cut(self.move_scale), labels=labels,
-                       crosses_gap=crosses, one_bar_crosses_gap=one_bar)
+                       crosses_gap=crosses, one_bar_crosses_gap=one_bar, volume=cut(self.volume))
 
     def without_intrabar(self) -> MarketView:
-        """The same view with ``open``, ``high`` and ``low`` removed (what the explainer has)."""
-        return replace(self, open=None, high=None, low=None)
+        """The same view with ``open``, ``high``, ``low`` and ``volume`` removed (what the explainer has)."""
+        return replace(self, open=None, high=None, low=None, volume=None)
 
     # ── builders ──
     @classmethod
     def from_arrays(cls, *, timestamps, close, horizon: int, price_targets, move_scale, labels,
                     open=None, high=None, low=None, raw_features=None, feature_names=(),  # noqa: A002 - the bar's open
                     crosses_gap=None, gap_multiple: float = 0.0, tick_size: float = 0.25,
-                    round_trip_cost_points: float = 0.0) -> MarketView:
+                    round_trip_cost_points: float = 0.0, volume=None) -> MarketView:
         """A view from plain arrays; the gap flags are recomputed from the
         timestamps with ``gap_multiple`` unless ``crosses_gap`` is given."""
         timestamps = np.asarray(timestamps, dtype=np.int64)
@@ -225,6 +232,7 @@ class MarketView:
             one_bar_crosses_gap=np.asarray(one_bar, dtype=bool),
             tick_size=float(tick_size),
             round_trip_cost_points=float(round_trip_cost_points),
+            volume=None if volume is None else np.asarray(volume, dtype=np.float64),
         )
 
     @classmethod
@@ -236,7 +244,7 @@ class MarketView:
         feature_set = engine.feature_set
         return cls.from_arrays(
             timestamps=data.timestamps, close=data.close, open=data.open, high=data.high, low=data.low,
-            raw_features=feature_set.raw, feature_names=feature_set.names, horizon=int(engine.horizon),
+            volume=getattr(data, "volume", None), raw_features=feature_set.raw, feature_names=feature_set.names, horizon=int(engine.horizon),
             price_targets=engine.price_targets, move_scale=engine.move_scale, labels=engine.labels,
             crosses_gap=engine.crosses_gap, gap_multiple=float(engine.settings.label_gap_multiple),
             tick_size=float(cost.tick_size),

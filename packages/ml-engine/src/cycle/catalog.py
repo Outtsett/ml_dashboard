@@ -58,6 +58,7 @@ BRIDGE_ADAPTERS = (
 ADAPTERS = ("legacy", "scikit_learn", "catboost", "statsmodels", "neural",
             # adapters in their own modules (models.ADAPTER_CLASSES), one per catalog spec
             "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid",
+            "regime_montecarlo_decision",
             *BRIDGE_ADAPTERS)
 DIRECTION_MODES = ("classifier", "from_price")
 PROBABILITY_SOURCES = ("legacy", "predict_proba", "logistic_curve_on_validation", "network", "probit")

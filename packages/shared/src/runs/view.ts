@@ -12,6 +12,7 @@ import type {
   RunConfiguration,
   RunFoldRow,
   RunGateRouting,
+  RunRegimeForecast,
   RunLossSurface,
   RunMetricTile,
   RunMetricUnit,
@@ -169,6 +170,13 @@ export function gateRoutingsOf(snapshot: Pick<CycleSnapshot, "gateRoutings">): R
     .sort((a, b) => (a.foldIndex ?? 0) - (b.foldIndex ?? 0));
 }
 
+/** The regime forecasts without their wire envelope, in fold order. */
+export function regimeForecastsOf(snapshot: Pick<CycleSnapshot, "regimeForecasts">): RunRegimeForecast[] {
+  return (snapshot.regimeForecasts ?? [])
+    .map(({ seq: _seq, ts: _ts, run_id: _runId, ...forecast }) => forecast)
+    .sort((a, b) => (a.foldIndex ?? 0) - (b.foldIndex ?? 0));
+}
+
 /** The surfaces without their wire envelope, in fold order then role. */
 export function lossSurfacesOf(snapshot: Pick<CycleSnapshot, "lossSurfaces">): RunLossSurface[] {
   return (snapshot.lossSurfaces ?? [])
@@ -269,6 +277,7 @@ export function emptyRunView(): RunView {
     epochs: [],
     lossSurfaces: [],
     gateRoutings: [],
+    regimeForecasts: [],
     trials: [],
     folds: [],
     daily: [],
@@ -352,6 +361,7 @@ export function buildRunView(
     epochs,
     lossSurfaces: lossSurfacesOf(snapshot),
     gateRoutings: gateRoutingsOf(snapshot),
+    regimeForecasts: regimeForecastsOf(snapshot),
     trials: snapshot.trials,
     folds,
     daily: dailyOf(report),
