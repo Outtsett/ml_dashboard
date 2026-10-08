@@ -128,13 +128,13 @@ export function runPurpose(input: PurposeInput): string {
     sentences.push(`${input.modelLabel} forecasts ${series}: for every bar it predicts where ${close} will be, in points, and the direction it trades is the sign of that forecast.`);
   } else if (input.hasPriceModel) {
     if (input.labelKind === "reversal") {
-      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the walk trades against the previous move when that probability is at or above 0.5 and with it below), and a second model predicts how far the price will move, in points.`);
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the engine reads it as a probability of up, which is one minus it after an up-move and the same number after a down-move, and trades long when that is 0.5 or above and short below), and a second model predicts how far the price will move, in points.`);
     } else {
       sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up), and a second model predicts how far it will move, in points.`);
     }
   } else if (input.directionMode === "classifier") {
     if (input.labelKind === "reversal") {
-      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the walk trades against the previous move when that probability is at or above 0.5 and with it below).`);
+      sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether the move over the next ${horizon} will turn against the move over the previous ${horizon} (a reversal classifier, giving a probability of a turn; the engine reads it as a probability of up, which is one minus it after an up-move and the same number after a down-move, and trades long when that is 0.5 or above and short below).`);
     } else {
       sentences.push(`${input.modelLabel} on ${series}: for every bar it predicts whether ${close} will be above or below that bar's close (a direction classifier, giving a probability of up).`);
     }

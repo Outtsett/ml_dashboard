@@ -105,8 +105,14 @@ def _block_objective(engine: CycleEngine, objective: str, adapter, scored_rows: 
     if callable(gate_of) and predictable.size:
         gate = {int(row): bool(opened) for row, opened in zip(predictable, np.asarray(gate_of(engine.features, predictable), dtype=bool))}
     if objective == "sharpe_ratio":
-        value = sharpe_ratio(simulate_block(engine, scored_rows, by_row, gate), engine.periods_per_year)
+        # the trading rule reads P(up): a reversal model's P(turn) is converted exactly as the
+        # walk converts it (`engine.probability_up`), and a bar with no call is not traded
+        traded = {row: converted for row, converted in ((row, engine.probability_up(p, row)) for row, p in by_row.items())
+                  if converted is not None}
+        value = sharpe_ratio(simulate_block(engine, scored_rows, traded, gate), engine.periods_per_year)
         return 0.0 if value is None else float(value)
+    # log loss and F1 score the model against the label it was fitted on (P(turn) against the
+    # reversal label for a reversal model), so the raw probability is the right one here
     labelled = [row for row in by_row if math.isfinite(engine.labels[row])]
     if not labelled:
         raise ValueError("the scored block has no labelled, predictable bars")
