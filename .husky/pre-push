@@ -1,1 +1,5 @@
-npx tsc --noEmit
+# A push may not ADD type errors: the pushed commit is type checked in a clean checkout and
+# compared with the commit the remote holds (.husky/push_gate.mjs explains why this replaced
+# `npx tsc --noEmit` on the working tree on 2026-10-08: the remote itself had 111 errors and
+# other sessions' uncommitted files added 64 more, so that check could never pass).
+node .husky/push_gate.mjs
