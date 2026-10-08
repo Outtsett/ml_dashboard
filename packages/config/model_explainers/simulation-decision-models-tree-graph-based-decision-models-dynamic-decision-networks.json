@@ -1,0 +1,78 @@
+{
+  "specificationId": "simulation-decision-models-tree-graph-based-decision-models-dynamic-decision-networks",
+  "name": "Dynamic Decision Networks",
+  "analogy": "Think of it as planning a chess game several moves ahead for a trade. Each bar you choose an action, the market state shifts partly because of it and partly by chance, and the best plan is found by working backwards from the last move to the first.",
+  "steps": [
+    {
+      "title": "Describe one time step",
+      "description": "You define what is uncertain at each step, which choices you have, and how good each combination is. This single template is repeated for every step, so the model stays compact over a long horizon.",
+      "inExample": "At each of 3 steps the uncertain thing is the trend stage (early, mature or exhausted). The choice is how many contracts to add. The score is the profit from the position."
+    },
+    {
+      "title": "Say how the state changes from step to step",
+      "description": "A transition table gives the chance of each next state given the current state and the action taken. The next state depends only on the present one, which keeps the problem solvable.",
+      "inExample": "An early trend stays early with chance 50 percent and becomes mature with 45 percent. A mature trend becomes exhausted with chance 40 percent."
+    },
+    {
+      "title": "Start at the end and work backwards",
+      "description": "At the last step the best action for each state is easy to find. One step earlier, the model picks the action that gives the best immediate score plus the value of the state it leads to. This repeats back to the first step.",
+      "inExample": "At step 3, adding is best only if the trend is early or mature. At step 2, the value of step 3 is folded in. The same is done again for step 1."
+    },
+    {
+      "title": "Store the best action for every state",
+      "description": "The result is a policy: a table that says what to do at each step in each possible state. This table is computed once, in advance, and can be inspected row by row.",
+      "inExample": "The policy table lists, for each step and each belief about the trend stage, whether to add 0, 2 or 4 contracts."
+    },
+    {
+      "title": "Use the policy as evidence arrives",
+      "description": "As each bar closes, the current state, or the best belief about it, is looked up in the policy and the indicated action is taken. The policy can be recomputed when the transition estimates are updated.",
+      "inExample": "Today the belief is 70 percent early trend, so the policy says to add 2 contracts now."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Building a position over several bars",
+      "example": "Deciding how many MNQ contracts to add on each of the next three 5-minute bars as evidence about the trend accumulates."
+    },
+    {
+      "task": "Adjusting a hedge as beliefs change",
+      "example": "Setting the hedge ratio each bar from the current belief about whether volatility is rising."
+    },
+    {
+      "task": "Stepwise de-risking",
+      "example": "Planning a schedule of reducing size, then reducing again, then flattening, depending on how the state evolves."
+    },
+    {
+      "task": "Choosing when to exit",
+      "example": "Treating the exit as a sequence of hold-or-sell choices and finding the best rule for when to stop holding."
+    }
+  ],
+  "avoidWhen": [
+    "The decision is made once, with no later choices depending on it; a plain decision network is simpler.",
+    "The state has too many possible values to list; learned policies from reinforcement learning cope with large states, though they lose the readable table."
+  ],
+  "example": {
+    "scenario": "A trader wants to build a position of up to 6 MNQ contracts across the next three 5-minute bars, adding 0, 2 or 4 contracts each bar, as the belief about the trend stage evolves.",
+    "input": {
+      "summary": "The current belief, the transition chances and the scoring that define the plan.",
+      "fields": [
+        { "name": "horizon", "value": "3 bars", "meaning": "The number of decisions in the plan." },
+        { "name": "maximum position", "value": "6 contracts", "meaning": "The cap on total size across the plan." },
+        { "name": "belief about trend stage now", "value": "70 percent early, 25 percent mature, 5 percent exhausted", "meaning": "The current probabilities over the hidden stage of the trend." },
+        { "name": "chance an early trend stays early", "value": "50 percent", "meaning": "One entry of the table that links this bar to the next." },
+        { "name": "chance a mature trend becomes exhausted", "value": "40 percent", "meaning": "Another entry of the transition table." },
+        { "name": "cost per added contract", "value": "2 US dollars", "meaning": "The cost of each contract added, built into the score." }
+      ]
+    },
+    "output": {
+      "summary": "The recommended action now and the plan for the next bar under two outcomes.",
+      "fields": [
+        { "name": "action now", "value": "add 2 contracts", "meaning": "The policy's choice for the current belief at step 1." },
+        { "name": "next bar if the trend is confirmed", "value": "add 2 more", "meaning": "The planned action at step 2 if evidence points to a mature trend." },
+        { "name": "next bar if the trend is not confirmed", "value": "hold", "meaning": "The planned action at step 2 if the evidence shifts toward an exhausted trend." },
+        { "name": "expected total score", "value": "310 US dollars", "meaning": "The probability-weighted score of following the policy over the three bars." }
+      ]
+    },
+    "reading": "The plan is to scale in gradually rather than all at once, with a built-in exit from adding if the evidence turns. The 310 dollar figure is the model's own expectation under its assumed transition table, so recheck those chances against real data before relying on the plan."
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-learning-to-learn-with-gradient-descent",
+  "name": "Learning to Learn with Gradient Descent",
+  "analogy": "Think of it as a veteran coach who has watched hundreds of traders tune their strategies and boiled it down to one habit: look at how sharply each setting is hurting you and nudge it by the right amount. The coach's habit is learned once, then reused every time a new strategy needs tuning.",
+  "steps": [
+    {
+      "title": "Pick a practice fitting problem",
+      "description": "The model being fitted is a small trading model, and the thing being trained is the tuning habit itself. So it takes a block of bars and a freshly started small model, which is one practice round of fitting.",
+      "inExample": "The practice round is 2,000 five-minute MNQ bars and a small direction model with 1,200 adjustable weights, whose error score starts at 100 percent of its starting value."
+    },
+    {
+      "title": "Measure the slope of every weight",
+      "description": "For each adjustable weight in the small model it measures how much the error would change if that weight moved a little. This slope is the only thing the learned habit gets to see about the weight.",
+      "inExample": "Weight number 17 has a small positive slope, 8 hundredths on the model's own scale, meaning that raising it would make the error worse."
+    },
+    {
+      "title": "Let a tiny memory network write the change",
+      "description": "A very small recurrent network, the same one for every weight, reads that weight's slope together with its own short memory of earlier slopes. It writes down how far to move the weight. This replaces a hand-designed rule.",
+      "inExample": "For weight 17 the network reads the slope and its memory, and writes a change of minus 12 thousandths."
+    },
+    {
+      "title": "Repeat for a fixed run of updates",
+      "description": "The changes are applied, the slopes are measured again, and the memory network writes the next set of changes. This continues for a fixed number of updates, building one full fitting run.",
+      "inExample": "After 30 updates the small model's error score on the practice block has fallen to 97 percent of its starting value."
+    },
+    {
+      "title": "Grade the habit on the whole run",
+      "description": "The habit is graded on the sum of the error scores along the entire run, not just the last one, so it is rewarded for descending early. That grade is sent backward through the run to improve the memory network.",
+      "inExample": "The summed error over all 30 updates is the grade, and the memory network is adjusted so that the next run descends a little sooner."
+    },
+    {
+      "title": "Freeze the habit and reuse it",
+      "description": "Once trained on many practice rounds, the memory network is frozen. It then acts as a ready-made tuner for any new fitting problem of the same family, with no learning rate to choose by hand.",
+      "inExample": "The frozen habit tunes the direction model for the next walk-forward fold, using the same 30 updates and no hand-tuned schedule."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Re-fitting a model for a newly added instrument",
+      "example": "A direction model is fitted for a new futures contract using the tuning habit learned from earlier instruments, so the learning rate does not have to be searched again."
+    },
+    {
+      "task": "Fast re-calibration after a regime shift",
+      "example": "When volatility on 5-minute MNQ bars doubles after a news event, the small model is refitted in a few dozen updates rather than a full training run."
+    },
+    {
+      "task": "Cheapening a sweep that fits many small models",
+      "example": "A walk-forward study that refits the same small model on hundreds of folds reuses one learned tuner for every fold."
+    }
+  ],
+  "avoidWhen": [
+    "You fit one large model once; a standard optimizer such as Adam is simpler and the cost of training a learned tuner is never paid back.",
+    "The new fitting problems look very different from the practice rounds, such as a different model shape or loss; the learned habit only transfers within the family it practised on."
+  ],
+  "example": {
+    "scenario": "A small direction model must be refitted on a fresh block of 2,000 five-minute MNQ bars after a volatile week. Instead of a hand-chosen optimizer, a learned tuner that practised on earlier blocks writes every weight change.",
+    "input": {
+      "summary": "A starting model, a block of bars and the frozen tuning network.",
+      "fields": [
+        { "name": "fitting block length", "value": "2,000 five-minute bars", "meaning": "The stretch of MNQ bars the small model is fitted on." },
+        { "name": "adjustable weights", "value": "1,200", "meaning": "The number of numbers in the small model that the tuner adjusts." },
+        { "name": "starting error score", "value": "100 percent", "meaning": "How wrong the freshly started model is, used as the reference for every later score; it is no better than guessing up or down at random." },
+        { "name": "update budget", "value": "30 updates", "meaning": "How many rounds of weight changes the tuner is allowed." },
+        { "name": "slope of weight 17", "value": "8 hundredths", "meaning": "How much the error would rise per unit increase of that one weight, on the model's own scale." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent bar, showing how volatile the block is." }
+      ]
+    },
+    "output": {
+      "summary": "A fitted small model and the change the tuner wrote at each step.",
+      "fields": [
+        { "name": "error score after 30 updates", "value": "97 percent of the starting score", "meaning": "How wrong the fitted model is on the block once the tuner has finished, compared with where it began." },
+        { "name": "change written for weight 17 at the first update", "value": "minus 12 thousandths", "meaning": "The tuner's decision for that one weight, based on its slope and memory." },
+        { "name": "probability the next close is higher", "value": "55 percent", "meaning": "The direction call of the fitted model for the newest bar." }
+      ]
+    },
+    "reading": "The output to inspect is the error curve: place the tuner's curve beside the curve of a hand-designed optimizer on the same block and the same 30 updates. The 55 percent call is only the by-product of the fitted model and still has to survive trading costs on later bars."
+  }
+}

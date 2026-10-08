@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
+  "name": "Multilayer Perceptron (MLP)",
+  "analogy": "Think of it as a committee that meets in rounds. In round one many small readers each look at all the numbers about a bar and form an opinion. In round two a second set of readers looks only at those opinions, and a final chair turns the second round's views into one decision.",
+  "steps": [
+    {
+      "title": "Scale the features",
+      "description": "Each feature is rescaled so that all inputs live on similar ranges. This matters because the network adds weighted inputs together, and a raw price near 20,000 would otherwise overpower a ratio between zero and one.",
+      "inExample": "Close, momentum, volume ratio and range readings for one MNQ 5-minute bar are each converted to a distance from their own recent typical level."
+    },
+    {
+      "title": "First layer of readers",
+      "description": "Every scaled feature feeds every unit in the first hidden layer. Each unit holds its own set of weights and produces one number, a personal verdict on the whole row of features.",
+      "inExample": "Sixty-four first-layer units each form a verdict; one leans bearish because momentum is weak and volume is heavy."
+    },
+    {
+      "title": "Keep only the useful part of each verdict",
+      "description": "An activation rule such as keeping positive values and zeroing the rest is applied to every verdict. This lets the network represent curved, conditional relationships, such as momentum mattering only when volume is high.",
+      "inExample": "About half the first-layer verdicts are zeroed for this bar; the rest pass forward with their strength intact."
+    },
+    {
+      "title": "Second layer reads the first layer",
+      "description": "A second hidden layer treats the surviving verdicts as its inputs and combines them again. This is the depth in multilayer: the network builds judgments about judgments.",
+      "inExample": "Thirty-two second-layer units combine the verdicts into broader themes, one of which resembles a heavy-volume sell-off."
+    },
+    {
+      "title": "Output layer decides",
+      "description": "The output layer turns the last themes into the answer. For a two-way call it returns a probability; for a forecast it returns a number such as expected range.",
+      "inExample": "The output unit returns a 55 percent probability that the close 6 bars later will be higher."
+    },
+    {
+      "title": "Train by repeated correction",
+      "description": "Over many passes through the training bars, the error of each answer is traced back through the layers and every weight is nudged to reduce it. Training stops when bars held back from training stop improving.",
+      "inExample": "Training stops after 40 passes because the held-back months stopped getting better, and those weights are kept."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction probability from tabular features",
+      "example": "Scoring each MNQ 5-minute bar with the chance that the close 30 minutes later is higher, using the 35 base features."
+    },
+    {
+      "task": "Regime classification",
+      "example": "Labeling each bar as trending up, trending down or ranging from average true range, the 50-bar average slope and volume, for choosing which strategy to run."
+    },
+    {
+      "task": "Forecasting volatility for position sizing",
+      "example": "Predicting the next hour's average true range in points so the number of contracts shrinks when large moves are expected."
+    },
+    {
+      "task": "Learned feature blending for other models",
+      "example": "Using the last hidden layer's outputs as compact inputs to a tree model alongside the raw indicators."
+    }
+  ],
+  "avoidWhen": [
+    "The signal lives in the shape of a sequence, like the last 60 candles; a multilayer perceptron treats the inputs as an unordered row, so a recurrent or convolutional model is a better fit.",
+    "The data set is small or very noisy; with only a few thousand bars the network memorizes noise, and a simpler linear or tree model generalizes more reliably."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 20,115 during the New York morning. A multilayer perceptron with two hidden layers is asked for the probability that the close 6 bars (30 minutes) later is higher.",
+    "input": {
+      "summary": "One scaled row of features for the closed bar.",
+      "fields": [
+        { "name": "close", "value": "20,115", "meaning": "The closing price of the 5-minute bar, in index points." },
+        { "name": "relative strength index, 14 bars", "value": "39", "meaning": "A momentum reading from 0 to 100; below 50 means recent moves skew downward." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above average", "meaning": "Trading was more than twice as heavy as the recent norm." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "return over the last 6 bars", "value": "minus 44 points", "meaning": "Price slipped over the previous 30 minutes." },
+        { "name": "FinBERT news sentiment, last hour", "value": "minus 10 on a scale from minus 100 to plus 100", "meaning": "The tone of recent headlines, scored by the FinBERT language model; slightly negative here." }
+      ]
+    },
+    "output": {
+      "summary": "A probability and a call.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "55 percent", "meaning": "The output unit's answer after the row passes both hidden layers." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "confidence margin", "value": "5 points above a coin flip", "meaning": "The distance between the probability and 50 percent, a rough measure of how decisive the call is." }
+      ]
+    },
+    "reading": "A five-point margin over a coin flip is small and easily erased by commission and slippage. Treat it as one vote among signals, check it against the training-period share of up-closes, and only trade it if the net result after costs holds up in walk-forward folds."
+  }
+}

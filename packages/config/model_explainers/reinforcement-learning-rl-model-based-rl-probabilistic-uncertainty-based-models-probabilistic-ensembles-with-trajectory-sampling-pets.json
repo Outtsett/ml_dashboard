@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-probabilistic-uncertainty-based-models-probabilistic-ensembles-with-trajectory-sampling-pets",
+  "name": "Probabilistic Ensembles with Trajectory Sampling (PETS)",
+  "analogy": "Think of it as polling a committee of five forecasters. Each one gives a range of what could happen next, not a single number. When the forecasters give similar ranges, you trust the forecast. When they disagree, you know the desk is in unfamiliar territory and you size down.",
+  "steps": [
+    {
+      "title": "Train several forecasters on different samples of the data",
+      "description": "The model builds a small group of networks. Each is trained on a different random resample of the same history, so they agree where the data is plentiful and drift apart where it is thin.",
+      "inExample": "Five networks are trained on five different resamples of the same 40,000 five-minute MNQ bars."
+    },
+    {
+      "title": "Make each forecaster give a range, not a point",
+      "description": "Every network predicts the next situation as a spread of possible outcomes. This captures the randomness that is simply part of markets, which no amount of extra data would remove.",
+      "inExample": "Asked about the next bar after going long, one network predicts a close change centred on plus 3 points with a typical spread of 14 points."
+    },
+    {
+      "title": "Send many imagined paths through the group",
+      "description": "To judge an action series, the model launches many imagined paths. At every step each path draws one random outcome from the range of one of the networks, so the paths reflect both ordinary randomness and the networks' disagreement.",
+      "inExample": "For each candidate plan, 20 imagined paths run 6 bars ahead, each path drawing its steps from one of the 5 networks."
+    },
+    {
+      "title": "Score each candidate plan across its paths",
+      "description": "Each path earns a predicted reward. A plan is scored by the average across all its paths, and the spread across paths shows how uncertain the model is about that plan.",
+      "inExample": "The plan long, long, long, flat, flat, flat averages plus 24 US dollars across 20 paths, but the paths range from minus 40 to plus 85."
+    },
+    {
+      "title": "Search for the best plan and act on its first move",
+      "description": "A search tries many candidate plans, keeps the best and refines around them. Only the first action is carried out, then the whole process runs again on the next bar.",
+      "inExample": "After a few rounds of search, the best plan starts with a long position of 2 contracts, which is taken for this bar only."
+    },
+    {
+      "title": "Read the disagreement as a confidence signal",
+      "description": "Because the networks were trained on different samples, the gap between their predictions rises when the market looks unlike the data they saw. That gap can be used to cut position size or to stand aside.",
+      "inExample": "The five networks disagree about the next close by 11 points on average, above the usual 4, so the planned size is cut from 2 contracts to 1."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Scaling position size by the model's own uncertainty",
+      "example": "Trading two contracts when the five networks agree within 4 points and one contract when they disagree by more than 8."
+    },
+    {
+      "task": "Switching trading off in unfamiliar conditions",
+      "example": "Standing aside on a day when disagreement doubles, such as the minutes around a surprise economic release."
+    },
+    {
+      "task": "Building a usable model from limited history",
+      "example": "Learning planning behaviour for a thinly traded futures contract from a few months of bars."
+    },
+    {
+      "task": "Choosing plans that hold up under doubt",
+      "example": "Preferring the plan whose worst imagined paths lose little, over the plan with the best average but a deep worst case."
+    }
+  ],
+  "avoidWhen": [
+    "Answers are needed in a few milliseconds; scoring many paths through five networks for every candidate plan is slow compared with a trained network that answers in one pass.",
+    "You only need a single direction call from features; an ordinary supervised model is far simpler and a planning model with an ensemble is excessive."
+  ],
+  "example": {
+    "scenario": "At the 09:55 five-minute bar on MNQ, the model is flat and must decide its position for the next bar by sending imagined paths through its five networks.",
+    "input": {
+      "summary": "The current market state and the planning settings used for this decision.",
+      "fields": [
+        { "name": "close", "value": "20,010", "meaning": "The price at which the 09:55 five-minute bar closed." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar, elevated near the open." },
+        { "name": "networks in the group", "value": "5", "meaning": "How many forecasters are polled." },
+        { "name": "imagined paths per plan", "value": "20", "meaning": "How many random futures are run for each candidate action series." },
+        { "name": "bars looked ahead", "value": "6 bars (30 minutes)", "meaning": "How far each imagined path runs." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts held." }
+      ]
+    },
+    "output": {
+      "summary": "The action chosen, the average predicted reward, and how much the networks disagreed.",
+      "fields": [
+        { "name": "action to take now", "value": "buy 2 contracts", "meaning": "The first move of the best plan before any size adjustment." },
+        { "name": "average predicted reward of the plan", "value": "24 US dollars", "meaning": "The mean imagined result across the 20 paths, after costs." },
+        { "name": "range of imagined results", "value": "minus 40 to plus 85 US dollars", "meaning": "The worst and best of the 20 paths, showing how wide the uncertainty is." },
+        { "name": "disagreement between networks", "value": "11 points", "meaning": "How far apart the five networks' next-close predictions are on average." },
+        { "name": "size after the uncertainty adjustment", "value": "1 contract", "meaning": "The planned size of 2 contracts cut in half because disagreement is above its usual level." }
+      ]
+    },
+    "reading": "The average reward is the model's imagination, not a measured profit. The disagreement figure is the part to act on: compare it with its usual level in training, and reduce size or stand aside when it climbs well above it."
+  }
+}

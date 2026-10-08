@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-reptile-meta-rl",
+  "name": "Reptile Meta-RL",
+  "analogy": "Think of it as a coach who sends a trainee to practise on one market for a week, then moves the trainee's default stance a little toward wherever the practice ended up. After many markets, the default stance sits in a place from which any new market is a short walk away.",
+  "steps": [
+    {
+      "title": "Pick a task and copy the shared weights",
+      "description": "A task is a stretch of market history, such as a block of bars. The shared starting weights are copied so that practice on the task never damages the shared original.",
+      "inExample": "The task is one block of 500 five-minute MNQ bars, and a copy of the shared policy is made."
+    },
+    {
+      "title": "Practise on the task with ordinary training",
+      "description": "The copy is trained with plain gradient steps on that task's data for a handful of steps. No special support and query split is needed, and nothing fancy is differentiated.",
+      "inExample": "Five steps with an inner learning rate of 5 hundredths move one example weight from 400 thousandths to 520 thousandths."
+    },
+    {
+      "title": "Measure how far practice moved the weights",
+      "description": "The difference between the practised weights and the shared starting weights is taken. That difference points toward weights that work well on this task.",
+      "inExample": "For the example weight the difference is plus 120 thousandths."
+    },
+    {
+      "title": "Move the shared start a small step toward it",
+      "description": "The shared weights are nudged a fraction of the way along that difference. Averaging this over a few tasks at a time smooths out the noise.",
+      "inExample": "With an outer step size of 10 percent the shared weight moves by 12 thousandths, from 400 to 412 thousandths."
+    },
+    {
+      "title": "Repeat across many tasks",
+      "description": "The cycle repeats over many blocks and instruments, shrinking the outer step slowly. The shared weights drift toward a place that is close to good solutions for many tasks at once.",
+      "inExample": "After thousands of blocks the shared starting point sits within a few steps of a good policy for most MNQ and ES blocks."
+    },
+    {
+      "title": "Fine-tune on the new task",
+      "description": "At deployment the shared weights are fine-tuned for a few ordinary steps on the earlier known bars just before a new block, and that tuned copy then chooses positions.",
+      "inExample": "The tuned policy gives 38 percent long, 34 percent flat and 28 percent short for the newest bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A cheap shared start for fine-tuning to a new instrument",
+      "example": "Producing starting weights that adapt to a newly added contract in a few steps, without any advanced meta-learning code."
+    },
+    {
+      "task": "Frequent refreshes of a shared model",
+      "example": "Keeping the shared start current every week as new 5-minute bars arrive, with only ordinary training code."
+    },
+    {
+      "task": "Short fine-tuning after a regime change",
+      "example": "Adapting to a newly flagged high-volatility regime using five steps on the preceding bars."
+    },
+    {
+      "task": "A first meta-learning baseline",
+      "example": "Testing whether any shared start helps before investing in a heavier method."
+    }
+  ],
+  "avoidWhen": [
+    "Adaptation must happen from only one or two gradient steps; a method that optimises the first step directly is a better fit.",
+    "Your tasks are almost identical blocks of one steady market; ordinary training on all the data does the same job with less machinery."
+  ],
+  "example": {
+    "scenario": "A shared policy has been built by cycling over many MNQ blocks. A new block begins, and the policy is fine-tuned on the 150 earlier bars whose outcomes are already known, then asked about the newest bar.",
+    "input": {
+      "summary": "The shared weights, the inner practice settings and the earlier bars for fine-tuning.",
+      "fields": [
+        { "name": "example shared weight", "value": "400 thousandths", "meaning": "One number inside the shared starting policy, followed through the example." },
+        { "name": "inner steps", "value": "5", "meaning": "How many ordinary training steps are taken on the task." },
+        { "name": "inner learning rate", "value": "5 hundredths", "meaning": "How large each practice step is." },
+        { "name": "outer step size", "value": "10 percent", "meaning": "What fraction of the way the shared weights move toward the practised ones." },
+        { "name": "fine-tuning bars", "value": "150 five-minute bars", "meaning": "The earlier bars with known outcomes used to tune the copy before the new block." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "An updated shared weight from training, and the tuned policy's preference for the newest bar.",
+      "fields": [
+        { "name": "example shared weight after the outer step", "value": "412 thousandths", "meaning": "The shared weight after moving one tenth of the way toward the practised value of 520 thousandths." },
+        { "name": "share long", "value": "38 percent", "meaning": "The tuned policy's preference for a long position." },
+        { "name": "share flat", "value": "34 percent", "meaning": "The tuned policy's preference for staying out." },
+        { "name": "share short", "value": "28 percent", "meaning": "The tuned policy's preference for a short position." },
+        { "name": "probability the close is higher", "value": "58 percent", "meaning": "The long share divided by the long and short shares combined." }
+      ]
+    },
+    "reading": "The shared weight changes slowly by design; judge the method by how much the tuned copy earns beyond the same shared start with no fine-tuning steps. The 58 percent lean is only a direction call and has to clear trading costs on later bars."
+  }
+}

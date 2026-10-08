@@ -1,0 +1,83 @@
+{
+  "specificationId": "optimization-based-models-gradient-based-optimization-stochastic-gradient-descent-sgd",
+  "name": "Stochastic Gradient Descent (SGD)",
+  "analogy": "Think of it as a trader who tunes his rules by reviewing a random handful of 256 recent bars each evening instead of the whole history. Each review gives a slightly noisy hint on which way to adjust, but hundreds of cheap hints add up to the same improvement as one slow full review.",
+  "steps": [
+    {
+      "title": "Draw a small random batch",
+      "description": "Instead of using every training example, grab a small random batch. The batch is a rough but fair sample of the whole, so what it says on average is true of the full data.",
+      "inExample": "From 400,000 training bars a batch of 256 bars is drawn at random. Bars come only from the training window, never from the validation or test period."
+    },
+    {
+      "title": "Predict and measure the batch error",
+      "description": "The model makes a prediction for each bar in the batch and the error is averaged over just those bars.",
+      "inExample": "The 256 predicted probabilities are compared with whether each bar actually closed higher 6 bars later, giving a batch loss of 697 thousandths."
+    },
+    {
+      "title": "Estimate the tilt from the batch",
+      "description": "Work out, for every weight in the model, which way a nudge would reduce this batch's error. The result is noisy but points downhill on average.",
+      "inExample": "The network's 20,000 weights each get a nudge direction from this one batch; most are tiny and a few are large."
+    },
+    {
+      "title": "Smooth with momentum",
+      "description": "Blend the new nudge with a running average of earlier nudges. Random jitter from small batches tends to cancel while the steady direction builds up.",
+      "inExample": "With a momentum of 90 percent, a weight that was pushed up in the last six batches keeps moving up even if this batch pushes slightly down."
+    },
+    {
+      "title": "Take a step and shrink the step size over time",
+      "description": "Every weight moves by its smoothed nudge times the learning rate. The learning rate is gradually lowered so that the noise settles into a fine adjustment late in training.",
+      "inExample": "The learning rate starts at 1 thousandth and is cut in half every 2 passes through the training bars."
+    },
+    {
+      "title": "Check on held-out data and stop in time",
+      "description": "After each pass through the data, the model is scored on bars it never trains on. Training stops once that score stops improving, to avoid memorising the training set.",
+      "inExample": "One pass is about 1,563 batches; validation loss improves to 690 thousandths at pass 5 and stalls, so training stops there."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Training neural forecasters",
+      "example": "Fitting a long short-term memory network or a transformer that reads the last 60 MNQ 5-minute bars to give a probability of a higher close 6 bars later."
+    },
+    {
+      "task": "Training on data too large to hold at once",
+      "example": "Learning from millions of 1-minute bars streamed from the data lake in chunks."
+    },
+    {
+      "task": "Updating a model as bars arrive",
+      "example": "Nudging a model's weights with each new batch of live bars instead of retraining from scratch every night."
+    },
+    {
+      "task": "Learning embeddings",
+      "example": "Teaching a small vector for each instrument or market regime together with the forecasting layer above it."
+    }
+  ],
+  "avoidWhen": [
+    "The dataset is small enough to fit in memory and a closed-form fit exists; ordinary least squares or full-batch gradient descent is exact and has no step-size tuning.",
+    "The objective is not differentiable, such as a raw backtest profit; use a score-only search method like differential evolution or Bayesian optimization."
+  ],
+  "example": {
+    "scenario": "A researcher trains a small neural network on 400,000 MNQ 5-minute bars to estimate the probability that the close 6 bars later is higher. Training uses mini-batches of 256 bars and momentum.",
+    "input": {
+      "summary": "The training settings and one feature of the latest bar that the trained model will score.",
+      "fields": [
+        { "name": "training bars", "value": "400,000", "meaning": "Five-minute MNQ bars in the training window." },
+        { "name": "batch size", "value": "256 bars", "meaning": "How many bars are used for each nudge." },
+        { "name": "steps per pass", "value": "1,563", "meaning": "Number of batches needed to cover the training bars once." },
+        { "name": "starting learning rate", "value": "1 thousandth", "meaning": "Size of each step at the beginning of training." },
+        { "name": "momentum", "value": "90 percent", "meaning": "Share of the previous smoothed direction carried into the next step." },
+        { "name": "latest bar average true range, 14 bars", "value": "23 points", "meaning": "One of the features describing the bar to be scored after training." }
+      ]
+    },
+    "output": {
+      "summary": "The loss over training, the point training stopped, and a probability for the latest bar.",
+      "fields": [
+        { "name": "first batch loss, in thousandths", "value": "697", "meaning": "Loss on the first batch, close to the coin-flip level of 693." },
+        { "name": "validation loss at the best pass, in thousandths", "value": "690", "meaning": "Loss on held-out bars at pass 5, slightly below the coin-flip level of 693." },
+        { "name": "passes trained", "value": "5", "meaning": "Full passes through the data before the validation loss stopped improving." },
+        { "name": "probability the close is higher 6 bars later", "value": "55 percent", "meaning": "The trained network's estimate for the latest bar." }
+      ]
+    },
+    "reading": "A validation loss only 3 thousandths under the coin-flip level means the network found a small lean. Judge it on the net result after trading costs on later folds, not on the loss alone. The noisy training curve is normal; a validation curve that rises while training loss keeps falling is the signal to stop."
+  }
+}

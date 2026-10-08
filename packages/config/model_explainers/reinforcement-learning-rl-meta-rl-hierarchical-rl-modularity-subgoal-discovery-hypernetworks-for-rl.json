@@ -1,0 +1,82 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-hypernetworks-for-rl",
+  "name": "HyperNetworks for RL",
+  "analogy": "Think of it as a head trader who does not trade himself but writes a fresh rulebook for the desk before every session, tailored to the instrument and mood of the market. The desk follows the rulebook exactly, and the head trader is trained on how well each rulebook performed.",
+  "steps": [
+    {
+      "title": "Choose what to condition on",
+      "description": "The rulebook is customised by a conditioning signal. It could be an instrument label, a regime description, or a summary of the most recent bars.",
+      "inExample": "The signal is the mean and spread of each feature over the last 48 five-minute MNQ bars."
+    },
+    {
+      "title": "Let the hypernetwork write the weights",
+      "description": "A smaller network, the hypernetwork, reads the signal and outputs every weight of the trading policy. The policy has no weights of its own; they arrive fresh for each situation.",
+      "inExample": "The hypernetwork writes 593 weights for a policy with 16 hidden units reading 35 features."
+    },
+    {
+      "title": "Run the generated policy",
+      "description": "The generated policy reads the current bar's features and gives its preference for the position. Because the weights vary with the signal, the same bar can lead to different positions in different situations.",
+      "inExample": "The generated policy reads the 14:05 bar and gives a long preference of 57 percent."
+    },
+    {
+      "title": "Score the result as a trading reward",
+      "description": "The reward of the policy's choices is measured with a standard reinforcement learning objective, including a small bonus for keeping choices varied.",
+      "inExample": "Over each training window the generated policy is scored on the reward its choices earn, after a charge for trading costs."
+    },
+    {
+      "title": "Pass the learning signal back through the weights",
+      "description": "The error signal flows backward through the generated weights into the hypernetwork. Only the hypernetwork is trained; the policy it writes is whatever the hypernetwork currently produces.",
+      "inExample": "The hypernetwork changes so that the weights it writes for volatile windows differ more from those for quiet windows."
+    },
+    {
+      "title": "Check that the rulebooks really differ",
+      "description": "The model measures how far apart the weights it writes for different situations are. If the distance is near zero, the hypernetwork has collapsed to a single fixed policy and the idea is not working.",
+      "inExample": "The weights for this window differ from those written for a quiet window by 90 percent of the quiet-window weights' own size."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A different effective policy for each instrument",
+      "example": "One small hypernetwork producing separate policies for MNQ, ES and other index futures without training separate networks."
+    },
+    {
+      "task": "Smooth movement between regimes",
+      "example": "Letting the policy shift gradually as a trend-strength signal rises instead of switching abruptly at a threshold."
+    },
+    {
+      "task": "Instant policy for a new instrument",
+      "example": "Producing a starting policy for a new contract in one pass using its embedding."
+    },
+    {
+      "task": "Studying which markets the system treats alike",
+      "example": "Comparing the generated weights to see whether MNQ and ES receive similar rulebooks."
+    }
+  ],
+  "avoidWhen": [
+    "A single fixed policy performs about as well; the extra layer adds instability for no gain, so check against that simple version first.",
+    "Training is already fragile; every learning signal must pass through the generated weights, which can make gradients explode or vanish."
+  ],
+  "example": {
+    "scenario": "At 14:05 on MNQ, a hypernetwork reads a summary of the last 48 five-minute bars and writes a complete small policy. That policy then reads the newest bar and says whether it prefers long or short.",
+    "input": {
+      "summary": "A summary of recent bars for conditioning and the features of the newest bar.",
+      "fields": [
+        { "name": "conditioning window", "value": "48 five-minute bars", "meaning": "How many recent bars are summarised to condition the hypernetwork." },
+        { "name": "average true range, 14 bars", "value": "29 points", "meaning": "The typical high-to-low travel of a recent bar, a part of the summary." },
+        { "name": "close", "value": "19,416", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "features read by the policy", "value": "35 base features", "meaning": "The values the generated policy takes as its own input." },
+        { "name": "hidden units in the generated policy", "value": "16", "meaning": "The size of the single hidden layer of the policy." },
+        { "name": "possible actions", "value": "long or short", "meaning": "The two positions the generated policy chooses between in this version." }
+      ]
+    },
+    "output": {
+      "summary": "A generated policy and its preference for the newest bar.",
+      "fields": [
+        { "name": "weights generated", "value": "593", "meaning": "The number of weights the hypernetwork wrote for this window: 560 into the hidden layer, 16 hidden offsets, 16 into the output and 1 output offset." },
+        { "name": "probability of long", "value": "57 percent", "meaning": "The generated policy's preference for a long position over a short one." },
+        { "name": "weight distance from the quiet-window policy", "value": "90 percent of its size", "meaning": "How different the weights written here are from those written for a quiet window, as a share of the quiet-window weights' own size." }
+      ]
+    },
+    "reading": "A weight distance near zero would mean the hypernetwork ignores the conditioning, so read it first. The 57 percent preference needs to be compared with the same small policy trained with fixed weights, and judged after costs."
+  }
+}

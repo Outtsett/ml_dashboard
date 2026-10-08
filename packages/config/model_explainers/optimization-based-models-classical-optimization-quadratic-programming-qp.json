@@ -1,0 +1,82 @@
+{
+  "specificationId": "optimization-based-models-classical-optimization-quadratic-programming-qp",
+  "name": "Quadratic Programming (QP)",
+  "analogy": "Think of it as a portfolio manager balancing a seesaw between return and wobble. Each instrument adds reward on one side and, depending on how it moves with the others, adds wobble on the other. The solver finds the mix where the seesaw balances at the level of caution you chose.",
+  "steps": [
+    {
+      "title": "Give the expected reward of each instrument",
+      "description": "You supply how much each instrument is expected to earn. This is the straight-line part of the goal: more weight in a good instrument adds reward in proportion.",
+      "inExample": "Expected yearly returns are 15 percent for MNQ, 10 percent for ES and 8 percent for YM, taken from a forecasting model."
+    },
+    {
+      "title": "Give the wobble table",
+      "description": "You supply how much each instrument swings and how much each pair swings together. This table of swings and pairings is what makes the goal curved: holding two instruments that move together adds more wobble than holding two that move apart.",
+      "inExample": "Yearly swings are 25 percent for MNQ, 20 percent for ES and 18 percent for YM, and the three move together with pairings around 85 percent."
+    },
+    {
+      "title": "Choose how cautious to be",
+      "description": "A single dial, risk aversion, sets how many units of reward you will give up to remove one unit of wobble. A higher dial pushes the answer toward steadier mixes.",
+      "inExample": "Risk aversion is set to a moderate level, 6, so wobble is penalised but return still matters."
+    },
+    {
+      "title": "Add the straight-line rules",
+      "description": "The usual limits are added: weights add to 100 percent, no weight is negative, and each has a cap. These rules keep the answer practical.",
+      "inExample": "The weights must add to 100 percent, with none below zero and none above 60 percent."
+    },
+    {
+      "title": "Solve for the best balance",
+      "description": "Because the wobble penalty is a bowl-shaped curve, there is exactly one best mix, and the solver finds it by working out which limits are tight and which are not, then solving the resulting balance.",
+      "inExample": "The solver finds that the best mix gives the largest share, 45 percent, to the calmest instrument, YM, and far less to MNQ than a pure return ranking would."
+    },
+    {
+      "title": "Report the mix and its risk and return",
+      "description": "The output is the set of weights and the expected return and wobble that follow from them. Re-running with different caution dials traces the efficient frontier, the set of best mixes at each risk level.",
+      "inExample": "The result is weights of 20, 35 and 45 percent with an expected yearly return of 10 percent and yearly wobble of 19 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Mean-variance portfolio weights",
+      "example": "Turning forecasts for MNQ, ES, YM and M2K into target weights that balance expected return against combined swings."
+    },
+    {
+      "task": "Lowest-wobble baskets",
+      "example": "Building the least volatile mix of correlated index futures when your forecasts are weak but diversification is valuable."
+    },
+    {
+      "task": "Hedge sizing",
+      "example": "Finding how many ES contracts to short against an MNQ position so the combined daily swing is smallest."
+    },
+    {
+      "task": "Rebalancing with a cost for trading",
+      "example": "Adding a turnover penalty so the portfolio only moves to new weights when the improvement beats the cost of trading there."
+    }
+  ],
+  "avoidWhen": [
+    "Your return forecasts are noisy; the optimiser magnifies forecast errors, so a robust or equal-risk approach is safer than trusting precise weights.",
+    "The risk you care about is drawdown or tail loss rather than daily swing; those are not captured by a variance table, so use a different objective."
+  ],
+  "example": {
+    "scenario": "A researcher turns yearly return forecasts and recent swings for three index futures into target weights that balance expected return against combined risk. Both the forecasts and swings are illustrative.",
+    "input": {
+      "summary": "Expected returns, swings, pairings and a caution dial for three index futures.",
+      "fields": [
+        { "name": "MNQ expected yearly return and swing", "value": "15 percent and 25 percent", "meaning": "Forecast yearly gain and typical yearly movement of Micro E-mini Nasdaq-100 futures." },
+        { "name": "ES expected yearly return and swing", "value": "10 percent and 20 percent", "meaning": "Forecast yearly gain and typical yearly movement of E-mini S&P 500 futures." },
+        { "name": "YM expected yearly return and swing", "value": "8 percent and 18 percent", "meaning": "Forecast yearly gain and typical yearly movement of E-mini Dow futures." },
+        { "name": "pairing between the instruments", "value": "about 85 percent", "meaning": "How closely the three move together, from 0 percent (independent) to 100 percent (identical)." },
+        { "name": "risk aversion", "value": "moderate, 6", "meaning": "How strongly wobble is penalised against return, with returns and swings written as shares of 1; higher is more cautious." },
+        { "name": "cap per instrument", "value": "60 percent", "meaning": "No weight may exceed this share." }
+      ]
+    },
+    "output": {
+      "summary": "The weights, plus the expected return and swing of the resulting mix.",
+      "fields": [
+        { "name": "weights of MNQ, ES, YM", "value": "20, 35, 45 percent", "meaning": "The share of the portfolio in each instrument." },
+        { "name": "expected yearly return of the mix", "value": "10 percent", "meaning": "The forecast gain of the whole portfolio over one year." },
+        { "name": "yearly swing of the mix", "value": "19 percent", "meaning": "The typical yearly movement of the whole portfolio, lower than the weighted average of the three (20 percent) because they do not move perfectly together." }
+      ]
+    },
+    "reading": "Compare these weights with the same optimiser run on a flat forecast; if they differ wildly, the forecast is steering the result and should be trusted accordingly. Use the weights as a target and check how they do on walk-forward folds after trading costs."
+  }
+}

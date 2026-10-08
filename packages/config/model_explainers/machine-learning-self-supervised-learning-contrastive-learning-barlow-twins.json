@@ -1,0 +1,81 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-barlow-twins",
+  "name": "Barlow Twins",
+  "analogy": "Think of it as two identical analysts who each describe a chart in 128 separate measurements. They are scored on two things: each analyst's measurement number 5 must agree with the other's number 5, and no two measurements within the report may repeat the same information. A report that says the same thing 128 times fails.",
+  "steps": [
+    {
+      "title": "Make two altered views of each window",
+      "description": "A window of bars is copied twice and each copy is changed a little in ways that should not change its meaning, such as small noise, a slight rescaling or a few hidden bars. Both copies come from the same window, so they ought to be described alike.",
+      "inExample": "Each of 512 MNQ windows in a batch gets view A with noise and view B with 15 percent of bars masked."
+    },
+    {
+      "title": "Describe both views with the same network",
+      "description": "One network, with one set of weights, turns each view into a list of numbers. Each position in the list is one measurement of the window. Every view in the batch gets such a list.",
+      "inExample": "Each view becomes a list of 128 measurements, so the batch holds two tables of 512 rows by 128 columns."
+    },
+    {
+      "title": "Standardise each measurement across the batch",
+      "description": "Each measurement is rescaled across the batch so that it has the same centre and spread. This ensures the comparison that follows asks only whether two measurements move together, not how large they are.",
+      "inExample": "Measurement number 5 is shifted and scaled so its 512 values in each table have an average of zero and a standard spread of one."
+    },
+    {
+      "title": "Build the table of agreements",
+      "description": "Every measurement of view A is compared with every measurement of view B across the batch, producing a square table of how strongly they move together. The ideal table is the identity: ones down the diagonal and zeros everywhere else.",
+      "inExample": "The result is a 128 by 128 table; early in training the diagonal averages 42 percent and the off-diagonal entries average 9 percent in size."
+    },
+    {
+      "title": "Push the diagonal up and the rest to zero",
+      "description": "The model is penalised for diagonal entries below one, because the two views should agree on each measurement. It is also penalised, more gently, for off-diagonal entries away from zero, because different measurements should carry different information.",
+      "inExample": "Training raises the diagonal toward 90 percent and shrinks the off-diagonal average to about 2 percent."
+    },
+    {
+      "title": "Keep the backbone for later",
+      "description": "After training, the extra projection layers are discarded. The backbone's output for a window is a description in which each measurement is stable under distortion and the measurements are not duplicates of each other.",
+      "inExample": "The backbone gives today's window a description that downstream models can use in place of raw features."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compact, non-redundant features",
+      "example": "Compressing hundreds of overlapping indicators on MNQ 5-minute bars into 128 measurements that do not repeat each other."
+    },
+    {
+      "task": "Pretraining on unlabelled history",
+      "example": "Learning from years of MNQ and ES windows before any direction labels are used."
+    },
+    {
+      "task": "Clustering market states",
+      "example": "Clustering window descriptions to find recurring session types for regime analysis."
+    },
+    {
+      "task": "Safer training without negatives",
+      "example": "Training with plain batches and no list of wrong examples, avoiding the need to decide what counts as a different market."
+    }
+  ],
+  "avoidWhen": [
+    "You can only afford very small batches; the table of agreements is unreliable when estimated from a few dozen windows.",
+    "You need to look up specific historical look-alikes; a Siamese network is built for that, whereas this model produces descriptions rather than a searchable distance."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains Barlow Twins on two years of unlabelled MNQ 5-minute windows with batches of 512. After training, they check how redundant the 128 measurements are and extract the description of today's window.",
+    "input": {
+      "summary": "A batch of windows, each seen through two distorted views, with the same rescaled features per bar.",
+      "fields": [
+        { "name": "windows per batch", "value": "512", "meaning": "How many windows are compared at once to estimate agreement." },
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "features per bar", "value": "8", "meaning": "Rescaled return, range, body share, wick balance, volume and related measures." },
+        { "name": "measurements per window", "value": "128", "meaning": "The length of the description the network produces." },
+        { "name": "distortions", "value": "noise and 15 percent masking", "meaning": "The changes that make the two views differ." }
+      ]
+    },
+    "output": {
+      "summary": "A description per window and two summary numbers about how good the learned measurements are.",
+      "fields": [
+        { "name": "window description", "value": "128 numbers", "meaning": "The reusable description of today's window." },
+        { "name": "average agreement on matching measurements", "value": "91 percent", "meaning": "How strongly a measurement in view A tracks the same measurement in view B; 100 percent is perfect." },
+        { "name": "average size of agreement between different measurements", "value": "2 percent", "meaning": "How much different measurements repeat each other; zero percent means fully distinct." }
+      ]
+    },
+    "reading": "High matching agreement with near-zero repetition means the description is stable and uses its 128 slots well. It does not by itself show predictive value. Feed the descriptions to a simple classifier and compare it to the same classifier on raw indicators across walk-forward folds, after costs."
+  }
+}

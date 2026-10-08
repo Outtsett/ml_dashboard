@@ -1,0 +1,87 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-dyna-q",
+  "name": "Dyna-Q",
+  "analogy": "Think of it as a trader who keeps a ledger of every situation he has seen and how each choice turned out. After every real bar, instead of waiting for the next one, he spends a few minutes replaying entries from the ledger, so one real experience teaches him dozens of times.",
+  "steps": [
+    {
+      "title": "Sort the market into a small number of cells",
+      "description": "A handful of features are each cut into a few ranges, and the combination of ranges names a cell. The whole market is reduced to a modest table of situations.",
+      "inExample": "The relative strength index, the volume ratio and the 5-bar trend are each cut into 5 ranges, so there are 125 cells."
+    },
+    {
+      "title": "Keep a table of what each action is worth",
+      "description": "For every cell and every position (long, flat, short) the table holds a number: how much reward the agent expects from taking that position there and acting well afterwards.",
+      "inExample": "In cell 16 the table says long is worth 3 ticks, flat 0 ticks and short minus 2 ticks, where a tick is a quarter of an index point."
+    },
+    {
+      "title": "Learn from the real bar",
+      "description": "After a real bar closes, the table entry for the action taken is corrected by the gap between what it predicted and what the reward plus next cell's value suggest.",
+      "inExample": "Going long in cell 16 paid 4 ticks, a little more than the 3 expected, so its worth rises slightly."
+    },
+    {
+      "title": "Remember what happened",
+      "description": "A second table records, for each cell and action, the last reward and next cell that followed. This is the agent's memory of how the market behaves.",
+      "inExample": "The memory notes that from cell 16 going long was followed by cell 37 and a reward of 4 ticks."
+    },
+    {
+      "title": "Replay remembered experiences between bars",
+      "description": "A fixed number of past cell and action pairs are picked at random, looked up in the memory and put through the same correction. One real bar therefore produces many corrections.",
+      "inExample": "With 20 planning steps per real bar, 20 remembered pairs are replayed after the 14:05 bar."
+    },
+    {
+      "title": "Choose the action with the highest worth",
+      "description": "To act, the agent finds the cell the market is in and takes the position with the highest worth, with occasional random choices early on so it keeps exploring.",
+      "inExample": "For the newest bar, the cell is 16 and the highest worth is long at 3 ticks."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A quick, readable baseline for a position policy",
+      "example": "Learning a long, flat or short rule from three binned indicators on 5-minute MNQ bars that can be read straight off a table."
+    },
+    {
+      "task": "Learning from limited history",
+      "example": "Getting more from a few thousand bars of a thinly traded contract by replaying them many times."
+    },
+    {
+      "task": "Re-checking the table after a regime shift",
+      "example": "Using the version that favours long-unvisited cells so the agent re-tests a rule that may have stopped working."
+    },
+    {
+      "task": "Teaching how planning and learning combine",
+      "example": "Showing a colleague how one real transition becomes many learning steps."
+    },
+    {
+      "task": "Very fast live decisions",
+      "example": "Looking up a position in a small table in constant time for every 1-minute bar."
+    }
+  ],
+  "avoidWhen": [
+    "The signal depends on many continuous features at once; a table of cells cannot hold them, and a tree model or neural network handles continuous inputs naturally.",
+    "The market's response is very noisy; the remembered last outcome for each cell is unreliable, and the replays just repeat noise."
+  ],
+  "example": {
+    "scenario": "After training on a year of five-minute MNQ bars, Dyna-Q is asked what to do at 14:05. The bar is mapped to a cell of the table and the position with the highest learned worth is chosen.",
+    "input": {
+      "summary": "The newest bar mapped to a cell of binned features, and the learned table.",
+      "fields": [
+        { "name": "relative strength index, 14 bars", "value": "27 (range 1 of 5)", "meaning": "A momentum reading from 0 to 100, placed in the lowest range." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above (range 4 of 5)", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "return over the last 5 bars", "value": "down about a third of a percent (range 1 of 5)", "meaning": "How much price has fallen over the previous 25 minutes." },
+        { "name": "cell number", "value": "16 of 125", "meaning": "The label of the combination of the three ranges." },
+        { "name": "planning steps per real bar", "value": "20", "meaning": "How many remembered experiences are replayed after each real bar." },
+        { "name": "close", "value": "19,150", "meaning": "The price at which the newest bar closed, rounded to the nearest point." }
+      ]
+    },
+    "output": {
+      "summary": "The learned worth of each position in the cell and the chosen action.",
+      "fields": [
+        { "name": "worth of long", "value": "3 ticks", "meaning": "The reward the table expects from going long in this cell, in quarter-point ticks." },
+        { "name": "worth of flat", "value": "0 ticks", "meaning": "The reward the table expects from staying out." },
+        { "name": "worth of short", "value": "minus 2 ticks", "meaning": "The reward the table expects from going short in this cell." },
+        { "name": "chosen action", "value": "long", "meaning": "The position with the highest worth." }
+      ]
+    },
+    "reading": "Check how many cells actually prefer something other than flat: a table that prefers flat everywhere has only learned that trading costs money. A cell the table never visited reads as zero worth for everything, so do not trust a long call there."
+  }
+}

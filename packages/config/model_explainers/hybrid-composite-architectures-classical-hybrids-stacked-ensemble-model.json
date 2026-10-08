@@ -1,0 +1,82 @@
+{
+  "specificationId": "hybrid-composite-architectures-classical-hybrids-stacked-ensemble-model",
+  "name": "Stacked Ensemble Model",
+  "analogy": "Think of it as an investment committee. Several analysts with different methods each give their view on the same bar, and a chair who has tracked their records decides how much weight each deserves. The chair never looks at the chart, only at the analysts' views and how often each has been right.",
+  "steps": [
+    {
+      "title": "Choose different base models",
+      "description": "Several base models are picked on purpose to be different from each other, for example a boosted tree model, a linear model and a small neural network. Different methods make different mistakes, which is what the combination exploits.",
+      "inExample": "Three base models are chosen: gradient boosting, logistic regression and a small neural network."
+    },
+    {
+      "title": "Get honest predictions for past bars",
+      "description": "Each base model must predict bars it did not train on. The training period is split into chunks in time order; each model trains on earlier chunks and predicts the next. This gives predictions free of the flattery of memorised answers.",
+      "inExample": "Each base model produces out-of-sample probabilities for 90,000 past 5-minute MNQ bars."
+    },
+    {
+      "title": "Build a table of opinions",
+      "description": "The honest predictions are placed side by side in a new table, one row per bar and one column per base model, next to what actually happened. This table is the training set for the final stage.",
+      "inExample": "The table has 90,000 rows and 3 columns of probabilities, with a column of whether the close 6 bars later was higher."
+    },
+    {
+      "title": "Train the combiner on the opinions",
+      "description": "A deliberately simple combining model, often logistic regression, learns how much to trust each base model and how to correct their typical over or under confidence. Keeping it simple stops it from memorising noise in the opinions.",
+      "inExample": "The combiner learns shares of trust of 50 percent for boosting, 20 percent for the linear model and 30 percent for the neural network."
+    },
+    {
+      "title": "Refit the base models on all data",
+      "description": "Once the combiner is trained, the base models are retrained on the full training period so that live predictions use as much data as possible. The combiner keeps the weights it learned from the honest table.",
+      "inExample": "All three base models are refit on the entire 12 months before being used on new bars."
+    },
+    {
+      "title": "Predict a new bar in two stages",
+      "description": "For a new bar, every base model gives its probability. Those probabilities go into the combiner, which returns one final probability.",
+      "inExample": "On the 14:35 bar the base models say 57, 52 and 55 percent, and the combiner returns 55 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Combining several direction models",
+      "example": "Merging a boosted tree model, a linear model and a neural network that each predict MNQ's direction 6 bars ahead into one steadier probability."
+    },
+    {
+      "task": "Calibrating overconfident models",
+      "example": "Correcting a base model that says 70 percent when it is right only 56 percent of the time, by letting the combiner learn the real hit rate."
+    },
+    {
+      "task": "Squeezing a little more out of a mature feature set",
+      "example": "Once the 35 base features and 151 indicators have been tuned, blending models trained on different subsets of them."
+    },
+    {
+      "task": "Mixing signals from different data types",
+      "example": "Letting one base model read price features and another read FinBERT news sentiment, with the combiner deciding when news deserves weight."
+    }
+  ],
+  "avoidWhen": [
+    "You have only one good model and little data; the honest-prediction step shrinks the training set and the extra stage adds noise, so a single well-tuned model is safer.",
+    "Base models are near copies of each other, such as three boosted trees with small setting changes; they make the same mistakes, so the combiner has nothing to correct."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, three base models each state the chance that the close 6 bars later is higher than the current close. The combiner turns those three views into one probability.",
+    "input": {
+      "summary": "The three base-model probabilities for this one bar, with the shares of trust the combiner learned.",
+      "fields": [
+        { "name": "close of the latest bar", "value": "19,402", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "gradient boosting probability of up", "value": "57 percent", "meaning": "The boosted tree model's chance that the close 6 bars later is higher." },
+        { "name": "logistic regression probability of up", "value": "52 percent", "meaning": "The linear model's chance for the same event." },
+        { "name": "neural network probability of up", "value": "55 percent", "meaning": "The small neural network's chance for the same event." },
+        { "name": "combiner trust in gradient boosting", "value": "50 percent", "meaning": "How much the combiner trusts the boosted tree model, learned from past honest predictions." },
+        { "name": "combiner trust in the other two", "value": "20 percent and 30 percent", "meaning": "Trust placed on the linear model and the neural network respectively." }
+      ]
+    },
+    "output": {
+      "summary": "A single combined probability and the call it implies.",
+      "fields": [
+        { "name": "combined probability of up", "value": "55 percent", "meaning": "The combiner's final chance that the close 6 bars later is higher than this close." },
+        { "name": "call", "value": "up", "meaning": "The side the probability favours when the dividing line is 50 percent." },
+        { "name": "spread between base models", "value": "5 points", "meaning": "The gap between the highest and lowest base probability; a wide gap signals disagreement." }
+      ]
+    },
+    "reading": "A combined 55 percent is a mild lean, and the 5-point spread says the models mostly agree. Wait for stronger agreement or a higher combined probability before acting, and judge the lean by walk-forward results after costs, since one MNQ point is worth 2 US dollars and costs consume small edges quickly."
+  }
+}

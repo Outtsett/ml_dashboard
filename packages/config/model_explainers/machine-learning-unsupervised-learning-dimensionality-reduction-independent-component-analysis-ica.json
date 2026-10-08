@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-dimensionality-reduction-independent-component-analysis-ica",
+  "name": "Independent Component Analysis (ICA)",
+  "analogy": "Think of it as the cocktail party trick. Several microphones record several people talking at once, and every recording is a blend. The model works out how to unmix them back into the separate voices; here the microphones are instruments and the voices are the hidden forces that drive them.",
+  "steps": [
+    {
+      "title": "Collect several mixed signals",
+      "description": "The model takes a table where each column is a series that is a blend of hidden sources, such as the returns of several instruments over the same bars. It assumes the sources were mixed in fixed proportions.",
+      "inExample": "The table holds 5-minute returns of six futures: MNQ, ES, RTY (Russell 2000), ZN (ten-year note), GC (gold) and CL (crude oil), over a year."
+    },
+    {
+      "title": "Centre and flatten the data",
+      "description": "Each series has its average removed, and then the data is rotated and scaled so that the series are uncorrelated and equally sized. This step, called whitening, leaves only a rotation to be found.",
+      "inExample": "After whitening, the six return series are uncorrelated, each with the same typical size."
+    },
+    {
+      "title": "Look for the least bell-shaped direction",
+      "description": "Mixtures of independent sources tend to look more bell-shaped than the sources themselves, so the model searches for directions in which the data looks least bell-shaped. Such directions are the likely sources.",
+      "inExample": "One direction shows fat tails and frequent large moves, very unlike a bell shape, and is taken as the first source."
+    },
+    {
+      "title": "Pull out that source",
+      "description": "The direction found gives a weight for each series, and combining the series with those weights produces one clean source signal. The weights show how strongly each series is tied to that source.",
+      "inExample": "The first source gives large weight to MNQ, ES and RTY, and small weights to ZN, GC and CL."
+    },
+    {
+      "title": "Repeat for the remaining sources",
+      "description": "The search continues for further directions that are also unlike a bell shape and are unrelated to the ones already found. Each pass peels off another independent source, until the wanted number is reached.",
+      "inExample": "Three sources are kept: an equity-wide source, a bonds-and-gold source and an energy source."
+    },
+    {
+      "title": "Keep the unmixing recipe",
+      "description": "The result is a recipe that turns the mixed series into the independent sources, and a matching recipe that blends the sources back. The recipe can be applied to any new row of the same six series.",
+      "inExample": "The recipe converts any set of six returns into three source readings."
+    },
+    {
+      "title": "Use the sources as cleaner features",
+      "description": "The source signals can be used in place of the raw series: fewer inputs, and each says something distinct. Their order and sign are arbitrary, so they must be named by inspecting their weights.",
+      "inExample": "The three source readings replace the six raw returns as inputs to a regime classifier."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pulling market-wide forces out of many instruments",
+      "example": "Separating an equity-wide factor from a rates factor and an energy factor using six futures contracts."
+    },
+    {
+      "task": "Reducing the number of model inputs",
+      "example": "Replacing 30 correlated indicator columns with 5 independent components before training a classifier."
+    },
+    {
+      "task": "Separating noise from signal",
+      "example": "Removing a component that is mostly random jitter from a set of 1-minute features."
+    },
+    {
+      "task": "Finding unusual combinations",
+      "example": "Spotting minutes when a component takes a far larger value than it ever did in training."
+    }
+  ],
+  "avoidWhen": [
+    "Your series are mostly bell-shaped; the method relies on departures from a bell shape to separate sources, so it cannot unmix them, and principal component analysis is the better choice.",
+    "You need components ranked by importance; the components come out in no particular order and with arbitrary sign, so principal component analysis, which ranks by variance, is better suited."
+  ],
+  "example": {
+    "scenario": "A researcher unmixes the 5-minute returns of six futures contracts into three independent sources, then reads the sources for one bar.",
+    "input": {
+      "summary": "One row of six returns for the same 5-minute bar, in basis points (one basis point is one hundredth of a percent).",
+      "fields": [
+        { "name": "MNQ return", "value": "plus 12 basis points", "meaning": "The change in the micro Nasdaq future over the bar." },
+        { "name": "ES return", "value": "plus 11 basis points", "meaning": "The change in the S&P 500 future over the bar." },
+        { "name": "RTY return", "value": "plus 15 basis points", "meaning": "The change in the Russell 2000 future over the bar." },
+        { "name": "ZN return", "value": "minus 3 basis points", "meaning": "The change in the ten-year note future over the bar." },
+        { "name": "GC return", "value": "minus 2 basis points", "meaning": "The change in the gold future over the bar." },
+        { "name": "CL return", "value": "plus 5 basis points", "meaning": "The change in the crude oil future over the bar." }
+      ]
+    },
+    "output": {
+      "summary": "Three independent source readings, in standard deviations, and what each source is tied to.",
+      "fields": [
+        { "name": "source 1, equity-wide", "value": "nearly 2 standard deviations above average", "meaning": "A strong positive reading on the source tied mostly to MNQ, ES and RTY." },
+        { "name": "source 2, bonds and gold", "value": "under half a standard deviation below average", "meaning": "A mild negative reading on the source tied to ZN and GC." },
+        { "name": "source 3, energy", "value": "a little over half a standard deviation above average", "meaning": "A modest positive reading on the source tied mainly to CL." },
+        { "name": "weight of MNQ on source 1", "value": "93 out of 100", "meaning": "How strongly MNQ is tied to the equity-wide source; 100 would be fully tied." }
+      ]
+    },
+    "reading": "The move is almost entirely an equity-wide one, with a small energy contribution and little from bonds or gold. Use the three readings as compact inputs to a model, but name the sources by checking their weights on each new fit, because their order and sign can flip between fits."
+  }
+}

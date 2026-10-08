@@ -1,0 +1,86 @@
+{
+  "specificationId": "statistical-models-regression-techniques-linear-regression",
+  "name": "Linear Regression",
+  "analogy": "Think of it as a mixing desk with one slider per feature. Each slider is set once, from history, to say how many points of the forecast each unit of that feature is worth. A new bar's forecast is just every slider's contribution added together.",
+  "steps": [
+    {
+      "title": "Line up features beside outcomes",
+      "description": "Each training bar becomes one row: the feature values known when the bar closed, next to the number that actually happened afterwards. The model only ever learns from this table of past rows.",
+      "inExample": "Each 5-minute MNQ bar in the training months becomes a row holding its momentum, volume and distance-from-average readings, beside the change in price over the following 6 bars, in points."
+    },
+    {
+      "title": "Write the forecast as a weighted sum",
+      "description": "The forecast is set up as one flat starting amount plus each feature multiplied by its own weight. The weights are unknown at this point; the job is to find the set that would have forecast the training rows best.",
+      "inExample": "The forecast is written as a flat amount plus a weight on each of four features: distance below the 50-bar average, change over the last 6 bars, volume against its average and average true range."
+    },
+    {
+      "title": "Measure every miss and square it",
+      "description": "For any trial set of weights, each row's forecast is compared with what actually happened. The miss is made positive and large misses are punished much more than small ones, so one wild forecast hurts more than several slightly-off ones.",
+      "inExample": "A trial set that forecasts a bar at plus 4 points when it actually moved minus 74 points has a miss of 78 points, and that miss is weighed heavily."
+    },
+    {
+      "title": "Find the weights that make the total miss smallest",
+      "description": "Unlike most models, there is no trial and error here. The best weights come out of one direct calculation on the whole table. Nothing is tuned and nothing is random, so the same table always gives the same weights.",
+      "inExample": "The calculation settles on a flat starting amount of plus 2 points, a twentieth of a point of forecast for every point the close sits below the 50-bar average, and a fiftieth for every point of recent fall."
+    },
+    {
+      "title": "Read the weights and check the leftovers",
+      "description": "Each weight says how much the forecast changes when that feature rises by one unit while the others stay put. The leftover misses are then inspected: if they fan out or curve, the straight-line assumption is breaking down somewhere.",
+      "inExample": "A positive weight on the distance below the average says bars that stretched below it tended to be followed by a small bounce; the leftover misses show no obvious curve."
+    },
+    {
+      "title": "Forecast a new bar by adding up the sliders",
+      "description": "A new bar's feature values are each multiplied by their weight and the results are added to the flat starting amount. That sum is the forecast, with no hidden layers in between.",
+      "inExample": "For the 14:35 bar: 2 points flat, plus 4 from sitting 77 points below the average, plus 1 from the 57-point fall, and nothing from the rest, gives a forecast of plus 7 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A first forecast of a number",
+      "example": "Forecasting the change in MNQ over the next 6 five-minute bars from momentum, volume and distance-from-average features, before trying anything fancier."
+    },
+    {
+      "task": "A baseline every other model must beat",
+      "example": "Fitting it on the same walk-forward folds as a boosted-tree model, so the complicated model has to show it adds something beyond a straight line."
+    },
+    {
+      "task": "Estimating a hedge ratio",
+      "example": "Regressing MNQ returns on ES returns to see how many contracts of one offset a position in the other."
+    },
+    {
+      "task": "Screening indicators",
+      "example": "Looking at which of the 151 technical indicators carry a weight clearly different from zero, then passing only those on to a larger model."
+    },
+    {
+      "task": "Forecasting trading costs",
+      "example": "Predicting the typical spread in ticks from recent volatility and volume, to estimate what a trade will cost to enter."
+    }
+  ],
+  "avoidWhen": [
+    "The relationship bends or switches by situation, such as momentum mattering only in trending regimes; a straight line averages the regimes together, and a tree model or a regime-switching model handles it better.",
+    "Many features are near copies of each other, such as several moving averages; the weights become unstable and flip sign between folds, and a partial-least-squares or shrinkage method is steadier.",
+    "You need the odds of a rare event or the shape of the tails; this model only gives one average forecast, and a quantile model speaks about the tails directly."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model was fit on 12 months of bars and is asked for the expected change in price over the next 6 bars, which is 30 minutes.",
+    "input": {
+      "summary": "One row of four feature readings for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "distance below the 50-bar moving average", "value": "77 points", "meaning": "How far the close sits below its average price of the last 50 bars." },
+        { "name": "change over the last 6 bars", "value": "minus 57 points", "meaning": "How much price fell over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." }
+      ]
+    },
+    "output": {
+      "summary": "One forecast number, plus how much each feature added to it.",
+      "fields": [
+        { "name": "forecast change over the next 6 bars", "value": "plus 7 points", "meaning": "The sum of the flat starting amount of 2 points and each feature's contribution." },
+        { "name": "forecast value per contract", "value": "about 14 US dollars", "meaning": "One MNQ point is worth 2 US dollars, so 7 points is about 14 US dollars before any costs." },
+        { "name": "typical miss in training", "value": "33 points", "meaning": "The usual size of the gap between forecast and outcome on the training bars, far larger than the forecast itself." }
+      ]
+    },
+    "reading": "The forecast of 7 points is small next to the typical miss of 33 points, so treat it as a faint lean and not a call. Compare it with trading costs before acting: a lean this small has to clear commission and slippage on every trade."
+  }
+}

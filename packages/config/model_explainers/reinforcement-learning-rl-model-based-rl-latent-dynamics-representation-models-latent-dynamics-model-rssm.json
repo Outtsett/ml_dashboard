@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-latent-dynamics-model-rssm",
+  "name": "Latent Dynamics Model (RSSM)",
+  "analogy": "Think of it as a trader's running mental model with two parts: a steady notebook that carries the story of the session so far, and a small dice roll for the part that no notebook could have predicted. Together they let the trader play the story forward in the head.",
+  "steps": [
+    {
+      "title": "Keep a steady memory of the session",
+      "description": "A recurrent network holds a running state that carries what has happened so far: trend, session context, recent volatility. It is updated smoothly each bar and gives the model a reliable memory.",
+      "inExample": "By 11:30, the steady state summarizes a morning uptrend with moderate volatility on MNQ 5-minute bars."
+    },
+    {
+      "title": "Predict a random part from memory alone",
+      "description": "From the steady state, the model forms a prior: a spread of values for the random part of the next bar. This is what the model expects before seeing the bar. It is the part used for imagining.",
+      "inExample": "The prior expects the next bar's surprise to be small, with a modest chance of a large move."
+    },
+    {
+      "title": "Correct it once the real bar arrives",
+      "description": "When the actual bar is seen, a second estimate, the posterior, uses both the memory and the real bar. Training pushes the prior to match the posterior, so the memory alone learns to anticipate what the bar will bring.",
+      "inExample": "A bar that jumps 40 points makes the posterior far from the prior, and training nudges the prior to allow bigger jumps in similar states."
+    },
+    {
+      "title": "Combine both parts into the state",
+      "description": "The steady state and the sampled random part together form the model's full description of the market at that moment. From this description the model can decode the bar's features and the reward.",
+      "inExample": "Together they reproduce the bar's range and volume and the expected net result of the last action."
+    },
+    {
+      "title": "Train on several steps ahead",
+      "description": "The model can also be trained to be accurate not just one bar ahead but several, so that rolled-forward imagination stays close to reality for longer.",
+      "inExample": "Training scores the 1-bar, 3-bar and 6-bar predictions, not only the next bar."
+    },
+    {
+      "title": "Imagine without new data",
+      "description": "To look ahead, the model rolls the steady state forward and samples the random part from the prior at each step, with no real bars needed. Many such rolls give many possible futures.",
+      "inExample": "From the 11:30 bar, 200 imagined 6-bar futures are rolled out, and their spread of outcomes gives a range for the next 30 minutes."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "The core of an imagination-based trading agent",
+      "example": "Providing the world model in a Dreamer-style agent that learns a policy from imagined MNQ futures."
+    },
+    {
+      "task": "Short lookahead planning",
+      "example": "Re-planning every bar by simulating the next 6 bars and choosing the action whose imagined outcomes look best."
+    },
+    {
+      "task": "Scaling size by uncertainty",
+      "example": "Cutting position size from 3 contracts to 1 when the imagined futures fan out widely."
+    },
+    {
+      "task": "Generating scenario paths",
+      "example": "Rolling out hundreds of synthetic 6-bar paths from a given state to test how a stop-loss rule behaves."
+    },
+    {
+      "task": "Comparing structure across timeframes",
+      "example": "Training the same model on 1-minute and 5-minute bars and checking whether they settle on similar regime states."
+    }
+  ],
+  "avoidWhen": [
+    "You only need one number such as a direction probability for the next bar; a gradient boosting model or a small network is simpler and quicker to validate.",
+    "There is too little data for the model to learn both the steady and random parts; its imagined futures would then look convincing but be wrong."
+  ],
+  "example": {
+    "scenario": "At 11:30 the trained model is asked to imagine the next 6 five-minute bars of MNQ from the current state, to inform a position-sizing decision.",
+    "input": {
+      "summary": "The current bar's features, the previous action and the steady state carried from earlier bars.",
+      "fields": [
+        { "name": "close", "value": "19,931", "meaning": "The close of the 11:30 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "return over the last 12 bars", "value": "up about a third of one percent", "meaning": "How much price has risen over the previous hour." },
+        { "name": "previous action", "value": "long 2 contracts", "meaning": "The position held going into the bar." },
+        { "name": "steady state size", "value": "200 numbers", "meaning": "The size of the memory the model carries from bar to bar." },
+        { "name": "imagined futures requested", "value": "200 paths of 6 bars", "meaning": "How many rolled-forward scenarios the model is asked to produce." }
+      ]
+    },
+    "output": {
+      "summary": "The spread of imagined outcomes over the next 6 bars.",
+      "fields": [
+        { "name": "median imagined move, 6 bars", "value": "plus 6 points", "meaning": "The middle outcome across the 200 imagined paths." },
+        { "name": "spread of imagined moves", "value": "10th to 90th percentile: minus 38 to plus 49 points", "meaning": "The range holding the middle 80 percent of imagined outcomes; the width is the model's uncertainty." },
+        { "name": "share of imagined paths that end lower", "value": "43 percent", "meaning": "The fraction of the 200 paths whose 6-bar move is negative." }
+      ]
+    },
+    "reading": "The useful part is the width of the spread, not the median. A wide fan, as here, argues for a smaller position than a narrow one would. To trust it, check on held-out folds that about 80 percent of real 6-bar moves fall inside the stated 80 percent range."
+  }
+}

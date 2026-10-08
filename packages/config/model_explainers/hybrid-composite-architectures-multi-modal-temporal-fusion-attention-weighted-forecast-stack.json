@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-multi-modal-temporal-fusion-attention-weighted-forecast-stack",
+  "name": "Attention-Weighted Forecast Stack",
+  "analogy": "Think of it as a panel of forecasters where the chair adjusts each forecaster's weight bar by bar. A trend follower gets more say in a smooth trend, a mean-reversion specialist gets more say in a choppy range, and a news reader gets more say right after a headline. The final number is the weighted blend.",
+  "steps": [
+    {
+      "title": "Assemble different forecasters",
+      "description": "Several forecasting models are chosen to be different from each other, for example a recurrent network on price bars, a convolutional network on recent shapes and a simple statistical model. Each can also see a different kind of data, such as price, volume or news sentiment.",
+      "inExample": "Three forecasters are used: a recurrent network on price bars, a statistical trend model and a news sentiment model using FinBERT scores."
+    },
+    {
+      "title": "Let each forecaster make its own forecast",
+      "description": "On every bar, each forecaster produces its own forecast of the target, such as the move over the next 6 bars. They run side by side on the same moment in time.",
+      "inExample": "For the 14:35 bar the forecasts are plus 4 points, minus 6 points and plus 1 point."
+    },
+    {
+      "title": "Describe the current situation",
+      "description": "A short description of the present conditions is built from things like recent volatility, volume and time of day. This description decides which forecasters are likely to be reliable right now.",
+      "inExample": "The description shows high volatility, heavy volume and a fresh news headline in the last 15 minutes."
+    },
+    {
+      "title": "Score each forecaster with attention",
+      "description": "An attention step compares the situation with each forecaster and produces a relevance score for each. A normalisation step turns the scores into weights that are positive and add up to 100 percent, so they behave like shares.",
+      "inExample": "The weights come out as 25 percent for the price network, 15 percent for the trend model and 60 percent for the news model."
+    },
+    {
+      "title": "Blend the forecasts",
+      "description": "The final forecast is each forecaster's number multiplied by its weight and summed. A forecaster the situation favours moves the answer more.",
+      "inExample": "The blend is 25 percent of plus 4, plus 15 percent of minus 6, plus 60 percent of plus 1, which adds up to a little under 1 point."
+    },
+    {
+      "title": "Train the weighting against real outcomes",
+      "description": "The weighting is trained on past data by comparing the blended forecast with what actually happened, so the attention learns which forecaster to trust in which situation. The forecasters can be trained first and then frozen, to keep the weighting honest.",
+      "inExample": "On training folds the attention learns to lean on the news model in the 15 minutes after a headline, and on the trend model otherwise."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Blending forecasters that suit different conditions",
+      "example": "Combining a trend model and a range model for MNQ so the blend leans on the right one as volatility changes through the day."
+    },
+    {
+      "task": "Bringing in news or other data",
+      "example": "Giving a FinBERT news sentiment forecaster more weight right after headlines and less when none have appeared."
+    },
+    {
+      "task": "Seeing which forecaster mattered",
+      "example": "Reading the weights over a week to see how often each of the three models led."
+    },
+    {
+      "task": "Making forecasts of size, not only direction",
+      "example": "Producing an expected 6-bar move in points for MNQ that can be compared with trading costs."
+    }
+  ],
+  "avoidWhen": [
+    "You have only one forecaster or they all agree almost always; the weighting then has nothing to choose between, and the model is a more complex copy of one forecaster.",
+    "The weighting is trained on the same bars the forecasters trained on; it will learn to favour whichever memorised best, so a stacked model with a simple combiner and honest out-of-sample forecasts is safer."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, three forecasters predict the move over the next 6 bars, and attention decides how much weight each gets given a fresh headline.",
+    "input": {
+      "summary": "Three forecasts and a few numbers describing the current conditions.",
+      "fields": [
+        { "name": "close of the latest bar", "value": "19,430", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "price network forecast", "value": "plus 4 points", "meaning": "The recurrent network's expected 6-bar move." },
+        { "name": "trend model forecast", "value": "minus 6 points", "meaning": "The statistical model's expected 6-bar move." },
+        { "name": "news sentiment forecast", "value": "plus 1 point", "meaning": "The FinBERT-based model's expected 6-bar move." },
+        { "name": "average true range, 14 bars", "value": "30 points", "meaning": "Typical high-to-low travel of a recent bar, used in describing the situation." },
+        { "name": "minutes since latest headline", "value": "9", "meaning": "How fresh the news is, which pushes weight toward the news model." }
+      ]
+    },
+    "output": {
+      "summary": "The attention weights and the blended forecast.",
+      "fields": [
+        { "name": "weight on the price network", "value": "25 percent", "meaning": "Share of the blend given to the recurrent network." },
+        { "name": "weight on the trend model", "value": "15 percent", "meaning": "Share given to the statistical trend model." },
+        { "name": "weight on the news model", "value": "60 percent", "meaning": "Share given to the news model because the headline is fresh." },
+        { "name": "blended expected move over 6 bars", "value": "a little under plus 1 point", "meaning": "The weighted sum of the three forecasts, a very small move." }
+      ]
+    },
+    "reading": "The blend is under 1 point, which is under 2 US dollars per contract and far below typical costs, so this bar offers no tradeable lean. Weights tell you who the model listened to, not whether it is right. Judge the blend against its best single forecaster on walk-forward folds with costs."
+  }
+}

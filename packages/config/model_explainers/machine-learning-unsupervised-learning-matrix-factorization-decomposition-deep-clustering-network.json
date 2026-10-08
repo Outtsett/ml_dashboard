@@ -1,0 +1,78 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-deep-clustering-network",
+  "name": "Deep Clustering Network (DCN)",
+  "analogy": "Think of it as a sorting clerk who is also redesigning the filing system while sorting. As the clerk learns which folders the bars belong to, the labels on the folders are rewritten so that bars in the same folder look more alike, which in turn makes the next round of sorting cleaner.",
+  "steps": [
+    {
+      "title": "Teach a compressor first",
+      "description": "The model begins as an autoencoder: a network that squeezes each bar into a short code and rebuilds it. This warm-up gives the codes a sensible shape before any grouping is attempted.",
+      "inExample": "A network is trained on 40,000 five-minute MNQ bars so each bar's 35 features become a code of 8 numbers that rebuilds the bar well."
+    },
+    {
+      "title": "Pick starting group centres",
+      "description": "A simple clustering step is run on the codes to place a chosen number of group centres, the middle points of each group. These are the first guess at what the market states are.",
+      "inExample": "Four group centres are placed among the 40,000 codes, one for each guessed market state."
+    },
+    {
+      "title": "Assign every bar to its nearest centre",
+      "description": "Each bar's code is compared with the centres and the bar joins the group of the nearest one. At this point every bar has a group number.",
+      "inExample": "The 14:35 bar's code is closest to centre 2, so it joins group 2."
+    },
+    {
+      "title": "Retrain the compressor with a pull toward the centres",
+      "description": "The network is updated with two goals at once: keep rebuilding the bars well, and move each bar's code closer to its own group centre. The clustering therefore reshapes the codes, instead of only reading them.",
+      "inExample": "Codes of group 2 bars tighten around centre 2 while the rebuild error stays near 30 percent of each bar's spread."
+    },
+    {
+      "title": "Move the centres and repeat",
+      "description": "Each centre moves to the middle of the bars now assigned to it, assignments are redone, and the retraining repeats until bars stop switching groups. The loop is what makes the grouping and the learned code improve each other.",
+      "inExample": "After 25 loops, fewer than 1 percent of bars change group per loop, so training stops."
+    },
+    {
+      "title": "Read the group number",
+      "description": "A bar's final output is its group number and its distance to that centre. A small distance means a typical member, a large one means the bar sits at the edge or does not fit well.",
+      "inExample": "The 14:35 bar is reported as group 2, at 80 percent of the typical member's distance from its centre."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Defining market regimes without labels",
+      "example": "Grouping MNQ 5-minute bars into four states, such as quiet drift, steady trend, sharp selloff and spike, from 35 features without anyone labelling them."
+    },
+    {
+      "task": "Creating a regime feature for another model",
+      "example": "Adding the group number of each bar as a column so that a direction model can behave differently in each state."
+    },
+    {
+      "task": "Finding bars that fit no group",
+      "example": "Flagging the bars far from every centre, such as news spikes, to exclude or review them."
+    }
+  ],
+  "avoidWhen": [
+    "You need to know how many groups exist; the number of groups must be chosen up front, so a method that discovers the count, such as density-based clustering, may suit better.",
+    "The data set is small; a neural network learns poorly from a few thousand rows, so plain clustering on principal component scores is steadier."
+  ],
+  "example": {
+    "scenario": "A researcher trains a Deep Clustering Network on 12 months of five-minute Micro E-mini Nasdaq-100 futures (MNQ) bars to find four market states, then asks which state the 14:35 bar belongs to.",
+    "input": {
+      "summary": "One row of 35 standardised features for the 14:35 bar, plus the settings fixed at training time.",
+      "fields": [
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features fed to the network." },
+        { "name": "code size", "value": "8", "meaning": "How many numbers each bar is squeezed into before grouping." },
+        { "name": "number of groups", "value": "4", "meaning": "The group count chosen before training." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "A group number for the bar, how close it sits to the group's middle, and how well separated the groups are overall.",
+      "fields": [
+        { "name": "group number", "value": "2", "meaning": "The market state the bar was assigned to; group 2 holds heavy-volume selloff bars in this training run." },
+        { "name": "distance to group centre", "value": "80 percent of the typical distance", "meaning": "How far the bar's code is from the middle of group 2 compared with the group's usual member; under 100 percent means a typical member." },
+        { "name": "group separation score (silhouette)", "value": "47 out of 100", "meaning": "A score where 100 is perfect separation of the groups; between 40 and 60 is a moderate separation." }
+      ]
+    },
+    "reading": "Group 2 is a description, not a forecast. Check what happened after group 2 bars on separate walk-forward folds before using it. A separation near 47 out of 100 means the groups overlap somewhat, so use the group as one input among several, not as a standalone rule."
+  }
+}

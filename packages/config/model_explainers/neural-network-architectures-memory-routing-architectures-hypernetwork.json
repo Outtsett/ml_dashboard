@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-memory-routing-architectures-hypernetwork",
+  "name": "Hypernetwork",
+  "analogy": "Think of it as a head trader who, each morning, writes a fresh checklist for a junior analyst based on today's conditions. A quiet, ranging day gets one checklist and a volatile trending day gets another. The junior analyst applies the checklist, but the head trader decides what is on it.",
+  "steps": [
+    {
+      "title": "Split the job in two",
+      "description": "There are two networks. The target network makes the actual prediction from market features. The hypernetwork does not predict anything itself; its only job is to write the target network's settings.",
+      "inExample": "The target network is a small direction classifier on bar features; the hypernetwork is a separate small network that writes its weights."
+    },
+    {
+      "title": "Describe today's context",
+      "description": "The hypernetwork is given a short description of the conditions the prediction is made in, called the context. This should capture what makes the market behave differently from one situation to the next.",
+      "inExample": "The context is average true range of 34 points, volume 90 percent above average, and the session being the New York open."
+    },
+    {
+      "title": "Generate the target's settings",
+      "description": "From the context, the hypernetwork outputs the full set of weights for the target network. A different context produces different weights, so the same features can be read differently on different days.",
+      "inExample": "For this busy open the hypernetwork writes weights that treat a sharp drop as more likely to continue than to bounce."
+    },
+    {
+      "title": "Run the target on the bar's features",
+      "description": "The target network, now set with the freshly written weights, reads the ordinary features of the bar and produces its normal output, such as a direction probability.",
+      "inExample": "The generated classifier reads the bar's relative strength index, return and volume ratio and outputs a probability."
+    },
+    {
+      "title": "Compare with the real outcome",
+      "description": "During training, the error of the target's answer is measured against what happened. That error is traced back through the target and into the hypernetwork, so the hypernetwork learns which settings suit which context.",
+      "inExample": "On a training open that reversed, the error nudges the hypernetwork to write more reversal-friendly weights for that kind of context."
+    },
+    {
+      "title": "Reuse one small generator",
+      "description": "A design choice can save space: one compact hypernetwork is reused to write the weights of many parts of a larger target network, each part requested by its own label. Writing every weight in one pass would need a generator at least as large as the target.",
+      "inExample": "One generator of about 5,000 stored values is asked four times, once per block of the classifier, and writes all 20,000 target weights."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A model that adapts to the regime",
+      "example": "Letting a direction classifier for MNQ behave differently in quiet ranging sessions than in volatile trending ones, based on average true range and volume."
+    },
+    {
+      "task": "Time-of-day specific behavior",
+      "example": "Generating separate effective weights for the Asian session, the London open and the New York open from one trained model."
+    },
+    {
+      "task": "Sharing strength across instruments",
+      "example": "Writing weights for ES, MNQ and other futures from a description of each instrument's typical volatility and tick size."
+    },
+    {
+      "task": "Fast adaptation without retraining",
+      "example": "Changing the context description to shift the target network's behavior at the start of each walk-forward fold."
+    }
+  ],
+  "avoidWhen": [
+    "Behavior does not really change with context; a single fixed network is simpler and much easier to train, and the extra generator only adds noise.",
+    "You have little data; the two-level setup has many moving parts and overfits easily, so a plain network or tree model is the safer pick."
+  ],
+  "example": {
+    "scenario": "At the New York open, a hypernetwork is asked to configure a direction classifier for a 5-minute MNQ bar, then the classifier scores the bar.",
+    "input": {
+      "summary": "A short context description for the hypernetwork and the bar's features for the target network.",
+      "fields": [
+        { "name": "context: average true range, 14 bars", "value": "34 points", "meaning": "A measure of how violent the current market is, used to choose the weights." },
+        { "name": "context: volume against its 20-bar average", "value": "90 percent above average", "meaning": "How heavy trading is relative to normal." },
+        { "name": "context: session", "value": "New York open", "meaning": "The part of the day, which changes how moves tend to behave." },
+        { "name": "bar feature: relative strength index, 14 bars", "value": "30", "meaning": "A momentum reading from 0 to 100; low means oversold." },
+        { "name": "bar feature: return over the last 6 bars", "value": "minus 80 points", "meaning": "Price fell over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "The generated settings, summarized, and the classifier's probability.",
+      "fields": [
+        { "name": "number of weights generated", "value": "20,000", "meaning": "How many settings the hypernetwork wrote for the target network." },
+        { "name": "probability the close is higher 6 bars later", "value": "47 percent", "meaning": "The configured classifier's answer; below 50 percent means it expects further downside." },
+        { "name": "call", "value": "down", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "In this busy context the generated weights read an oversold drop as likely to continue, giving 47 percent for up. Under a quiet context the same features might give a bounce call. Check whether context-specific weights beat a single fixed model on out-of-sample folds, after costs."
+  }
+}

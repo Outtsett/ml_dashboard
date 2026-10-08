@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-latent-variable-models-deep-boltzmann-machine-generator",
+  "name": "Deep Boltzmann Machine Generator",
+  "analogy": "Think of it as a room full of on-off switches arranged in layers, where the switches nudge each other up and down until the whole room settles into a stable pattern. The bottom row of switches is the market conditions you can see, and the upper rows are hidden switches that learn which conditions tend to appear together.",
+  "steps": [
+    {
+      "title": "Turn the data into on-off switches",
+      "description": "Each piece of information is made into a switch that is either on or off. A continuous reading is turned into a yes-or-no statement, for example whether the relative strength index is under 30.",
+      "inExample": "Twelve market conditions are written as switches for a bar, such as 'oversold', 'volume above average' and 'close below the 50-bar average'."
+    },
+    {
+      "title": "Stack hidden layers above the visible ones",
+      "description": "Above the visible switches sit layers of hidden switches. The first hidden layer learns combinations of the visible ones, and the second learns combinations of those combinations. Neighbouring layers are connected by strengths that training adjusts.",
+      "inExample": "A hidden layer of 20 switches and a second of 10 sit above the 12 visible ones."
+    },
+    {
+      "title": "Pretrain one layer at a time",
+      "description": "Training begins by teaching each pair of layers separately, as a simple two-layer machine. This gives the connection strengths a sensible starting point before the whole stack is trained together.",
+      "inExample": "The 12 visible and 20 hidden switches are trained first, then the 20 and 10."
+    },
+    {
+      "title": "Let the whole stack settle on real data",
+      "description": "With real rows of conditions clamped on the visible switches, the hidden switches are updated again and again until they agree with each other and with the data. This shows which hidden patterns explain the real row.",
+      "inExample": "Clamping the real row for the 14:35 bar, the hidden switches settle after about 10 updates."
+    },
+    {
+      "title": "Let the model dream, then compare",
+      "description": "The model is also run freely, with nothing clamped, so that it produces rows from its own beliefs. Training strengthens connections that are active on real data and weakens those active only in the dreams.",
+      "inExample": "In free runs the model produces 'oversold' without 'volume above average' too often, so that link is weakened."
+    },
+    {
+      "title": "Generate or fill in by letting it settle",
+      "description": "To create a new row, run the switches freely for many updates and read the visible ones. To fill in a partial row, clamp the known switches and let the rest settle. Both need many updates, so it is slow.",
+      "inExample": "With 8 of the 12 conditions known, the other 4 settle in after 200 updates to show which are likely on."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning which market conditions go together",
+      "example": "Finding that 'oversold', 'volume above average' and 'close below the 50-bar average' tend to appear together in 5-minute MNQ bars."
+    },
+    {
+      "task": "Completing partial condition sets",
+      "example": "Given 8 known conditions of a bar, estimating how likely each of the 4 missing conditions is to be on."
+    },
+    {
+      "task": "Creating realistic combinations of conditions",
+      "example": "Producing a set of plausible on-off condition rows for testing a rule that needs several conditions to be true at once."
+    }
+  ],
+  "avoidWhen": [
+    "You need speed or accuracy on numeric features; training and sampling are slow, and gradient boosting or a modern deep generative model works better with far less effort.",
+    "You need exact probabilities; the total that would turn the model's scores into probabilities cannot be computed, so only comparisons are available."
+  ],
+  "example": {
+    "scenario": "A researcher turned 12 market conditions of MNQ 5-minute bars into on-off switches and trained a three-layer Deep Boltzmann Machine on a year of bars. For one bar only 8 of the conditions can be read, and they want the likely state of the other 4.",
+    "input": {
+      "summary": "Eight known conditions for one bar, with four unknown, and the number of updates allowed.",
+      "fields": [
+        { "name": "relative strength index under 30", "value": "on", "meaning": "True when the momentum reading is in oversold territory." },
+        { "name": "volume above its 20-bar average", "value": "on", "meaning": "True when this bar traded more than the recent norm." },
+        { "name": "close below the 50-bar moving average", "value": "on", "meaning": "True when price sits under its recent average." },
+        { "name": "average true range above its 50-bar average", "value": "off", "meaning": "True when bars are currently larger than usual." },
+        { "name": "close below the 5-bar average", "value": "on", "meaning": "True when price sits under its very recent average." },
+        { "name": "bar body larger than the recent average body", "value": "on", "meaning": "True when the open-to-close move of the bar is bigger than usual." },
+        { "name": "close above the open", "value": "off", "meaning": "True when the bar finished higher than it started." },
+        { "name": "close above the 20-bar high", "value": "off", "meaning": "True when the bar closed at a new 20-bar high." },
+        { "name": "updates allowed", "value": "200", "meaning": "How many rounds of switch updates the model runs before reading the answer." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each of the four missing conditions and the filled-in row.",
+      "fields": [
+        { "name": "close below the 20-bar low", "value": "on with 64 percent", "meaning": "How often the missing condition was on across repeated runs." },
+        { "name": "bar closes in its lower quarter", "value": "on with 71 percent", "meaning": "How often that missing condition was on across repeated runs." },
+        { "name": "gap against the previous close", "value": "off with 82 percent", "meaning": "How often that missing condition was off across repeated runs." },
+        { "name": "volume above its 50-bar average", "value": "on with 90 percent", "meaning": "How often that missing condition was on across repeated runs." },
+        { "name": "filled-in row", "value": "on, on, off, on for the four missing conditions in the order listed", "meaning": "The most common state of each missing condition after 200 updates." }
+      ]
+    },
+    "reading": "The percentages show which missing conditions usually go with the known ones; they are not a forecast of price. Use the filled-in row to complete a partial picture of the bar, and check on held-out bars how often the completion is right."
+  }
+}

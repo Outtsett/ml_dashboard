@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-composable-skill-transfer-framework",
+  "name": "Composable Skill Transfer Framework",
+  "analogy": "Think of it as a mixing desk for trading styles. Each skill, like scaling into a trend or trimming into resistance, is a position on a dial, and a higher-level controller can set the dial anywhere between two skills to get a blend that no single playbook contained.",
+  "steps": [
+    {
+      "title": "Collect behaviors to learn from",
+      "description": "Gather trading behaviors, either discovered by the agent through exploration or taken from demonstrations. They are the raw material from which skills are distilled.",
+      "inExample": "Demonstrations on MNQ 5-minute bars include scaling into a trend, trimming near resistance and flattening into the close."
+    },
+    {
+      "title": "Place each behavior in a skill space",
+      "description": "A skill is a point in a smooth, continuous space of numbers. Similar behaviors sit near each other, and in-between points stand for in-between styles. Points come from encoding demonstrations, or are drawn at random when skills are discovered by exploration.",
+      "inExample": "Scaling-in lands at one end of the space and trimming at the other, and a hybrid of the two sits halfway."
+    },
+    {
+      "title": "Train one policy that follows any point",
+      "description": "A single skill-conditioned policy reads the market state and a skill point and acts as that skill would. Given any point, including ones never directly trained, it produces matching behavior.",
+      "inExample": "With the skill point set to scaling-in, the policy buys 1 contract on each pullback to the 20-bar average."
+    },
+    {
+      "title": "Keep skills distinguishable",
+      "description": "A second network tries to guess which skill point produced a given stretch of trading, and the policy is rewarded when the guess is easy. That pushes different points toward clearly different behavior, so the space does not collapse into one behavior with many labels.",
+      "inExample": "Skill points are spread so that scaling-in and trimming produce visibly different position paths over 12 bars, and the guesser can tell them apart."
+    },
+    {
+      "title": "Let a controller choose or blend points",
+      "description": "A higher-level controller outputs a skill point for the situation, treating the point as its action. It can pick an existing skill or interpolate between two, with the blend moving smoothly as its confidence changes.",
+      "inExample": "The controller outputs a point 70 percent of the way from trimming toward scaling-in when a trend looks about 70 percent established."
+    },
+    {
+      "title": "Reuse the skills for new objectives",
+      "description": "The skill library does not depend on one goal. A new controller, for a new instrument or objective, can be trained on top of the same skills without relearning how to execute them.",
+      "inExample": "A new controller for ES with a drawdown-averse objective is trained on top of the same skill library, and only the controller needs training."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Reusing skills across instruments",
+      "example": "Taking skills learned on MNQ and training only a new controller for ES."
+    },
+    {
+      "task": "Blending postures as regime confidence changes",
+      "example": "Sliding smoothly from a range-fading posture toward a trend-following one as a trend becomes more likely, instead of switching abruptly."
+    },
+    {
+      "task": "Quick strategy prototyping",
+      "example": "Testing ten different objectives on one skill library to see which combinations are worth deeper study."
+    },
+    {
+      "task": "Reproducing a discretionary style",
+      "example": "Distilling a trader's logged way of scaling in and out into a skill, then applying it under new risk limits."
+    },
+    {
+      "task": "Serving several objectives from one library",
+      "example": "Running a return-seeking controller and a risk-averse controller on the same skills."
+    }
+  ],
+  "avoidWhen": [
+    "A short, fixed list of well-understood strategies is all you have; a simple selector among them is easier to audit than a continuous skill space.",
+    "Skills cannot be told apart in outcomes; if every point in the space produces nearly the same trades, there is nothing to compose."
+  ],
+  "example": {
+    "scenario": "At 10:50 on an MNQ session, a controller must choose a skill point between trimming into resistance and scaling into a trend, as a trend looks about 70 percent established.",
+    "input": {
+      "summary": "The market state for the skill-conditioned policy and the controller's confidence reading.",
+      "fields": [
+        { "name": "close", "value": "20,044", "meaning": "The close of the 10:50 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "return over the last 12 bars", "value": "up about two fifths of one percent", "meaning": "How much price has risen over the previous hour." },
+        { "name": "trend confidence", "value": "70 percent", "meaning": "The controller's estimate of how established the uptrend is." },
+        { "name": "distance to the nearest resistance", "value": "18 points", "meaning": "How far above the close the closest overhead price level sits." },
+        { "name": "current position", "value": "1 contract long", "meaning": "What the account already holds." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen skill point and the action the skill-conditioned policy takes.",
+      "fields": [
+        { "name": "skill point", "value": "70 percent of the way from trimming to scaling-in", "meaning": "Where on the line between the two skills the chosen point lies; in the model it is a short list of numbers." },
+        { "name": "action", "value": "buy 1 more contract", "meaning": "The position change the policy produces at that skill point." },
+        { "name": "resulting position", "value": "2 contracts long", "meaning": "The position after the action." }
+      ]
+    },
+    "reading": "The blend leans toward adding but holds back some, which is the point of a continuous skill space. Review how the skill point moves across a day against the price chart; a point that jitters between extremes every bar means the controller is not using the continuity."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-specialized-modular-networks-capsule-network",
+  "name": "Capsule Network",
+  "analogy": "Think of it as a chart reader who spots parts and then checks that the parts agree on the whole. A long lower wick, a small body and a follow-through bar each vote for which larger pattern they belong to, and the pattern with the most agreement wins.",
+  "steps": [
+    {
+      "title": "Detect small pieces",
+      "description": "The first layers look at the raw window of bars and detect small local pieces, such as a long wick, a gap or a small-bodied bar. Each piece is described by a short list of numbers, not a single score.",
+      "inExample": "In a 20-bar MNQ window the first layer finds a long lower wick at bar 17 and a strong up-bar at bar 19."
+    },
+    {
+      "title": "Wrap each piece in a capsule",
+      "description": "Every detected piece becomes a capsule, a small group of numbers. The length of the group says how likely the piece is to be present, and its direction encodes details such as size and position.",
+      "inExample": "The wick capsule has a length of 90 on a scale of 0 to 100, meaning it is almost certainly there, and its direction encodes a wick of about 30 points."
+    },
+    {
+      "title": "Let each piece guess the whole",
+      "description": "Each small capsule predicts what every larger capsule should look like if that piece belonged to it, using learned transformations. A wick might predict what a hammer-and-follow-through reversal would look like.",
+      "inExample": "The wick and the up-bar both predict a bullish reversal setup of about 50 points in total height."
+    },
+    {
+      "title": "Route by agreement",
+      "description": "The pieces send their output mainly to the larger capsule whose prediction they agree with. This is repeated a few times, so pieces that agree reinforce each other and pieces that disagree are dropped from that group.",
+      "inExample": "After three rounds, the wick and up-bar send most of their weight to the reversal capsule, and little to the breakout capsule."
+    },
+    {
+      "title": "Read the strength of each larger capsule",
+      "description": "The larger capsules, one per class such as reversal, breakout or none, end with a length that works as a confidence. A long capsule means the model has found a consistent arrangement of parts for that class.",
+      "inExample": "On a scale of 0 to 100, the reversal capsule has a length of 78, the breakout capsule 21, and the no-pattern capsule 10."
+    },
+    {
+      "title": "Train with a margin",
+      "description": "During training, the correct class is pushed to have a long capsule and the wrong classes are pushed to be short, with a margin so that the model is not rewarded for being only barely right.",
+      "inExample": "On a training window labeled reversal, the reversal capsule is pushed past 90 and the others below 10."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Recognizing candlestick setups",
+      "example": "Detecting a rejection wick followed by a strong close on MNQ 5-minute bars, with the size of the setup carried in the capsule."
+    },
+    {
+      "task": "Assembling multi-bar patterns",
+      "example": "Combining several local motifs, such as an inside bar and a breakout bar, into one higher-level setup such as a compression breakout."
+    },
+    {
+      "task": "Regime classification with confidence",
+      "example": "Using one capsule each for trending, ranging and volatile states, and reading the length as how sure the model is."
+    },
+    {
+      "task": "Flagging unfamiliar windows",
+      "example": "Treating a window where no class capsule is long as structurally unfamiliar and standing down."
+    }
+  ],
+  "avoidWhen": [
+    "You need a quick, robust baseline; capsule networks are slower to train and touchy to tune, and a convolutional or tree model on the same features is the safer first try.",
+    "The input is a plain table of indicators; capsules shine on structured parts-and-wholes data like patterns, not on a flat row of unrelated numbers."
+  ],
+  "example": {
+    "scenario": "A capsule network trained to label 20-bar windows of MNQ 5-minute bars as reversal, breakout or no pattern is shown a window that ends with a long lower wick and a strong up-bar.",
+    "input": {
+      "summary": "A window of 20 bars with open, high, low, close and volume, scaled to the window.",
+      "fields": [
+        { "name": "window length", "value": "20 bars (100 minutes)", "meaning": "How many 5-minute bars the model sees." },
+        { "name": "lower wick at bar 17", "value": "30 points", "meaning": "The distance from the bar's low up to its body, showing a sharp rejection of lower prices." },
+        { "name": "up-bar at bar 19", "value": "plus 22 points", "meaning": "A strong bullish bar following the rejection." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "volume on the up-bar against average", "value": "90 percent above average", "meaning": "Heavy trading backed the follow-through." }
+      ]
+    },
+    "output": {
+      "summary": "A length for each class capsule and the class chosen.",
+      "fields": [
+        { "name": "reversal capsule length", "value": "78 out of 100", "meaning": "The model's confidence that the window is a reversal setup." },
+        { "name": "breakout capsule length", "value": "21 out of 100", "meaning": "Low confidence that the window is a breakout." },
+        { "name": "no-pattern capsule length", "value": "10 out of 100", "meaning": "Low confidence that the window is unremarkable." },
+        { "name": "chosen class", "value": "reversal", "meaning": "The class with the longest capsule, above the model's acceptance margin." }
+      ]
+    },
+    "reading": "A length of 78 out of 100 says the parts agree on a reversal shape, but it only labels the pattern; it does not say what happens next. Treat it as a filter or a feature, then measure what MNQ actually did after such windows, net of costs, across walk-forward folds."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "statistical-models-survival-analysis-survival-models-cox-proportional-hazards",
+  "name": "Survival Models - Cox Proportional Hazards",
+  "analogy": "Think of it as a risk meter on each open trade. A baseline trade has a standard danger of being stopped out at any moment, and each feature turns that danger up or down by a fixed multiple, the same way at every minute of the trade's life.",
+  "steps": [
+    {
+      "title": "List trades with time and outcome",
+      "description": "Each trade is recorded with its entry features, how long it lasted, and whether it ended in the event of interest. Trades still open at the end of the data are kept and marked as having survived at least that long.",
+      "inExample": "Each MNQ trade has its entry features, its life in 5-minute bars and whether it was stopped out; 38 of 240 are still open."
+    },
+    {
+      "title": "Look at each stop-out against everything still open",
+      "description": "At the moment each trade was stopped out, the model asks: given that exactly one trade ended now, how likely was it to be this one among all trades still open? Features that make the stopped trade look unusually risky raise that likelihood.",
+      "inExample": "When a trade is stopped out at bar 7, it is compared with the 180 trades still open at bar 7, and its wide spread and high volatility stand out."
+    },
+    {
+      "title": "Find the weights that make the stopped trades look riskier",
+      "description": "The weights are tuned until the trades that actually ended are, on average, the ones the model rated as riskiest at that moment. Neat trick: the baseline danger cancels out, so its shape never has to be guessed.",
+      "inExample": "The weights settle so that a rise of one typical size in the average true range raises the danger by 20 percent."
+    },
+    {
+      "title": "Turn the weights into hazard ratios",
+      "description": "Each weight becomes a simple multiple of the danger. A ratio that raises the danger means the feature makes an early stop-out more likely at every moment; one that lowers it means the feature protects the trade.",
+      "inExample": "Entering against the trend raises the danger by 35 percent at every point in a trade's life, compared with entering with the trend."
+    },
+    {
+      "title": "Recover the baseline survival curve",
+      "description": "After the weights are fixed, a baseline curve of how many standard trades are still open over time is recovered from the data. Combined with a trade's multiple, it gives that trade's own curve.",
+      "inExample": "The baseline curve shows 70 percent of standard trades, those entered with the trend at typical volatility, still open after 12 bars."
+    },
+    {
+      "title": "Score a new trade",
+      "description": "A new trade's features give its danger multiple, and the baseline curve is bent accordingly. The result is its chance of still being open at each future time and its rank against other candidate trades.",
+      "inExample": "A trade entered against the trend carries 35 percent more danger, and its chance of still being open after 12 bars falls from 70 to 62 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Estimating what raises the risk of an early stop-out",
+      "example": "Measuring how a wide spread, a large position or a high average true range at entry change the danger of an MNQ trade being stopped out early."
+    },
+    {
+      "task": "Ranking resting orders by how likely they are to fill",
+      "example": "Ranking limit orders by relative fill danger, using their distance from the best price and trailing volume."
+    },
+    {
+      "task": "Modelling target versus stop",
+      "example": "Using the competing-outcomes version to model separately the danger of a trade ending at its profit target and at its stop."
+    },
+    {
+      "task": "Setting position timeouts from features",
+      "example": "Finding which entry features most strongly predict early exits and tightening the timeout for those setups."
+    }
+  ],
+  "avoidWhen": [
+    "A feature's effect clearly changes as the trade ages, such as a setup that is risky early and safe later; the fixed-multiple assumption then fails and a parametric time model or a time-varying version is better.",
+    "You need actual forecast times in bars or minutes; this model speaks in relative danger, and an accelerated failure time model states times directly."
+  ],
+  "example": {
+    "scenario": "A long MNQ trade is considered against the 50-bar trend. The model estimates how much more or less dangerous it is than a standard trade, and the chance it is still open after 12 five-minute bars.",
+    "input": {
+      "summary": "The entry-time features of one trade.",
+      "fields": [
+        { "name": "entry price", "value": "18,452", "meaning": "The price at which the trade is entered, rounded to a whole point." },
+        { "name": "entered against the trend", "value": "yes", "meaning": "Whether the trade goes opposite to the recent 50-bar trend." },
+        { "name": "spread at entry", "value": "a quarter point", "meaning": "The gap between the best buy and best sell price, one tick on MNQ." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "stop distance", "value": "30 points", "meaning": "How far from entry the protective stop is placed." }
+      ]
+    },
+    "output": {
+      "summary": "A danger multiple against the standard trade and the resulting survival chance.",
+      "fields": [
+        { "name": "danger against a standard trade", "value": "35 percent higher", "meaning": "At every moment this trade faces 35 percent more danger of being stopped out than a standard trade, one entered with the trend at typical volatility." },
+        { "name": "standard trade still open after 12 bars", "value": "70 percent", "meaning": "The baseline survival chance read off the recovered baseline curve." },
+        { "name": "this trade still open after 12 bars", "value": "62 percent", "meaning": "The survival chance after applying the 35 percent higher danger." },
+        { "name": "chance of being stopped out within 12 bars", "value": "38 percent", "meaning": "One minus the survival chance, the model's estimate for this trade." }
+      ]
+    },
+    "reading": "A danger 35 percent above standard says this setup is more fragile than average, which argues for a smaller size or a wider stop and not simply for skipping it. Check the assumption on your own history: if the gap between the two kinds of trade widens or closes with age, the fixed multiple is too simple."
+  }
+}

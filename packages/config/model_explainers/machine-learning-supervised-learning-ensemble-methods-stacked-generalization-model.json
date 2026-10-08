@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-supervised-learning-ensemble-methods-stacked-generalization-model",
+  "name": "Stacked Generalization Model",
+  "analogy": "Think of it as a trading desk with three analysts and a head of desk. Each analyst gives a probability of the next move, and the head of desk has learned from past calls how much to trust each analyst, so the final call is a weighted blend rather than a plain average.",
+  "steps": [
+    {
+      "title": "Pick different kinds of base models",
+      "description": "You choose several first-level models that think in different ways, for example a tree-based model, a nearest-neighbour model and a simple linear model. They are chosen to disagree in useful ways, because three copies of the same idea add nothing.",
+      "inExample": "Three base models are chosen: a boosted-tree model, a nearest-neighbour model and a logistic model, all fed the same 5-minute MNQ bar features."
+    },
+    {
+      "title": "Collect honest out-of-sample guesses",
+      "description": "The training bars are cut into blocks. Each base model learns on all blocks but one and then guesses the held-out block. Repeating this gives every training bar a guess made by a model that never saw that bar, which stops the next level from learning from flattering, memorised answers.",
+      "inExample": "For each of 40,000 training bars, each base model produces a probability of closing higher 6 bars later, always from a block it was not trained on."
+    },
+    {
+      "title": "Build a table of the guesses",
+      "description": "These honest guesses become a new, small table: one row per bar, one column per base model, plus the true outcome. This table is the only thing the second-level model will ever see.",
+      "inExample": "The table has 40,000 rows and 3 columns of probabilities, next to a column showing whether the close really was higher."
+    },
+    {
+      "title": "Train the head of desk on the table",
+      "description": "A deliberately simple second-level model learns how to combine the columns: which base model to lean on, which to discount, and whether one analyst is consistently too confident. Keeping it simple matters because it has few columns and could overfit easily.",
+      "inExample": "The second-level model learns to give the boosted-tree model half the say, the logistic model three tenths and the nearest-neighbour model two tenths."
+    },
+    {
+      "title": "Retrain the base models on everything",
+      "description": "Once the combining rule is known, each base model is trained again on the full training data so that it is as informed as possible when it faces new bars.",
+      "inExample": "All three base models are refit on the full 40,000 training bars before the live bar arrives."
+    },
+    {
+      "title": "Score a new bar in two layers",
+      "description": "A new bar goes to every base model first. Their three guesses are then handed to the head of desk, which applies the learned blend and returns one final probability.",
+      "inExample": "The 14:35 bar gets 58, 52 and 55 percent from the three analysts, and the blend returns about 56 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Getting more from several decent models",
+      "example": "You already have a boosted-tree model and a linear model for MNQ direction, and you want one probability that uses both rather than choosing one."
+    },
+    {
+      "task": "Combining models that look at different information",
+      "example": "Blending a model built on price indicators with one built on FinBERT news sentiment, so the blend can lean on news only when it has historically helped."
+    },
+    {
+      "task": "Reducing the risk of betting on one model",
+      "example": "A single model can have a bad fold; a blend of several is often steadier from one walk-forward fold to the next."
+    },
+    {
+      "task": "Final stage of a research pipeline",
+      "example": "After testing many separate models on the same folds, stacking the best few into one signal that the cost-aware backtest then judges."
+    }
+  ],
+  "avoidWhen": [
+    "You have little data; the honest-guess step cuts the data into blocks and the second level adds another thing to fit, so a single simple model is safer.",
+    "Time order matters inside the data; ordinary random blocks leak the future into the table of guesses, so the blocks must be time-ordered with a gap, which makes stacking slower and fiddlier.",
+    "You need to explain every call in one sentence; a two-layer blend is harder to describe than one model."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. Three base models each give a probability that the close 6 bars (30 minutes) later will be above this close, and a second-level model blends them into one probability.",
+    "input": {
+      "summary": "The three base-model probabilities for this bar, plus the weights the second-level model learned from past honest guesses.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "boosted-tree probability of a higher close", "value": "58 percent", "meaning": "The first base model's guess that the close 6 bars later will be higher." },
+        { "name": "nearest-neighbour probability of a higher close", "value": "52 percent", "meaning": "The second base model's guess, based on how similar past bars turned out." },
+        { "name": "logistic probability of a higher close", "value": "55 percent", "meaning": "The third base model's guess from a simple weighted sum of features." },
+        { "name": "learned weight on the boosted-tree model", "value": "50 percent", "meaning": "How much of the final answer comes from the boosted-tree model." },
+        { "name": "learned weight on the logistic model", "value": "30 percent", "meaning": "How much of the final answer comes from the logistic model." },
+        { "name": "learned weight on the nearest-neighbour model", "value": "20 percent", "meaning": "How much of the final answer comes from the nearest-neighbour model." }
+      ]
+    },
+    "output": {
+      "summary": "One blended probability and the side it points to.",
+      "fields": [
+        { "name": "blended probability of a higher close", "value": "56 percent", "meaning": "Half of 58, plus 30 percent of 55, plus 20 percent of 52, which comes to about 56 percent." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest contributor", "value": "boosted-tree model", "meaning": "The base model that carried the most weight in this bar's final answer." }
+      ]
+    },
+    "reading": "56 percent is a small lean, a little under the strongest single analyst. That is typical: blending trims the extremes. Whether it earns anything depends on trading costs, which the run page's net result measures on held-out folds."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-model-predictive-control-mpc",
+  "name": "Model Predictive Control (MPC)",
+  "analogy": "Think of it as a driver who plans the next few seconds of the road, steers according to only the first part of that plan, then looks again and plans anew. Because the plan is thrown away and remade at every moment, a wrong guess about the road never has time to grow into a crash.",
+  "steps": [
+    {
+      "title": "Fit a model of how the market responds",
+      "description": "Before any planning, a model is fitted from past bars that predicts the next state and the reward from the current state and a chosen position. It only uses transitions that came before the decision time.",
+      "inExample": "A model fitted on the previous year of five-minute MNQ bars predicts the next bar's state and the reward for each position."
+    },
+    {
+      "title": "Generate many candidate plans",
+      "description": "At every bar, a large number of candidate sequences of future positions is proposed, covering a short horizon. Limits such as a maximum position size are built into the candidates.",
+      "inExample": "500 candidate sequences are generated, each fixing a position for each of the next 8 bars, with no more than 3 contracts."
+    },
+    {
+      "title": "Roll each plan through the model",
+      "description": "For each candidate, the model is stepped forward bar by bar to predict the rewards the plan would collect, with trading costs charged on every change of position.",
+      "inExample": "Candidate number 217 is predicted to earn 5 points of reward and pay 2 points of cost, for a net of 3 points."
+    },
+    {
+      "title": "Pick the best plan",
+      "description": "The candidate with the highest predicted net reward is chosen. A refined search can repeat this several times, concentrating new candidates around the best ones.",
+      "inExample": "Candidate 217 has the best net of 3 points, while the all-flat candidate scores 0 points."
+    },
+    {
+      "title": "Execute only the first step",
+      "description": "Only the first position of the best plan is carried out. The rest of the plan is a by-product and is discarded.",
+      "inExample": "The first step of plan 217 is to hold 1 long contract for the next bar."
+    },
+    {
+      "title": "Look at the new bar and plan again",
+      "description": "When the next bar closes, the true new state is read and the whole search starts again from scratch. This is how errors in the model are repeatedly corrected.",
+      "inExample": "At the next bar the actual state differs slightly from the prediction, and a fresh set of 500 plans is scored from there."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Short-horizon position sizing with explicit costs",
+      "example": "Choosing a position for each bar after charging 1 point of round-trip cost on MNQ, so churning is penalised in the plan."
+    },
+    {
+      "task": "Trading under hard limits",
+      "example": "Keeping every candidate within a margin limit of 3 contracts by building the limit into the plan generator."
+    },
+    {
+      "task": "A usable controller as soon as a model exists",
+      "example": "Testing a new return-forecasting model as a controller immediately, without training a separate policy network."
+    },
+    {
+      "task": "Explaining each decision",
+      "example": "Reading off the exact imagined path that led to a position, bar by bar, for review."
+    }
+  ],
+  "avoidWhen": [
+    "Decisions are needed faster than the search can run; a trained policy gives a position in one quick pass, while this method searches again on every bar.",
+    "The fitted model is poor over several bars; the search picks the plan the model flatters most, and the result is a confident wrong position."
+  ],
+  "example": {
+    "scenario": "At 9:45 on MNQ, a fitted market model and a cost model are ready. The controller scores 500 candidate 8-bar position plans and commits only to the first step of the best one.",
+    "input": {
+      "summary": "The current state, the fitted models and the search settings.",
+      "fields": [
+        { "name": "close", "value": "19,205", "meaning": "The price at which the newest five-minute bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "30 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "planning horizon", "value": "8 bars", "meaning": "How many bars ahead each candidate plan reaches." },
+        { "name": "candidate plans", "value": "500", "meaning": "How many position sequences are scored at this bar." },
+        { "name": "round-trip cost", "value": "1 point", "meaning": "Commission and slippage for one contract in and out, about 2 US dollars at 2 US dollars a point." },
+        { "name": "maximum position", "value": "3 contracts", "meaning": "The largest position any candidate is allowed to hold." }
+      ]
+    },
+    "output": {
+      "summary": "The best plan's predicted net reward and the single position actually taken.",
+      "fields": [
+        { "name": "best candidate", "value": "number 217 of 500", "meaning": "The plan with the highest predicted net reward." },
+        { "name": "predicted net reward of the best plan", "value": "3 points", "meaning": "The reward the model expects over 8 bars after trading costs." },
+        { "name": "predicted reward of staying flat", "value": "0 points", "meaning": "The all-flat plan, used as the reference." },
+        { "name": "position taken now", "value": "long 1 contract", "meaning": "The first step of the best plan, the only part executed." }
+      ]
+    },
+    "reading": "Compare the net reward the plan promised with what its first steps really earned on later bars: if promises keep beating results, the search is exploiting model mistakes. The remaining seven steps of the plan are discarded, so never treat them as a forecast."
+  }
+}

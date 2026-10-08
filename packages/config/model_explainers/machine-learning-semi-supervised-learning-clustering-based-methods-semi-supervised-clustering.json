@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-clustering-based-methods-semi-supervised-clustering",
+  "name": "Semi-Supervised Clustering",
+  "analogy": "Think of it as sorting thousands of unmarked trading days into piles, but you have pinned a few examples to the wall first. The pins say this day is a trend day and that one is a quiet range day, and they also say these two belong together and those two must never share a pile.",
+  "steps": [
+    {
+      "title": "Describe every bar with a row of numbers",
+      "description": "Each bar or window becomes a row of features, such as the average true range, the trend strength and the volume ratio. These rows are the points the model will group.",
+      "inExample": "Each of 20,000 MNQ five-minute bars gets 4 numbers: average true range, average directional index, volume against its 20-bar average and distance from the 50-bar moving average."
+    },
+    {
+      "title": "Collect the few hints",
+      "description": "A small set of bars is labelled by hand, or pairs of bars are marked as must be together or must be apart. This is the only supervision, and it is a tiny share of the data.",
+      "inExample": "Forty bars are labelled: 15 trending, 15 ranging and 10 volatile. Eight pairs are also marked as must be apart."
+    },
+    {
+      "title": "Place the starting centres using the labels",
+      "description": "A plain clustering method would start from random centres. Here each group starts at the average of the labelled bars of its class, so the groups are born aligned with the categories you care about.",
+      "inExample": "The trending centre starts at the average of the 15 trending bars, with similar starts for the ranging and volatile centres."
+    },
+    {
+      "title": "Assign every bar to the nearest centre, obeying the rules",
+      "description": "Each bar is given to the group whose centre is closest. A move is refused when it would break a rule, such as putting two bars you marked as must be apart into the same group.",
+      "inExample": "A bar that is nearest to the ranging centre is refused that group because it would sit beside a bar marked as must be apart, and goes to its second nearest group."
+    },
+    {
+      "title": "Move the centres and repeat",
+      "description": "Each centre moves to the average of the bars now in its group. Assignment and moving repeat until the groups stop changing. The labelled bars are kept in their groups throughout, anchoring the result.",
+      "inExample": "After 12 repeats the groups stop changing, with 8,100 bars in the trending group, 9,300 in the ranging group and 2,600 in the volatile group."
+    },
+    {
+      "title": "Name the groups and place new bars",
+      "description": "Each group takes the name of the labelled class that dominates it. A new bar is assigned to its nearest centre, and its distance to that centre tells how typical it is of the group.",
+      "inExample": "The 14:35 bar lands in the trending group, at 60 percent of the group's typical distance from its centre, so it is a typical member."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sorting bars into market regimes with few labels",
+      "example": "Naming trending, ranging and volatile regimes from 40 hand labelled bars across 20,000 unlabeled ones."
+    },
+    {
+      "task": "Choosing a strategy by regime",
+      "example": "Switching between a breakout rule and a fade rule depending on which group the latest bar falls in."
+    },
+    {
+      "task": "Flagging odd bars",
+      "example": "Finding bars far from every centre, such as the spike minutes after a data release."
+    },
+    {
+      "task": "Grouping trading sessions",
+      "example": "Clustering full days by their opening range, volume and finishing range, using a handful of days a trader has already labelled."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labelled data; a supervised classifier will use all of those labels directly and usually does better.",
+    "The groups are not round blobs in feature space; the method draws straight boundaries around centres and can misread curved or elongated shapes.",
+    "Your hints are inconsistent; contradictory must be together and must be apart pairs can make the algorithm fail to settle."
+  ],
+  "example": {
+    "scenario": "A research job sorts a year of MNQ five-minute bars into three regimes, using 40 hand labelled bars and 8 must be apart pairs, then places the newest bar.",
+    "input": {
+      "summary": "Four feature numbers for the newest bar, the three group centres, and the hints used to build them.",
+      "fields": [
+        { "name": "bars clustered", "value": "20,000", "meaning": "The number of five-minute bars in the training pool." },
+        { "name": "labelled bars", "value": "40", "meaning": "A tiny hand labelled share, under half of one percent of the pool, used to place the centres." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "average directional index, 14 bars", "value": "31", "meaning": "A trend strength reading from 0 to 100; above 25 is commonly read as trending." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." }
+      ]
+    },
+    "output": {
+      "summary": "The group the newest bar belongs to and how typical it is of that group.",
+      "fields": [
+        { "name": "group", "value": "trending", "meaning": "The name of the labelled class that dominates the nearest centre." },
+        { "name": "distance to the group centre", "value": "60 percent of the group's typical distance", "meaning": "How far the bar sits from the middle of its group, compared with how far the group's members usually sit." },
+        { "name": "distance to the second nearest centre", "value": "about 3 times as far as its own centre", "meaning": "How far the bar sits from the next closest group, showing it is clearly in one group." },
+        { "name": "group size", "value": "8,100 of 20,000 bars", "meaning": "How many bars share the trending group in the training pool." }
+      ]
+    },
+    "reading": "The bar is clearly in the trending group, since the next closest group is about three times as far away. A bar with two similar distances would be a borderline call. A regime label only helps if a strategy behaves differently in each regime, so test that on the run page across walk-forward folds rather than trusting the clusters on their own."
+  }
+}

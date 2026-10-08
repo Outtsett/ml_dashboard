@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-graph-attention-hybrids-transformer-gnn-hybrid",
+  "name": "Transformer-GNN Hybrid",
+  "analogy": "Think of it as a research desk with two questions per market. First: which of this market's own past bars matter right now? Second: which other markets are telling me something? One mechanism answers the first by looking back at the market's own history, and another answers the second by listening to linked markets.",
+  "steps": [
+    {
+      "title": "Give every instrument a window of history",
+      "description": "Each instrument gets a window of its recent bars with the same features, computed from past data only. A marker for each bar's position in time is added so the model knows the order.",
+      "inExample": "MNQ, MES and MYM each get 64 five-minute bars with 8 features."
+    },
+    {
+      "title": "Let each market look back at its own past",
+      "description": "Attention lets each bar weigh every earlier bar and decide how much each one matters. A strict rule hides future bars, so a bar can only look backward. The same attention settings are used for every instrument.",
+      "inExample": "In MNQ, the latest bar pays most attention to the high-volume bar 9 bars earlier."
+    },
+    {
+      "title": "Define the links between markets",
+      "description": "A graph says which instruments are related, using structure such as index family or a shared currency, or a measured recent correlation. Link strength can also be fed to attention as a gentle nudge.",
+      "inExample": "All three index futures are linked, with the MNQ to MES link strongest at 93 percent correlation."
+    },
+    {
+      "title": "Pass messages between linked markets",
+      "description": "Each instrument gathers summaries from its linked neighbours and blends them with its own. After this step, each market's summary reflects what related markets are doing.",
+      "inExample": "MES's summary now includes the sharp selling that appeared first in MNQ."
+    },
+    {
+      "title": "Stack the two operations into layers",
+      "description": "The look-back step and the message step are repeated in several layers, each adding its result onto the running summary. Stacking lets the model combine own-history clues and neighbour clues in more complex ways.",
+      "inExample": "Three layers are stacked, each adding both a time and a neighbour contribution."
+    },
+    {
+      "title": "Read out predictions for all markets",
+      "description": "The final summary at the latest bar of each instrument goes to an output layer that gives a prediction per instrument. The attention and message weights can be kept for inspection.",
+      "inExample": "The model outputs 45 percent up for MNQ, 46 percent for MES and 51 percent for MYM."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting direction across a basket of related markets",
+      "example": "Predicting the 6-bar direction of MNQ, MES and MYM together, with each prediction informed by the others."
+    },
+    {
+      "task": "Studying lead and lag between markets",
+      "example": "Reading the link weights to see whether MNQ leads MES by a bar or two during selloffs."
+    },
+    {
+      "task": "Event windows",
+      "example": "Looking far back at the bars around a scheduled release while spreading the effect across linked instruments."
+    },
+    {
+      "task": "Cross-sectional scores for ranking",
+      "example": "Producing one score per instrument to rank which index future to favour."
+    }
+  ],
+  "avoidWhen": [
+    "You trade a single market; with no neighbours the graph half adds nothing, and gradient boosting or a plain sequence model costs far less.",
+    "You have limited history; attention models need plenty of data and careful warm-up, and a simpler model on engineered features will usually be steadier."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute bar, the model reads 64 bars of MNQ, MES and MYM and returns a probability of up for each instrument over the next 6 bars.",
+    "input": {
+      "summary": "Three instruments, 64 normalised bars each, and a graph of their links.",
+      "fields": [
+        { "name": "instruments", "value": "MNQ, MES, MYM", "meaning": "Micro E-mini Nasdaq-100, Micro E-mini S&P 500 and Micro E-mini Dow futures, which share a common factor." },
+        { "name": "bars per instrument", "value": "64", "meaning": "Over five hours of 5-minute bars given to each instrument." },
+        { "name": "MNQ return over the last 6 bars", "value": "minus a third of a percent", "meaning": "Recent price change in the instrument that moved first." },
+        { "name": "MNQ average true range, 14 bars", "value": "29 points", "meaning": "Typical high-to-low travel of an MNQ bar." },
+        { "name": "link strength MNQ to MES", "value": "93 percent correlation", "meaning": "How tightly the two have moved together lately." },
+        { "name": "link strength MNQ to MYM", "value": "84 percent correlation", "meaning": "A looser link to the third instrument." }
+      ]
+    },
+    "output": {
+      "summary": "A probability of up for each instrument plus the weights the model used.",
+      "fields": [
+        { "name": "MNQ probability of up", "value": "45 percent", "meaning": "Chance that MNQ's close 6 bars later is higher." },
+        { "name": "MES probability of up", "value": "46 percent", "meaning": "The same event for MES." },
+        { "name": "MYM probability of up", "value": "51 percent", "meaning": "The same event for MYM, the least affected." },
+        { "name": "strongest look-back bar for MNQ", "value": "9 bars ago", "meaning": "The earlier bar the latest MNQ bar paid most attention to." }
+      ]
+    },
+    "reading": "MNQ and MES lean mildly down and MYM is near even, so the model sees weakness spreading from MNQ. These are small leans; confirm on walk-forward folds with costs, and check against a version without the graph to see whether neighbour information really helps."
+  }
+}

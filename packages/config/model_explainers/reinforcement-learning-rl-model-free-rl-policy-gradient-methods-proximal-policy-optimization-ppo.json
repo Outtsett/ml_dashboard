@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-proximal-policy-optimization-ppo",
+  "name": "Proximal Policy Optimization (PPO)",
+  "analogy": "Think of it as a trader reviewing a week of trades with a coach who says: improve, but never change your style by more than a small amount in one review. Each review nudges the habits that worked, and the coach's limit stops one lucky or unlucky week from rewriting everything.",
+  "steps": [
+    {
+      "title": "Play a batch of bars with the current policy",
+      "description": "The current policy trades through a stretch of data and everything is recorded: what it saw, what it chose, how likely it thought that choice was, and what reward came back.",
+      "inExample": "The policy trades 2,048 five-minute MNQ bars and logs each bar's features, its action, its stated chance for that action and the reward."
+    },
+    {
+      "title": "Judge each action against what was expected",
+      "description": "A second network estimates how much reward to expect from each situation. The difference between what actually happened and what was expected is the advantage: positive means the action was better than usual, negative means worse.",
+      "inExample": "A long entry after a pullback earned 14 dollars when about 3 dollars was expected, so that action gets a clearly positive advantage."
+    },
+    {
+      "title": "Measure how far the new policy has moved",
+      "description": "As the policy is adjusted, the model compares the new chance it gives each past action with the chance the old policy gave. This ratio says how much the habit has changed.",
+      "inExample": "After one adjustment, the policy gives the pullback long entry a 52 percent chance instead of 45 percent, a moderate shift."
+    },
+    {
+      "title": "Clip the change so it cannot run away",
+      "description": "Once an action's chance has moved beyond a small band around its old value, the model stops rewarding further movement. This is the defining move of the method: it keeps every update small and stable.",
+      "inExample": "The band allows about 20 percent change, so pushing the chance of that long entry far above 54 percent earns no extra credit."
+    },
+    {
+      "title": "Reuse the same batch for several passes",
+      "description": "Because the clip keeps changes safe, the same recorded batch is used for several rounds of small adjustments. That squeezes more learning out of expensive simulated or historical runs.",
+      "inExample": "The 2,048 bars are used for 4 passes before any new data is collected."
+    },
+    {
+      "title": "Balance the three goals in one loss",
+      "description": "The adjustment combines three aims: improve the policy, make the expectation network more accurate, and keep a little randomness so the policy keeps exploring. Then fresh data is collected and the cycle repeats.",
+      "inExample": "A small bonus for staying unsure keeps the policy from collapsing onto always long after a rising month."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A standard first trading policy",
+      "example": "Training a position policy that chooses short, flat or long each five-minute bar on MNQ, as the baseline every fancier method must be compared with."
+    },
+    {
+      "task": "Learning that survives volatile stretches",
+      "example": "Training across a month that includes a sharp news-driven day without one wild batch wrecking a policy that had been settling well."
+    },
+    {
+      "task": "Several instruments at once",
+      "example": "Choosing positions in MNQ and ES together, with an action for each instrument, so the policy can learn they usually move together."
+    },
+    {
+      "task": "A policy meant to run for real",
+      "example": "Producing a stable policy for a paper-trading trial, where steady improvement matters more than speed of learning."
+    }
+  ],
+  "avoidWhen": [
+    "Real experience is very scarce and simulation is not available; a method that reuses stored experience many times, or builds a market model, wastes less data.",
+    "A plain supervised model predicting direction from features is enough; reinforcement learning adds noise and tuning cost that a one-step prediction does not need."
+  ],
+  "example": {
+    "scenario": "A trained policy is watching MNQ five-minute bars. At the 13:20 bar it must choose between short, flat and long.",
+    "input": {
+      "summary": "The state the policy reads for this bar: recent features and what it currently holds.",
+      "fields": [
+        { "name": "close", "value": "19,421", "meaning": "The price at which the 13:20 five-minute bar closed." },
+        { "name": "price change over the last 6 bars", "value": "down 54 points", "meaning": "How far price has fallen over the previous 30 minutes, about a quarter of a percent." },
+        { "name": "relative strength index, 14 bars", "value": "34", "meaning": "A momentum reading from 0 to 100; lower values mean recent selling." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "30 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts held going into the decision." }
+      ]
+    },
+    "output": {
+      "summary": "The policy's chance for each action, the expected reward its second network attaches to the situation, and the action drawn.",
+      "fields": [
+        { "name": "chance of going short", "value": "21 percent", "meaning": "The policy's stated preference for a short position." },
+        { "name": "chance of staying flat", "value": "29 percent", "meaning": "The policy's stated preference for no position." },
+        { "name": "chance of going long", "value": "50 percent", "meaning": "The policy's stated preference for a long position after the pullback." },
+        { "name": "expected reward from this state", "value": "5 US dollars", "meaning": "What the second network thinks a bar like this is worth on average." },
+        { "name": "action drawn", "value": "go long 1 contract", "meaning": "The option picked by sampling from the chances above." }
+      ]
+    },
+    "reading": "During training the action is sampled, so the same bar can produce different choices; for a finished run you usually take the most likely action instead. A split like 50, 29 and 21 percent is a mild preference, so judge the policy by its results over many folds after costs, not by one confident-looking bar."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-self-augmented-contrastive-encoder",
+  "name": "Self-Augmented Contrastive Encoder",
+  "analogy": "Think of it as a line-up game where the player also chooses how to disguise the chart. A twin is disguised with noise, stretching or hidden bars, and the model must pick it out of a crowd. The disguises are tuned to market data: strong enough to be a challenge, never strong enough to turn a rally into a selloff.",
+  "steps": [
+    {
+      "title": "Choose disguises that suit market data",
+      "description": "Each window gets alterations chosen for time series: small random noise, a gentle rescaling, a slight stretch or squeeze in time, hidden bars. The strengths are set or learned so the window stays recognisably the same market situation.",
+      "inExample": "Noise is set to 10 percent of the window's average true range, time stretch to within 5 percent and masking to 15 percent of bars."
+    },
+    {
+      "title": "Make two disguised copies of each window",
+      "description": "Each window is altered twice with different random draws from the chosen disguises. These two copies are twins: they came from the same window and should be described alike.",
+      "inExample": "A 48-bar MNQ window becomes twin A with noise and a slight stretch and twin B with masked bars."
+    },
+    {
+      "title": "Describe every copy as a short vector",
+      "description": "An encoder network reads each copy and a small head shrinks the result to a short vector scaled to unit length. Similarity between two copies is the cosine of the angle between their vectors.",
+      "inExample": "Each copy becomes a vector of 128 numbers; a batch of 512 windows gives 1,024 vectors."
+    },
+    {
+      "title": "Treat every other window as a wrong answer",
+      "description": "All copies coming from other windows in the batch are negatives. A good description must make a copy more similar to its own twin than to any of these. Large batches give many informative wrong answers.",
+      "inExample": "Each copy is compared against 1,022 copies from other windows plus its own twin."
+    },
+    {
+      "title": "Reward finding the twin",
+      "description": "The encoder is adjusted so that each copy is very similar to its twin and dissimilar to everything else. The loss is applied in both directions. A temperature setting controls how sharp this must be.",
+      "inExample": "Twin similarity moves from 40 percent to 88 percent over training while the closest wrong copy stays near 35 percent."
+    },
+    {
+      "title": "Tune the disguises if they are learned",
+      "description": "In the learned form, a small augmentation network or policy adjusts the strengths of the disguises too, searching for settings that keep the description steady while staying inside limits that preserve the window's meaning. After training, the extra head is dropped and the encoder output is used.",
+      "inExample": "The learned noise level settles at 8 percent of the average true range, and the encoder's 128-number output is kept."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Features for market windows without labels",
+      "example": "Pretraining on years of MNQ and ES windows with disguises that respect price behaviour."
+    },
+    {
+      "task": "Clustering recurring situations",
+      "example": "Grouping window descriptions into recurring market states for regime studies."
+    },
+    {
+      "task": "A starting point for supervised models",
+      "example": "Fine-tuning a direction classifier from the encoder using a few months of labelled bars."
+    },
+    {
+      "task": "Testing how much disguising is safe",
+      "example": "Comparing downstream results with noise at 5, 10 and 20 percent of average true range to see where the description stops being useful."
+    }
+  ],
+  "avoidWhen": [
+    "You cannot say which alterations preserve a window's meaning; poor disguises teach the model to ignore genuine differences.",
+    "You need to point at specific historical look-alikes; a Siamese network trained on outcome pairs is built for that."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains the encoder on two years of unlabelled MNQ 5-minute windows with batches of 512 and disguises scaled to the average true range. Afterwards, they check how alike the twins are and take the description of today's window.",
+    "input": {
+      "summary": "A batch of windows, each with two disguised twins, and the disguise settings used.",
+      "fields": [
+        { "name": "windows per batch", "value": "512", "meaning": "How many different windows serve as each other's wrong answers." },
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "noise strength", "value": "10 percent of average true range", "meaning": "The size of random noise added, scaled to recent bar travel." },
+        { "name": "time stretch limit", "value": "5 percent", "meaning": "The largest stretch or squeeze applied to the time axis." },
+        { "name": "bars masked", "value": "15 percent", "meaning": "The share of bars hidden in a disguised copy." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The recent typical bar travel used to scale the noise." }
+      ]
+    },
+    "output": {
+      "summary": "A description of the window and checks on how stable it is under disguise.",
+      "fields": [
+        { "name": "window description", "value": "128 numbers", "meaning": "The encoder output for use by later models." },
+        { "name": "similarity between the two twins", "value": "88 percent", "meaning": "How alike the two disguised copies of today's window look to the encoder." },
+        { "name": "similarity to the closest other window", "value": "35 percent", "meaning": "How alike the nearest different window in the batch is; lower is better." }
+      ]
+    },
+    "reading": "A large gap between twin similarity and closest-wrong similarity shows the description is both stable and distinctive. It does not show that the description predicts direction. Test a small classifier on these descriptions against raw indicators across walk-forward folds, after costs."
+  }
+}

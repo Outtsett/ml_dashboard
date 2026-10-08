@@ -1,0 +1,78 @@
+{
+  "specificationId": "neural-network-architectures-convolutional-networks-u-net",
+  "name": "U-Net",
+  "analogy": "Think of it as zooming out to see the big picture of a chart and then zooming back in to mark it up. On the way out it learns that this is a range with a floor; on the way back in it takes fine detail from the same screen it saw earlier, so the pencil lines it draws land exactly on the right bars and prices.",
+  "steps": [
+    {
+      "title": "Start with a detailed view of the window",
+      "description": "The input is a window of bars or a chart image. A couple of convolutions scan it for small shapes and keep the full resolution, so one output position still matches one bar or pixel.",
+      "inExample": "A window of 128 five-minute MNQ bars with price, range and volume channels is scanned at full resolution."
+    },
+    {
+      "title": "Go down: zoom out in stages",
+      "description": "The encoder repeatedly halves the resolution while increasing the number of feature maps. Each stage sees a larger stretch of the window, so it learns broader context such as 'this is a range' or 'this is a trend'.",
+      "inExample": "The window shrinks from 128 positions to 64, 32 and 16, and at 16 each position summarises 8 bars."
+    },
+    {
+      "title": "Look at the whole thing at the bottom",
+      "description": "At the narrowest point the model holds a compact description of the entire window. It knows the overall character of the window but has lost the exact position of anything.",
+      "inExample": "At the bottom it knows the window is a sideways range with two tests of a floor and one of a ceiling, but not exactly where."
+    },
+    {
+      "title": "Go up: zoom back in, with a copy of the detail",
+      "description": "The decoder doubles the resolution step by step. At each step it receives a copy of the encoder's output at the same size, passed straight across by a skip connection, so fine detail is not lost.",
+      "inExample": "When the decoder returns to 64 positions it receives the encoder's 64 position maps, which still contain the exact bar where price turned."
+    },
+    {
+      "title": "Label every position",
+      "description": "The last layer gives a probability for each class at every bar of the window. Training compares these with labelled windows and adjusts all filters so the labels land in the right place.",
+      "inExample": "Each of the 128 bars gets a label: inside a support zone, inside a resistance zone or neither, with a probability for each."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Marking support and resistance zones on a window",
+      "example": "Labelling which of 128 MNQ bars lie in a support or resistance zone, trained on the dashboard's own chart zone definition so there is one definition of a zone."
+    },
+    {
+      "task": "Labelling every bar rather than the window as a whole",
+      "example": "Marking each bar as part of an uptrend leg, a pullback or a range, instead of giving one label to the whole hour."
+    },
+    {
+      "task": "Segmenting chart images",
+      "example": "Outlining the candles that make up a head-and-shoulders on a chart image, pixel by pixel."
+    },
+    {
+      "task": "Cleaning or reconstructing a series",
+      "example": "Training it to rebuild a window of bars from a noisy copy, and using bars it rebuilds badly as an anomaly flag."
+    }
+  ],
+  "avoidWhen": [
+    "You need one label or number per window, such as next-bar direction; a standard CNN, a transformer or a tree model gives that without the machinery to label each position.",
+    "You have no position-level labels to train on; U-Net needs a label for each bar or pixel, which takes effort or a reliable rule to produce.",
+    "A simple rule already defines the thing you want, such as a swing high; coding the rule directly is clearer and cannot be wrong in new ways."
+  ],
+  "example": {
+    "scenario": "At 15:00 Eastern, a window of the last 128 five-minute MNQ bars is passed through a U-Net trained to reproduce the dashboard's support and resistance zones, so that each bar gets a zone label.",
+    "input": {
+      "summary": "A window of 128 bars with several channels per bar, and trained labels that came from the dashboard's own zone definition.",
+      "fields": [
+        { "name": "window length", "value": "128 bars", "meaning": "How many five-minute bars are labelled at once, about ten and a half hours." },
+        { "name": "channels per bar", "value": "5", "meaning": "Open, high, low and close as changes scaled by the average true range, plus volume against its average." },
+        { "name": "latest close", "value": "19,305", "meaning": "The close of the newest bar in the window." },
+        { "name": "average true range, 14 bars", "value": "19 points", "meaning": "The typical high-to-low travel of a recent bar, used to scale price changes." },
+        { "name": "training labels", "value": "zones from the chart definition", "meaning": "The zones the model learned to reproduce, one label per bar." }
+      ]
+    },
+    "output": {
+      "summary": "A label and a probability for each of the 128 bars, summarised as zones.",
+      "fields": [
+        { "name": "support zone", "value": "19,262 to 19,275, bars 40 to 52", "meaning": "A band of 13 bars where price repeatedly bounced from the same floor." },
+        { "name": "resistance zone", "value": "19,351 to 19,363, bars 96 to 107", "meaning": "A band of 12 bars where price stalled below the same ceiling." },
+        { "name": "average probability inside the zones", "value": "81 percent", "meaning": "How confident the model is on average on bars it labelled as zone members." },
+        { "name": "bars labelled neither", "value": "103 of 128", "meaning": "The number of bars the model placed outside any zone." }
+      ]
+    },
+    "reading": "The model reproduces zones; it does not say what price does next. Overlay the zones on the Market chart to check they match what the chart's own definition draws, and only then test whether trading at them adds anything after costs."
+  }
+}

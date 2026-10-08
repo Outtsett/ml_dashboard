@@ -1,0 +1,78 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-autoencoder-unsupervised",
+  "name": "Autoencoder (Unsupervised)",
+  "analogy": "Think of it as a trader who must summarise a whole bar in six words and then be able to redraw the bar from those six words alone. After enough practice the six words capture what matters, and a bar that cannot be redrawn from them stands out as strange.",
+  "steps": [
+    {
+      "title": "Squeeze the bar through a narrow neck",
+      "description": "A first set of layers, the encoder, takes a bar's full row of features and compresses it step by step into a much shorter list of numbers. This short list is the latent code, and the narrowness is deliberate: it forces the network to keep only what matters.",
+      "inExample": "The 35 base features of the 14:35 bar are squeezed down to a code of just 6 numbers."
+    },
+    {
+      "title": "Rebuild the bar from the code",
+      "description": "A second set of layers, the decoder, takes only the short code and tries to rebuild the original row of features. It never sees the original again, so any detail it recreates must have survived the squeeze.",
+      "inExample": "From its 6 numbers the decoder produces a rebuilt row of 35 feature values for the 14:35 bar."
+    },
+    {
+      "title": "Measure how badly the rebuild missed",
+      "description": "The rebuilt row is compared with the original, feature by feature, and the gaps are combined into one number called the reconstruction error. No labels are needed; the bar itself is the answer key.",
+      "inExample": "The rebuilt 14:35 bar misses the original by a reconstruction error of 90 percent of that bar's own spread across the features."
+    },
+    {
+      "title": "Adjust the layers and repeat",
+      "description": "The network's internal weights are nudged to reduce the average error across all training bars, and the process loops many times. Over thousands of loops the code becomes a compact description of typical market bars.",
+      "inExample": "Over 80 passes through 12 months of five-minute MNQ bars, the typical error falls from 80 percent to 30 percent."
+    },
+    {
+      "title": "Use the code or the error",
+      "description": "After training, the short code can be used as a compact set of new features. The error can be used as an oddness score: a bar unlike anything in training is rebuilt badly and scores high.",
+      "inExample": "The 14:35 bar's error of 90 percent is three times the typical 30 percent, so it is flagged as unusual."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compressing features into a learned code",
+      "example": "Turning the 35 base features of each MNQ 5-minute bar into 6 learned numbers that feed a downstream classifier."
+    },
+    {
+      "task": "Flagging unusual market conditions",
+      "example": "Scoring each new 1-minute bar by its rebuild error to pause a strategy when conditions look unlike anything in the training year, such as a news spike."
+    },
+    {
+      "task": "Cleaning noise from inputs",
+      "example": "Passing noisy order-flow features through the narrow neck so that only the repeatable structure reaches the trading model."
+    },
+    {
+      "task": "Finding curved structure principal component analysis misses",
+      "example": "Replacing a straight-line compression of the 151 technical indicators with a network that can capture curved relationships between volatility and volume."
+    }
+  ],
+  "avoidWhen": [
+    "You have few bars; a neural network needs plenty of data to learn a good code, and with a few thousand rows principal component analysis is steadier.",
+    "You must explain each remaining column in plain terms; the code numbers are learned blends with no fixed meaning."
+  ],
+  "example": {
+    "scenario": "An autoencoder is trained on 12 months of MNQ five-minute bars, each described by 35 base features, to learn a 6-number code. It is then used to score the 14:35 bar of a new day.",
+    "input": {
+      "summary": "One row of 35 standardised features describing the 14:35 bar of a new day, plus the training settings.",
+      "fields": [
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features given to the encoder." },
+        { "name": "code size", "value": "6", "meaning": "How many numbers the bar is squeezed into." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "typical rebuild error in training", "value": "30 percent", "meaning": "The average reconstruction error over the training bars, as a share of each bar's own spread across the features." }
+      ]
+    },
+    "output": {
+      "summary": "The short code for the bar and how well the bar could be rebuilt from it.",
+      "fields": [
+        { "name": "code values, first three of six", "value": "about plus 1, minus 1 and a half, 0", "meaning": "Learned numbers describing the bar, in standard units; they feed other models as compact features." },
+        { "name": "reconstruction error", "value": "90 percent", "meaning": "The share of the bar's own spread across the features that the rebuilt row fails to reproduce." },
+        { "name": "oddness ratio", "value": "3 times typical", "meaning": "This bar's error divided by the typical training error of 30 percent." },
+        { "name": "flag", "value": "unusual", "meaning": "The bar is flagged because its error is far above what training bars produced." }
+      ]
+    },
+    "reading": "An error three times the norm says this bar is unlike what the model saw in training. Use it as a caution light: reduce size or stand aside from a strategy trained on normal conditions, and check what happened on the bar before trusting any prediction made on it."
+  }
+}

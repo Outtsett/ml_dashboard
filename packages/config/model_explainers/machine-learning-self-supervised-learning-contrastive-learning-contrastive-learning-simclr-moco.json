@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-contrastive-learning-simclr-moco",
+  "name": "Contrastive Learning (SimCLR, MoCo)",
+  "analogy": "Think of it as a line-up game. The model is shown a chart and must pick out its own slightly altered twin from a line-up of thousands of other charts. To win, it has to learn what makes a chart itself and not any other, which is exactly the kind of description that later helps in grouping and forecasting.",
+  "steps": [
+    {
+      "title": "Make two altered views of each window",
+      "description": "Each window is copied twice, and each copy is changed a little in ways that should not change its meaning, such as noise, a small rescaling or some hidden bars. The two copies of one window are a positive pair.",
+      "inExample": "A 48-bar MNQ window gets a noisy copy and a masked copy; these two are the positive pair."
+    },
+    {
+      "title": "Turn every view into a short vector",
+      "description": "A network reads each view and produces a vector of numbers, which is then scaled to unit length. Similarity between two views is the cosine of the angle between their vectors, so it only measures direction.",
+      "inExample": "Each view becomes a vector of 128 numbers; a batch of 1,024 windows gives 2,048 vectors."
+    },
+    {
+      "title": "Gather the wrong answers",
+      "description": "Every view from a different window is a negative. The two methods differ in where negatives come from. SimCLR uses the other windows in a very large batch. MoCo keeps a stored pool of vectors from earlier steps, produced by a slow-moving copy of the network.",
+      "inExample": "In the SimCLR setting each noisy copy is compared against the 2,046 other views in its batch."
+    },
+    {
+      "title": "Pull the pair together and push the rest away",
+      "description": "The model is rewarded when its view is far more similar to its own twin than to every negative. A temperature setting controls how sharply it must separate the twin from the crowd. Hard negatives, those that look similar, matter most.",
+      "inExample": "The twin's similarity rises from 35 percent to 90 percent over training while the best wrong match stays near 40 percent."
+    },
+    {
+      "title": "Keep the stored pool fresh (MoCo)",
+      "description": "In MoCo, the stored pool is updated as training goes: new vectors enter and the oldest leave. The slow-moving copy produces these vectors so that they stay consistent with one another even though the main network keeps changing.",
+      "inExample": "A pool of 4,096 earlier window vectors is refreshed a batch at a time."
+    },
+    {
+      "title": "Keep the backbone and drop the extras",
+      "description": "After training, only the part of the network before the final short layer is kept. Its output for a window serves as the learned description, ready for clustering, similarity search or a small labelled model.",
+      "inExample": "Today's window is described by the backbone's 256 numbers, then clustered with other windows."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning descriptions without labels",
+      "example": "Pretraining on years of MNQ and ES 5-minute windows before any direction labels are applied."
+    },
+    {
+      "task": "Grouping market states",
+      "example": "Clustering window descriptions into session types such as trend days, rotations and breakouts."
+    },
+    {
+      "task": "Starting point for a forecaster",
+      "example": "Fine-tuning a direction classifier from the backbone using a few months of labelled bars."
+    },
+    {
+      "task": "Finding look-alike windows",
+      "example": "Ranking past windows by similarity to the current one to see what followed them."
+    }
+  ],
+  "avoidWhen": [
+    "You cannot define alterations that keep a window's meaning; if the changes alter the market situation, the model learns to ignore real differences.",
+    "Your history is small; the method relies on many different windows to serve as informative wrong answers."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains with the SimCLR style on two years of unlabelled MNQ 5-minute windows, batch size 1,024. At test time they check that a window's altered twin ranks first among the other views in its batch.",
+    "input": {
+      "summary": "A batch of windows, each with two altered views, plus a pool of other windows serving as wrong answers.",
+      "fields": [
+        { "name": "windows per batch", "value": "1,024", "meaning": "How many different windows are compared together; each one's twin is the right answer." },
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "features per bar", "value": "8", "meaning": "Rescaled return, range, body share, wick balance, volume and related measures." },
+        { "name": "views of each window", "value": "2", "meaning": "A noisy copy and a masked copy of the same window." },
+        { "name": "temperature setting", "value": "one tenth", "meaning": "How sharply the model must separate its twin from the other views." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The recent typical bar travel." }
+      ]
+    },
+    "output": {
+      "summary": "A description per window and a check on whether twins can be found in the crowd.",
+      "fields": [
+        { "name": "window description", "value": "256 numbers", "meaning": "The backbone output used by later models." },
+        { "name": "similarity to the altered twin", "value": "90 percent", "meaning": "How alike the two views of the same window look to the model." },
+        { "name": "rank of the twin among 2,047 candidate views", "value": "1st", "meaning": "The twin is the single most similar candidate, which is the goal of the game." }
+      ]
+    },
+    "reading": "Finding the twin first is evidence that the description captures what makes a window itself. It is not evidence of forecasting power. The proper test is a labelled model on top of the description compared with the same model on raw indicators over walk-forward folds, net of costs."
+  }
+}

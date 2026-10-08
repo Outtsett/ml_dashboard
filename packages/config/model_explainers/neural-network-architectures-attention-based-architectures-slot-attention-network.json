@@ -1,0 +1,78 @@
+{
+  "specificationId": "neural-network-architectures-attention-based-architectures-slot-attention-network",
+  "name": "Slot Attention Network",
+  "analogy": "Think of it as sorting a messy hour of the tape into a few labelled trays. You put down four empty trays, and every bar is dropped into the tray it fits best; the trays adjust to what they hold, bars move to a better tray, and after a few rounds each tray holds one kind of behaviour, such as a drift, a burst or a quiet stretch.",
+  "steps": [
+    {
+      "title": "Turn the window into a set of features",
+      "description": "The recent bars are first converted by a simple network into a set of feature lists, one per bar. Slot attention treats them as an unordered set, so it cares about what each bar looks like and not about being first or last.",
+      "inExample": "A window of 60 five-minute MNQ bars becomes 60 feature lists made of price change, range, volume and a few indicators."
+    },
+    {
+      "title": "Create a few empty slots",
+      "description": "A fixed number of slots is created, each a blank summary that will come to stand for one component of the window. The slots start from random values, and the number of slots is chosen up front.",
+      "inExample": "Four slots are created, starting out identical in role and different only in their random starting values."
+    },
+    {
+      "title": "Let the slots compete for the bars",
+      "description": "Each bar is compared with every slot and given mostly to the slot it matches best. The competition is the key trick: because a bar's attention must be divided among slots, slots are pushed toward explaining different bars rather than all explaining the same ones.",
+      "inExample": "A run of rising bars with steady range gives most of its attention to slot 1; the three wide-range bars after a headline go to slot 2."
+    },
+    {
+      "title": "Update each slot from the bars it won",
+      "description": "Each slot is rewritten as a blend of the bars assigned to it, then passed through a small network to refine it. This is repeated for a few rounds, so assignments and slots improve each other.",
+      "inExample": "After the first round slot 1 holds the average look of the rising bars; after the third round the assignments stop changing much."
+    },
+    {
+      "title": "Read the slots as separate components",
+      "description": "After the last round each slot is a compact description of one component. These can be used on their own, such as to label which part of the window is which, or passed to a later model that forecasts or flags anomalies. In training, the slots are usually asked to rebuild the window, which forces them to capture what matters.",
+      "inExample": "The four slots end up covering 38, 14, 33 and 15 percent of the bars and are read as steady drift, wide-range burst, quiet range and jump."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Splitting a window into its component behaviours",
+      "example": "Separating an hour of MNQ 5-minute bars into trend, volatility burst and quiet stretches without labelling any of them first."
+    },
+    {
+      "task": "Finding regime-like segments without labels",
+      "example": "Letting the slots form on a year of bars and then checking whether they line up with the high-volatility days you already know."
+    },
+    {
+      "task": "Spotting unusual windows",
+      "example": "Flagging a window that the slots rebuild badly, as a sign something new is happening in the market."
+    },
+    {
+      "task": "Compact inputs for a later model",
+      "example": "Giving a forecaster 4 slot summaries instead of 60 raw bars so it has less to overfit."
+    }
+  ],
+  "avoidWhen": [
+    "You have a clear label to predict, such as next-bar direction; a supervised model trained on that label will use the data more directly.",
+    "You need the same trays to mean the same thing every day; slot identities can swap between runs and need a check before you rely on them.",
+    "You do not know how many components to expect and cannot test several; a wrong slot count merges or splits real behaviours."
+  ],
+  "example": {
+    "scenario": "A 60-bar window of 5-minute MNQ bars ending at 13:30 is split into 4 slots. The aim is to see what kinds of behaviour the hour contains, not to predict anything.",
+    "input": {
+      "summary": "One feature list for each of the 60 bars, treated as an unordered set, and the chosen number of slots.",
+      "fields": [
+        { "name": "window length", "value": "60 bars", "meaning": "The number of five-minute bars examined, five hours of trading." },
+        { "name": "number of slots", "value": "4", "meaning": "How many components the model is asked to find, set in advance." },
+        { "name": "bar features", "value": "range, price change, volume ratio, trend reading", "meaning": "What each bar's feature list holds." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, used to scale the ranges." },
+        { "name": "refinement rounds", "value": "3", "meaning": "How many times the slots compete for the bars and update." }
+      ]
+    },
+    "output": {
+      "summary": "Each slot's share of the bars and what its members look like.",
+      "fields": [
+        { "name": "slot 1 share of bars", "value": "38 percent", "meaning": "Mostly rising bars with ordinary range, read as a steady drift upward." },
+        { "name": "slot 2 share of bars", "value": "14 percent", "meaning": "Bars with ranges around twice normal and heavy volume, read as a volatility burst." },
+        { "name": "slot 3 share of bars", "value": "33 percent", "meaning": "Small-range, below-average-volume bars, read as a quiet range." },
+        { "name": "slot 4 share of bars", "value": "15 percent", "meaning": "Bars that gapped or jumped from the prior close, read as sudden moves." }
+      ]
+    },
+    "reading": "The shares add up to 100 percent and the readings match what a trader would call the hour. Because the slots are found without labels, the names are your interpretation; confirm them by looking at the bars in each slot on the chart before using them as regimes."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-supervised-learning-probabilistic-models-naive-bayes",
+  "name": "Naive Bayes",
+  "analogy": "Think of it as a panel of witnesses who each give a separate piece of evidence. Every indicator says how much more common its reading is among past up bars than among past down bars, and the model simply multiplies those odds together, pretending the witnesses never talk to each other.",
+  "steps": [
+    {
+      "title": "Sort the training bars by outcome",
+      "description": "The training bars are split into groups by what followed them, such as bars that were followed by a higher close and bars that were followed by a lower close. Each group's share of the history becomes the starting belief.",
+      "inExample": "Of 40,000 training bars, 51 percent were followed by a higher close 6 bars later and 49 percent by a lower close, which is starting odds of 104 to 100 for up."
+    },
+    {
+      "title": "Describe each feature inside each group",
+      "description": "For every feature the model records what its typical value and spread are within each group. This gives, for each indicator, a bell-shaped picture of what it usually reads before up moves and before down moves.",
+      "inExample": "The relative strength index averages 47 before up moves and 49 before down moves, with a spread of about 14 in both groups."
+    },
+    {
+      "title": "Ask how typical the new reading is for each group",
+      "description": "For a new bar, each feature's reading is checked against both pictures. The model asks how common that reading is among up bars compared with down bars, giving a ratio per feature.",
+      "inExample": "The relative strength index of 27 is about 25 percent more common before up moves than before down moves."
+    },
+    {
+      "title": "Multiply the evidence together",
+      "description": "The starting belief and all the per-feature ratios are multiplied. This treats every feature as independent evidence, which is the naive part: related indicators get counted more than once, so the final number tends to be too confident.",
+      "inExample": "The starting odds of 104 to 100 are raised 25 percent for the relative strength index, 3 percent for volume and 4 percent for the distance from the average, and cut 2 percent for the 6-bar return, giving about 136 to 100 for up."
+    },
+    {
+      "title": "Turn the combined odds into a probability",
+      "description": "The final up-to-down odds are converted into a probability between 0 and 100 percent, which is the answer for the bar.",
+      "inExample": "Odds of 136 to 100 for up become 136 out of 236, about 58 percent for an up close."
+    },
+    {
+      "title": "Refresh cheaply as data grows",
+      "description": "Because training is only counting averages and spreads, the model can be refit in an instant whenever new bars arrive, with no repeated passes or tuning of steps.",
+      "inExample": "Adding the latest week of bars and recomputing the per-group averages takes well under a second."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A very fast first baseline",
+      "example": "Getting a direction probability for MNQ 5-minute bars in seconds before deciding whether a heavier model is worth building."
+    },
+    {
+      "task": "Small amounts of labelled data",
+      "example": "Classifying rare regimes where only a few hundred labelled bars exist and a larger model would overfit."
+    },
+    {
+      "task": "Combining independent rule signals",
+      "example": "Treating each rule firing as one piece of evidence and combining a dozen rules into a single probability."
+    },
+    {
+      "task": "Filtering a signal's trades",
+      "example": "Estimating the chance that a signal's entry is a true positive from a handful of unrelated features."
+    }
+  ],
+  "avoidWhen": [
+    "Your features are strongly related, as most technical indicators are; the model counts the same evidence several times and its probabilities become overconfident.",
+    "You need well-calibrated probabilities; its ranking of bars can be reasonable while the percentages themselves are stretched, so they should be recalibrated or ignored.",
+    "The signal lives in combinations of features, since the model looks at each feature on its own."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A Naive Bayes model, trained on 40,000 earlier bars, gives the probability that the close 6 bars (30 minutes) later will be above this close.",
+    "input": {
+      "summary": "The bar's feature readings, plus the starting belief learned from the training bars.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "starting share of up outcomes", "value": "51 percent", "meaning": "How often the training bars were followed by a higher close, before looking at any feature." }
+      ]
+    },
+    "output": {
+      "summary": "An up-versus-down probability and the combined odds behind it.",
+      "fields": [
+        { "name": "combined odds, up against down", "value": "136 to 100", "meaning": "The starting odds multiplied by the evidence ratio of every feature." },
+        { "name": "probability the close is higher 6 bars later", "value": "58 percent", "meaning": "The combined odds converted into a probability." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "strongest single piece of evidence", "value": "relative strength index, 25 percent in favour of up", "meaning": "The feature whose ratio pushed the odds furthest toward up." }
+      ]
+    },
+    "reading": "58 percent is a modest lean, but with overlapping indicators it is probably more confident than reality, so use it to rank bars and not as a literal chance. Check on held-out folds how often the top-ranked bars really rose, and whether that holds up after commission and slippage."
+  }
+}

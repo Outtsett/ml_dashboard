@@ -1,0 +1,80 @@
+{
+  "specificationId": "simulation-decision-models-tree-graph-based-decision-models-bayesian-decision-networks",
+  "name": "Bayesian Decision Networks",
+  "analogy": "Think of it as a flowchart that understands doubt. Boxes for things you are unsure about are linked by arrows showing what influences what, a box marks the choice you control, and a final box scores the outcome. Feed in what you have seen, and the chart tells you which choice has the best expected score.",
+  "steps": [
+    {
+      "title": "Draw the uncertain things and how they connect",
+      "description": "Each uncertain quantity gets a node. An arrow from one node to another means the first influences the second. Each node carries a small table of probabilities given its parents.",
+      "inExample": "A node for the volatility regime (calm or elevated) points to a node for tomorrow's average true range being high or low."
+    },
+    {
+      "title": "Add the decision and the score",
+      "description": "A decision node lists the choices you control, and a utility node says how good each combination of choice and outcome is. This turns a probability model into a decision tool.",
+      "inExample": "The decision is how much of a 10-contract MNQ long to hedge: none, half or all. The score is the risk-adjusted profit in US dollars."
+    },
+    {
+      "title": "Enter what you have observed",
+      "description": "Observed nodes are fixed at their known values. The beliefs about every unobserved node are updated using the probability tables, working backwards from the evidence to the cause.",
+      "inExample": "The average true range today is high. Before the evidence, the chance of an elevated regime was 30 percent. After it, the chance is 63 percent."
+    },
+    {
+      "title": "Score every choice under the updated beliefs",
+      "description": "For each possible choice, the model weighs the score in each outcome by the probability of that outcome. The result is an expected score for each choice.",
+      "inExample": "With elevated at 63 percent and calm at 37 percent, the expected score is minus 475 for no hedge, minus 135 for half, and minus 149 for a full hedge."
+    },
+    {
+      "title": "Pick the best choice and report the reasoning",
+      "description": "The choice with the highest expected score is recommended. The updated probabilities at every node can be inspected, so the reasoning is open to checking.",
+      "inExample": "The recommendation is the half hedge, because it protects well in the elevated regime without giving up too much in the calm one."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Hedging under regime uncertainty",
+      "example": "Choosing a hedge ratio for a long MNQ position when it is unclear whether volatility is entering an elevated regime."
+    },
+    {
+      "task": "Sizing with stated risk preferences",
+      "example": "Selecting a position size by expected score after a penalty for large losses, instead of by expected return alone."
+    },
+    {
+      "task": "Combining evidence from several sources",
+      "example": "Letting news sentiment, volatility and a trend signal each update the belief about tomorrow's regime before a decision."
+    },
+    {
+      "task": "Formalising a discretionary override",
+      "example": "Stating when switching off an automated risk limit would be justified by the evidence at hand."
+    }
+  ],
+  "avoidWhen": [
+    "The decision unfolds over many bars and today's choice changes tomorrow's situation; a dynamic version that links time steps handles that.",
+    "You have no sound way to estimate the probability tables; the answer would reflect your guesses rather than the data."
+  ],
+  "example": {
+    "scenario": "A trader is long 10 MNQ contracts and sees an unusually high average true range today. They want to know whether to hedge none, half or all of the position, given a prior belief that the market is entering an elevated-volatility regime.",
+    "input": {
+      "summary": "The prior belief, how the evidence relates to the regime, and the scores of each choice in each regime.",
+      "fields": [
+        { "name": "prior chance of an elevated regime", "value": "30 percent", "meaning": "The belief before seeing today's range." },
+        { "name": "chance of a high range if elevated", "value": "80 percent", "meaning": "How often an elevated regime shows a high average true range." },
+        { "name": "chance of a high range if calm", "value": "20 percent", "meaning": "How often a calm regime still shows a high average true range." },
+        { "name": "evidence observed", "value": "average true range is high", "meaning": "The fact that is entered into the network today." },
+        { "name": "no hedge score", "value": "minus 900 if elevated, plus 250 if calm", "meaning": "Risk-adjusted result in US dollars of holding the full position." },
+        { "name": "half hedge score", "value": "minus 250 if elevated, plus 60 if calm", "meaning": "Risk-adjusted result of hedging half." },
+        { "name": "full hedge score", "value": "minus 60 if elevated, minus 300 if calm", "meaning": "Risk-adjusted result of hedging all, including the cost of giving up the upside." }
+      ]
+    },
+    "output": {
+      "summary": "The updated belief, the expected score of each choice and the recommendation.",
+      "fields": [
+        { "name": "updated chance of an elevated regime", "value": "63 percent", "meaning": "The belief after the high range is taken into account." },
+        { "name": "expected score with no hedge", "value": "minus 475 US dollars", "meaning": "Probability-weighted score of holding the full position." },
+        { "name": "expected score with half hedge", "value": "minus 135 US dollars", "meaning": "Probability-weighted score of hedging half." },
+        { "name": "expected score with full hedge", "value": "minus 149 US dollars", "meaning": "Probability-weighted score of hedging all." },
+        { "name": "recommended choice", "value": "half hedge", "meaning": "The choice with the best expected score." }
+      ]
+    },
+    "reading": "The half hedge wins narrowly over the full hedge, so a small change in the probability tables could change the answer. Check how sensitive the choice is to the 80 and 20 percent figures before acting on it."
+  }
+}

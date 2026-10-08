@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-generative-discriminative-hybrids-bayesian-neural-hybrid-model",
+  "name": "Bayesian-Neural Hybrid Model",
+  "analogy": "Think of it as polling a room of analysts who all trained on the same history but ended up with slightly different views. Instead of trusting one analyst, you ask many and look at the spread. If they agree, the call is firm; if they scatter, the model is telling you it does not know.",
+  "steps": [
+    {
+      "title": "Start with a neural network whose settings are ranges",
+      "description": "An ordinary neural network has one fixed number for every connection. Here every connection holds a range of plausible values instead: a centre and a spread. Together the ranges describe a whole crowd of possible networks.",
+      "inExample": "A network of 3,000 connections is set up, each with a centre near zero and a wide starting spread."
+    },
+    {
+      "title": "Set a prior belief",
+      "description": "Before seeing data, each range starts from a modest prior that says connections should be small and sensible. This acts as a gentle brake against extreme settings that would fit noise.",
+      "inExample": "The prior says every connection is most likely between minus 1 and plus 1."
+    },
+    {
+      "title": "Learn from the data",
+      "description": "Training narrows each range toward values that explain the training bars, while the prior keeps the ranges from collapsing too far. Connections that matter get narrow ranges; those the data cannot pin down stay wide.",
+      "inExample": "After training, ranges on volume and momentum connections are narrow, while those for rarely-informative features stay wide."
+    },
+    {
+      "title": "Draw many networks from the learned ranges",
+      "description": "To make a prediction, the model samples a set of concrete networks from the learned ranges, for example 100 of them. Each sampled network is a full, ordinary network that can read a bar and give an answer.",
+      "inExample": "100 networks are drawn, each one slightly different from the others."
+    },
+    {
+      "title": "Ask every sampled network",
+      "description": "Each sampled network gives its own probability for the bar. The results form a spread of answers. The average is the model's call and the width of the spread is its uncertainty.",
+      "inExample": "The 100 networks give probabilities of up between 41 and 68 percent, averaging 55 percent."
+    },
+    {
+      "title": "Act on the call and the confidence together",
+      "description": "The average and the spread are read together. A wide spread means the model lacks the evidence and the call should be discounted, even if the average looks attractive. This is the main practical gain over a plain network.",
+      "inExample": "The spread has a standard deviation of 6 points, twice the usual 3, so the 55 percent call is treated as low confidence."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls with a confidence measure",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be higher, and only trading when the spread of answers is narrow."
+    },
+    {
+      "task": "Sizing positions by uncertainty",
+      "example": "Taking a full position when the networks agree within 2 points and a quarter position when they scatter over 10 points."
+    },
+    {
+      "task": "Spotting situations outside the training experience",
+      "example": "Noticing that during a volatility shock the sampled networks disagree widely, which signals the market looks unlike anything in training."
+    },
+    {
+      "task": "Working with limited data",
+      "example": "Fitting a forecaster for a thinly-traded contract where the prior helps stop the network from overfitting."
+    }
+  ],
+  "avoidWhen": [
+    "You need fast predictions on many bars at once; sampling many networks multiplies the cost, so a single tuned model or gradient boosting is quicker.",
+    "You want a simple, stable training run; the ranges are harder to fit than plain connections, and a wrong setup can give a spread that looks confident but is not trustworthy."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, a Bayesian neural model samples 100 networks and asks each for the chance that the close 6 bars later is higher than this close.",
+    "input": {
+      "summary": "One row of features for the bar and the number of networks to sample.",
+      "fields": [
+        { "name": "close", "value": "19,188", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "Typical high-to-low travel of a recent bar, high today." },
+        { "name": "relative strength index, 14 bars", "value": "38", "meaning": "A momentum reading from 0 to 100; below 50 leans toward selling pressure." },
+        { "name": "volume against its 20-bar average", "value": "140 percent above", "meaning": "Very heavy trading compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "minus about half a percent", "meaning": "How much price fell over the previous 30 minutes." },
+        { "name": "networks sampled", "value": "100", "meaning": "How many networks are drawn from the learned ranges to answer." }
+      ]
+    },
+    "output": {
+      "summary": "An average probability and a measure of how much the sampled networks disagree.",
+      "fields": [
+        { "name": "average probability of up", "value": "55 percent", "meaning": "The mean of the 100 networks' answers, taken as the model's call." },
+        { "name": "lowest and highest network answer", "value": "41 and 68 percent", "meaning": "The range of answers across the sampled networks." },
+        { "name": "spread of answers", "value": "6 percentage points", "meaning": "The standard deviation across networks; larger means less certainty." },
+        { "name": "typical spread on training bars", "value": "3 percentage points", "meaning": "The usual disagreement on ordinary bars, used as a yardstick." }
+      ]
+    },
+    "reading": "The spread is twice the usual, so this bar sits in unfamiliar conditions: heavy volume, a sharp drop and wide ranges. The 55 percent average is not enough to trade on. Use the spread to cut size or stand aside when it exceeds your chosen limit, and judge the rule by walk-forward results after costs."
+  }
+}

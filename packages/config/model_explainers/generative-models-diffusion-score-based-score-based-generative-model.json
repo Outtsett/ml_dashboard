@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-diffusion-score-based-score-based-generative-model",
+  "name": "Score-Based Generative Model",
+  "analogy": "Think of it as a hiker lost in fog on a hilly landscape where the high ground is realistic market data. At every spot the model gives a small arrow pointing uphill toward more realistic data. To make something new, start at a random spot and keep following the arrows, with a little shaking, until you stand on a believable hilltop.",
+  "steps": [
+    {
+      "title": "Blur the real data with several noise levels",
+      "description": "Real samples are corrupted with random noise at many different strengths, from a whisper to a roar. Heavy noise hides almost everything and light noise leaves the data nearly intact.",
+      "inExample": "A real 20-bar window of normalized 5-minute returns is blurred at 10 noise levels, from faint to overwhelming."
+    },
+    {
+      "title": "Train a network to point toward cleaner data",
+      "description": "The network is shown a noisy sample and the noise level and learns to output an arrow: the direction in which the sample would look more like real data. This arrow is what the model calls the score.",
+      "inExample": "Shown a noisy window at a medium noise level, the network outputs an arrow telling each of the 20 values how to move to look more realistic."
+    },
+    {
+      "title": "Learn arrows at every noise level",
+      "description": "At heavy noise the arrows describe broad structure, and at light noise they describe fine detail. Covering all levels lets the model guide a sample from pure static all the way to a clean result.",
+      "inExample": "The network gives broad-shape arrows at the noisiest level and small-correction arrows at the faintest level."
+    },
+    {
+      "title": "Start from pure static",
+      "description": "To generate, you begin with a sample of pure random noise, the foggiest starting point, and the highest noise level.",
+      "inExample": "The start is 20 random values with no market structure at all."
+    },
+    {
+      "title": "Walk uphill with a little shaking",
+      "description": "At each step the sample is moved a small distance along the arrow, and a little fresh noise is added so that it explores rather than rushing to one spot. The noise level is lowered gradually as the walk continues.",
+      "inExample": "Over 100 steps the 20 values move along the arrows while the noise level falls from heavy to faint."
+    },
+    {
+      "title": "Read off the finished sample",
+      "description": "When the noise level reaches its lowest value, the sample is a new data point that resembles the real ones. The same arrows can also clean a partially noisy real sample or flag one that sits far from realistic regions.",
+      "inExample": "The 20 values now form a window of returns with a realistic mix of small moves and one larger drop."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating synthetic windows of market data",
+      "example": "Producing new 20-bar windows of normalized 5-minute MNQ returns to widen the scenarios a strategy is tested on."
+    },
+    {
+      "task": "Cleaning noisy inputs",
+      "example": "Starting from a feature row with corrupted values, such as a bad volume print, and nudging it back toward the realistic region."
+    },
+    {
+      "task": "Checking whether a window is unusual",
+      "example": "Looking at how large the arrow is for a given window; a very large arrow means the window sits far from the realistic regions."
+    }
+  ],
+  "avoidWhen": [
+    "You need an answer fast; generation takes many small steps, so simpler models such as a variational autoencoder or a generative adversarial network respond far quicker.",
+    "You need a calibrated next-bar probability; a model trained on that target directly is more suitable than one that learns the whole data shape."
+  ],
+  "example": {
+    "scenario": "A researcher trained a score-based model on 20-bar windows of normalized 5-minute MNQ returns. They want a new synthetic window, and they also want to know how far one real window sits from the realistic region.",
+    "input": {
+      "summary": "A starting sample of pure noise and the settings of the walk.",
+      "fields": [
+        { "name": "window length", "value": "20 normalized returns", "meaning": "How many values are in each sample, one per 5-minute bar." },
+        { "name": "starting sample", "value": "20 random values", "meaning": "The pure noise that the walk starts from." },
+        { "name": "noise levels", "value": "10, from heavy to faint", "meaning": "The ladder of noise strengths the walk steps down through." },
+        { "name": "steps per noise level", "value": "10", "meaning": "How many small uphill moves are made before the noise level is lowered." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The scale used to turn normalized returns back into points on the chart." }
+      ]
+    },
+    "output": {
+      "summary": "A finished synthetic window and a check on how realistic it is.",
+      "fields": [
+        { "name": "largest single-bar move", "value": "minus 31 points", "meaning": "The biggest move in the generated window, a sharp drop." },
+        { "name": "net move over the window", "value": "minus 14 points", "meaning": "Total change from the start of the window to the end." },
+        { "name": "typical arrow size at the end", "value": "3", "meaning": "How strongly the model still wanted to move the sample at the final step; small means it sits in a realistic region." },
+        { "name": "arrow size of a real window checked", "value": "24", "meaning": "The same measure on a real window; much bigger than 3 means that window looks unusual to the model." }
+      ]
+    },
+    "reading": "Use the generated window as a scenario, not a forecast. The arrow size is the useful diagnostic: values far above the typical ones flag windows that deserve a human look. Compare generated and real windows on volatility and tail size before using them in tests."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-dimensionality-reduction-principal-component-analysis-pca",
+  "name": "Principal Component Analysis (PCA)",
+  "analogy": "Think of it as a photographer walking around a crowd of 151 indicators looking for the few camera angles that show the most spread. The first angle captures the biggest story, the second shows what the first missed, and a handful of photographs end up replacing the whole crowd.",
+  "steps": [
+    {
+      "title": "Put every column on the same scale",
+      "description": "Indicators live on very different scales: a price is near 19,000 while a relative strength index runs from 0 to 100. The model rescales every column so each has an average of zero and the same typical spread, so no column wins just because its numbers are big.",
+      "inExample": "All 151 indicator columns across 40,000 five-minute MNQ bars are rescaled, so the average true range in points and the relative strength index now carry equal weight."
+    },
+    {
+      "title": "Find which columns move together",
+      "description": "It measures how every pair of columns rises and falls together. Many indicators are near copies of each other, such as several moving averages, and this table of pairings exposes that overlap.",
+      "inExample": "The 10-bar, 20-bar and 50-bar moving average distances are found to move almost in lockstep, and so do the momentum indicators."
+    },
+    {
+      "title": "Find the direction of greatest spread",
+      "description": "It searches for the single blend of columns along which the bars are most spread out. That blend is the first principal component: the one direction that tells bars apart the most.",
+      "inExample": "The first component turns out to be a blend of trend and momentum columns, and it alone accounts for 31 percent of all the spread in the bars."
+    },
+    {
+      "title": "Find the next directions, each at a right angle",
+      "description": "It repeats the search for the next biggest spread, with the rule that each new direction must be unrelated to all the earlier ones. Each component therefore carries fresh information, and the components rank from most to least informative.",
+      "inExample": "The second component is mostly volatility and volume, the third is mostly the position inside the daily range, and each adds a smaller share than the one before."
+    },
+    {
+      "title": "Keep only the top few",
+      "description": "You choose how many components to keep, usually enough to hold a set share of the total spread. The remaining directions, which mostly hold noise and duplicated information, are dropped.",
+      "inExample": "Eight components are enough to hold 92 percent of the spread, so 151 columns become 8."
+    },
+    {
+      "title": "Convert each bar into its new coordinates",
+      "description": "Every bar is described by how far along each kept direction it sits. These scores replace the original columns and can feed a clustering, a classifier or a chart.",
+      "inExample": "The 14:35 bar, once 151 numbers, becomes 8 scores; its first three are about plus 2, minus 1 and plus 1 standard units."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Shrinking a wide indicator table",
+      "example": "Compressing the 151 technical indicators on MNQ 5-minute bars into 8 uncorrelated columns before training a model, so the model is not fed 40 near-identical moving-average readings."
+    },
+    {
+      "task": "Removing duplicated information",
+      "example": "Checking how many truly separate things the 35 base features measure, by seeing how many components it takes to hold 90 percent of the spread."
+    },
+    {
+      "task": "Drawing a picture of the market state",
+      "example": "Plotting every bar of a month by its first two component scores so trending days and quiet days separate into visible regions."
+    },
+    {
+      "task": "Finding the main drivers across instruments",
+      "example": "Running it on the daily returns of MNQ, ES and other index futures to show that one shared market factor explains most of their movement."
+    }
+  ],
+  "avoidWhen": [
+    "The relationships are curved rather than straight, such as a feature that matters only at extreme values; it only finds straight-line blends, so a non-linear method like an autoencoder fits better.",
+    "You need to name each remaining column in plain terms for a rule; every component is a blend of many columns, so the result is harder to read than the original indicators."
+  ],
+  "example": {
+    "scenario": "A researcher wants a compact description of every MNQ 5-minute bar from the past year. The 151 technical indicators are heavily overlapping, so PCA squeezes them into a few scores before a model is trained.",
+    "input": {
+      "summary": "A table of about 40,000 five-minute bars, each a row of 151 standardised indicator values; six of them are shown for the 14:35 bar.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, before rescaling." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "number of indicator columns", "value": "151", "meaning": "The width of the table before compression." },
+        { "name": "spread to keep", "value": "92 percent", "meaning": "The share of the total variation the kept components must hold." }
+      ]
+    },
+    "output": {
+      "summary": "A short row of component scores for every bar, plus how much of the original spread each component holds.",
+      "fields": [
+        { "name": "components kept", "value": "8", "meaning": "The number of new columns needed to hold 92 percent of the spread, down from 151." },
+        { "name": "share of spread, first component", "value": "31 percent", "meaning": "How much of the bar-to-bar variation the single most informative direction explains." },
+        { "name": "scores of the 14:35 bar, first three", "value": "about plus 2, minus 1, plus 1", "meaning": "Where this bar sits along each of the first three directions, in standard units rounded to whole numbers." },
+        { "name": "spread lost by dropping the rest", "value": "8 percent", "meaning": "The part of the original variation that the 143 discarded directions held." }
+      ]
+    },
+    "reading": "A first score of about plus 2 means this bar sits far toward one end of the market's main trend-and-momentum direction. Feed the 8 scores into the next model instead of 151 columns, and check on your walk-forward folds that the model does at least as well with fewer inputs."
+  }
+}

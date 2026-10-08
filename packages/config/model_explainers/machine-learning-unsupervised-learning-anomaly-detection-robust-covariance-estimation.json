@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-anomaly-detection-robust-covariance-estimation",
+  "name": "Robust Covariance Estimation",
+  "analogy": "Think of it as learning what a normal bar looks like by studying only the most tightly packed group of bars, ignoring the wild ones. It learns the centre of normal and also how features move together, then measures how far each bar sits from that centre in units that respect those relationships.",
+  "steps": [
+    {
+      "title": "Describe each bar with a few numbers",
+      "description": "Each bar becomes a short list of features. The model works best with a handful of features that are roughly bell-shaped, since it models normal behaviour as one smooth cloud.",
+      "inExample": "Each 5-minute MNQ bar is described by four features: return, range against average true range, volume ratio and distance from the 50-bar average."
+    },
+    {
+      "title": "Start from many random subsets",
+      "description": "The model draws many random subsets of bars, each about three quarters of the data. The idea is that at least one subset will happen to contain no outliers at all.",
+      "inExample": "It starts from 500 random subsets of about 15,000 of the 20,000 bars."
+    },
+    {
+      "title": "Refine each subset toward its tightest core",
+      "description": "For each subset it works out the centre and how the features move together, measures every bar's distance from that centre, and keeps the three quarters of bars that are closest. This repeats until the subset stops getting tighter.",
+      "inExample": "In each subset the bars farthest from the centre, mostly news-shock bars, are swapped out for closer ones over a few rounds."
+    },
+    {
+      "title": "Keep the most tightly packed result",
+      "description": "Among all the refined subsets it keeps the one whose bars are the least spread out, taking into account how the features move together. Outliers are what stretch a cloud, so the tightest subset is the cleanest. Its centre and relationships become the model of normal.",
+      "inExample": "The tightest subset is 40 percent less spread out than the cloud made from all bars, and it shows that volume ratio and range ratio move together strongly, with a link of about 70 on a scale where 100 is perfect."
+    },
+    {
+      "title": "Measure each bar's distance from the centre",
+      "description": "Each bar gets a distance from the centre that is adjusted for the relationships. A bar can be far in plain numbers yet close in this sense if it follows the normal pattern, and near in plain numbers yet far if it breaks the pattern.",
+      "inExample": "A bar with volume more than 3 times normal but a range of only 40 percent of normal breaks the usual link and gets a distance of about 7."
+    },
+    {
+      "title": "Compare the distance with a cutoff",
+      "description": "Under a bell-shaped cloud the distances of normal bars follow a known pattern, so a cutoff can be picked that only a tiny share of normal bars would exceed. Bars beyond it are flagged.",
+      "inExample": "With four features the cutoff for flagging the most extreme tenth of a percent of a normal cloud is a distance of about 4."
+    },
+    {
+      "title": "Say which feature broke the pattern",
+      "description": "Because distances are built from named features, the contribution of each feature can be read off, which tells you why a bar was flagged. This is a strength over models that give only a score.",
+      "inExample": "The largest contribution comes from range ratio being far lower than the volume ratio would normally allow."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Flagging bars that break usual relationships",
+      "example": "Catching a bar with heavy volume but almost no range, which a check on each feature alone would miss."
+    },
+    {
+      "task": "Cleaning data before fitting a model",
+      "example": "Dropping bars beyond the cutoff distance before training a regression on MNQ 5-minute bars."
+    },
+    {
+      "task": "Explaining a flag to a reviewer",
+      "example": "Showing which of the four features pushed a bar past the cutoff, so the flag can be checked against market events."
+    },
+    {
+      "task": "Monitoring live data",
+      "example": "Alerting when the share of live bars beyond the cutoff rises well above the expected tenth of a percent."
+    }
+  ],
+  "avoidWhen": [
+    "Your features are strongly skewed or have fat tails, which is common in returns and volume; the bell-shaped assumption fails, so transform them first or use an isolation forest.",
+    "You have dozens of features; the method becomes unstable as the number of features approaches the number of bars in the clean subset, so reduce the features first."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes with volume more than three times normal but a very narrow range. The robust covariance model, fitted on a year of bars, is asked how far the bar sits from normal behaviour.",
+    "input": {
+      "summary": "Four features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,348", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "return over the bar", "value": "plus 2 points", "meaning": "The bar barely moved." },
+        { "name": "range against average true range", "value": "40 percent of normal", "meaning": "The bar's range was only two fifths of the typical recent range." },
+        { "name": "volume against its 20-bar average", "value": "more than 3 times", "meaning": "Trading was much heavier than normal." },
+        { "name": "distance from the 50-bar average", "value": "about a tenth of a percent above", "meaning": "The close sits just above its recent average price." }
+      ]
+    },
+    "output": {
+      "summary": "A distance from the centre of normal, a cutoff and a flag.",
+      "fields": [
+        { "name": "distance from the centre of normal", "value": "about 7", "meaning": "How far the bar is from the typical bar once the usual relationships between features are accounted for." },
+        { "name": "cutoff", "value": "about 4", "meaning": "The distance beyond which only about a tenth of a percent of normal bars would fall." },
+        { "name": "largest contributor", "value": "range against average true range", "meaning": "The feature that most departed from what the other features implied." },
+        { "name": "flag", "value": "anomaly", "meaning": "The distance is above the cutoff." }
+      ]
+    },
+    "reading": "Each feature alone looks plausible, since heavy volume happens and narrow ranges happen, but together they break the normal link between volume and range, so the distance is about 7 against a cutoff of about 4. That pattern can mean a large order is absorbing trades, so review the bar before using it in a model."
+  }
+}

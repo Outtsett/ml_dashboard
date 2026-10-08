@@ -1,0 +1,85 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-elasticnet-regression",
+  "name": "ElasticNet Regression",
+  "analogy": "Think of it as an editor cutting a long list of indicators down to a short, sturdy shortlist. The editor drops indicators that add nothing and, when two indicators say the same thing, keeps both but asks each to carry only a share of the weight.",
+  "steps": [
+    {
+      "title": "Write the forecast as a weighted sum",
+      "description": "Each feature gets a weight and the forecast is the sum of feature times weight. Without any penalty this tends to give a noisy weight to every feature.",
+      "inExample": "The 6-bar-ahead MNQ move is forecast from 151 technical indicators, each with a weight to be found."
+    },
+    {
+      "title": "Put every feature on the same scale",
+      "description": "The penalty treats all weights alike, so the features must be rescaled first. Otherwise an indicator measured in large units would be punished less than one measured in small units for no good reason.",
+      "inExample": "All 151 indicators are rescaled using only past bars so each has a similar typical size."
+    },
+    {
+      "title": "Charge two kinds of penalty",
+      "description": "The model adds up the prediction errors and then adds a charge for the weights themselves. One part of the charge pushes weak weights all the way to zero, which removes features. The other part shrinks all weights smoothly, which keeps similar features from fighting each other.",
+      "inExample": "A mixing setting of 50 percent gives half the charge to removal and half to smooth shrinking."
+    },
+    {
+      "title": "Adjust one weight at a time",
+      "description": "The model cycles through the features, re-setting each weight to its best value while holding the others still. A weight whose pull is weaker than the removal charge snaps to exactly zero.",
+      "inExample": "On the first sweep 70 weights fall to zero; later sweeps settle the rest until the changes become tiny."
+    },
+    {
+      "title": "Choose the penalty strength on later data",
+      "description": "How hard to penalise is chosen by testing on bars that come after the training bars, since shuffled tests would borrow from the future. The strength with the best later-data error is kept.",
+      "inExample": "Strengths are compared across walk-forward folds, and the one with the smallest held-out error leaves 38 indicators standing."
+    },
+    {
+      "title": "Forecast with the survivors",
+      "description": "A new bar is scored using only the features with non-zero weights, multiplied by their weights and added up.",
+      "inExample": "The 14:35 bar is scored with 38 indicators and the forecast is a rise of 4 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Trimming a large indicator set",
+      "example": "Starting from 151 technical indicators on MNQ 5-minute bars and keeping the few dozen the data supports."
+    },
+    {
+      "task": "Fitting when indicators overlap",
+      "example": "Several momentum measures on different windows say nearly the same thing; the model spreads weight across them instead of picking one arbitrarily."
+    },
+    {
+      "task": "A readable forward-return forecast",
+      "example": "Predicting the 30-minute move and listing which indicators carried the forecast."
+    },
+    {
+      "task": "A feature screen before a heavier model",
+      "example": "Using the surviving indicators as the input list for a tree or neural model to keep it small."
+    }
+  ],
+  "avoidWhen": [
+    "The signal comes from combinations of features, such as oversold only when volume is high; a weighted sum cannot make that joint rule and a tree-based model can.",
+    "You have few features and plenty of data; the penalties then add little over ordinary linear regression.",
+    "You only need to keep or drop features and not shrink them; a pure removal model such as lasso is simpler."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model, trained on 151 technical indicators, forecasts the change in the close 6 bars (30 minutes) later in points.",
+    "input": {
+      "summary": "The bar's indicators, rescaled as in training, shown here for the most relevant few.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "indicators available", "value": "151", "meaning": "The number of technical indicators offered to the model." },
+        { "name": "mixing setting", "value": "50 percent", "meaning": "How the penalty is split between removing features and shrinking them." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast move and the shortlist of features that produced it.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 4 points", "meaning": "The model's expectation of how far the close will be above this bar's close." },
+        { "name": "indicators kept", "value": "38 of 151", "meaning": "How many indicators ended with a non-zero weight; the other 113 were set to exactly zero." },
+        { "name": "largest push upward", "value": "distance from the 50-bar moving average", "meaning": "The feature whose weight times value added the most to the forecast." },
+        { "name": "forecast in US dollars per contract", "value": "plus 8 US dollars", "meaning": "4 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "A forecast of 4 points is small against a typical 6-bar swing of tens of points, so read it as a faint lean. The more useful product is the shortlist of 38 indicators: see whether it stays similar from fold to fold, because a shortlist that keeps changing is a sign the signal is fragile."
+  }
+}

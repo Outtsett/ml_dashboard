@@ -1,0 +1,82 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-zero-inflated-poisson-model",
+  "name": "Zero-Inflated Poisson Model",
+  "analogy": "Think of it as a shop that counts how many large orders arrive each hour. On many hours the count is zero because the big customers never came to town at all, a closed-door reason, and on other hours it is zero by chance even though they were around. The model separates those two kinds of zero and counts normally on the rest.",
+  "steps": [
+    {
+      "title": "Spot the extra zeros",
+      "description": "The target is a count with more zeros than a standard counting model would produce. The first job is to recognize that some zeros are structural, meaning nothing could have happened, and others are just chance, meaning something could have happened but did not.",
+      "inExample": "In 20,000 five-minute bars, about 60 percent print no block trades of 50 contracts or more, far more than the roughly 14 percent a plain count model would expect at the same average."
+    },
+    {
+      "title": "Build a gate: is anything possible this bar?",
+      "description": "One part of the model estimates, from the features, the chance that this bar is a structural zero. It works like a gate: if closed, the count is zero no matter what. It is a yes-or-no model with its own weights.",
+      "inExample": "In a quiet bar with low volume and no news, the gate is closed with 60 percent probability."
+    },
+    {
+      "title": "Build a rate for when the gate is open",
+      "description": "The second part estimates, with its own weights, how many events to expect if activity is possible. It is a standard counting model whose average is always positive. The two parts may use different features.",
+      "inExample": "When a large participant is active, the model expects 5 block trades in the bar."
+    },
+    {
+      "title": "Combine the two into the final distribution",
+      "description": "A zero can come from the closed gate or from an open gate with no events. Any count above zero must have come from an open gate. The model therefore gives each count a probability by combining the gate's chance with the counting model's chances.",
+      "inExample": "The chance of exactly zero is 60 percent plus 40 percent times under 1 percent, or about 60 percent."
+    },
+    {
+      "title": "Fit both parts at once with a guess-and-refine loop",
+      "description": "Whether a particular zero is structural or by chance is never observed. The model repeatedly guesses the odds of each, refits the gate and the counting model using those odds as weights, and repeats until the numbers stop changing.",
+      "inExample": "After 60 rounds of guess-and-refine, both sets of weights stop changing."
+    },
+    {
+      "title": "Report the gate, the rate and the average",
+      "description": "For a new bar the model returns the chance of a structural zero, the event rate when active, and their combination, the overall expected count, which is the active rate scaled by the chance the gate is open.",
+      "inExample": "The bar gets a structural-zero chance of 60 percent, an active rate of 5, and an expected count of 2."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Counting block trades per bar",
+      "example": "Forecasting how many trades of 50 contracts or more print in the next 5-minute MNQ bar, when most bars have none at all."
+    },
+    {
+      "task": "Counting stop-run events",
+      "example": "Forecasting the number of stop runs per session, which are structurally absent on most days and rate-driven on squeeze days."
+    },
+    {
+      "task": "Separating no news from the bursts it causes",
+      "example": "Distinguishing bars with no scheduled release, where extra order bursts cannot happen, from bars just after a release, where a burst rate applies."
+    },
+    {
+      "task": "Counting trading halts or circuit breakers",
+      "example": "Modeling halts per session, zero by structure unless the day meets a volatility trigger."
+    }
+  ],
+  "avoidWhen": [
+    "Zeros are just ordinary low counts, with no separate closed-door reason; a plain Poisson or negative binomial model is simpler and better.",
+    "The nonzero counts are far more spread out than their average; a zero-inflated negative binomial variant handles extra spread in the count part."
+  ],
+  "example": {
+    "scenario": "At 09:55, with 25 minutes gone since the open, a trader wants to know how many block trades of 50 contracts or more will print in the next 5-minute MNQ bar, using a model trained on 20,000 past bars.",
+    "input": {
+      "summary": "Features for the bar that just closed, used by both the gate and the rate.",
+      "fields": [
+        { "name": "minutes since the 09:30 open", "value": "25", "meaning": "How far into the session the bar is." },
+        { "name": "volume against its 20-bar average", "value": "30 percent below average", "meaning": "How heavy trading was compared with the recent norm; below average means a quiet bar." },
+        { "name": "average true range, 14 bars", "value": "15 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "minutes since the last block trade", "value": "40", "meaning": "How long since a trade of 50 contracts or more printed." },
+        { "name": "scheduled news in the window", "value": "none", "meaning": "Whether an economic release falls inside the next bar." }
+      ]
+    },
+    "output": {
+      "summary": "The chance of a structural zero, the rate when active, and the combined forecast.",
+      "fields": [
+        { "name": "chance the bar is a structural zero", "value": "60 percent", "meaning": "The gate's estimate that no large participant is active at all." },
+        { "name": "expected block trades if active", "value": "5", "meaning": "The counting model's average when activity is possible." },
+        { "name": "chance of exactly zero block trades", "value": "60 percent", "meaning": "Structural zeros plus a negligible share of chance zeros from an active but unlucky bar." },
+        { "name": "overall expected block trades", "value": "2", "meaning": "The active rate times the 40 percent chance that the gate is open." }
+      ]
+    },
+    "reading": "Most likely nothing prints, but the chance of five or more is real. The two numbers answer different questions: the gate says whether a large participant is around, the rate says how busy they are if so. Check on later bars that zeros occurred about 60 percent of the time."
+  }
+}

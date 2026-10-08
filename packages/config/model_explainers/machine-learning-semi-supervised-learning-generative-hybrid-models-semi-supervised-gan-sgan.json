@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-generative-hybrid-models-semi-supervised-gan-sgan",
+  "name": "Semi-Supervised Generative Adversarial Network (SGAN)",
+  "analogy": "Think of it as a forger and a market inspector. The forger draws fake five-hour charts, and the inspector must label every real chart as trending, ranging or volatile, and call every fake a fake. As the forger improves, the inspector has to learn finer details of what a real chart is, and those details also make him a better labeller.",
+  "steps": [
+    {
+      "title": "Set up two networks",
+      "description": "A generator turns random noise into a fake window of market data. A discriminator looks at a window and decides which class it belongs to, with one extra class reserved for fake.",
+      "inExample": "The generator makes fake 30-bar windows. The discriminator has four outputs: trending, ranging, volatile and fake."
+    },
+    {
+      "title": "Show the discriminator three kinds of windows",
+      "description": "In each round the discriminator sees real windows with labels, real windows without labels, and fake windows from the generator. The unlabeled real windows do not teach a class, but they teach what real looks like.",
+      "inExample": "A round holds 32 labelled real windows, 64 unlabeled real windows and 64 fakes."
+    },
+    {
+      "title": "Grade the discriminator on each kind",
+      "description": "On labelled windows it must name the right class. On unlabeled real windows it must say that the window belongs to some real class, without saying which. On fakes it must say fake.",
+      "inExample": "For a labelled ranging window it gives ranging 70 percent. For an unlabeled real window it spreads probability across the three real classes and puts 5 percent on fake. For a fake window it gives fake 85 percent."
+    },
+    {
+      "title": "Train the generator to fool the discriminator",
+      "description": "The generator is adjusted so that its fakes get a lower fake probability. In the commonly used feature matching variant it is also pushed to match the average internal features of real windows, which steadies training.",
+      "inExample": "After the update, the generator's fakes receive an average fake probability of 62 percent instead of 85 percent."
+    },
+    {
+      "title": "Alternate for many rounds",
+      "description": "The two networks take turns improving. The generator's fakes get more realistic, so the discriminator must pick up finer features of real windows to keep catching them, and those same features help it classify real windows with few labels.",
+      "inExample": "Over 20,000 rounds, the generator's fakes go from obvious straight lines to windows with realistic bar ranges and gaps."
+    },
+    {
+      "title": "Keep the discriminator and drop the generator",
+      "description": "After training, the generator is set aside. The discriminator is the product: given a real window it returns class probabilities, and the fake probability doubles as a measure of how unlike the training data a window is.",
+      "inExample": "The 14:35 window is passed in and returns trending 55 percent, ranging 25 percent, volatile 12 percent and fake 8 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime or signal classification with few labels",
+      "example": "Classifying five-minute MNQ windows as trending, ranging or volatile from 300 labelled and 20,000 unlabeled windows."
+    },
+    {
+      "task": "Generating practice windows",
+      "example": "Using the generator to produce extra synthetic windows to stress test a rule, kept clearly separate from real history."
+    },
+    {
+      "task": "Spotting windows unlike the training data",
+      "example": "Treating a high fake probability on a real window as a warning that the market is behaving in a way not seen in training."
+    },
+    {
+      "task": "Chart pattern classification",
+      "example": "Classifying candlestick pattern pictures when only a few hundred are labelled."
+    }
+  ],
+  "avoidWhen": [
+    "You need a stable, repeatable training run; adversarial training can oscillate or stall, and results vary from run to run.",
+    "You have plenty of labels; a plain classifier is simpler and removes the instability.",
+    "You want realistic synthetic price paths for a backtest; generated windows are easy to over-trust and can carry no real market behaviour at all."
+  ],
+  "example": {
+    "scenario": "A research job trains an SGAN on 300 labelled and 20,000 unlabeled five-minute MNQ windows. For the 14:35 window the finished discriminator returns class probabilities including a fake probability.",
+    "input": {
+      "summary": "One real 30-bar window sent to the trained discriminator.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "classes", "value": "trending, ranging, volatile, fake", "meaning": "The four outputs of the discriminator, one of them reserved for fakes." },
+        { "name": "labelled windows used in training", "value": "300 of 20,300", "meaning": "The small share of windows that carry a regime label." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each of the four classes, with the fake probability read as unusualness.",
+      "fields": [
+        { "name": "trending probability", "value": "55 percent", "meaning": "The share of belief that the window is a trending one." },
+        { "name": "ranging probability", "value": "25 percent", "meaning": "The share of belief that the window is a ranging one." },
+        { "name": "volatile probability", "value": "12 percent", "meaning": "The share of belief that the window is a volatile one." },
+        { "name": "fake probability", "value": "8 percent", "meaning": "How much the discriminator thinks this looks like a generator output; above about 50 percent would mark the window as unlike the training data." }
+      ]
+    },
+    "reading": "The regime call is trending, with a lead of 30 percentage points over the next class, and the low fake probability says the window looks like normal training data. Judge the classifier on labelled out-of-sample windows, and compare it with a plain classifier trained on the 300 labels alone on the run page."
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "specificationId": "optimization-based-models-decomposition-relaxation-dual-decomposition",
+  "name": "Dual Decomposition",
+  "analogy": "Think of it as a firm with three trading desks sharing one margin account. Instead of a central planner deciding every position, the firm posts a price per margin dollar, each desk sizes its own book given that price, and the firm raises the price when desks ask for too much and lowers it when they ask for too little.",
+  "steps": [
+    {
+      "title": "Split the problem into separate desks",
+      "description": "The model notices that the problem is made of independent pieces that are linked by only a few shared limits. Each piece, such as one strategy or one instrument, can be solved alone if it is told the price of the shared resource.",
+      "inExample": "Three strategies each size their own book, linked only by one shared margin account of 40,000 US dollars."
+    },
+    {
+      "title": "Turn the shared limit into a price",
+      "description": "Instead of enforcing the shared limit directly, the model attaches a price to each unit of the shared resource and charges every desk that price. A high price discourages use, a low price encourages it.",
+      "inExample": "A price per 1,000 US dollars of margin is introduced, and each contract's expected edge is reduced by that price times the margin the contract uses."
+    },
+    {
+      "title": "Let each desk solve its own small problem",
+      "description": "Given the current price, every desk independently chooses its best position size. Each extra contract earns a little less than the one before, so every desk has a natural stopping size. These small problems are easy and can run side by side.",
+      "inExample": "At a price of zero, the desks together ask for 81,600 US dollars of margin, far above the 40,000 available."
+    },
+    {
+      "title": "Compare total demand with the shared supply",
+      "description": "The requests are added up and compared with what the shared resource allows. A shortage means the price is too low and an excess means it is too high.",
+      "inExample": "Demand of 81,600 against supply of 40,000 shows the price must rise."
+    },
+    {
+      "title": "Adjust the price and ask again",
+      "description": "The price is moved in the direction of the shortage, by a step that shrinks over time. The desks re-solve at the new price, and the loop continues until total demand fits the supply.",
+      "inExample": "The price rises from zero to about 1, then just under 2, then just over 2 US dollars per 1,000 of margin, and demand falls from 81,600 to 65,100, 51,300 and finally 39,300 over 4 rounds."
+    },
+    {
+      "title": "Read off the plan and the price",
+      "description": "At the end, each desk has a position and the shared resource is used up or nearly so. The final price is itself a result: it is the value of one more unit of the shared resource to the whole firm.",
+      "inExample": "The final price of about 2 US dollars per 1,000 of margin says an extra 1,000 of margin would add about 2 US dollars of expected edge."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sharing one margin pool across strategies",
+      "example": "Letting a trend strategy on MNQ, a mean-reversion strategy on ES and a breakout strategy on M2K size themselves independently under one account margin."
+    },
+    {
+      "task": "Splitting a risk budget",
+      "example": "Allocating a firm-wide risk limit across instrument-level sizing rules that are each simple alone."
+    },
+    {
+      "task": "Coordinating execution",
+      "example": "Working one parent order across several venues, each venue solving its own schedule given a price on the remaining size."
+    },
+    {
+      "task": "Allocating capital across desks",
+      "example": "Distributing a capital budget across desks that each run their own optimiser, without sharing all their internal data."
+    }
+  ],
+  "avoidWhen": [
+    "The pieces are strongly entangled, with many shared limits; the price loop converges slowly, so a joint solve is simpler.",
+    "Positions are whole contracts with big lumps; the demand can jump over the supply with no exact match, leaving a gap, so check the final plan against the limit."
+  ],
+  "example": {
+    "scenario": "Three strategies share one 40,000 US dollar margin account. Each strategy picks its own whole-contract size given a margin price, and a coordinator adjusts that price until total use fits the account. Edge figures are illustrative.",
+    "input": {
+      "summary": "Each strategy's edge and margin per contract, plus the shared account and a starting price.",
+      "fields": [
+        { "name": "MNQ trend strategy", "value": "first contract 9 US dollars edge, each next 1 less; 1,800 US dollars margin per contract", "meaning": "Illustrative edge and margin for Micro E-mini Nasdaq-100 contracts; later contracts earn less." },
+        { "name": "ES mean-reversion strategy", "value": "first contract 40 US dollars edge, each next 8 less; 12,000 US dollars margin per contract", "meaning": "Illustrative edge and margin for E-mini S&P 500 contracts; later contracts earn less." },
+        { "name": "M2K breakout strategy", "value": "first contract 6 US dollars edge, each next 1 less; 900 US dollars margin per contract", "meaning": "Illustrative edge and margin for Micro E-mini Russell 2000 contracts; later contracts earn less." },
+        { "name": "shared margin account", "value": "40,000 US dollars", "meaning": "The total margin all three strategies must fit within." },
+        { "name": "maximum contracts per strategy", "value": "10", "meaning": "The cap on contracts any one strategy may hold." },
+        { "name": "starting price", "value": "0 US dollars per 1,000 of margin", "meaning": "At a price of zero, each strategy asks for as much as is worth anything." },
+        { "name": "stopping rule", "value": "total use fits the account and is within 5 percent of it", "meaning": "When this holds the price loop ends." }
+      ]
+    },
+    "output": {
+      "summary": "The final price and the contracts each strategy chose at that price.",
+      "fields": [
+        { "name": "contracts chosen", "value": "6 MNQ, 2 ES, 5 M2K", "meaning": "The whole-number position each strategy takes at the final price." },
+        { "name": "margin used in total", "value": "39,300 US dollars", "meaning": "6 times 1,800 plus 2 times 12,000 plus 5 times 900, which fits the account with 700 US dollars unused." },
+        { "name": "total expected edge", "value": "131 US dollars", "meaning": "39 from MNQ plus 72 from ES plus 20 from M2K, adding up each contract's stated edge." },
+        { "name": "final margin price", "value": "about 2 US dollars per 1,000 of margin", "meaning": "The value to the firm of one more 1,000 US dollars of margin." },
+        { "name": "rounds taken", "value": "4", "meaning": "The number of price adjustments before the stopping rule was met." }
+      ]
+    },
+    "reading": "The price is the useful insight: it says what extra margin is worth, so you can compare it with what your broker charges for leverage. The plan leaves 700 US dollars unused because whole contracts jump: the next ES contract needs 12,000 more. Always check the final plan against the account limit."
+  }
+}

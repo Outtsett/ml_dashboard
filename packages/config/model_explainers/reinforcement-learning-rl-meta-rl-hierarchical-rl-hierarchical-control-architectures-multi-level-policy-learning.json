@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-multi-level-policy-learning",
+  "name": "Multi-Level Policy Learning",
+  "analogy": "Think of it as a firm with three layers: a weekly risk committee that sets the budget, a daily desk head who chooses the posture within that budget, and a bar-by-bar trader who carries out the orders. Each layer works on its own clock and takes instructions from the layer above.",
+  "steps": [
+    {
+      "title": "Split the problem into timescales",
+      "description": "Decide how many levels the problem has and what clock each one runs on. A common stack has a slow allocation level, a medium regime level and a fast execution level.",
+      "inExample": "Three levels are chosen: a weekly risk budget, a daily posture, and a 5-minute execution policy."
+    },
+    {
+      "title": "Give each level its own view of the market",
+      "description": "Each level sees a summary on its natural clock. The top level sees weekly figures, the middle one sees daily figures, and the bottom one sees recent bars and the current position.",
+      "inExample": "The top level reads the week's range and realized volatility, the middle reads yesterday's close and the overnight gap, the bottom reads the last 12 five-minute bars."
+    },
+    {
+      "title": "Pass directives downward",
+      "description": "The top level outputs a directive, not a trade, such as a risk budget. The next level reads it and produces its own directive, such as a posture. Only the bottom level outputs real actions.",
+      "inExample": "The weekly level allows a maximum of 4 contracts; the daily level answers with a lean-long posture capped at 3 contracts."
+    },
+    {
+      "title": "Execute at the bottom",
+      "description": "The lowest policy turns the directives into buys, sells and holds on each bar, always staying inside the limits it was handed from above.",
+      "inExample": "On the 11:10 bar the execution policy buys 1 more MNQ contract, well inside the 3 contract cap."
+    },
+    {
+      "title": "Give every level its own score",
+      "description": "Each level is scored on what it controls. The execution level is scored on its net result after trading costs, the daily level on the day's result, the weekly level on risk-adjusted weekly return. This keeps credit from being smeared across levels.",
+      "inExample": "The execution level is scored on its net result after a 1 US dollar charge per contract per side; the daily level is scored on the day's net result."
+    },
+    {
+      "title": "Train together, or one level at a time",
+      "description": "The levels can learn jointly, or be trained and frozen one at a time from the bottom up. The directive between each pair has a fixed shape, so one level can later be frozen or replaced without retraining the rest.",
+      "inExample": "A validated execution level is frozen and kept in service while a new daily-posture policy is trained on top of it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Linking portfolio allocation to bar-level trading",
+      "example": "Having a weekly policy set how much risk MNQ and ES together may carry, and an execution policy trade inside that budget."
+    },
+    {
+      "task": "Trading several instruments and timeframes",
+      "example": "One level picks between ES and MNQ, one decides the regime, and one handles 1-minute execution."
+    },
+    {
+      "task": "Tiered position sizing",
+      "example": "A risk budget passed down so that a quiet regime allows 4 contracts and a volatile one only 1."
+    },
+    {
+      "task": "Switching strategy by session",
+      "example": "A daily policy choosing a trend or range approach for the day, with a bar-level policy carrying it out."
+    },
+    {
+      "task": "Shipping a stable layer while research continues",
+      "example": "Deploying a validated execution level in a paper account while the upper levels are still being retrained."
+    }
+  ],
+  "avoidWhen": [
+    "The problem really lives on one timescale, such as predicting the next 5-minute direction; extra levels add training difficulty with nothing to coordinate.",
+    "You have too little data to train several levels at once; with a few months of bars, a single supervised model is easier to validate."
+  ],
+  "example": {
+    "scenario": "On a Monday morning at 11:10, a three-level system must decide an MNQ action on the next 5-minute bar, given what the weekly and daily levels have already decided.",
+    "input": {
+      "summary": "The directives from the two upper levels and the execution level's own recent view.",
+      "fields": [
+        { "name": "weekly risk budget", "value": "4 contracts", "meaning": "The largest position the top level allows this week." },
+        { "name": "daily posture", "value": "lean long, cap 3 contracts", "meaning": "The middle level's instruction for today, always inside the weekly budget." },
+        { "name": "close", "value": "19,478", "meaning": "The close of the 11:10 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "19 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "return over the last 12 bars", "value": "up about a fifth of one percent", "meaning": "How much price has risen over the previous hour." },
+        { "name": "current position", "value": "1 contract long", "meaning": "What the account already holds." }
+      ]
+    },
+    "output": {
+      "summary": "The execution level's action, shown with the limits that framed it.",
+      "fields": [
+        { "name": "action", "value": "buy 1 more contract", "meaning": "The position change chosen for the next bar." },
+        { "name": "resulting position", "value": "2 contracts long", "meaning": "The position after the action, inside the 3 contract daily cap." },
+        { "name": "limit headroom", "value": "1 contract", "meaning": "How many more contracts the daily cap would still allow." }
+      ]
+    },
+    "reading": "The action is small and sits inside both directives, which is the point of the structure. When reviewing a run, check how often the lower level hits the cap handed to it; if it always does, the upper level is the constraint, not the execution."
+  }
+}

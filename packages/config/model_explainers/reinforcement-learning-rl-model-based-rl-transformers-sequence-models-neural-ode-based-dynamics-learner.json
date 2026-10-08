@@ -1,0 +1,82 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-neural-ode-based-dynamics-learner",
+  "name": "Neural ODE-based Dynamics Learner",
+  "analogy": "Think of it as learning the current of a river instead of memorising a list of photographs taken at fixed intervals. Once you know how fast the water is moving at each spot, you can say where a leaf will be after one minute, ten minutes or a whole weekend, without needing photographs at those moments.",
+  "steps": [
+    {
+      "title": "Summarise the market state as a short list of numbers",
+      "description": "The latest bars are turned into a small state, a short list of numbers describing where the market is right now. This is the leaf in the river.",
+      "inExample": "The last 20 five-minute MNQ bars are turned into a state of 16 numbers at the Friday 17:00 New York close."
+    },
+    {
+      "title": "Learn how fast the state is changing",
+      "description": "A network learns the rate of change of the state: given the state, the time and any position held, how quickly and in which direction is it moving right now. The network never predicts the next state directly, only the current of the river.",
+      "inExample": "In a quiet, rising state the learned rate points gently toward higher prices and lower activity."
+    },
+    {
+      "title": "Move forward in time by following the current",
+      "description": "To predict a later time, a numerical solver follows the learned rate forward over the actual time gap, taking small steps where the state is changing quickly and large steps where it is calm.",
+      "inExample": "The solver is asked for the state 49 hours later, at Sunday 18:00, and takes a few large steps because the market is closed in between."
+    },
+    {
+      "title": "Handle uneven spacing without resampling",
+      "description": "Because the model follows true elapsed time, bars that are not evenly spaced need no padding or resampling. A weekend gap, a missing bar or a tick that arrives early are all just different lengths of journey.",
+      "inExample": "The gap from Friday's close to Sunday's open is treated as 49 hours of travel, not as one more five-minute step."
+    },
+    {
+      "title": "Turn the new state back into a price forecast",
+      "description": "A small output layer reads the predicted state and produces the quantity of interest, such as the expected price or return at that time.",
+      "inExample": "The state at Sunday 18:00 is read out as an expected opening price near 19,839."
+    },
+    {
+      "title": "Train by matching real observations at their real times",
+      "description": "During training the model compares its predictions with what was actually observed at each real timestamp and adjusts the learned rate. A memory-saving trick lets gradients be computed by running a second solve backward in time.",
+      "inExample": "Predicted states at 5-minute, 1-hour and weekend gaps are all compared with the real states seen at those times."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting across weekend and holiday gaps",
+      "example": "Predicting the Sunday 18:00 open of MNQ from Friday's close using the true 49-hour gap."
+    },
+    {
+      "task": "Irregular event or tick data",
+      "example": "Modelling trade prints that arrive at uneven times without forcing them into fixed bars."
+    },
+    {
+      "task": "Feeds with missing data",
+      "example": "Bridging a 25-minute data outage by following the learned rate across the longer true gap."
+    },
+    {
+      "task": "Predicting at a non-bar time",
+      "example": "Estimating the market state at 08:30, the time of a scheduled economic release, which falls between two five-minute bars."
+    }
+  ],
+  "avoidWhen": [
+    "Bars are evenly spaced and you only need the next one; a simpler sequence model is faster and easier to train than one that must run a solver.",
+    "Speed matters in training or live use; following the learned current needs repeated steps, so it is slower than a single pass through a standard network."
+  ],
+  "example": {
+    "scenario": "On Friday at 17:00 New York time the CME index futures market closes for the weekend. The model is asked for the expected state and price when the market reopens at Sunday 18:00, 49 hours later.",
+    "input": {
+      "summary": "The state summarising the last bars before the close, and the true length of time to cover.",
+      "fields": [
+        { "name": "last close", "value": "19,845", "meaning": "The final price before the weekend gap." },
+        { "name": "recent bars summarised", "value": "20 five-minute bars", "meaning": "The window turned into the starting state." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "price change over the last 12 bars", "value": "up 36 points", "meaning": "How far price rose over the final hour, about a fifth of a percent." },
+        { "name": "time to cover", "value": "49 hours", "meaning": "The real elapsed time from Friday 17:00 to Sunday 18:00." },
+        { "name": "state size", "value": "16 numbers", "meaning": "The length of the list describing the market." }
+      ]
+    },
+    "output": {
+      "summary": "The predicted state at the target time and the price it implies.",
+      "fields": [
+        { "name": "expected opening price", "value": "19,839", "meaning": "The model's forecast for the Sunday 18:00 open." },
+        { "name": "expected gap from the last close", "value": "minus 6 points", "meaning": "The difference between the forecast open and Friday's close." },
+        { "name": "solver steps used", "value": "9", "meaning": "How many internal steps the solver took to cross the 49 hours." }
+      ]
+    },
+    "reading": "A single forecast across a weekend is a very rough guide, because news arrives while the market is closed. Judge the model by how often its forecast gap points the right way and how large its errors are against simply assuming no gap."
+  }
+}

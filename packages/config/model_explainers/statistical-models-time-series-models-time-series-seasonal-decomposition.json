@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-time-series-models-time-series-seasonal-decomposition",
+  "name": "Time Series - Seasonal Decomposition",
+  "analogy": "Think of it as separating a noisy audio recording into three tracks: a slow bass line for the underlying level, a repeating drum pattern for the time-of-day rhythm, and a track of everything left over. Each can then be listened to on its own.",
+  "steps": [
+    {
+      "title": "Choose the cycle and how the parts combine",
+      "description": "You pick how many bars make one full cycle, and whether the parts add up or multiply. Adding fits when the daily swing has a steady size; multiplying fits when the swing grows with the level.",
+      "inExample": "For MNQ volume, one session is 78 five-minute bars, and the parts are added because the daily swing stays roughly the same size."
+    },
+    {
+      "title": "Smooth away the cycle to find the trend",
+      "description": "A moving average as wide as one full cycle is centered on each bar, so it looks at bars on both sides of it. Because it covers a whole cycle, the repeating rhythm cancels out and what remains is the slow underlying level. The first and last half-cycle have no trend value.",
+      "inExample": "A 78-bar centered moving average over 20 sessions of volume shows the underlying level drifting between about 3,000 and 3,600 contracts per bar; the first and last half-session get no trend value."
+    },
+    {
+      "title": "Subtract the trend",
+      "description": "The trend is taken away from the original series. What is left contains the repeating rhythm and the noise, with the slow drift gone.",
+      "inExample": "Each bar's volume minus its trend gives readings such as plus 800 at the open and minus 700 at midday."
+    },
+    {
+      "title": "Average each time slot across the cycles",
+      "description": "All the leftovers for the same position in the cycle are averaged, one slot at a time, across every cycle. Random noise cancels in the average and the stable daily shape is what remains.",
+      "inExample": "Averaging the 14:35 slot over 20 sessions gives a seasonal effect of plus 600 contracts: that bar is usually busier than the day's average."
+    },
+    {
+      "title": "Treat what is left as the remainder",
+      "description": "The remainder is the original series with trend and seasonal parts removed. It holds ordinary noise, but also anything the method could not explain, such as an event or a break in the trend.",
+      "inExample": "On the 14:35 bar of session 12, which traded 4,100 contracts, 4,100 minus 3,300 trend minus 600 seasonal leaves a remainder of plus 200."
+    },
+    {
+      "title": "Check the remainder and optionally let the rhythm drift",
+      "description": "The remainder should look like noise. A locally weighted version of this method also resists outliers and lets the daily shape change slowly across weeks, instead of keeping one fixed shape.",
+      "inExample": "The remainder's typical size is 350 contracts, so plus 200 is ordinary; a locally weighted version shows the open-hour bump growing slightly over the 20 sessions."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Telling a real volume shift from a normal lull",
+      "example": "Reading the trend track of MNQ volume to see whether activity is truly rising, after removing the usual midday dip."
+    },
+    {
+      "task": "Comparing times of day fairly",
+      "example": "Removing the daily volatility shape so a 10:00 bar and a 14:00 bar can be compared on equal terms."
+    },
+    {
+      "task": "Spotting anomalies",
+      "example": "Sending only the remainder to an anomaly detector, so ordinary open and close spikes are not flagged."
+    },
+    {
+      "task": "Simplifying the job of a forecaster",
+      "example": "Feeding trend plus remainder to a time series model after the known daily rhythm has been taken out."
+    }
+  ],
+  "avoidWhen": [
+    "You need a forecast of the future; decomposition describes the past, and a model such as seasonal autoregression is needed to extend it forward.",
+    "There is no stable repeating period, or the history spans fewer than several full cycles; the seasonal track is then unreliable and mostly noise.",
+    "You need a live signal that updates bar by bar; a centered smoother uses bars after the one being judged, so its numbers for past bars are not what you could have known then, and a trailing one-sided smoother is needed."
+  ],
+  "example": {
+    "scenario": "Twenty regular-hours MNQ sessions of 5-minute volume are split into trend, daily rhythm and remainder. The analyst looks at the 14:35 bar of session 12, a session in the middle of the history where the trend is defined.",
+    "input": {
+      "summary": "A series of 5-minute volumes and the cycle settings.",
+      "fields": [
+        { "name": "volume of the 14:35 bar in session 12", "value": "4,100 contracts", "meaning": "The observed number of contracts traded in that bar." },
+        { "name": "history length", "value": "20 sessions", "meaning": "About 1,560 five-minute bars." },
+        { "name": "cycle length", "value": "78 bars", "meaning": "One regular-hours session of 5-minute bars." },
+        { "name": "combination type", "value": "additive", "meaning": "The three parts are added together to rebuild the series." },
+        { "name": "average volume per bar over session 12", "value": "3,280 contracts", "meaning": "A simple check on the level the trend should sit near." }
+      ]
+    },
+    "output": {
+      "summary": "The three tracks for the 14:35 bar of session 12, and the remainder's usual size.",
+      "fields": [
+        { "name": "trend", "value": "3,300 contracts", "meaning": "The slow underlying level of volume around that bar." },
+        { "name": "seasonal effect", "value": "plus 600 contracts", "meaning": "How much busier than average the 14:35 slot normally is." },
+        { "name": "remainder", "value": "plus 200 contracts", "meaning": "What is left after removing trend and seasonal effect, 4,100 minus 3,300 minus 600." },
+        { "name": "typical remainder size", "value": "350 contracts", "meaning": "The usual size of the remainder across the 20 sessions, for judging if plus 200 is unusual." }
+      ]
+    },
+    "reading": "Most of the bar's volume above the day's level is the normal 14:35 rhythm, and the leftover plus 200 is well within the usual 350, so nothing unusual happened. Watch the trend track over weeks for real changes in activity, and the remainder track for bars that deserve a closer look; remember both are drawn with hindsight."
+  }
+}

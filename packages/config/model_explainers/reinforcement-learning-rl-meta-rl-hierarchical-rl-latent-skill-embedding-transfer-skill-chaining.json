@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-skill-chaining",
+  "name": "Skill Chaining",
+  "analogy": "Think of it as planning a route by working backward from the destination: first learn how to finish, then learn where you must be to start finishing, then learn how to get there, link by link, until the chain reaches wherever you normally begin.",
+  "steps": [
+    {
+      "title": "Name the end goal",
+      "description": "Start with a clear target state that counts as success. Everything in the chain is built to reach this state, one link at a time.",
+      "inExample": "The goal is to be flat with the day's profit at or above 100 US dollars before the 15:55 close."
+    },
+    {
+      "title": "Learn the last skill",
+      "description": "Train one skill that can reach the goal from nearby states. Record the states from which it reliably succeeds. That set of states is where this skill may be started.",
+      "inExample": "The final skill, unwind the position, works when the account holds 1 to 2 contracts and the day is already up by 90 US dollars or more."
+    },
+    {
+      "title": "Learn where the skill may start",
+      "description": "A classifier is fit on the states where the skill succeeded often enough, which draws the boundary of its start set. States outside the boundary are not trusted to the skill.",
+      "inExample": "A state enters the start set only if the unwind skill succeeded in at least 80 percent of tries from similar states."
+    },
+    {
+      "title": "Make that start set the next target",
+      "description": "The earlier skill's job is now to reach any state in the later skill's start set. This is a much smaller problem than reaching the final goal from scratch.",
+      "inExample": "The previous skill, trail the stop and hold, is trained to bring the account into the start set of the unwind skill."
+    },
+    {
+      "title": "Repeat backward to the usual starting states",
+      "description": "The process repeats, link by link, until the start set of the earliest skill covers where trades normally begin. Each skill is trained against the one after it.",
+      "inExample": "Links are added backward until the chain begins at the entry, a long on a pullback to the 20-bar average."
+    },
+    {
+      "title": "Run the chain forward",
+      "description": "At run time the agent uses the furthest-along skill whose start set contains the current state. That skill runs until the state falls inside the next skill's start set, then hands over, link by link, until the goal is reached.",
+      "inExample": "The agent enters at 10:40, trails and holds until the account is up 90 US dollars, hands over to the unwind skill and is flat at 11:55."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Reliably reaching a profit target",
+      "example": "Building a chain of entry, hold, trail and unwind skills that walks an MNQ trade to a defined profit goal."
+    },
+    {
+      "task": "Closing out positions in a controlled order",
+      "example": "Working backward from flat at a favorable price so that each step of reducing 4 contracts has been validated."
+    },
+    {
+      "task": "Getting flat by the close",
+      "example": "A chain anchored on flat at 15:55 that makes sure every intermediate state can still reach the end."
+    },
+    {
+      "task": "Recovering from a drawdown",
+      "example": "A chain backward from back-to-break-even, giving a validated recovery path after an early loss."
+    },
+    {
+      "task": "Staged execution of a large order",
+      "example": "Chaining from the target size backward, each skill covering sizes the market's liquidity can take."
+    }
+  ],
+  "avoidWhen": [
+    "There is no single goal state to anchor on, as when you simply want a stream of direction calls; a supervised model is more direct.",
+    "The end state is hard to hit by chance, so even the last skill finds no successes to learn from; the chain cannot start."
+  ],
+  "example": {
+    "scenario": "At 11:20 an MNQ account holds 2 contracts long, up 85 US dollars for the day. A trained chain must decide which skill to run on the way to the goal of being flat with at least 100 US dollars profit.",
+    "input": {
+      "summary": "The account state and market state, checked against each skill's start set.",
+      "fields": [
+        { "name": "close", "value": "20,176", "meaning": "The close of the 11:20 five-minute bar, rounded to a whole point." },
+        { "name": "day profit so far", "value": "plus 85 US dollars", "meaning": "The net result of today's trades after costs." },
+        { "name": "position", "value": "2 contracts long", "meaning": "What the account holds." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "minutes to the close", "value": "275", "meaning": "How much of the session remains." },
+        { "name": "active skill", "value": "trail the stop and hold", "meaning": "The skill currently in control of the trade." }
+      ]
+    },
+    "output": {
+      "summary": "Whether the next skill may take over and what the active skill does.",
+      "fields": [
+        { "name": "inside the unwind skill's start set", "value": "no, 85 is under the 90 needed", "meaning": "The check that decides whether control passes to the next link." },
+        { "name": "active skill action", "value": "move the stop up 10 points and hold", "meaning": "What the current skill does on this bar." },
+        { "name": "active skill identity", "value": "trail the stop and hold", "meaning": "The skill that stays in control until the start condition of the next skill is met." }
+      ]
+    },
+    "reading": "The chain is still in the hold link because the account has not yet reached the state from which the unwind skill is trusted. This makes each hand-over auditable: log where each skill began and ended, and check that the share of trades reaching the goal matches the success rates used to draw each start set."
+  }
+}

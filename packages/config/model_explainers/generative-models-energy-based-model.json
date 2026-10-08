@@ -1,0 +1,82 @@
+{
+  "specificationId": "generative-models-energy-based-model",
+  "name": "Energy-Based Model",
+  "analogy": "Think of it as a landscape of valleys and hills laid over every possible row of market features. Real, ordinary market conditions sit in deep valleys, which means low energy, and strange combinations sit on high hills. Ask for the height at any point and you learn how ordinary it is; roll a ball downhill and it settles into a realistic row.",
+  "steps": [
+    {
+      "title": "Give every feature row a height",
+      "description": "A neural network reads a row of numbers and returns one number called its energy. Low energy means the row looks like real data and high energy means it does not. The model never states a probability directly.",
+      "inExample": "A row of 6 market features for the 14:35 five-minute MNQ bar is scored with an energy of 26."
+    },
+    {
+      "title": "Collect real rows as the low points",
+      "description": "Training starts from real rows from history. The goal is to push their energy down, so that the real data forms valleys in the landscape.",
+      "inExample": "A batch of 256 real feature rows is used, and training lowers their energies toward the range of 15 to 30."
+    },
+    {
+      "title": "Make rows by rolling downhill from noise",
+      "description": "To see what the landscape currently believes, the model starts from random noise and takes many small steps downhill, with a little shaking added each time. Where the ball settles are the rows the model itself thinks are likely.",
+      "inExample": "Starting from random numbers, 60 small downhill steps with shaking arrive at a made-up row with energy 24."
+    },
+    {
+      "title": "Push down the real, push up the made-up",
+      "description": "The model is trained so that real rows get lower energy and its own made-up rows get higher energy. If the made-up rows look just like real ones, nothing needs fixing; if they differ, the landscape is reshaped until real rows are the valleys.",
+      "inExample": "A made-up row that is too calm gets its energy raised from 24 to 36, so the valley moves away from it."
+    },
+    {
+      "title": "Repeat until the made-up rows match",
+      "description": "Rolling and reshaping repeat for many rounds. Training is slow and delicate because the rolling must be long enough to reach valleys, and nothing guarantees the energies add up to a probability.",
+      "inExample": "After thousands of rounds, a judge can tell the made-up rows from real rows only about half of the time."
+    },
+    {
+      "title": "Use the landscape for scoring or sampling",
+      "description": "Afterward, any new row can be given an energy to judge how ordinary it is, or the ball can be rolled again to produce new rows. High energy flags rows that sit far from anything seen in training.",
+      "inExample": "A row with an unusual combination of a huge volume spike and a quiet price range scores an energy of 78, far above the real range."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Flagging unusual market conditions",
+      "example": "Scoring every 5-minute MNQ bar's feature row and raising an alert when energy is far above the usual range of 15 to 30."
+    },
+    {
+      "task": "Generating plausible feature rows",
+      "example": "Rolling noise downhill to produce realistic combinations of the 35 base features for stress tests."
+    },
+    {
+      "task": "Filling in or repairing damaged rows",
+      "example": "Holding the known features fixed and letting the missing ones slide to the lowest energy, to restore a row with a bad volume print."
+    },
+    {
+      "task": "A flexible base for other tasks",
+      "example": "Using the energy as a score to classify market regimes, as in joint energy-based models."
+    }
+  ],
+  "avoidWhen": [
+    "You need quick, stable training; the downhill rolling is slow and the training can be unsteady, so a variational model or a diffusion model is easier to train.",
+    "You need an exact probability for a row; the energies are not normalized, so they can be compared with each other but are not probabilities."
+  ],
+  "example": {
+    "scenario": "A researcher trained an energy-based model on feature rows from MNQ 5-minute bars and wants to know whether the current bar's condition is ordinary or unusual compared with a year of history.",
+    "input": {
+      "summary": "One row of market features for the bar that just closed.",
+      "fields": [
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "minus half a percent", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "minus a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "closing price", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." }
+      ]
+    },
+    "output": {
+      "summary": "One energy number for the row, with the usual range for comparison.",
+      "fields": [
+        { "name": "energy of this row", "value": "26", "meaning": "How ordinary the model finds the row; lower is more ordinary." },
+        { "name": "usual energy range of real rows", "value": "15 to 30", "meaning": "The span holding most real rows in the training year." },
+        { "name": "flag", "value": "ordinary", "meaning": "Whether the energy is inside the usual range; rows above the range would be called unusual." }
+      ]
+    },
+    "reading": "An energy of 26 sits inside the usual range, so this bar's mix of oversold momentum and heavy volume has been seen many times. A row at 78 would deserve a manual look before any model trusted it. The energy tells you how ordinary a row is, not which way price will go."
+  }
+}

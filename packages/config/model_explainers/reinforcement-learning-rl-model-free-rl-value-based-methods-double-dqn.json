@@ -1,0 +1,77 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-value-based-methods-double-dqn",
+  "name": "Double DQN",
+  "analogy": "Think of it as splitting a job between two people so that one cannot flatter the other. One analyst picks which choice looks best, and a second analyst, who did not pick it, puts the price tag on it. A choice that only looks good because of one analyst's lucky error no longer gets an inflated price.",
+  "steps": [
+    {
+      "title": "Start from the ordinary deep Q-network",
+      "description": "Everything else is unchanged: a network estimates the worth of short, flat and long from a state, experience is stored in a replay buffer and learned from in random batches, and a slowly updated frozen copy supplies targets.",
+      "inExample": "The agent still trades MNQ five-minute bars with the same 40-number state and the same replay buffer of 100,000 transitions."
+    },
+    {
+      "title": "Spot the bias in the usual target",
+      "description": "The usual target takes the highest estimate among the next state's actions. Every estimate has some random error, and always taking the highest picks out the errors that happen to be too high, so the target runs optimistic and the optimism is passed back into training.",
+      "inExample": "In the next state the true worths of all three actions are about plus 2 dollars, but estimate errors make the largest read plus 5."
+    },
+    {
+      "title": "Let the main network choose the next action",
+      "description": "For the next state, the main network, the one being trained, decides which action looks best. Only the choice is taken from it, not the price.",
+      "inExample": "The main network ranks long highest in the next state."
+    },
+    {
+      "title": "Let the frozen copy price that choice",
+      "description": "The target is built using the frozen copy's estimate for the action the main network chose. Since the two networks make different errors, an action that looks best only through luck is not given an inflated value.",
+      "inExample": "The frozen copy values long at plus 3 dollars rather than the optimistic plus 5."
+    },
+    {
+      "title": "Learn as usual",
+      "description": "The main network is trained toward the new, less inflated target, and the frozen copy is refreshed on the usual schedule. No new network, setting or buffer is needed.",
+      "inExample": "The frozen copy still refreshes every 1,000 steps, and the only change is which network prices the chosen action."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A drop-in upgrade to the plain deep Q-network",
+      "example": "Replacing the target calculation in an MNQ short, flat or long agent with no other change to the setup."
+    },
+    {
+      "task": "Using the estimated worths for sizing",
+      "example": "Scaling position size by the gap between long and flat, which is more trustworthy when the estimates are not inflated."
+    },
+    {
+      "task": "Cases with rarely tried actions",
+      "example": "A thin contract where the agent seldom explores short, so its estimates for that action are noisy and prone to optimism."
+    },
+    {
+      "task": "A building block for larger agents",
+      "example": "Combining it with the dueling layout and prioritised replay in a fuller agent."
+    }
+  ],
+  "avoidWhen": [
+    "Actions are continuous or numerous; the method still needs a fixed list of choices, and a policy-based method is a better match.",
+    "The real problem is poor features or a bad reward; removing a bias in the estimates will not rescue an agent that has nothing to learn from."
+  ],
+  "example": {
+    "scenario": "During training, the agent learns from one stored transition on MNQ. It went long at the 10:30 bar and earned 6 US dollars; now it builds the learning target from the next state.",
+    "input": {
+      "summary": "One stored transition and the two networks' opinions of the next state.",
+      "fields": [
+        { "name": "reward received", "value": "6 US dollars", "meaning": "What the long position earned over the next bar, after costs." },
+        { "name": "next close", "value": "19,992", "meaning": "The price at the end of the following five-minute bar." },
+        { "name": "main network's best action in the next state", "value": "long", "meaning": "The choice made by the network that is being trained." },
+        { "name": "frozen copy's worth of long in the next state", "value": "3 US dollars", "meaning": "The price the second network puts on the chosen action." },
+        { "name": "largest estimate of the frozen copy for any action", "value": "5 US dollars", "meaning": "What the older method would have used as the next-state worth." },
+        { "name": "discount for far-off reward", "value": "99 percent", "meaning": "How much of the next state's worth still counts when it is one step away." }
+      ]
+    },
+    "output": {
+      "summary": "The learning target for this transition under the new method, set beside the older one.",
+      "fields": [
+        { "name": "target with the new method", "value": "about 9 US dollars", "meaning": "The reward of 6 plus 99 percent of the 3 dollar worth the frozen copy puts on the main network's chosen action." },
+        { "name": "target with the older method", "value": "about 11 US dollars", "meaning": "The reward of 6 plus 99 percent of the largest estimate of 5, shown to display the optimism that is avoided." },
+        { "name": "inflation avoided", "value": "about 2 US dollars", "meaning": "The difference between the two targets for this one transition." }
+      ]
+    },
+    "reading": "One transition shows the idea, but the effect appears in the averages: the agent's estimated worths should stay closer to the rewards it actually earns. Compare its predicted worth with realised rewards on held-out folds to see if the optimism is gone."
+  }
+}

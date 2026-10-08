@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-memory-routing-architectures-mixture-of-experts",
+  "name": "Mixture of Experts (MoE)",
+  "analogy": "Think of it as a trading desk with several specialists and a dispatcher. One specialist knows quiet ranges, another knows trending breakouts, another knows panic sell-offs. For each new bar the dispatcher decides which one or two to consult, and the final call blends their answers by how much the dispatcher trusts each.",
+  "steps": [
+    {
+      "title": "Build several specialist networks",
+      "description": "The model contains a number of separate small networks, called experts. They begin alike but are trained so that each ends up better on a certain kind of input than the others.",
+      "inExample": "Four experts are built; after training they loosely handle ranging markets, trends, high-volatility shocks and quiet drift."
+    },
+    {
+      "title": "Show the bar to the dispatcher",
+      "description": "A separate small network, the gate, looks at the same features of the current bar. Its only job is to judge which experts are most relevant to this situation.",
+      "inExample": "The gate reads a heavy-volume, falling bar with average true range of 34 points."
+    },
+    {
+      "title": "Score and choose the experts",
+      "description": "The gate gives every expert a score and turns the scores into shares that add up to one hundred percent. Often only the top one or two are kept and the rest are skipped, which saves computation.",
+      "inExample": "The gate gives 60 percent to the shock expert, 30 percent to the trend expert, and skips the other two."
+    },
+    {
+      "title": "Ask the chosen experts",
+      "description": "Only the selected experts run on the bar's features, each producing its own answer. Experts that were not picked do no work for this bar.",
+      "inExample": "The shock expert says 41 percent for up and the trend expert says 44 percent for up."
+    },
+    {
+      "title": "Blend the answers by the gate's shares",
+      "description": "The final answer is a weighted average of the chosen experts' answers, using the gate's shares as weights. The result leans toward the specialists the gate trusts most for this input.",
+      "inExample": "Sixty percent of 41 plus thirty percent of 44, rescaled to the chosen shares, gives about 42 percent for up."
+    },
+    {
+      "title": "Train experts and dispatcher together",
+      "description": "During training, the error of the blended answer is passed back so each expert improves on the inputs it is sent, and the gate improves at sending the right inputs to the right expert. A balancing rule keeps all experts in use.",
+      "inExample": "An expert that receives almost no bars is nudged into use, so the four experts all learn something."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Handling different market regimes in one model",
+      "example": "Letting one model treat trending sessions, ranging sessions and news shocks differently, without choosing the regime by hand."
+    },
+    {
+      "task": "Inspecting which specialist handled which bar",
+      "example": "Plotting the gate's choice over the session to see when the model believes the market switched from range to trend."
+    },
+    {
+      "task": "Combining different feature families",
+      "example": "Using one expert on price-based features and another on news sentiment features, with the gate deciding the mix."
+    },
+    {
+      "task": "Scaling up a large model cheaply",
+      "example": "Growing capacity with many experts while only two run per bar, which keeps scoring time reasonable on the 1-minute bars."
+    }
+  ],
+  "avoidWhen": [
+    "The data is small; each expert sees only a slice of the bars, so with limited data the specialists are poorly trained and a single smaller model does better.",
+    "Regimes are already known and labeled; training one simple model per labeled regime is easier to audit than learning a gate."
+  ],
+  "example": {
+    "scenario": "A mixture of four experts, trained on 12 months of MNQ 5-minute bars, scores a bar that closes at 19,506 after a sharp heavy-volume drop.",
+    "input": {
+      "summary": "One row of features that goes to both the gate and the chosen experts.",
+      "fields": [
+        { "name": "close", "value": "19,506", "meaning": "The closing price of the 5-minute bar, in index points." },
+        { "name": "average true range, 14 bars", "value": "34 points", "meaning": "The typical recent high-to-low travel of a bar, elevated here." },
+        { "name": "volume against its 20-bar average", "value": "140 percent above average", "meaning": "Trading was more than twice as heavy as normal." },
+        { "name": "return over the last 6 bars", "value": "minus 100 points", "meaning": "Price fell over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "24", "meaning": "A momentum reading from 0 to 100; deeply oversold here." }
+      ]
+    },
+    "output": {
+      "summary": "The gate's shares, the experts' answers and the blended probability.",
+      "fields": [
+        { "name": "gate share for the shock expert", "value": "60 percent", "meaning": "How much the dispatcher trusts the high-volatility specialist for this bar." },
+        { "name": "gate share for the trend expert", "value": "30 percent", "meaning": "The share given to the trending specialist; the other two experts are skipped." },
+        { "name": "probability the close is higher 6 bars later", "value": "42 percent", "meaning": "The blended answer of the two chosen experts, weighted by their shares." },
+        { "name": "call", "value": "down", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "A 42 percent chance of up is an eight-point lean toward further downside, and the shares show it came mostly from the shock specialist. Treat it as one regime-aware vote, and verify out of sample that it beats a single network after trading costs."
+  }
+}

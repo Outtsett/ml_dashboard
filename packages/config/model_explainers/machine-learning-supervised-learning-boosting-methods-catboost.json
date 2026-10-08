@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-boosting-methods-catboost",
+  "name": "CatBoost",
+  "analogy": "Think of it as a desk of junior analysts who each add one short checklist to the team's call, but with two house rules. When an analyst judges a category such as the session, he may only use how earlier bars turned out, never the bar's own answer. And every checklist asks the same question at the same level for all of its branches.",
+  "steps": [
+    {
+      "title": "Start from a flat first guess",
+      "description": "Before looking at any feature, the model gives every bar the same guess: the average outcome in the training bars. All later work is a correction to this starting point.",
+      "inExample": "In the training bars, 51 percent closed higher 6 bars later, so every bar starts at 51 percent."
+    },
+    {
+      "title": "Turn categories into numbers without peeking",
+      "description": "Words such as the session name, the day of the week or a regime label are converted to numbers by looking at how often each category was followed by an up outcome. To avoid cheating, each bar's number uses only bars that come before it in a random ordering, never the bar's own outcome.",
+      "inExample": "For the New York open session, the number comes only from earlier bars in that session, and the bar being encoded is left out of its own number."
+    },
+    {
+      "title": "Measure errors fairly",
+      "description": "The model compares each bar's current guess with what happened. In ordered boosting, a bar's error is computed from a model that was built without that bar, so the model cannot flatter itself by memorizing training rows.",
+      "inExample": "A bar that closed higher is measured against a guess made by trees that never saw it, so the error is not understated."
+    },
+    {
+      "title": "Grow a balanced tree",
+      "description": "Each tree asks the same question at every branch of a given level, so the tree is symmetrical. With two questions the tree has exactly four groups. This rigid shape is fast and tends to resist overfitting.",
+      "inExample": "Level one asks whether the relative strength index is under 45, and level two asks whether volume is above its 20-bar average. Every bar lands in one of four groups."
+    },
+    {
+      "title": "Add a small part of the correction and repeat",
+      "description": "Each tree's correction is added to the running guess at a reduced strength. Hundreds of trees follow, each studying what the earlier ones still get wrong. Training stops when a held-back later period stops improving.",
+      "inExample": "After 500 trees, the held-back month stops improving and the model keeps those 500 trees."
+    },
+    {
+      "title": "Score a new bar by adding up every tree",
+      "description": "A new bar is passed down every tree. The small corrections are summed onto the starting guess and the total is converted into a probability.",
+      "inExample": "The 09:35 bar collects corrections from all 500 trees and lands at 56 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls with labelled categories",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close, with the session, day of the week and regime label as categorical features beside the numeric ones."
+    },
+    {
+      "task": "Seasonal and session effects",
+      "example": "Letting the model discover that the first hour after the New York open behaves differently from the lunch hour, with no hand-built dummy columns."
+    },
+    {
+      "task": "A strong baseline on small samples",
+      "example": "Training on a few months of bars where less careful boosting methods tend to fit noise."
+    },
+    {
+      "task": "Meta-labelling another signal",
+      "example": "Scoring whether a breakout entry from a rule will reach its target before its stop, using the regime label as one input."
+    }
+  ],
+  "avoidWhen": [
+    "The information lives in the shape of the last 60 candles in order; a sequence model reads that directly, while CatBoost only sees the summary features it is given.",
+    "You must retrain thousands of times on millions of rows and speed matters most; LightGBM is usually quicker on very large tables."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 09:35 on a Tuesday. The model, trained on the previous 12 months of bars, is asked whether the close 30 minutes later will be higher than this close.",
+    "input": {
+      "summary": "One row of features for the bar that just closed, including three categorical features.",
+      "fields": [
+        { "name": "close", "value": "19,875", "meaning": "The price at which the 09:35 five-minute bar closed." },
+        { "name": "session", "value": "New York open", "meaning": "A category naming the part of the trading day the bar belongs to." },
+        { "name": "day of the week", "value": "Tuesday", "meaning": "A category for the weekday." },
+        { "name": "regime label", "value": "ranging", "meaning": "A category from a regime model describing the recent market state." },
+        { "name": "relative strength index, 14 bars", "value": "41", "meaning": "A momentum reading from 0 to 100; lower values mean recent weakness." },
+        { "name": "volume against its 20-bar average", "value": "30 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "32 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "One probability for the bar and the feature that pushed it most.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "56 percent", "meaning": "The summed vote of all 500 trees, against a 51 percent starting guess." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push", "value": "session: New York open", "meaning": "The feature whose trees added the most to this bar's probability." }
+      ]
+    },
+    "reading": "56 percent is a small lean, five points above the starting guess. Whether it can be traded depends on costs: the lean has to be big enough that the average win covers commission and slippage, which the run page's net result measures."
+  }
+}

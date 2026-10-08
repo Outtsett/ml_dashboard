@@ -1,0 +1,77 @@
+{
+  "specificationId": "generative-models-adversarial-biggan",
+  "name": "BigGAN",
+  "analogy": "Think of it as a huge art school where a forger and an inspector train together for months on an enormous collection, and the forger is always told what to paint: a dog, a car. Because the school is so large and the order is specific, the forgeries come out sharp and varied.",
+  "steps": [
+    {
+      "title": "Take an order: a class and a random seed",
+      "description": "The generator starts from two things: a list of random numbers, and a class label saying what kind of picture to make. The label is what makes this model class-conditional, so the same seed gives different pictures for different classes.",
+      "inExample": "The order is class 'strong uptrend day' with a random seed numbered 1,042."
+    },
+    {
+      "title": "Let the class steer every layer",
+      "description": "Instead of attaching the label once at the start, the model uses it to adjust how each layer of the generator scales its numbers. The random seed is also split into pieces, and each piece feeds a different layer, so some layers control broad structure and others control detail.",
+      "inExample": "The 'strong uptrend day' label tilts every layer toward rising candles, while different seed pieces set the overall slope and the small wicks."
+    },
+    {
+      "title": "Look at the whole picture, not only neighbours",
+      "description": "Attention layers let one part of the picture check distant parts, so the left edge and right edge of the image stay consistent. This keeps large pictures coherent rather than patchy.",
+      "inExample": "The opening gap on the left of the chart image and the final close on the right are made consistent with each other."
+    },
+    {
+      "title": "Judge with a class-aware inspector",
+      "description": "The discriminator is shown real and generated pictures together with their class labels and asked which are real. It checks both whether a picture looks real and whether it matches its class.",
+      "inExample": "The inspector sees the generated image labelled 'strong uptrend day' beside real images with that label and gives it a realness score."
+    },
+    {
+      "title": "Train at very large scale",
+      "description": "What sets BigGAN apart is size: many more parameters and very large batches, with careful rules that keep training from collapsing. Both networks improve together, each pushing the other.",
+      "inExample": "Each update uses a batch of 2,048 chart images, far larger than a small GAN would use."
+    },
+    {
+      "title": "Trade variety for sharpness with truncation",
+      "description": "At generation time you can restrict the random seed to values near the middle of its range. Pictures get cleaner and more typical but less varied. A wider range gives more variety and more flaws.",
+      "inExample": "With the seed range cut to half its width, the generated chart looks like a clean textbook uptrend rather than an odd one."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Making extra training pictures for image-based models",
+      "example": "Generating labelled chart images of each candlestick pattern so a pattern-recognition network sees more rare patterns than the 1-minute MNQ history contains."
+    },
+    {
+      "task": "Class-controlled image generation at high detail",
+      "example": "Producing 256 by 256 chart images for a chosen regime label such as range-bound or breakout, to see what the network thinks each regime looks like."
+    },
+    {
+      "task": "Studying how model size changes sample quality",
+      "example": "Comparing small and large versions of the same generator on the same candle images to see whether more capacity makes the fakes harder to tell apart."
+    }
+  ],
+  "avoidWhen": [
+    "The data is a table of numbers such as the 35 base features; a tabular model such as gradient boosting is far cheaper, and BigGAN's strength is large pictures.",
+    "You do not have thousands of labelled examples per class and serious graphics hardware; at small scale a plain conditional GAN trains with much less effort."
+  ],
+  "example": {
+    "scenario": "A research script wants extra chart images for the class 'strong uptrend day' to balance a candle-pattern image dataset. It asks a trained BigGAN for one image of 64 bars at 128 by 128 pixels.",
+    "input": {
+      "summary": "The order given to the generator: what class, which random seed, and how strict to be about typical-looking results.",
+      "fields": [
+        { "name": "class label", "value": "strong uptrend day", "meaning": "The kind of chart the generator is told to draw." },
+        { "name": "random seed number", "value": "1,042", "meaning": "Which list of random numbers is used, so the same order can be repeated exactly." },
+        { "name": "truncation setting", "value": "half of the full width", "meaning": "How tightly the random numbers are kept near the middle; lower gives cleaner, less varied pictures." },
+        { "name": "image size", "value": "128 by 128 pixels", "meaning": "The size of the chart picture produced." },
+        { "name": "bars drawn", "value": "64 bars of 5 minutes", "meaning": "How many candles the picture is meant to show." }
+      ]
+    },
+    "output": {
+      "summary": "One generated chart image and the inspector's view of it.",
+      "fields": [
+        { "name": "generated chart image", "value": "128 by 128 candlestick picture", "meaning": "A synthetic chart that did not happen, drawn to look like a strong uptrend day." },
+        { "name": "inspector realness score", "value": "61 percent", "meaning": "How real the class-aware inspector thinks the picture is; near 50 percent means it cannot tell." },
+        { "name": "rising candles in the picture", "value": "41 of 64", "meaning": "A simple count taken from the picture to check it matches the uptrend order." }
+      ]
+    },
+    "reading": "The image is a drawing, not a forecast. Check by eye and by counting that it matches the class, then add it to the training set only alongside real images, clearly marked as synthetic. Never treat the picture as a prediction of tomorrow."
+  }
+}

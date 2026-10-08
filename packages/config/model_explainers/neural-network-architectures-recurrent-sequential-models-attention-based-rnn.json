@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-recurrent-sequential-models-attention-based-rnn",
+  "name": "Attention-Based RNN",
+  "analogy": "Think of it as a trader replaying the last hour of chart with a highlighter. A running mental notepad keeps track of the story, but before making the call the trader glances back over the bars and highlights the few that matter most, such as the breakout bar or the volume spike, and decides mostly from those.",
+  "steps": [
+    {
+      "title": "Read the window bar by bar",
+      "description": "A recurrent network steps through the window one bar at a time, in order. At each step it updates a running summary of everything seen so far and keeps a copy of that summary for every bar.",
+      "inExample": "A 60-bar window of MNQ 5-minute bars is read in order, leaving 60 saved summaries, one per bar."
+    },
+    {
+      "title": "Form a question from the latest state",
+      "description": "After the last bar, the network builds a question from its current state, a description of what it needs to know to make this call. This is the query that will be matched against the saved summaries.",
+      "inExample": "The question amounts to: is there a breakout or spike earlier in the window that explains where price is now?"
+    },
+    {
+      "title": "Score every saved bar against the question",
+      "description": "Each saved summary is compared with the question and gets a relevance score. Bars whose content resembles what is being asked about score high; unremarkable bars score low.",
+      "inExample": "The breakout bar 14 bars back and a volume-spike bar 5 bars back score highest; most other bars score near zero."
+    },
+    {
+      "title": "Turn the scores into shares of attention",
+      "description": "The scores are converted into shares that add up to one hundred percent. Only bars up to the present can receive attention, so nothing from the future leaks in.",
+      "inExample": "The breakout bar gets 38 percent, the spike bar 27 percent, and the remaining 35 percent is spread over the other 58 bars."
+    },
+    {
+      "title": "Build a focused summary",
+      "description": "The saved summaries are blended using the attention shares, producing one context summary dominated by the bars that mattered. This replaces relying only on the final running summary, which tends to forget older bars.",
+      "inExample": "The context summary is mostly the breakout bar and the volume spike, blended with the final state."
+    },
+    {
+      "title": "Predict and show the highlights",
+      "description": "The context summary and the final state go to an output layer that produces the prediction. The attention shares can be plotted against the candles, showing which bars drove the call.",
+      "inExample": "The output is a 58 percent probability that the close 6 bars later is higher, and the chart highlights the two bars that carried most of the attention."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls with visible evidence",
+      "example": "Predicting MNQ's direction over the next 30 minutes and drawing the highlighted bars so a trader can sanity-check the reasoning."
+    },
+    {
+      "task": "Triple-barrier outcome prediction",
+      "example": "Predicting whether a profit target 40 points away or a stop 25 points away is hit first, with the bars that drove the call."
+    },
+    {
+      "task": "Spotting regime changes",
+      "example": "Watching for attention suddenly jumping to the most recent bars, which can signal that older context has stopped being useful."
+    },
+    {
+      "task": "Ranking which bars or features matter",
+      "example": "Averaging attention over many windows to learn whether opening-range bars or volume spikes get the most weight."
+    }
+  ],
+  "avoidWhen": [
+    "The windows are very long, thousands of bars; scoring every saved bar gets costly, and a model built for long sequences or a summary-feature approach scales better.",
+    "You only need a quick baseline from a table of indicators; a tree model on engineered features is faster to build and much simpler to validate."
+  ],
+  "example": {
+    "scenario": "A 60-bar window of MNQ 5-minute bars ends at 11:05. An attention-based recurrent network is asked for the probability that the close 6 bars (30 minutes) later is higher.",
+    "input": {
+      "summary": "A window of 60 bars, each with open, high, low, close, volume and a few indicators.",
+      "fields": [
+        { "name": "window length", "value": "60 bars (5 hours)", "meaning": "How many 5-minute bars the model reads." },
+        { "name": "last close", "value": "19,962", "meaning": "The closing price of the final bar, in index points." },
+        { "name": "average true range, 14 bars", "value": "29 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "largest volume bar in window", "value": "220 percent above average, 5 bars back", "meaning": "A volume spike that may be relevant to the call." },
+        { "name": "breakout bar in window", "value": "14 bars back, +44 points", "meaning": "A strong up-bar that cleared the morning range." }
+      ]
+    },
+    "output": {
+      "summary": "A probability and the attention shares behind it.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "58 percent", "meaning": "The model's answer after blending the highlighted bars with its final state." },
+        { "name": "attention on the breakout bar", "value": "38 percent", "meaning": "How much of the decision came from the breakout bar 14 bars back." },
+        { "name": "attention on the volume spike bar", "value": "27 percent", "meaning": "How much came from the heavy-volume bar 5 bars back." }
+      ]
+    },
+    "reading": "The 58 percent lean is modest, and the highlights show it rests on a breakout and a volume spike, which a trader can check on the chart. Treat the attention shares as a guide to where the model looked, not as proof of cause, and judge the signal on net results after costs."
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-supervised-learning-tree-based-models-decision-tree-classifier",
+  "name": "Decision Tree Classifier",
+  "analogy": "Think of it as a checklist a cautious trader runs before every entry. Each line is a yes-or-no question about the bar, the answers lead down one path, and where the path ends is a note saying how often past bars like this one went on to hit the profit target.",
+  "steps": [
+    {
+      "title": "Label every training bar with what happened",
+      "description": "Each training bar is tagged with its real outcome, for example which of the profit target or the stop was touched first. The tree learns only from these tags.",
+      "inExample": "Out of 30,000 bars, 51 percent touched the 20-point profit target first and 49 percent touched the 20-point stop first."
+    },
+    {
+      "title": "Decide whether rare outcomes need extra weight",
+      "description": "Because splits chase overall purity, a rare outcome can get lost. If one outcome is much rarer than the other, its bars are given extra weight so the tree pays attention to them; if the outcomes are balanced, nothing is changed.",
+      "inExample": "Target-first and stop-first are close to balanced here, so no extra weight is applied."
+    },
+    {
+      "title": "Find the question that unmixes the outcomes best",
+      "description": "The model tries many yes-or-no questions on every feature and scores how much more one-sided the outcomes become on each side. The question that purifies the groups most is chosen for the top of the tree.",
+      "inExample": "'Is the relative strength index under 35?' wins: the yes side is 54 percent target-first, the no side 50 percent."
+    },
+    {
+      "title": "Split and repeat down each branch",
+      "description": "Each side of the split gets its own best question, and so on down. A branch asks only about the bars that reached it, so deep questions can be very specific.",
+      "inExample": "On the oversold branch the next question is 'is the close more than one and a half standard deviations below its 20-bar average?', then 'is volume more than 30 percent above normal?'."
+    },
+    {
+      "title": "Stop at a sensible depth",
+      "description": "The tree is told when to stop: a maximum depth or a minimum number of bars in a leaf. Without limits it would memorize the training bars, so the limit is the main protection against overfitting.",
+      "inExample": "Depth is capped at 4 questions and every leaf must hold at least 100 bars."
+    },
+    {
+      "title": "Store the outcome mix in every leaf",
+      "description": "Each leaf remembers the share of each outcome among the training bars that ended there. That share, not just a yes or no, is what the model reports as its probability.",
+      "inExample": "One leaf holds 143 bars of which 80 were target-first, so it stores 56 percent target-first and 44 percent stop-first."
+    },
+    {
+      "title": "Walk a new bar down the tree",
+      "description": "A new bar answers each question in turn, follows one path to a leaf, and receives that leaf's stored outcome mix as its answer. The path itself is the explanation.",
+      "inExample": "The new bar answers yes, yes, yes, yes, lands in the 143-bar leaf and is scored 56 percent target-first."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Explainable entry filtering",
+      "example": "Scoring each long entry on MNQ 5-minute bars as 'target first' or 'stop first' and showing the exact path that produced the score."
+    },
+    {
+      "task": "Classifying the outcome of a trade setup",
+      "example": "Predicting which of a 20-point target, a 20-point stop or a 12-bar time limit is reached first, using the 35 base features."
+    },
+    {
+      "task": "Auditing which indicators matter",
+      "example": "Reading how often relative strength index and volume ratio are used near the top of the tree to decide which of the 151 indicators to keep."
+    },
+    {
+      "task": "A shallow building block for ensembles",
+      "example": "Using trees only 2 or 3 questions deep as the small pieces inside a boosted model."
+    }
+  ],
+  "avoidWhen": [
+    "You want the most accurate probabilities; one tree gives coarse, step-like probabilities and is easily shaken by small data changes, while a forest or boosted model smooths this out.",
+    "The target is a rare event such as a large move in 2 percent of bars and you have not re-weighted; the tree may simply call every bar the common class."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes after a sharp drop. A trader is considering a long entry with a 20-point target and a 20-point stop, and asks the tree which is more likely to be reached first.",
+    "input": {
+      "summary": "One row of features describing the bar that just closed, plus the shape of the trade being considered.",
+      "fields": [
+        { "name": "close", "value": "19,185", "meaning": "The price at which the 5-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "29", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance below the 20-bar average", "value": "between 1 and 2 standard deviations", "meaning": "How stretched the close is below its recent average, scaled by recent variation." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "trade being considered", "value": "long, 20-point target, 20-point stop", "meaning": "The two levels whose order of arrival the tree is asked about; one point on MNQ is worth 2 US dollars." }
+      ]
+    },
+    "output": {
+      "summary": "The outcome mix of the leaf the bar landed in, and the path that got it there.",
+      "fields": [
+        { "name": "probability the target is hit first", "value": "56 percent", "meaning": "The share of training bars in this leaf whose 20-point target was reached before the 20-point stop." },
+        { "name": "probability the stop is hit first", "value": "44 percent", "meaning": "The remaining share of training bars in this leaf." },
+        { "name": "bars in the leaf", "value": "143", "meaning": "How many past bars the probabilities are based on." },
+        { "name": "path", "value": "index under 35, stretch beyond one and a half standard deviations, volume over 30 percent above normal, range under 30", "meaning": "The four answers that led to this leaf." }
+      ]
+    },
+    "reading": "With a target and stop of equal size, 56 percent target-first is a modest lean of six points over a coin flip, and whether it pays depends on costs and on whether the leaf's share holds on bars the tree has not seen. Check it on later walk-forward folds before trading it."
+  }
+}

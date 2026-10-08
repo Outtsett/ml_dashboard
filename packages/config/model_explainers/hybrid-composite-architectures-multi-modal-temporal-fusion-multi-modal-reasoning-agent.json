@@ -1,0 +1,79 @@
+{
+  "specificationId": "hybrid-composite-architectures-multi-modal-temporal-fusion-multi-modal-reasoning-agent",
+  "name": "Multi-Modal Reasoning Agent",
+  "analogy": "Think of it as a trading desk lead who reads three feeds at once: the price tape, the news wire and a screen of related markets. A junior summarises each feed, the lead weighs how much to trust each one right now, remembers how the last half hour went, and then picks an action.",
+  "steps": [
+    {
+      "title": "Give each kind of information its own reader",
+      "description": "Price bars, news sentiment and the behaviour of related markets are very different kinds of data, so each one goes through a reader built for it. Each reader turns its source into a short list of numbers that summarises what it saw.",
+      "inExample": "A price reader summarises the last 30 five-minute MNQ bars, a news reader summarises the sentiment of recent headlines, and a market reader summarises how E-mini S&P 500 futures have moved."
+    },
+    {
+      "title": "Weigh the sources against each other",
+      "description": "An attention step decides how much each summary should count for the current moment. When news is quiet it can lean on price; when a headline has just landed it can lean on sentiment. The weights change from bar to bar.",
+      "inExample": "For the 14:35 bar the weights come out at 52 percent price, 31 percent news and 17 percent related markets, because a sentiment shift appeared in the last 20 minutes."
+    },
+    {
+      "title": "Carry a memory of the recent past",
+      "description": "The blended summary is passed into a sequence model that also holds what it concluded on earlier bars. This lets the agent notice that a state has been building for several bars instead of reacting to one bar alone.",
+      "inExample": "The memory records that the last four bars each pushed the blended picture slightly upward, so the current state is a developing lean and not a one-bar jump."
+    },
+    {
+      "title": "Score each possible action",
+      "description": "A decision module looks at the remembered state and gives every available action a preference: buy, hold or sell. In its reinforcement-learning form this module was trained by trying actions in simulated markets and being rewarded by net result after costs.",
+      "inExample": "The decision module gives buy 46 percent, hold 41 percent and sell 13 percent of its preference."
+    },
+    {
+      "title": "Pick the action and size it",
+      "description": "The preferred action is chosen, and a size or stop distance is attached according to the agent's rules for risk. The agent then waits for the next bar and repeats the whole loop, using the outcome as feedback during training.",
+      "inExample": "It chooses to buy 1 contract with a stop one and a half times the average true range below entry, which is 39 points or 78 US dollars of risk."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Combining price, news and related markets into one decision",
+      "example": "Deciding whether to hold a long MNQ position through a scheduled news release by weighing price momentum, FinBERT sentiment and how E-mini S&P 500 futures are behaving."
+    },
+    {
+      "task": "A trading agent that learns by simulated trial and error",
+      "example": "Training an agent on walk-forward folds of MNQ 5-minute bars where its reward is net profit after commission and slippage, so it learns when staying flat is the better action."
+    },
+    {
+      "task": "Showing which source drove a call",
+      "example": "Reading the source weights to see that a buy came mostly from news and only a little from price, so you know to distrust it when the headline feed goes stale."
+    },
+    {
+      "task": "Dynamic position sizing",
+      "example": "Letting the action module scale between 0, 1 and 2 contracts depending on how strongly the three sources agree."
+    }
+  ],
+  "avoidWhen": [
+    "You only have one table of features and one target; a simpler tree model or a single sequence model is easier to validate and will train in a fraction of the time.",
+    "You have too few independent walk-forward folds to tell a real edge from luck; a model with this many moving parts overfits a short history very easily.",
+    "You need to explain every decision rule to a reviewer; the learned weighting between sources is harder to audit than a fixed rule."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The agent was trained on a year of bars and aligned news sentiment, and is flat going into this bar. It is asked what to do now.",
+    "input": {
+      "summary": "One snapshot made of three sources, all aligned to the 14:35 bar, plus the agent's current position.",
+      "fields": [
+        { "name": "close", "value": "19,240", "meaning": "The price at which the 14:35 five-minute MNQ bar closed." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "price change over the last 12 bars", "value": "up 18 basis points", "meaning": "How much price has risen over the previous hour; a basis point is one hundredth of a percent." },
+        { "name": "news sentiment, last 30 minutes", "value": "31 on a scale from minus 100 to plus 100", "meaning": "The average FinBERT sentiment of recent headlines; zero is neutral and plus 100 is as positive as it gets." },
+        { "name": "E-mini S&P 500 price change over the same hour", "value": "up 15 basis points", "meaning": "How the related E-mini S&P 500 futures moved over the same period." },
+        { "name": "current position", "value": "flat", "meaning": "The agent holds no contracts going into the decision." }
+      ]
+    },
+    "output": {
+      "summary": "A preference for each action, the chosen action with its size, and how much each source counted.",
+      "fields": [
+        { "name": "action preferences", "value": "buy 46, hold 41, sell 13 percent", "meaning": "How strongly the decision module favours each of the three actions for this bar." },
+        { "name": "chosen action", "value": "buy 1 contract", "meaning": "The action with the highest preference, sized by the agent's risk rules." },
+        { "name": "stop distance", "value": "39 points (78 US dollars)", "meaning": "How far below entry the protective stop is placed: one and a half times the average true range, at 2 US dollars per point." },
+        { "name": "source weights", "value": "price 52, news 31, related markets 17 percent", "meaning": "How much each source counted in the blended picture for this bar." }
+      ]
+    },
+    "reading": "Buy is only five points ahead of hold, so this is a weak lean and not a conviction call. Treat it as one candidate entry: check that the expected move beats commission and slippage, and look at the source weights to see whether news, which can go stale, carried it."
+  }
+}

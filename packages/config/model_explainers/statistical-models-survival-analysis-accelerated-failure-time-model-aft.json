@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-survival-analysis-accelerated-failure-time-model-aft",
+  "name": "Accelerated Failure Time Model (AFT)",
+  "analogy": "Think of it as a clock whose speed depends on the trade. A trade entered with the trend runs on a faster clock and ends sooner; one entered against it runs slow. The model learns by what factor each feature speeds up or slows down the clock.",
+  "steps": [
+    {
+      "title": "Record how long each trade lasted",
+      "description": "Each past trade becomes a row with its entry-time features and the time it took to end. Trades that are still open when the data stops are kept, and marked as having lasted at least this long.",
+      "inExample": "Each MNQ trade holds its entry features and its life in 5-minute bars; 38 of 240 trades are still open and are marked as lasting at least as long as they have so far."
+    },
+    {
+      "title": "Choose the shape of the lifetimes",
+      "description": "This model commits to a family of curves for how lifetimes are spread, such as the log-normal, which has a hump and a long tail. The choice matters because it fixes how the chance of ending changes as a trade ages.",
+      "inExample": "The log-normal shape is chosen because trade lifetimes bunch around a typical length with a long tail of slow trades."
+    },
+    {
+      "title": "Fit a line on the logarithm of the lifetime",
+      "description": "Working with the logarithm turns the multiplication of time into ordinary addition, so the weights can be found much as in a regular regression. Still-open trades enter the fit as lower limits on how long they lasted.",
+      "inExample": "Weights are found for entry features such as trading with the trend, the average true range and the time of day."
+    },
+    {
+      "title": "Turn each weight into a speed-up factor",
+      "description": "Each weight is converted into a factor on time. A factor that shortens time means the feature makes the trade end sooner, one that lengthens it means the trade runs longer. These factors can be read straight on the time axis, with no need to think about risk rates.",
+      "inExample": "Entering with the trend makes such trades last about 22 percent less time; a high average true range shortens them by about 10 percent."
+    },
+    {
+      "title": "Stretch a baseline lifetime for a new trade",
+      "description": "The typical lifetime for a trade with all features at their reference values is adjusted by the factors for the new trade's features. The result is the new trade's expected lifetime.",
+      "inExample": "A baseline median life of 18 bars, shortened by 22 percent for trading with the trend, gives a median of about 14 bars; the 22-point average true range sits at the reference level, so it changes nothing."
+    },
+    {
+      "title": "Read off the whole range of likely lifetimes",
+      "description": "Because the lifetime shape is fixed, the model also gives other points, such as how long the quickest quarter and the slowest quarter of similar trades last, not just one central number.",
+      "inExample": "For this trade the quickest quarter end within 9 bars and the slowest quarter last beyond 23 bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting how long a trade will stay open",
+      "example": "Predicting the median number of 5-minute bars an MNQ trade lasts, so a time-based exit can be set in line with the setup."
+    },
+    {
+      "task": "Forecasting how long an order takes to fill",
+      "example": "Estimating how many seconds a resting limit order, placed 2 ticks from the touch, will wait before it fills."
+    },
+    {
+      "task": "Comparing entry conditions in plain time units",
+      "example": "Measuring how much faster trades close when entered with the trend than against it, stated as a percentage of time."
+    },
+    {
+      "task": "Forecasting drawdown recovery time",
+      "example": "Estimating how many days a drawdown of a given size tends to take to recover, using sizing and hedging features."
+    }
+  ],
+  "avoidWhen": [
+    "You do not know which lifetime shape fits; a wrong shape distorts the forecast and a Cox model, which leaves the shape open, is safer.",
+    "You mainly want to rank trades by relative risk and not to forecast actual times; the Cox model gives hazard ratios for that job directly."
+  ],
+  "example": {
+    "scenario": "A long MNQ trade is entered with the trend on a 5-minute chart. The model forecasts how many 5-minute bars the trade will stay open before its stop or target ends it.",
+    "input": {
+      "summary": "The entry-time features of one trade, none of which depend on what happens after entry.",
+      "fields": [
+        { "name": "entry price", "value": "18,452", "meaning": "The price at which the trade is entered, rounded to a whole point." },
+        { "name": "entered with the trend", "value": "yes", "meaning": "Whether the trade goes the same way as the recent 50-bar trend." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "stop distance", "value": "30 points", "meaning": "How far from entry the protective stop is placed." },
+        { "name": "target distance", "value": "60 points", "meaning": "How far from entry the profit target is placed." },
+        { "name": "time of day", "value": "10:15", "meaning": "When the trade is entered, in the exchange's local clock." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast of the trade's lifetime in bars, with the speed-up that explains it.",
+      "fields": [
+        { "name": "median lifetime", "value": "14 bars", "meaning": "Half of similar trades end sooner than this and half later; 14 bars is 70 minutes." },
+        { "name": "quickest quarter end within", "value": "9 bars", "meaning": "One in four similar trades ends within 45 minutes." },
+        { "name": "slowest quarter last beyond", "value": "23 bars", "meaning": "One in four similar trades is still open after about 115 minutes." },
+        { "name": "effect of trading with the trend", "value": "22 percent shorter", "meaning": "Trades entered with the trend last about 22 percent less time than the baseline of 18 bars." }
+      ]
+    },
+    "reading": "A median of 14 bars suggests setting a time exit around the slowest quarter, near 23 bars, instead of a fixed number. Remember the shape of lifetimes was assumed, so check on held-out trades that the 9 and 23 bar marks really bracket about half of them."
+  }
+}

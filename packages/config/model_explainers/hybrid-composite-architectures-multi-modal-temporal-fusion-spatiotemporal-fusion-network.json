@@ -1,0 +1,78 @@
+{
+  "specificationId": "hybrid-composite-architectures-multi-modal-temporal-fusion-spatiotemporal-fusion-network",
+  "name": "Spatiotemporal Fusion Network",
+  "analogy": "Think of it as a desk of traders each watching one index future. One part of the desk asks what the connected markets are doing right now; another part looks back over the last half hour of each tape. The two views are then merged into one forecast.",
+  "steps": [
+    {
+      "title": "Lay the markets out as a connected map",
+      "description": "Each instrument becomes a point on a map, and lines join the ones that tend to move together. Every point carries its own numbers for the current bar, and the strength of each line comes from how closely the two instruments have moved recently.",
+      "inExample": "Four index futures, MNQ, E-mini S&P 500, micro Russell 2000 and micro Dow, become four points; the MNQ to E-mini S&P 500 line is strong because their recent correlation is 96 on a scale where 100 is perfectly in step."
+    },
+    {
+      "title": "Let each market borrow from its neighbours",
+      "description": "The spatial part passes information along the lines, so each point's summary is updated with a weighted mix of its neighbours' summaries. After a couple of passes a point knows about markets two links away as well.",
+      "inExample": "The MNQ summary absorbs mostly the E-mini S&P 500, a little of the micro Dow and almost nothing from the micro Russell 2000, which has been drifting on its own."
+    },
+    {
+      "title": "Read each market's own recent history",
+      "description": "The temporal part works on the sequence of the last several bars for every instrument and reads it in order, so it can tell a rising pressure from a fading one. A recurrent layer or an attention layer does this reading, alongside the map view rather than after it.",
+      "inExample": "It reads the last 30 five-minute bars of MNQ in order and sees a steady rise across the final 12."
+    },
+    {
+      "title": "Merge the where and the when",
+      "description": "The map-based summary and the history-based summary are combined, by joining them, by weighting them or by a gate that decides how much of each to keep. The merged state holds both the cross-market context and the time pattern.",
+      "inExample": "A gate keeps 60 percent of the history view and 40 percent of the cross-market view for this bar."
+    },
+    {
+      "title": "Turn the merged state into a forecast",
+      "description": "A final layer maps the merged state to the quantity being predicted, a future return or a direction probability, for each instrument at once. Training adjusts every part together by minimising forecast error on past bars.",
+      "inExample": "The output layer returns a forecast 6-bar price change for MNQ of up 7 basis points and a 56 percent chance the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting one index future using the others",
+      "example": "Predicting MNQ's move over the next 6 five-minute bars while letting E-mini S&P 500, micro Dow and micro Russell 2000 flows inform the call."
+    },
+    {
+      "task": "Spotting a lead and lag between related markets",
+      "example": "Checking whether the micro Russell 2000 starts to turn before MNQ by looking at how strongly its point influences the MNQ forecast."
+    },
+    {
+      "task": "Several forecasts from one model",
+      "example": "Producing next-30-minute forecasts for MNQ and its three neighbours together so the cross-market agreement can be checked."
+    },
+    {
+      "task": "Measuring how much cross-market context adds",
+      "example": "Running the same folds with the connections removed to see whether neighbour information improves a single-instrument forecast after costs."
+    }
+  ],
+  "avoidWhen": [
+    "You trade a single instrument and have no related series; with nothing to connect, a plain sequence model or a tree model does the same job with less machinery.",
+    "The connections between markets change fast, such as in a crisis when correlations jump; a fixed map of links can be wrong exactly when it matters.",
+    "You need a quick, auditable baseline; this model has many parts to tune and is harder to validate than a gradient boosted tree on the same features."
+  ],
+  "example": {
+    "scenario": "At the 14:35 close of a 5-minute bar, the model is asked to forecast MNQ's move over the next 6 bars using MNQ, E-mini S&P 500, micro Russell 2000 and micro Dow over the last 30 bars.",
+    "input": {
+      "summary": "Per-instrument recent price changes plus how closely each pair has moved together over the last 60 bars.",
+      "fields": [
+        { "name": "MNQ close", "value": "19,240", "meaning": "The latest 5-minute close of the instrument being forecast." },
+        { "name": "MNQ price change, last 6 bars", "value": "up 21 basis points", "meaning": "How far MNQ has risen over the last 30 minutes; a basis point is one hundredth of a percent." },
+        { "name": "E-mini S&P 500 price change, last 6 bars", "value": "up 18 basis points", "meaning": "How far E-mini S&P 500 futures have risen over the same 30 minutes." },
+        { "name": "micro Dow price change, last 6 bars", "value": "up 12 basis points", "meaning": "How far micro Dow futures have risen over the same 30 minutes." },
+        { "name": "micro Russell 2000 price change, last 6 bars", "value": "down 5 basis points", "meaning": "How micro Russell 2000 futures moved, slightly down over the same 30 minutes." },
+        { "name": "correlation of MNQ with the E-mini S&P 500, last 60 bars", "value": "96 on a scale to 100", "meaning": "How tightly the two have moved together recently; 100 would be perfectly in step." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast for MNQ and how much each neighbour contributed to it.",
+      "fields": [
+        { "name": "forecast MNQ price change over the next 6 bars", "value": "up 7 basis points", "meaning": "The model's central estimate of the move, about 13 points or 26 US dollars per contract." },
+        { "name": "probability the close is higher in 6 bars", "value": "56 percent", "meaning": "How likely the model rates an up move compared with a down move." },
+        { "name": "influence on the MNQ forecast", "value": "E-mini S&P 500 48, micro Dow 31, micro Russell 2000 6, own history 15 percent", "meaning": "How much each connected market and MNQ's own tape shaped the forecast." }
+      ]
+    },
+    "reading": "A 56 percent lean and a 13 point estimate are small next to a typical 5-minute range of 20 to 30 points, so this is a mild tilt and not a signal to trade by itself. The influence split tells you the call is mostly an echo of the E-mini S&P 500, which matters if it is about to hit a news release."
+  }
+}

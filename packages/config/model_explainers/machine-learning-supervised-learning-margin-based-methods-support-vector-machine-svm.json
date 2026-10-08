@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-margin-based-methods-support-vector-machine-svm",
+  "name": "Support Vector Machine (SVM)",
+  "analogy": "Think of it as laying a rope between the up bars and the down bars on a chart, and pulling it so the widest possible empty lane sits on each side. Only the few bars right at the edge of the lane decide where the rope lies, and everything else could vanish without moving it.",
+  "steps": [
+    {
+      "title": "Put every bar in feature space",
+      "description": "Each bar becomes a point described by its rescaled features, and each point carries a label such as up or down. The model looks for a dividing line, or in more dimensions a flat surface, between the two groups.",
+      "inExample": "40,000 training bars are points described by 35 rescaled features, coloured by whether the close 6 bars later was higher."
+    },
+    {
+      "title": "Find the widest empty lane",
+      "description": "Many lines could separate the groups. The model picks the one with the widest empty gap, the margin, on both sides, because a wide lane is the most likely to keep working on bars it has not seen.",
+      "inExample": "Out of countless possible dividing lines, the one with the widest gap between up bars and down bars is chosen."
+    },
+    {
+      "title": "Let the edge bars decide",
+      "description": "Only the points sitting on the edge of the lane, called support vectors, define the dividing line. Points far from the edge could be deleted and the line would not move.",
+      "inExample": "Of 40,000 bars, about 1,840 sit on or inside the lane's edge and become the support bars."
+    },
+    {
+      "title": "Allow some mistakes",
+      "description": "Market data overlaps heavily, so a perfect separation does not exist. The model accepts some bars on the wrong side or inside the lane, at a price. A setting controls the price: cheap mistakes make a wide, forgiving lane; costly ones make a narrow, strict one.",
+      "inExample": "A moderate price per mistake lets many noisy bars sit inside the lane without bending the line."
+    },
+    {
+      "title": "Bend the space if a straight line fails",
+      "description": "If no straight dividing line works, a kernel lets the model act as if the points were lifted into a higher-dimensional space, where a flat surface separates them. Back in the original space the dividing line then looks curved.",
+      "inExample": "A smooth round kernel is used, so the boundary can wrap around a cluster of oversold, heavy-volume bars."
+    },
+    {
+      "title": "Score a new bar by its side and distance",
+      "description": "A new bar is placed in feature space and the model reports which side of the line it falls on and how far from it. A larger distance means a more confident call, and a calibration step can turn that distance into a probability.",
+      "inExample": "The 14:35 bar lands on the up side, about a third of the way from the line to the edge of the lane, which calibrates to about 57 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls from a modest table",
+      "example": "Classifying whether MNQ's close 30 minutes after a 5-minute bar is above that bar's close from a compact set of features."
+    },
+    {
+      "task": "Curved decision boundaries on small data",
+      "example": "Separating trending from ranging bars when the boundary is smooth but not straight and there are only a few thousand labelled bars."
+    },
+    {
+      "task": "Pattern classification from image-derived features",
+      "example": "Classifying candlestick patterns from numbers describing each candle's body and wick shapes."
+    },
+    {
+      "task": "A strong margin-based comparison model",
+      "example": "Running it beside tree-based and linear models on the same folds to see whether the boundary shape matters."
+    }
+  ],
+  "avoidWhen": [
+    "You have hundreds of thousands of bars; training time grows quickly with the number of points and the model becomes slow compared with trees or linear models.",
+    "You need a calibrated probability straight away; the model's native output is a side and a distance, and the probability needs an extra step that can be unreliable.",
+    "Features are on different scales and not rescaled; the distance logic then lets one feature dominate."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A support vector machine trained on 40,000 earlier bars classifies whether the close 6 bars (30 minutes) later will be above this close.",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed, plus the model's training settings.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "support bars kept by the model", "value": "1,840 of 40,000", "meaning": "The training bars on the edge of the lane that define the dividing line." }
+      ]
+    },
+    "output": {
+      "summary": "A side of the line, how far from it, and a calibrated probability.",
+      "fields": [
+        { "name": "side of the dividing line", "value": "up", "meaning": "Which class the new bar falls into." },
+        { "name": "distance from the line", "value": "about a third of the way to the lane edge", "meaning": "How far into the up side the bar sits; the edge of the lane is the point where a bar would count as fully confident." },
+        { "name": "calibrated probability the close is higher 6 bars later", "value": "57 percent", "meaning": "The distance converted into a probability using held-back training bars." }
+      ]
+    },
+    "reading": "The bar is on the up side but only a third of the way to the lane edge, so the call is weak. Use the distance as a filter, trading only bars beyond a chosen distance, and verify on held-out folds that bars far from the line really did better after costs."
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-variational-world-model",
+  "name": "Variational World Model",
+  "analogy": "Think of it as a weather forecaster for the market who never says just one thing will happen. Given today's chart, the forecaster describes a cloud of plausible next bars, wide on jumpy days and tight on quiet ones, and can draw you as many sample days from that cloud as you like.",
+  "steps": [
+    {
+      "title": "Compress the bar into a spread, not a point",
+      "description": "An encoder reads a bar and outputs a small distribution for its hidden state: a centre and a width for each number. The width says how unsure the model is about what the bar really means.",
+      "inExample": "The 10:15 five-minute MNQ bar is encoded into 12 hidden numbers, each with a centre and a width."
+    },
+    {
+      "title": "Sample a hidden state from that spread",
+      "description": "A single hidden state is drawn at random from the spread, in a way that still lets learning flow back through the draw. Each draw is one plausible reading of the bar.",
+      "inExample": "One draw gives a hidden state that reads the bar as an orderly advance on moderate volume."
+    },
+    {
+      "title": "Predict the next hidden state from history alone",
+      "description": "A learned prior, using only the past and the action, gives a spread for where the hidden state goes next. This is the forward prediction, and it is a whole distribution, not one value.",
+      "inExample": "The prior says the next state is probably another orderly advance, with a smaller chance of a sharp reversal."
+    },
+    {
+      "title": "Rebuild the bar from the hidden state",
+      "description": "A decoder turns a hidden state back into bar features and a reward estimate. Training asks for good rebuilding while keeping the encoder's spread close to the prior, which is what keeps the picture honest.",
+      "inExample": "The decoder rebuilds the bar's range and volume from the hidden draw and estimates the net result of the last action."
+    },
+    {
+      "title": "Train on a balance of fit and honesty",
+      "description": "The two demands are combined into one score: rebuild well, but do not let the encoder claim more certainty than the history allows. This helps keep the predicted widths calibrated.",
+      "inExample": "On held-out folds, the check is whether about 80 percent of real next-bar moves fall inside the model's stated 80 percent range."
+    },
+    {
+      "title": "Sample many futures to see the range",
+      "description": "To look ahead, the model draws many hidden-state paths from the prior, decodes each one and collects the outcomes. The spread of those outcomes is the forecast, including its tails.",
+      "inExample": "From the 10:15 bar, 500 imagined 6-bar paths are drawn and decoded into price moves."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sizing positions by predicted spread",
+      "example": "Holding 1 MNQ contract when the imagined 6-bar outcomes are wide and 3 when they are tight."
+    },
+    {
+      "task": "Stress testing with scenario samples",
+      "example": "Sampling 500 imagined 6-bar paths to see how often a 40-point stop would be hit."
+    },
+    {
+      "task": "Valuing path-dependent payoffs",
+      "example": "Using the full set of imagined outcomes to evaluate a rule that exits at a target or a stop, whichever comes first."
+    },
+    {
+      "task": "Calibrated volatility forecasts",
+      "example": "Producing a 6-bar range forecast on ES and checking it against realized ranges in walk-forward folds."
+    },
+    {
+      "task": "Flagging unusual bars",
+      "example": "Treating a bar the model rebuilds poorly, or one that falls in its far tail, as a sign of unusual conditions."
+    }
+  ],
+  "avoidWhen": [
+    "A single direction call is the whole need; a classifier is simpler and its probability is easier to evaluate.",
+    "The tails matter and data on them is thin; the model's tails are only as good as the few extreme bars it saw, and may look reassuringly narrow."
+  ],
+  "example": {
+    "scenario": "At 10:15 on an MNQ session the model draws 500 imagined 6-bar futures to give a position-sizing range for the next 30 minutes.",
+    "input": {
+      "summary": "The current bar's features and the action the agent is considering.",
+      "fields": [
+        { "name": "close", "value": "19,855", "meaning": "The close of the 10:15 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "up about a fifth of one percent", "meaning": "How much price has risen over the previous 30 minutes." },
+        { "name": "imagined paths requested", "value": "500 paths of 6 bars", "meaning": "How many sampled futures the model is asked to produce." }
+      ]
+    },
+    "output": {
+      "summary": "The distribution of imagined 6-bar moves.",
+      "fields": [
+        { "name": "median imagined move", "value": "plus 5 points", "meaning": "The middle outcome across the 500 imagined paths." },
+        { "name": "10th percentile of imagined moves", "value": "minus 41 points", "meaning": "One tenth of imagined paths ended lower than this." },
+        { "name": "90th percentile of imagined moves", "value": "plus 52 points", "meaning": "One tenth of imagined paths ended higher than this." },
+        { "name": "chance an imagined path touches a 30-point stop", "value": "34 percent", "meaning": "The share of paths that moved 30 points against a long position at some point." }
+      ]
+    },
+    "reading": "The median is small relative to a spread of about 90 points, so size should be set by the spread, not the lean. Check calibration first: if real outcomes fall outside the stated 10th-to-90th range far more than 20 percent of the time, shrink your trust in the tails."
+  }
+}

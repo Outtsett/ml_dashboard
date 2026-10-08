@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-asynchronous-advantage-actor-critic-a3c",
+  "name": "Asynchronous Advantage Actor-Critic (A3C)",
+  "analogy": "Think of it as several traders in separate rooms, each replaying a different stretch of history. Whenever one finishes a short run they walk to a shared notebook, add their lessons, copy down the latest version and carry on, without waiting for anyone else.",
+  "steps": [
+    {
+      "title": "Keep one shared brain",
+      "description": "A single global actor-critic holds the current best knowledge. It is the only copy that is ever kept, and everything learned is written into it.",
+      "inExample": "The shared brain starts as an untrained network that outputs near-equal chances for long, flat and short."
+    },
+    {
+      "title": "Start independent workers",
+      "description": "Each worker has its own copy of the market environment and its own private copy of the network. Workers run at the same time and at their own pace.",
+      "inExample": "Six workers start on Micro E-mini Nasdaq-100 futures 5-minute bars, each at a different date in the training year."
+    },
+    {
+      "title": "Each worker trades a short run",
+      "description": "A worker copies the latest shared weights, then trades a handful of bars using its private network, recording states, actions and rewards.",
+      "inExample": "Worker four copies the weights, then trades 5 bars from a quiet midday stretch, buying once and exiting for a 2-point gain."
+    },
+    {
+      "title": "The worker works out its own lesson",
+      "description": "From its short run it computes how much better or worse each step went than the critic expected, bootstrapping the rest of the future from the critic's own estimate. This gives a set of adjustments for the network.",
+      "inExample": "Worker four computes an advantage of plus 2 US dollars for the entry and minus 1 for the bar after it."
+    },
+    {
+      "title": "Push the lesson to the shared brain without waiting",
+      "description": "The worker adds its adjustments to the shared network straight away, even if other workers are mid-run. Their weights are then slightly out of date, which is accepted as the price of speed.",
+      "inExample": "Worker four's adjustments are applied to the shared brain while worker two is still halfway through its run."
+    },
+    {
+      "title": "Pull fresh weights and go again",
+      "description": "The worker copies the updated shared network and starts a new run. Because workers sit in different market conditions at different times, their lessons arrive mixed together instead of all from one regime.",
+      "inExample": "Worker four starts its next run with the updated weights, while other workers are at a trending morning and a volatile open."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Training across instruments in parallel",
+      "example": "Assigning each worker a different futures root or currency pair so one network learns from all of them at once."
+    },
+    {
+      "task": "Faster training in real time on a processor",
+      "example": "Running 12 workers on a 24-thread machine to cover a year of 5-minute history sooner than a single-stream agent."
+    },
+    {
+      "task": "Covering different sessions",
+      "example": "Starting workers at different times of day so the shared network sees the open, midday and close roughly equally."
+    },
+    {
+      "task": "Measuring what synchronisation adds",
+      "example": "Using it as the asynchronous reference when comparing against the synchronous version on the same data."
+    }
+  ],
+  "avoidWhen": [
+    "You need a run you can reproduce exactly; the timing of worker updates changes the result from run to run, and the synchronous version gives repeatable training.",
+    "Most of your compute is a single graphics card; batched synchronous methods use it better than many separate workers."
+  ],
+  "example": {
+    "scenario": "Six workers train a shared network on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) history. Worker four finishes a five-bar run and pushes its lesson to the shared network.",
+    "input": {
+      "summary": "The setup and one worker's short run that is about to be turned into an update.",
+      "fields": [
+        { "name": "workers", "value": "6", "meaning": "How many independent copies of the market are running in parallel." },
+        { "name": "bars per run", "value": "5", "meaning": "The length of each worker's short run before it reports back." },
+        { "name": "worker 4 start time", "value": "2025-03-11 12:10", "meaning": "Where in history this worker's run began." },
+        { "name": "worker 4 entry price", "value": "19,403", "meaning": "The price at which the worker bought one contract during the run." },
+        { "name": "worker 4 exit price", "value": "19,405", "meaning": "The price at which the worker sold, a gain of 2 points." },
+        { "name": "trading cost per round trip", "value": "2 US dollars", "meaning": "Deducted from the reward, so a 4 US dollar gain earns less." }
+      ]
+    },
+    "output": {
+      "summary": "What worker four contributes to the shared network and what it receives back.",
+      "fields": [
+        { "name": "reward for the run", "value": "2 US dollars", "meaning": "A gain of 4 US dollars from 2 points, less 2 in costs." },
+        { "name": "advantage of the entry step", "value": "plus 2 US dollars", "meaning": "The entry did better than the critic expected." },
+        { "name": "shared network version after the push", "value": "update 48,213", "meaning": "The count of lessons applied to the shared network so far, from all workers combined." },
+        { "name": "weights worker 4 receives next", "value": "latest shared copy", "meaning": "The worker starts its next run from the freshly updated network." }
+      ]
+    },
+    "reading": "A single worker's lesson is noisy and barely moves the shared network; the learning comes from thousands of such pushes. Watch whether training curves differ between runs with the same settings, because the update order is not repeatable. Always confirm the final agent on held-out folds after costs."
+  }
+}

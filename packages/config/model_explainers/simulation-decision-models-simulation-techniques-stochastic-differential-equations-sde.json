@@ -1,0 +1,77 @@
+{
+  "specificationId": "simulation-decision-models-simulation-techniques-stochastic-differential-equations-sde",
+  "name": "Stochastic Differential Equations (SDE)",
+  "analogy": "Think of it as a drunkard's walk with a compass. At every step the walker leans slightly toward a destination, which is the trend, and is also jostled by random shoves whose size you control, which is the volatility. Set the lean and the shove size, and you can generate as many wandering price paths as you like.",
+  "steps": [
+    {
+      "title": "Pick the shape of the motion",
+      "description": "You choose a standard model for how the quantity moves. A price that drifts and wobbles in proportion to its level suits geometric motion. A spread that gets pulled back toward an average suits a mean-reverting model. Volatility itself can be given its own random process.",
+      "inExample": "MNQ's price is modelled as a random walk whose shoves grow in proportion to the price level, with no built-in trend."
+    },
+    {
+      "title": "Fit the lean and the shove size to history",
+      "description": "From past bars the model estimates the average drift per bar and the typical size of the random part. These two numbers, plus the starting level, completely define the process.",
+      "inExample": "From recent 5-minute bars the fitted drift is zero and the typical 5-minute move is about 20 points."
+    },
+    {
+      "title": "Step forward in small time slices",
+      "description": "Time is cut into small steps. At each step the price is moved by the drift for that slice plus a random shove whose size is scaled by the length of the slice. Longer slices mean larger shoves, which is how real diffusion behaves.",
+      "inExample": "Starting at 19,500, each of 78 five-minute steps adds a random move of typical size 20 points."
+    },
+    {
+      "title": "Repeat to build a fan of paths",
+      "description": "The walk is repeated with fresh random shoves each time. Each repetition is one possible future, and together they form a fan that widens with time.",
+      "inExample": "5,000 paths are generated, each covering a full 6 and a half hour trading session of 78 bars."
+    },
+    {
+      "title": "Ask questions of the fan",
+      "description": "Any statement about the future is read from the paths: where they end up, how often they touch a level, or how widely they spread. The accuracy of the answer depends on the model being a fair description of the real market.",
+      "inExample": "The ending prices give a range, and counting the paths that ever reach 19,700 gives a barrier-hit probability."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating synthetic price paths",
+      "example": "Producing 5,000 plausible MNQ sessions at a chosen volatility for stress tests or to augment training data."
+    },
+    {
+      "task": "Pricing barrier and path-dependent payoffs",
+      "example": "Estimating the chance a futures contract touches a knock-out level during a session."
+    },
+    {
+      "task": "Modelling a mean-reverting spread",
+      "example": "Fitting a pull-back process to the spread between two index futures and estimating how many bars it takes to close half the gap."
+    },
+    {
+      "task": "Forecasting the spread of future volatility",
+      "example": "Using a stochastic-volatility model to give a range for tomorrow's realised volatility to size positions."
+    }
+  ],
+  "avoidWhen": [
+    "You need real 5-minute returns with sudden jumps and fat tails; plain diffusion is too smooth, and a bootstrap of actual returns or a jump model keeps those features.",
+    "You want a directional prediction; the model describes the spread of outcomes around a drift you supply and offers no edge on direction."
+  ],
+  "example": {
+    "scenario": "A researcher wants to know how far MNQ might travel and how likely it is to touch a level 200 points above the open during one regular session, using a simple random-walk model at the recent volatility.",
+    "input": {
+      "summary": "The starting price, the fitted drift and volatility, and the simulation size.",
+      "fields": [
+        { "name": "starting price", "value": "19,500", "meaning": "The MNQ price at the start of the session." },
+        { "name": "drift", "value": "none", "meaning": "The assumed average direction of movement, set to zero." },
+        { "name": "volatility per 5-minute bar", "value": "20 points", "meaning": "The typical size of one 5-minute move, fitted from recent bars." },
+        { "name": "steps per path", "value": "78", "meaning": "The number of five-minute bars in a 6 and a half hour session." },
+        { "name": "number of paths", "value": "5,000", "meaning": "How many possible sessions are simulated." },
+        { "name": "barrier level", "value": "19,700", "meaning": "A price 200 points above the open, whose touch is being measured." }
+      ]
+    },
+    "output": {
+      "summary": "A summary of where the 5,000 simulated sessions ended and how many touched the level.",
+      "fields": [
+        { "name": "average ending price", "value": "19,500", "meaning": "With no drift, the average path ends where it began." },
+        { "name": "central 90 percent range of ending price", "value": "19,209 to 19,791", "meaning": "The range holding 90 percent of the simulated closing prices." },
+        { "name": "chance of touching 19,700", "value": "23 percent", "meaning": "The share of paths whose bar close reached the barrier at any time during the session." }
+      ]
+    },
+    "reading": "In a smooth random-walk world, a 200 point rise at some point in the day happens a little under one session in four. Real sessions have jumps and volatility clustering, so use this as a baseline and compare it against the frequency in actual history before relying on it."
+  }
+}

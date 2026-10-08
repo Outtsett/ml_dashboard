@@ -1,0 +1,81 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-gamma-regression",
+  "name": "Gamma Regression",
+  "analogy": "Think of it as a weather forecaster who predicts rainfall amounts: the forecast can never be negative, and a forecast of heavy rain comes with proportionally wide uncertainty while a forecast of drizzle is tight. Gamma regression forecasts always-positive sizes, such as a bar's range, in exactly that way.",
+  "steps": [
+    {
+      "title": "Take a target that is always positive and skewed",
+      "description": "The target is a size that must be above zero, with many modest values and an occasional very large one: the high-minus-low range of a bar, the time until an order fills, or the size of slippage. This lopsided shape is what the model is built for.",
+      "inExample": "The target is the high-minus-low range of the next 5-minute MNQ bar, in points, from 20,000 past bars."
+    },
+    {
+      "title": "Combine the features into one score",
+      "description": "Each feature gets a weight, and the weighted features are added into a single score for the bar. The score is not the forecast yet; it lives on a logarithmic scale so that features act by multiplication rather than addition.",
+      "inExample": "A high volume and a large recent range push the score up, while a quiet time of day pulls it down."
+    },
+    {
+      "title": "Turn the score into a positive expected size",
+      "description": "The score is exponentiated, which can only produce a positive number. A feature that adds a little to the score therefore multiplies the expected size by a fixed percentage. A weight reads naturally as: each extra unit of this feature raises the expected range by this many percent.",
+      "inExample": "The bar's score converts into an expected range of 26 points."
+    },
+    {
+      "title": "Let the uncertainty grow with the size",
+      "description": "The model assumes the spread of outcomes is a fixed fraction of the expected size, so a prediction of a large range carries a proportionally larger margin than a small one. That fixed fraction is estimated separately after the weights are found.",
+      "inExample": "The spread comes out at about 45 percent of the expected range, so a 26 point expectation has a typical miss of about 12 points."
+    },
+    {
+      "title": "Fit the weights by repeated reweighted fitting",
+      "description": "The weights are found by a routine that fits a weighted straight-line problem over and over, reweighting each round according to the current fit, until the numbers settle. It usually settles in a handful of rounds and judges misses by their ratio to the expected size, not their raw difference.",
+      "inExample": "The routine settles after 6 rounds on weights that make the training bars' ranges as likely as possible."
+    },
+    {
+      "title": "Read off the expected size and its range",
+      "description": "For a new bar the model returns the expected size and, using the estimated spread, a range of likely values that is skewed upward, with more room above the center than below.",
+      "inExample": "For the next bar the model returns 26 points, with 80 percent of outcomes between about 13 and 42 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting the range of the next bar",
+      "example": "Predicting the next 5-minute MNQ bar's high-minus-low range to set a stop distance that is neither too tight nor wasteful."
+    },
+    {
+      "task": "Forecasting time until a limit order fills",
+      "example": "Predicting how many seconds a resting limit order near the touch will wait, from the spread and recent volatility."
+    },
+    {
+      "task": "Estimating slippage in price units",
+      "example": "Predicting the average slippage in points on a market order of 5 contracts so costs can be built into position sizing."
+    },
+    {
+      "task": "Predicting a volatility level for risk",
+      "example": "Forecasting the average true range over the next hour as an input to a separate risk-limit layer."
+    }
+  ],
+  "avoidWhen": [
+    "The target is sometimes exactly zero, such as slippage on well-filled orders; the model cannot produce a zero, and a model that allows exact zeros, such as Tweedie regression, fits better.",
+    "The relationship between features and the size is strongly nonlinear; gradient boosting under the same positive-size scoring handles interactions that a weighted sum cannot."
+  ],
+  "example": {
+    "scenario": "At 11:05 New York time a trader wants to place a stop for a trade on MNQ and asks how big the next 5-minute bar's range is likely to be, using a model trained on 20,000 past bars.",
+    "input": {
+      "summary": "The features of the bar that just closed.",
+      "fields": [
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "range of the last bar", "value": "28 points", "meaning": "The high minus the low of the bar that just closed." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "minutes since the 09:30 open", "value": "95", "meaning": "How far into the session the bar is, since ranges shrink toward midday." },
+        { "name": "bid-ask spread", "value": "one tick, a quarter of a point", "meaning": "The gap between the best buy and sell prices." }
+      ]
+    },
+    "output": {
+      "summary": "An expected range and a skewed range of likely values.",
+      "fields": [
+        { "name": "expected range of the next bar", "value": "26 points", "meaning": "The model's average expectation for the next bar's high minus low." },
+        { "name": "typical spread around it", "value": "about 12 points", "meaning": "About 45 percent of the expected size, which is how the model ties spread to size." },
+        { "name": "80 percent range", "value": "13 to 42 points", "meaning": "Skewed upward: far more room above the center than below." }
+      ]
+    },
+    "reading": "A stop closer than about 13 points will often be hit by ordinary bar movement, and a stop beyond about 42 points is rarely needed to survive one bar. Compare the prediction with the realized ranges on later bars: the share of bars inside the 80 percent range should be near 80 percent."
+  }
+}

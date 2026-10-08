@@ -1,0 +1,84 @@
+{
+  "specificationId": "generative-models-latent-variable-models-normalizing-flow",
+  "name": "Normalizing Flow",
+  "analogy": "Think of it as reshaping a ball of modelling clay with a chain of reversible moves. A plain round ball is pushed, stretched and folded until it matches the lumpy shape of real market data. Because every move can be undone, you can run a real data row backward to the round ball and read off exactly how likely it was.",
+  "steps": [
+    {
+      "title": "Pick a simple starting distribution",
+      "description": "The model starts from a plain distribution that is easy to sample from and easy to measure, usually a bell-shaped cloud of independent random numbers with one number per column of the data row.",
+      "inExample": "The starting cloud has 6 columns, one for each feature of an MNQ bar row, all centred at zero with equal spread."
+    },
+    {
+      "title": "Chain reversible layers",
+      "description": "A stack of layers, each one a reversible transformation, reshapes the cloud. In the common coupling design, each layer leaves half the columns alone and uses them to decide how to stretch and shift the other half. Because half stays fixed, the layer can always be undone exactly.",
+      "inExample": "Eight coupling layers alternate which 3 of the 6 columns are held still and which 3 get stretched."
+    },
+    {
+      "title": "Keep count of the stretching",
+      "description": "Each layer records how much it expands or compresses space at the point it acts on. Adding these records up gives the exact change in density between the simple cloud and the data, which is the quantity that makes exact probabilities possible.",
+      "inExample": "Across the eight layers the total stretching for the row being scored comes to a log expansion of 3."
+    },
+    {
+      "title": "Train by maximising the likelihood of real rows",
+      "description": "Real rows are pushed backward through the chain to the simple cloud. The model changes its layer settings so that real rows land in high-density parts of the cloud once the stretching is accounted for. There is no opponent network, so training is steadier than with adversarial models.",
+      "inExample": "Over thousands of training rows the average log probability of a row rises from minus 14 to minus 9."
+    },
+    {
+      "title": "Score any new row exactly",
+      "description": "A new row is pushed backward through the chain, the cloud's density at the landing spot is read, and the recorded stretching is added. The result is the exact log probability of that row under the model, with no approximation.",
+      "inExample": "Today's 14:35 bar row lands near the centre of the cloud and scores a log probability of minus 8."
+    },
+    {
+      "title": "Generate new rows by running forward",
+      "description": "To create new data, draw fresh points from the simple cloud and push them forward through the chain. Every forward pass yields a new row that follows the learned distribution of real rows.",
+      "inExample": "Drawing 1,000 points and pushing them forward gives 1,000 synthetic bar rows with realistic combinations of return, range and volume."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Scoring how typical a bar is",
+      "example": "Giving every 5-minute MNQ bar an exact probability from its feature row and treating very low scores as unusual market conditions."
+    },
+    {
+      "task": "Detecting regime change in the data",
+      "example": "Watching the average score of incoming bars fall below its training level as a warning that live conditions no longer resemble the training months."
+    },
+    {
+      "task": "Generating synthetic feature rows",
+      "example": "Producing extra rows that keep the real correlations between volume, range and return so a downstream model sees more varied training examples."
+    },
+    {
+      "task": "Modelling a joint distribution of features",
+      "example": "Learning how realised volatility, volume and spread move together so position size can be tied to how rare the current combination is."
+    }
+  ],
+  "avoidWhen": [
+    "You want the probability that the next move is up; the flow models how rows are spread and does not look at direction, so a classifier trained on direction is the right tool.",
+    "Your data is mostly categories or has only a handful of rows; the reversible layers need continuous numbers and plenty of samples, and a simple Gaussian mixture is steadier on small data."
+  ],
+  "example": {
+    "scenario": "A flow trained on 12 months of MNQ 5-minute bar feature rows is used to score the 14:35 bar and to produce synthetic rows for a robustness test.",
+    "input": {
+      "summary": "One row of six features describing the bar, plus a request for synthetic rows.",
+      "fields": [
+        { "name": "return over the last 5 bars", "value": "minus a fifth of a percent", "meaning": "Price change over the last five 5-minute bars." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "close position inside the bar range", "value": "about a third of the way up", "meaning": "Where the close sat between the low of the bar and its high." },
+        { "name": "distance from the 50-bar moving average", "value": "a quarter of a percent below", "meaning": "How far the close is below its recent average price." },
+        { "name": "range of the latest bar", "value": "26 points", "meaning": "The high minus the low of the 14:35 bar itself." },
+        { "name": "synthetic rows requested", "value": "1,000", "meaning": "How many new rows to produce from fresh random draws." }
+      ]
+    },
+    "output": {
+      "summary": "An exact log probability for the real row and a batch of synthetic rows.",
+      "fields": [
+        { "name": "log probability of the 14:35 bar row", "value": "minus 8", "meaning": "How likely the model finds this combination of features; higher means more typical." },
+        { "name": "average log probability of training rows", "value": "minus 9", "meaning": "The yardstick: the typical score of ordinary rows from the training period." },
+        { "name": "share of training rows scoring lower", "value": "58 percent", "meaning": "Where this row ranks, so it is slightly more typical than the middle of the training rows." },
+        { "name": "synthetic rows produced", "value": "1,000", "meaning": "New feature rows that follow the learned joint distribution." }
+      ]
+    },
+    "reading": "A score of minus 8 against a training average of minus 9 means the bar is ordinary, not unusual. Act on this model only when scores drop far below the training range, for example below the bottom 1 percent, as a cue to cut size or pause a strategy. It never says which way price will go."
+  }
+}

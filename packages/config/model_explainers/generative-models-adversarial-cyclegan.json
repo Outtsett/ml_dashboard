@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-adversarial-cyclegan",
+  "name": "CycleGAN",
+  "analogy": "Think of it as two translators who have never seen a matching pair of sentences. One turns calm-market charts into stormy-market charts, the other turns them back, and the test is that a round trip must return the original chart. That round-trip rule stops either translator from inventing nonsense.",
+  "steps": [
+    {
+      "title": "Gather two piles with no matching pairs",
+      "description": "You collect examples from two domains, for example calm sessions and volatile sessions. The examples do not need to be matched to each other; no calm day has a stormy twin.",
+      "inExample": "One pile holds 2,000 calm MNQ sessions, the other 2,000 volatile ones, from different dates."
+    },
+    {
+      "title": "Build a translator in each direction",
+      "description": "One generator turns calm into volatile and a second turns volatile into calm. Having both is what allows the round-trip check later.",
+      "inExample": "Translator one is calm-to-volatile and translator two is volatile-to-calm."
+    },
+    {
+      "title": "Make each translation look like the target pile",
+      "description": "Each translator has an inspector that sees real examples from the target pile and translated ones. The translator learns to produce output the inspector cannot tell from real examples of that domain.",
+      "inExample": "The volatile-side inspector sees real volatile sessions beside translated ones and has to tell them apart."
+    },
+    {
+      "title": "Require the round trip to return home",
+      "description": "A translated example is translated back, and the result must closely match the starting example. This cycle rule is the heart of the model: it forces the translation to keep the structure of the original while changing the style.",
+      "inExample": "A calm session translated to volatile and back differs from the original by less than 1 point of average close."
+    },
+    {
+      "title": "Optionally protect things that should not change",
+      "description": "An extra rule can ask each translator to leave an example alone when it is already in the target style. This reduces needless changes in colour, level or texture.",
+      "inExample": "Feeding an already volatile session to the calm-to-volatile translator should return it nearly unchanged."
+    },
+    {
+      "title": "Translate new examples",
+      "description": "After training, any new example from one domain can be restyled into the other. The shape of the day is kept and the character is changed.",
+      "inExample": "A new calm Tuesday session comes out with the same turning points but much larger bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Restyling calm data into stressed data",
+      "example": "Turning quiet MNQ sessions with a 9-point average true range into sessions that behave like a 28-point average true range day, to test a strategy under stress."
+    },
+    {
+      "task": "Moving between instruments without matched days",
+      "example": "Translating MNQ 5-minute sessions into the style of ES sessions, so a model trained on one can be tried on the other."
+    },
+    {
+      "task": "Moving between eras",
+      "example": "Restyling 2019 sessions into the style of the 2024 market to see whether an old pattern survives modern volatility."
+    }
+  ],
+  "avoidWhen": [
+    "You have exact matched pairs, such as the same bars at two resolutions; a paired model learns the mapping directly and more precisely.",
+    "The two domains differ in more than style, for example a different market structure; the round-trip rule cannot invent facts, and translated bars may look right but carry no real information."
+  ],
+  "example": {
+    "scenario": "A strategy has only been tested on quiet days. A researcher takes one quiet MNQ session of 1-minute bars and asks a trained CycleGAN to restyle it as a volatile-day session, then checks the round trip.",
+    "input": {
+      "summary": "One real quiet session and the direction of translation.",
+      "fields": [
+        { "name": "source domain", "value": "calm sessions", "meaning": "The kind of day the input belongs to." },
+        { "name": "target domain", "value": "volatile sessions", "meaning": "The kind of day the output should look like." },
+        { "name": "session length", "value": "390 one-minute bars", "meaning": "A regular session of six and a half hours." },
+        { "name": "opening price", "value": "19,120", "meaning": "Where the first bar of the session opens." },
+        { "name": "average true range, 14 bars", "value": "9 points", "meaning": "The typical high-to-low travel of a bar on the input day." }
+      ]
+    },
+    "output": {
+      "summary": "A restyled session, its measured volatility, and the round-trip check.",
+      "fields": [
+        { "name": "translated session", "value": "390 one-minute bars", "meaning": "The same day's shape redrawn in a volatile style." },
+        { "name": "average true range of the translated session", "value": "27 points", "meaning": "The typical bar travel after translation, three times the original." },
+        { "name": "round-trip difference in closes", "value": "less than 1 point", "meaning": "The average gap between the original closes and the closes after translating there and back." },
+        { "name": "inspector realness score", "value": "55 percent", "meaning": "How real the volatile-side inspector finds the translated session; near 50 percent means it cannot tell." }
+      ]
+    },
+    "reading": "A small round-trip difference means the session's structure survived. The translated session is a stress scenario, not a real day; use it to see whether a rule breaks under larger bars, and confirm on real volatile days before believing the result."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-expert-system",
+  "name": "Expert System",
+  "analogy": "Think of it as a veteran trader's rulebook written on index cards, with a clerk who reads the day's facts and pulls every card that applies. The clerk never gets tired, never forgets a card, and can always show which cards were used.",
+  "steps": [
+    {
+      "title": "Write the expert's knowledge as if-then rules",
+      "description": "A domain expert's rules of thumb are written as plain if-then statements and stored apart from the machinery that applies them. Each rule can carry a certainty number saying how far to trust it.",
+      "inExample": "Rule one, certainty 70 percent: if it is the New York open and volume is more than 50 percent above its average, the setup is good. Rule two, certainty 80 percent: if the setup is good and price is above a rising 50-bar average, enter long."
+    },
+    {
+      "title": "Keep a board of current facts",
+      "description": "The system holds a working list of what is known right now. It grows as new readings arrive and as rules add conclusions of their own.",
+      "inExample": "Known facts are New York open, volume 80 percent above average, price above its rising 50-bar average, last 3 bars closed higher, and no news in the next 90 minutes."
+    },
+    {
+      "title": "Find the rules whose conditions are met",
+      "description": "The engine compares every rule's conditions with the facts. In forward chaining it starts from the facts and moves toward conclusions; in backward chaining it starts from a goal and looks for support.",
+      "inExample": "Rules one and four match the facts straight away; rule two will match once a rule has added the fact that the setup is good; the news rule never matches because no release is near."
+    },
+    {
+      "title": "Decide which rule fires first",
+      "description": "When several rules apply at once, a conflict-resolution strategy picks the order, for example the most specific rule first or the one with the freshest facts.",
+      "inExample": "Rule one fires first because it has more conditions, then rule four, and on the next cycle rule two."
+    },
+    {
+      "title": "Combine certainties",
+      "description": "Each fired rule adds its conclusion to the board with a certainty. Two rules supporting the same conclusion strengthen it, and a conclusion that depends on another is weakened by multiplying by the rule's own certainty.",
+      "inExample": "Rule one (70 percent) and rule four (50 percent) both say the setup is good, which combine to 85 percent. Rule two then takes 80 percent of that 85 percent, a long entry at 68 percent."
+    },
+    {
+      "title": "Give the answer with the rules used",
+      "description": "The system outputs its recommendation and the list of rules that fired, so a person can check each step against what they believe.",
+      "inExample": "The recommendation is a long entry with certainty 68 percent, listing rules one, four and two."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Turning a trader's habits into code",
+      "example": "Capturing a discretionary trader's rules about the New York open, volume and confirmation bars so they run the same way every day."
+    },
+    {
+      "task": "Checks before an order goes out",
+      "example": "Blocking a trade that breaks a stated risk rule, such as no entries within 5 minutes of a scheduled release."
+    },
+    {
+      "task": "Scoring a setup from several confirmations",
+      "example": "Combining separate confirmation rules on an MNQ breakout into one certainty number."
+    },
+    {
+      "task": "A final sanity check on a learned model",
+      "example": "Reviewing a model's long signal against a short rulebook and flagging disagreements for a human."
+    }
+  ],
+  "avoidWhen": [
+    "The knowledge cannot be put into rules, because patterns hidden in 151 indicators are better found by a learned model such as gradient boosting.",
+    "Rules would need constant retuning as the market changes; a learned model refit on new bars adapts, while a rulebook waits for a human to update it."
+  ],
+  "example": {
+    "scenario": "At 09:40 on an MNQ 5-minute chart, the desk's rulebook is asked whether a long breakout entry is acceptable.",
+    "input": {
+      "summary": "Five current facts on the board and the four rules that apply to them.",
+      "fields": [
+        { "name": "session", "value": "New York open", "meaning": "Which part of the trading day the bar belongs to." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading is compared with the recent norm." },
+        { "name": "price against its 50-bar moving average", "value": "above, with the average rising", "meaning": "The fact used by the entry rule, rule two." },
+        { "name": "last three bars", "value": "closed higher each time", "meaning": "The fact used by the confirmation rule, rule four, which says the setup is good with certainty 50 percent." },
+        { "name": "minutes to next scheduled news", "value": "90", "meaning": "The news-avoidance rule, rule three, only fires when this is under 15 minutes." },
+        { "name": "rules in the rulebook", "value": "4", "meaning": "Setup rule, entry rule, news rule and confirmation rule." }
+      ]
+    },
+    "output": {
+      "summary": "A recommendation with a combined certainty and the rules that produced it.",
+      "fields": [
+        { "name": "setup is good", "value": "certainty 85 percent", "meaning": "Two supporting rules combined: 70 percent and 50 percent." },
+        { "name": "recommendation", "value": "long entry allowed, certainty 68 percent", "meaning": "The setup certainty of 85 percent multiplied by the entry rule's own certainty of 80 percent." },
+        { "name": "rules that fired", "value": "3 of 4", "meaning": "Rules one, four and two fired; the news rule stayed silent because the release is 90 minutes away." }
+      ]
+    },
+    "reading": "A 68 percent recommendation with a visible chain is a prompt to look, not a command. Check the three fired rules against what you see on the chart, and remember that the certainties are the desk's own estimates and have not been measured on data."
+  }
+}

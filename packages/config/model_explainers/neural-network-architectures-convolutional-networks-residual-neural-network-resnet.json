@@ -1,0 +1,77 @@
+{
+  "specificationId": "neural-network-architectures-convolutional-networks-residual-neural-network-resnet",
+  "name": "Residual Neural Network (ResNet)",
+  "analogy": "Think of it as a long relay of editors each revising a report, but every editor is told that the previous draft is already good and to write only the changes. If an editor has nothing to add, the draft passes through untouched, so a very long chain of editors never ruins the report.",
+  "steps": [
+    {
+      "title": "Read the chart with an opening scan",
+      "description": "A first large convolution scans the chart image or bar grid and produces feature maps showing where simple shapes occur. A pooling step then shrinks the picture so the later layers have less to process.",
+      "inExample": "A 224 by 224 pixel chart of the last 64 one-minute MNQ bars becomes 64 feature maps, each 56 by 56 after the scan and the shrinking step."
+    },
+    {
+      "title": "Pass the input around each block",
+      "description": "Each residual block has a short path of two small convolutions and a bypass that carries the block's input straight to its output. The output is the input plus whatever the short path learned, so the block only has to learn an adjustment.",
+      "inExample": "The first block receives its 64 maps, learns an adjustment from two convolutions, and returns the original maps plus the adjustment."
+    },
+    {
+      "title": "Let a block do nothing when nothing is needed",
+      "description": "If the best thing a block can do is leave things alone, it learns an adjustment near zero and the input flows through. This is why many blocks can be stacked without the network getting harder to train, which was a barrier before this design.",
+      "inExample": "Block 6 learns an adjustment close to zero and simply passes its input on, wasting nothing."
+    },
+    {
+      "title": "Grow the detail while shrinking the picture",
+      "description": "At several points the picture is halved in size while the number of maps is doubled, with the bypass adapted to match. Deeper blocks therefore see larger parts of the chart and recognise larger shapes.",
+      "inExample": "After the first stage the size drops from 56 by 56 to 28 by 28 while the maps double from 64 to 128."
+    },
+    {
+      "title": "Pool and classify",
+      "description": "At the end, each map is averaged to one number and a classifying layer converts the numbers to probabilities. Training adjusts every filter at once, and the bypasses let the error signal flow back to early layers without fading.",
+      "inExample": "An 18-layer network with 8 residual blocks outputs: break follows through 57 percent, break fails 43 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Deep chart-image classification",
+      "example": "Classifying images of the hour after a break of the opening range as follow-through or failure, using an 18-layer residual network."
+    },
+    {
+      "task": "A strong pre-trained starting point",
+      "example": "Fine-tuning a residual network trained on ordinary photographs to recognise the dashboard's candlestick patterns with less data."
+    },
+    {
+      "task": "Stable training of a deep network",
+      "example": "Going from 8 to 34 layers to test if depth helps recognise chart patterns, without the training failing."
+    },
+    {
+      "task": "Feature maker for other models",
+      "example": "Using the pooled values of the last stage as 512 numbers that describe a chart for a downstream tree model."
+    }
+  ],
+  "avoidWhen": [
+    "The data is a plain table of features; a tree model is much quicker, handles tabular data natively and needs far less tuning.",
+    "You have only a small set of labelled images; a deep residual network can memorise a small set, so use a lighter model or a pre-trained start.",
+    "You need to explain the decision in trader terms; the learned features are not named shapes, so a rule-based or tree model is easier to explain."
+  ],
+  "example": {
+    "scenario": "At 09:48 Eastern, MNQ breaks above the high of its first 15 minutes. A residual network reads the 224 by 224 pixel chart of the last 64 one-minute bars and says whether the break is likely to follow through.",
+    "input": {
+      "summary": "An image of the last 64 one-minute bars, with the breakout bar near the right edge.",
+      "fields": [
+        { "name": "image size", "value": "224 by 224 pixels", "meaning": "The size of the drawn chart the network receives." },
+        { "name": "bars drawn", "value": "64 one-minute bars", "meaning": "How much time the image covers, a little over an hour." },
+        { "name": "breakout bar close", "value": "20,015", "meaning": "The close of the bar that broke above the opening range high." },
+        { "name": "opening range high", "value": "20,004", "meaning": "The highest price of the first 15 minutes, the level that was broken." },
+        { "name": "average true range, 14 bars", "value": "9 points", "meaning": "The typical high-to-low travel of a recent one-minute bar." },
+        { "name": "network depth", "value": "18 layers, 8 residual blocks", "meaning": "The size of the network used for this classification." }
+      ]
+    },
+    "output": {
+      "summary": "A probability that the break follows through and a probability that it fails.",
+      "fields": [
+        { "name": "break follows through", "value": "57 percent", "meaning": "The chance that the close 6 bars later is above the breakout bar's close." },
+        { "name": "break fails", "value": "43 percent", "meaning": "The chance the close 6 bars later is at or below the breakout bar's close." }
+      ]
+    },
+    "reading": "A 57 to 43 split is a modest lean on a common setup. Compare it with the plain base rate for opening range breaks in your own data and with a simple rule like volume above average; only if it adds net profit after costs on later folds is the picture model earning its keep."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-rl-2-reinforcement-learning-squared",
+  "name": "RL^2 (Reinforcement Learning Squared)",
+  "analogy": "Think of it as a trader with a good notebook memory who is never told how to adapt. Over many practice sessions he learns to glance at his own last few trades and what they paid, and shift his stance accordingly. Learning on the fly is simply how his memory flows through the session.",
+  "steps": [
+    {
+      "title": "Feed the recurrent network the market plus its own history",
+      "description": "At each bar the recurrent network receives the bar's features, the action it took last time, the reward that action paid and a flag for whether an episode just ended. Seeing its own results is what lets it adapt.",
+      "inExample": "At the 11:20 bar it sees the features, its previous long position, the 2 points that position paid and the flag set to not ended."
+    },
+    {
+      "title": "Update a memory that is never wiped mid-task",
+      "description": "The network's hidden memory is updated with each bar and is deliberately not reset between episodes inside the same task. The memory slowly collects evidence about how this market is behaving.",
+      "inExample": "The memory has been running since the start of a 60-bar window and now holds a picture of a mild uptrend."
+    },
+    {
+      "title": "Choose an action from the memory",
+      "description": "The policy reads the current memory and gives a preference for each possible position. No learning step happens now; the adaptation is only the memory's flow.",
+      "inExample": "The policy gives long 45 percent, flat 25 percent and short 30 percent."
+    },
+    {
+      "title": "Score a whole trial, not one episode",
+      "description": "During training, the reward is added up across a full trial made of several episodes on the same task. This makes the network value early exploration if it helps later episodes.",
+      "inExample": "The 60-bar window counts as one trial, and training cares about the total reward across all of it."
+    },
+    {
+      "title": "Train the weights with a slow outer learning loop",
+      "description": "An ordinary policy-gradient method, run slowly across many different tasks, adjusts the network's weights so that the memory's behaviour becomes a good adaptation procedure. This is the slow learning that produces fast learning.",
+      "inExample": "Thousands of 60-bar windows from different days and instruments update the weights until the memory learns to track trend strength."
+    },
+    {
+      "title": "Deploy as a plain forward pass",
+      "description": "At deployment the weights are frozen. The memory is reset once at the start of a window and adapts only by running forward.",
+      "inExample": "At the end of the window the position preference is turned into a probability that the close is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Adapting to an instrument from its own opening bars",
+      "example": "Using the first hour of a new contract's bars to let the memory settle before it commits to larger positions."
+    },
+    {
+      "task": "Tracking a drifting intraday regime",
+      "example": "Following the shift from a quiet European session into a volatile New York open on 5-minute bars without a separate regime classifier."
+    },
+    {
+      "task": "Reacting inside a structural break",
+      "example": "Changing behaviour within the same session when the previous rewards suddenly stop paying."
+    },
+    {
+      "task": "Serving many instruments with one network",
+      "example": "Running the same trained network over MNQ and ES, with each one's memory kept separate."
+    }
+  ],
+  "avoidWhen": [
+    "You need a quick, auditable direction call from a table of features; the recurrent memory is hard to inspect and a tree model is far easier to explain.",
+    "You have too little varied training history; the network can only learn an adaptation procedure from many different tasks, and a few months of one contract will not supply them."
+  ],
+  "example": {
+    "scenario": "A recurrent policy trained across many windows of MNQ and ES is switched on at 10:00 and run forward over a 60-bar window of five-minute MNQ bars, with its memory reset once at the start.",
+    "input": {
+      "summary": "The newest bar's features plus the policy's own earlier action and reward.",
+      "fields": [
+        { "name": "window length", "value": "60 five-minute bars", "meaning": "How many bars the memory has been running through since its reset." },
+        { "name": "close", "value": "19,330", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "previous action", "value": "long", "meaning": "The position the policy chose on the bar before this one." },
+        { "name": "reward that action paid", "value": "2 points", "meaning": "How much that earlier long position gained once its result was known." },
+        { "name": "hidden memory size", "value": "128 numbers", "meaning": "The number of values the recurrent memory carries from bar to bar." }
+      ]
+    },
+    "output": {
+      "summary": "A preference over the three positions, from which a direction probability follows.",
+      "fields": [
+        { "name": "share long", "value": "45 percent", "meaning": "How strongly the policy prefers holding a long position." },
+        { "name": "share flat", "value": "25 percent", "meaning": "How strongly the policy prefers staying out." },
+        { "name": "share short", "value": "30 percent", "meaning": "How strongly the policy prefers holding a short position." },
+        { "name": "probability the close is higher", "value": "60 percent", "meaning": "The long share divided by the long and short shares combined, ignoring the flat share." }
+      ]
+    },
+    "reading": "Read the 60 percent as a lean between long and short only; the flat share says how undecided the policy is. Compare the policy against the same network with its history inputs blanked, since that shows what the remembered rewards actually added."
+  }
+}

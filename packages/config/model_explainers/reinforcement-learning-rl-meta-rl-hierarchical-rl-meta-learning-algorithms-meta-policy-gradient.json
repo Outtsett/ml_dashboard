@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-meta-policy-gradient",
+  "name": "Meta Policy Gradient",
+  "analogy": "Think of it as a trading coach who does not only correct the trader's decisions but also adjusts how the trader judges his own results: how far ahead to look when crediting a trade, and how much to reward trying something new. The coach keeps whichever judging style makes the trader improve fastest next week.",
+  "steps": [
+    {
+      "title": "Start with an ordinary actor and critic",
+      "description": "The model is a standard trading policy, the actor, together with a value estimator, the critic. Two settings that are normally fixed by hand are left open to be learned: how much future reward counts, and a small bonus reward for exploring.",
+      "inExample": "The policy starts with a discount that makes each later bar count 97 percent as much as the one before, and an exploration bonus weighted at 20 percent."
+    },
+    {
+      "title": "Take one normal learning step on the earlier block",
+      "description": "The policy improves itself on a block of bars using the current discount and bonus, exactly as an ordinary actor-critic would. This gives an updated copy of the policy.",
+      "inExample": "On 1,000 earlier five-minute MNQ bars the policy takes one step with a small inner learning rate of 5 ten-thousandths."
+    },
+    {
+      "title": "Test the updated policy on later bars",
+      "description": "The updated policy is scored on the plain trading reward over bars that come strictly after the ones it just learned from. The exploration bonus is not counted here, only real reward.",
+      "inExample": "Over the next 1,000 bars the updated policy collects 160 points of reward, against 110 points for the policy before the step."
+    },
+    {
+      "title": "Trace the score back to the two settings",
+      "description": "Because the step was a calculation, the model can work out how a slightly different discount or bonus weight would have changed the later score. That sensitivity tells it which way to push each setting.",
+      "inExample": "A slightly shorter discount would have raised the later score, so the discount is pushed down."
+    },
+    {
+      "title": "Nudge the settings and continue",
+      "description": "The discount and bonus weight are moved a small amount in the helpful direction, clamped to sensible limits, and the loop continues from the updated policy on the next block. The settings keep adapting as new data arrives.",
+      "inExample": "The discount moves from 97 percent to 96 percent per bar and the bonus weight from 20 percent to 17 percent."
+    },
+    {
+      "title": "Act with the learned settings",
+      "description": "At decision time the finished policy chooses a position for each bar. The learned discount and bonus weight remain readable numbers, one per task, showing what the model found useful.",
+      "inExample": "For the newest bar the policy gives 41 percent to long, 30 percent to flat and 29 percent to short."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning how far ahead to look for each instrument",
+      "example": "Letting the model discover that choppy 1-minute ES bars want a short horizon while trending 5-minute MNQ bars reward a longer one, instead of tuning by hand."
+    },
+    {
+      "task": "Shaping exploration by market condition",
+      "example": "Raising the exploration bonus in quiet low-volatility stretches where the policy has little to lose by trying new positions."
+    },
+    {
+      "task": "Faster adaptation to a newly added instrument",
+      "example": "Starting a policy on a new futures contract with discount and bonus settings already tuned across earlier instruments."
+    },
+    {
+      "task": "Keeping retraining settings current",
+      "example": "Re-tuning the inner loop's discount as each new walk-forward fold arrives."
+    }
+  ],
+  "avoidWhen": [
+    "You have one instrument and plenty of data; hand-tuning the discount with a small search is far cheaper than a two-level learning loop.",
+    "Rewards are extremely noisy bar to bar; the learned settings will chase noise because the sensitivity is measured through a single short step."
+  ],
+  "example": {
+    "scenario": "A trading policy for MNQ is adapting block by block through a session. After each block, the model checks whether a different discount or exploration bonus would have made the next block pay better.",
+    "input": {
+      "summary": "A policy mid-training, two learnable settings and two consecutive blocks of bars.",
+      "fields": [
+        { "name": "discount for future reward", "value": "97 percent per bar", "meaning": "How much a reward one bar later still counts compared with a reward right now." },
+        { "name": "exploration bonus weight", "value": "20 percent", "meaning": "How strongly the policy is paid for trying actions it has not tried much, as a share of the ordinary reward scale." },
+        { "name": "inner learning rate", "value": "5 ten-thousandths", "meaning": "The size of the normal learning step taken on the earlier block." },
+        { "name": "earlier block", "value": "1,000 five-minute bars", "meaning": "The bars the policy learns from during the inner step." },
+        { "name": "later block", "value": "1,000 five-minute bars", "meaning": "The bars that come afterwards and are used only to score the updated policy." },
+        { "name": "reward before the step", "value": "110 points over the later block", "meaning": "What the policy earned on the later block before the inner step, before trading costs." }
+      ]
+    },
+    "output": {
+      "summary": "Updated settings and the policy's position preference for the newest bar.",
+      "fields": [
+        { "name": "updated discount", "value": "96 percent per bar", "meaning": "The learned discount after the meta step, slightly shorter-sighted than before." },
+        { "name": "updated exploration bonus weight", "value": "17 percent", "meaning": "The learned bonus weight, slightly lower than before." },
+        { "name": "reward after the step", "value": "160 points over the later block", "meaning": "What the updated policy earned on the later block, with costs left out of this illustration." },
+        { "name": "position preference", "value": "41 percent long, 30 percent flat, 29 percent short", "meaning": "How the finished policy spreads its preference over the three positions for the newest bar." }
+      ]
+    },
+    "reading": "Watch the two learned settings over time: a discount that keeps drifting to its limit or a bonus that never moves means the meta step is not learning anything useful. The position preference is still only a lean and must be tested after trading costs on bars the settings never saw."
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-self-organizing-systems-self-organizing-maps-som",
+  "name": "Self-Organizing Maps (SOM)",
+  "analogy": "Think of it as a wall of 100 pigeonholes where each hole slowly learns to hold one kind of bar. When a bar arrives, the hole that fits best moves a little toward it, and so do its neighbours, until similar bars live in neighbouring holes like a sorted street map.",
+  "steps": [
+    {
+      "title": "Lay out a grid of nodes",
+      "description": "The model builds a flat grid, such as 10 rows by 10 columns. Each cell, called a node, holds a prototype: a row of feature values with the same width as a bar. At the start the prototypes are random.",
+      "inExample": "A 10 by 10 grid of 100 nodes is created, each holding 35 random feature values."
+    },
+    {
+      "title": "Show the grid one bar",
+      "description": "A bar is picked from the training data and shown to every node. The node whose prototype is most like the bar is the winner.",
+      "inExample": "A sharp-selloff bar is shown and the node at row 3, column 7 is the closest match."
+    },
+    {
+      "title": "Pull the winner toward the bar",
+      "description": "The winning node moves its prototype a small step toward the bar, so it becomes a slightly better match for bars like it in future.",
+      "inExample": "The node at row 3, column 7 shifts its stored volume and momentum values a little toward the selloff bar."
+    },
+    {
+      "title": "Pull the neighbours along",
+      "description": "The nodes next to the winner on the grid are also pulled toward the bar, though by less the farther away they are. This is what makes neighbouring cells end up holding similar patterns and gives the map its smooth, ordered look.",
+      "inExample": "The cells around row 3, column 7 also drift toward selloff-like values, with the nearest cells moving the most."
+    },
+    {
+      "title": "Shrink the steps and the neighbourhood, then repeat",
+      "description": "Over many passes through the data, the step size and the reach of the neighbourhood both get smaller. Early passes organise the whole map roughly, and later passes fine-tune individual nodes.",
+      "inExample": "Across 50 passes through 12 months of bars, the neighbourhood shrinks from 5 cells wide to 1."
+    },
+    {
+      "title": "Place new bars on the map",
+      "description": "To use the finished map, a new bar is shown to the grid and its winning node is the answer. The node's position says what kind of bar it is, and the gap between bar and prototype says how well it fits.",
+      "inExample": "The 14:35 bar lands on row 3, column 7, with an average gap of 62 percent of a standard unit per feature to that node's prototype."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Building a visual map of market states",
+      "example": "Training a 10 by 10 map on MNQ 5-minute bars and reading it as a picture, with trending states in one corner and quiet ranging states in another."
+    },
+    {
+      "task": "Sorting bars into regimes",
+      "example": "Grouping the 100 nodes into 5 regions and using a bar's region as a regime label for a downstream model."
+    },
+    {
+      "task": "Spotting unusual bars",
+      "example": "Flagging 1-minute bars whose gap to their best node is far above normal, such as a news spike."
+    }
+  ],
+  "avoidWhen": [
+    "You need a single clean number to feed another model; the map outputs a cell position, which is awkward as an input, so a compressor such as an autoencoder gives a better numeric code.",
+    "The data set is tiny or the features are mostly noise; the map will still fill every cell with something, so its tidy look can mislead."
+  ],
+  "example": {
+    "scenario": "A researcher trains a 10 by 10 Self-Organizing Map on 12 months of five-minute Micro E-mini Nasdaq-100 futures (MNQ) bars, each with 35 base features, then asks where the 14:35 bar of a new day lands.",
+    "input": {
+      "summary": "One row of 35 standardised features for the 14:35 bar, plus the trained 10 by 10 grid.",
+      "fields": [
+        { "name": "grid size", "value": "10 by 10", "meaning": "The number of nodes on the map, 100 in all." },
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features describing each bar and each node's prototype." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "training passes", "value": "50", "meaning": "How many times the map saw the whole training set." }
+      ]
+    },
+    "output": {
+      "summary": "The grid cell the bar belongs to, how closely it fits, and the region of the map that cell sits in.",
+      "fields": [
+        { "name": "winning node", "value": "row 3, column 7", "meaning": "The cell whose stored pattern is closest to this bar." },
+        { "name": "average gap per feature to the winning node", "value": "62 percent of a standard unit", "meaning": "How far the bar is from that cell's pattern on a typical feature; this is the bar's quantisation error." },
+        { "name": "map region", "value": "selloff corner", "meaning": "The named area of the map the cell belongs to, found by looking at the bars that usually land there." },
+        { "name": "typical gap in training", "value": "55 percent of a standard unit", "meaning": "The average per-feature gap of training bars to their winning node, for comparison." }
+      ]
+    },
+    "reading": "A gap of 62 against a typical 55 says the bar fits its cell about as well as usual, so the label selloff corner can be trusted as a description. A gap several times larger would mean the bar is unlike anything the map learned, a signal to be careful."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-evolutionary-strategies-differential-evolution-de",
+  "name": "Differential Evolution (DE)",
+  "analogy": "Think of it as a room of twenty traders, each running a different setting for the same strategy. To try a new setting for one trader, you look at how two colleagues differ from each other and push a third colleague's setting in that same direction. The new setting replaces the trader's only if it does better.",
+  "steps": [
+    {
+      "title": "Scatter a population of settings",
+      "description": "Create a group of candidate settings spread at random across the allowed ranges. Each candidate is a full set of values for every parameter being tuned.",
+      "inExample": "20 candidates, each holding a breakout lookback in bars, a stop distance in points and a profit target in points."
+    },
+    {
+      "title": "Build a mutant from a difference",
+      "description": "For each candidate, pick three other candidates. Take the gap between two of them, scale it down, and add it to the third. Because the gap comes from the group itself, steps are big while the group is spread out and small once it has bunched up.",
+      "inExample": "The base colleague is 40 bars, a 28 point stop and a 50 point target. The gap between two other colleagues is 20 bars, 10 points and 20 points. Adding 60 percent of that gap gives a mutant of 52 bars, a 34 point stop and a 62 point target."
+    },
+    {
+      "title": "Mix the mutant with the original",
+      "description": "Build a trial candidate by taking some values from the mutant and the rest from the candidate being improved, chosen at random. At least one value always comes from the mutant so the trial is never a copy.",
+      "inExample": "The candidate being improved is 45 bars, a 30 point stop and a 60 point target. The trial keeps the mutant's lookback of 52 and target of 62 but the candidate's own stop of 30."
+    },
+    {
+      "title": "Score the trial with a backtest",
+      "description": "Run the strategy with the trial's settings on the tuning data and record one score. The score can be bumpy and need not be smooth, because the method never needs a slope.",
+      "inExample": "The trial scores a net 12 points per day after costs across the tuning folds, against 9 points per day for the candidate it is meant to replace."
+    },
+    {
+      "title": "Keep the better one",
+      "description": "The trial takes the original's place only if its score is at least as good. The best score in the group can therefore never get worse from one round to the next.",
+      "inExample": "12 beats 9, so the trial replaces the candidate in the population."
+    },
+    {
+      "title": "Repeat for many generations and read the best",
+      "description": "Steps two to five run for every candidate in every generation. As weak settings are replaced the group bunches around good regions. After a fixed number of generations the best candidate is reported.",
+      "inExample": "After 40 generations the 20 candidates sit close together, and the best one is read out as the tuned setting."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Tuning strategy thresholds on a jumpy score",
+      "example": "Choosing the lookback, stop and target of an MNQ breakout rule on 5-minute bars when the backtest score jumps whenever one trade flips."
+    },
+    {
+      "task": "Fitting model coefficients without a slope",
+      "example": "Calibrating a volatility model whose fit measure is not smooth in the chosen parameters."
+    },
+    {
+      "task": "Searching hedge or basket ratios",
+      "example": "Finding the ratio between ES and MNQ legs that makes a spread look most stable, scored by a stationarity test."
+    },
+    {
+      "task": "A gradient-free alternative to grid search",
+      "example": "Tuning a classifier's settings against walk-forward validation score with far fewer trials than a full grid."
+    }
+  ],
+  "avoidWhen": [
+    "Each evaluation takes many minutes or hours; a method that learns from every trial, such as Bayesian optimization, wastes fewer evaluations than a group of twenty.",
+    "The score is smooth and a slope is available; gradient descent reaches the same answer with far fewer evaluations."
+  ],
+  "example": {
+    "scenario": "A researcher tunes an MNQ 5-minute breakout strategy on three settings. Each setting combination is scored by a walk-forward backtest that includes commission and slippage.",
+    "input": {
+      "summary": "The three settings with their allowed ranges, plus the search budget.",
+      "fields": [
+        { "name": "breakout lookback range", "value": "20 to 120 bars", "meaning": "How many past 5-minute bars define the breakout high or low." },
+        { "name": "stop distance range", "value": "15 to 75 points", "meaning": "How far from entry the protective stop sits. One MNQ point is worth 2 US dollars." },
+        { "name": "profit target range", "value": "25 to 125 points", "meaning": "How far from entry the profit target sits." },
+        { "name": "typical average true range", "value": "25 points", "meaning": "Recent 5-minute bar size, so a 35 point stop is about one and a half bars of travel." },
+        { "name": "population size", "value": "20 candidates", "meaning": "How many setting combinations are alive at once." },
+        { "name": "generations", "value": "40", "meaning": "How many rounds of mutate, mix and select are run." }
+      ]
+    },
+    "output": {
+      "summary": "The best setting found and its score on the tuning folds.",
+      "fields": [
+        { "name": "best breakout lookback", "value": "55 bars", "meaning": "The lookback of the best surviving candidate." },
+        { "name": "best stop distance", "value": "35 points", "meaning": "Worth 70 US dollars of risk per contract." },
+        { "name": "best profit target", "value": "70 points", "meaning": "Worth 140 US dollars per contract if reached." },
+        { "name": "best tuning score", "value": "15 points per day net", "meaning": "Net result after costs across the tuning folds, an in-sample number." },
+        { "name": "spread of the final population", "value": "lookbacks between 51 and 58 bars", "meaning": "A tight spread shows the group has settled on one region." }
+      ]
+    },
+    "reading": "The score of 15 points per day was found by searching, so it is flattering by construction. Treat it as the starting point for a test on folds the search never saw. If neighbouring settings score much worse, the optimum is a narrow spike and probably noise; a broad plateau is more trustworthy."
+  }
+}

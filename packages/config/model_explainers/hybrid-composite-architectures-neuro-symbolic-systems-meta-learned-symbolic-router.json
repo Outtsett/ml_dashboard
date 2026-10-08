@@ -1,0 +1,79 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-meta-learned-symbolic-router",
+  "name": "Meta-Learned Symbolic Router",
+  "analogy": "Think of it as a head trader who keeps a binder of playbooks (trend following, fade the extremes, breakout) and decides each morning, and again each bar, how much to listen to each one. The head trader was trained across many different market periods, so is good at working out quickly which playbook suits this one.",
+  "steps": [
+    {
+      "title": "Keep a set of readable rules",
+      "description": "A small library of rules is written down in plain terms, each one giving a signed score for the current bar between minus 100 (sell) and plus 100 (buy). The rules can be fixed by a person or have a few tunable settings.",
+      "inExample": "Three rules each score the bar: trend following gives plus 60, fading the extremes gives minus 40 and the breakout rule gives plus 20, and a fourth option simply stands aside at zero."
+    },
+    {
+      "title": "Read the market context",
+      "description": "A neural network summarises what kind of market this is, using things like volatility, trend strength, time of day and where price sits against the day's average. This summary is what decides which rules fit.",
+      "inExample": "The context says: average true range 31 points, trend strength reading 32, time 10:20 Eastern and the close about a third of a percent above the volume-weighted average price."
+    },
+    {
+      "title": "Let the router choose how much to trust each rule",
+      "description": "A router network turns the context into a weight for every rule. The weights are shares that add up to 100 percent, so the router chooses a mix, not just one rule.",
+      "inExample": "The router gives trend following 55 percent, fading the extremes 15 percent, the breakout rule 25 percent and standing aside 5 percent."
+    },
+    {
+      "title": "Blend the rules by those weights",
+      "description": "Each rule's score is multiplied by its weight and the results are added. Because every rule is readable, you can see exactly which one pushed the answer where it went.",
+      "inExample": "55 percent of plus 60 is plus 33; 15 percent of minus 40 is minus 6; 25 percent of plus 20 is plus 5; standing aside adds nothing. The blended score is plus 32."
+    },
+    {
+      "title": "Train the router across many market periods",
+      "description": "The meta-learning part is how the router is trained: not on one stretch of history but across many separate periods, so it learns a skill that carries over, namely picking a good mix quickly in a regime it has not seen. In some variants a few steps of adjustment on the newest data fine-tune the router.",
+      "inExample": "The router was trained over dozens of separate walk-forward windows of MNQ and E-mini S&P 500 data, so a 10:20 morning with these readings looks like several windows it already learned from."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing between strategies as conditions change",
+      "example": "Leaning on a trend rule when trend strength is high and on a fade rule when the market is range-bound, instead of running one strategy all day."
+    },
+    {
+      "task": "Regime-aware strategy selection",
+      "example": "Reading the router weights on 5-minute MNQ bars to see that trend following gets more than half the vote in the morning and less after lunch."
+    },
+    {
+      "task": "Adapting to a new market period quickly",
+      "example": "Starting a new walk-forward fold with the router already trained on earlier folds and letting a few recent weeks fine-tune its mix."
+    },
+    {
+      "task": "Auditing a strategy mix",
+      "example": "Showing which of your hand-written rules the router ignores in practice, so those can be dropped."
+    }
+  ],
+  "avoidWhen": [
+    "You have only one strategy; there is nothing to route between, and a single model with a good signal is simpler.",
+    "You have too little history to form several truly separate training periods; the router would just memorise one stretch and route badly on the next.",
+    "You want a hard guarantee about which rule applies in which condition; a learned router can surprise you, and an explicit regime filter is more predictable."
+  ],
+  "example": {
+    "scenario": "At 10:20 Eastern, after a 5-minute MNQ bar closes, the router mixes four strategy rules into one blended score. The desk acts only when the score passes 25 in either direction.",
+    "input": {
+      "summary": "The context readings the router sees, and the signed score each rule currently gives.",
+      "fields": [
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent 5-minute bar, a measure of how active the market is." },
+        { "name": "trend strength reading, 14 bars", "value": "32", "meaning": "An index from 0 to 100 of how directional recent movement is; above 25 is commonly read as a trend." },
+        { "name": "time of day", "value": "10:20 Eastern", "meaning": "When in the session the bar closed, because rules behave differently in the morning and after lunch." },
+        { "name": "distance from volume-weighted average price", "value": "about a third of a percent above", "meaning": "How far the close sits above the day's volume-weighted average price." },
+        { "name": "trend following score", "value": "plus 60", "meaning": "The trend rule's signed lean, from minus 100 (sell) to plus 100 (buy)." },
+        { "name": "fade the extremes score", "value": "minus 40", "meaning": "The mean-reversion rule's lean; negative because price is stretched above its average." },
+        { "name": "breakout score", "value": "plus 20", "meaning": "The breakout rule's lean, mildly buying a push above the morning range." }
+      ]
+    },
+    "output": {
+      "summary": "The router's weights and the blended score they produce.",
+      "fields": [
+        { "name": "router weights", "value": "trend 55, fade 15, breakout 25, stand aside 5 percent", "meaning": "How much of the vote each rule received for this bar; they add up to 100 percent." },
+        { "name": "blended score", "value": "plus 32", "meaning": "The weighted sum of the rule scores: plus 33, minus 6 and plus 5." },
+        { "name": "decision", "value": "lean buy", "meaning": "The score is above the plus 25 line the desk uses to act, so a long is allowed." }
+      ]
+    },
+    "reading": "The blend clears the line by only 7, and the fade rule is quietly arguing the opposite side, so size the trade small. Had the router given trend following 40 percent and standing aside 20 percent, the blend would have been plus 23 and nothing would happen."
+  }
+}

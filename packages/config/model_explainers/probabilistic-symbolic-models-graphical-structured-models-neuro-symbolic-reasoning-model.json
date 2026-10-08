@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-graphical-structured-models-neuro-symbolic-reasoning-model",
+  "name": "Neuro-Symbolic Reasoning Model",
+  "analogy": "Think of it as a sharp-eyed junior trader sitting beside a risk manager with a rulebook. The trader spots patterns that no rule describes; the risk manager checks every call against the written rules and has the final word on the ones that must never be broken.",
+  "steps": [
+    {
+      "title": "The neural half reads the raw features",
+      "description": "A neural network takes the numeric features of the bar and turns them into a learned pattern score. This half is good at fuzzy, high-dimensional patterns that nobody could write as a rule.",
+      "inExample": "From the bar's feature row the network produces a 61 percent score that the close 6 bars later will be higher."
+    },
+    {
+      "title": "Turn readings into named facts",
+      "description": "The same inputs are also translated into plain statements with a degree of truth between zero and one, such as trend is up or volatility is high. These statements are what the rulebook speaks about.",
+      "inExample": "Trend is up at 80 percent true, volatility is high at 70 percent true, and a scheduled news release is 40 minutes away."
+    },
+    {
+      "title": "Apply the written rules",
+      "description": "Each rule is an if-then statement over the facts. Soft rules carry a weight that says how much to trust them; the weights are learned. Hard rules have no weight because they can never be traded off.",
+      "inExample": "A soft rule says high volatility makes long entries less reliable and lowers long confidence; a hard rule forbids entries within 5 minutes of scheduled news; another hard rule caps exposure at 4 contracts."
+    },
+    {
+      "title": "Blend the rule evidence with the neural score",
+      "description": "The soft-rule evidence is added to the neural score to give one combined score. The bridge between the two halves is built so that training can still push corrections back into the neural network.",
+      "inExample": "The soft rule pulls the 61 percent neural score down by 4 points, giving a combined long score of 57 percent."
+    },
+    {
+      "title": "Check the hard constraints last",
+      "description": "Before anything leaves the model, the hard rules are checked and can block the result outright. A blocked result is not merely discouraged; it is not allowed through.",
+      "inExample": "The next scheduled release is 40 minutes away and the account holds 2 of its 4 allowed contracts, so no hard rule blocks the long entry."
+    },
+    {
+      "title": "Return the decision with its trace",
+      "description": "The output is the final score, whether entry is allowed, and which rules fired. Because the rules are written down, a person can read exactly why the model said what it said.",
+      "inExample": "The model returns a 57 percent long score, entry allowed, with the high-volatility rule listed as the one that changed the score."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pattern scores that must respect risk rules",
+      "example": "Letting a network score MNQ long entries while a hard rule keeps total exposure at or below 4 contracts and bars entries near scheduled news."
+    },
+    {
+      "task": "Auditable model output",
+      "example": "Giving a reviewer a list of which written rules shaped each day's trade scores, next to the learned score."
+    },
+    {
+      "task": "Gating by regime",
+      "example": "Using a rule on session and volatility to decide which of two neural sub-models to trust at the New York open."
+    },
+    {
+      "task": "Starting a new instrument from expert rules",
+      "example": "Opening a new futures contract with rule-heavy scoring and letting the neural half earn more weight as bars accumulate."
+    }
+  ],
+  "avoidWhen": [
+    "There are no real rules to encode, because the symbolic half then adds only complexity; a plain neural network or gradient boosting model is simpler.",
+    "The rules themselves are unreliable guesses; a hard rule that is wrong blocks good trades with certainty, which a learned model would not."
+  ],
+  "example": {
+    "scenario": "At 10:20 an MNQ 5-minute bar closes. The neural half has scored it and the rulebook is about to check whether a long entry is acceptable.",
+    "input": {
+      "summary": "A neural score from the bar's features, three named facts, and the account state the hard rules look at.",
+      "fields": [
+        { "name": "neural score, close higher 6 bars later", "value": "61 percent", "meaning": "What the learned half says before any rule is consulted." },
+        { "name": "trend is up", "value": "80 percent true", "meaning": "A degree of truth, from zero to 100 percent, for the statement that the trend is up." },
+        { "name": "volatility is high", "value": "70 percent true", "meaning": "A degree of truth for the statement that average true range, 24 points, is high for this instrument." },
+        { "name": "minutes to next scheduled news", "value": "40", "meaning": "Used by the hard rule that forbids entries within 5 minutes of a release." },
+        { "name": "contracts currently held", "value": "2 of 4 allowed", "meaning": "Used by the hard rule that caps total exposure." }
+      ]
+    },
+    "output": {
+      "summary": "A final score, a yes or no on entry, and the rules that mattered.",
+      "fields": [
+        { "name": "final long score", "value": "57 percent", "meaning": "The neural score after the soft-rule evidence has been blended in." },
+        { "name": "entry allowed by hard rules", "value": "yes", "meaning": "Whether any never-break rule blocked the entry; none did." },
+        { "name": "rule that changed the score", "value": "high volatility lowers long confidence", "meaning": "The soft rule that moved the score from 61 to 57 percent." }
+      ]
+    },
+    "reading": "A 57 percent lean with entry allowed is a modest signal that passed every hard check. Use the trace to see whether the rule that lowered the score is one you agree with, and judge the trade on costs, not on the score alone."
+  }
+}

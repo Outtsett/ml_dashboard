@@ -1,0 +1,83 @@
+{
+  "specificationId": "neural-network-architectures-specialized-modular-networks-dual-pathway-network",
+  "name": "Dual-Pathway Network",
+  "analogy": "Think of it as a trading desk with two people watching the same market. One is a senior strategist who studies the slow, coarse picture over a whole session. The other is a scalper who watches every one-minute bar but keeps notes short. They pass notes back and forth while they work, and one joint call is made at the end.",
+  "steps": [
+    {
+      "title": "Cut two windows that end on the same bar",
+      "description": "Both pathways look at the same stretch of time, ending on the bar being scored. The slow pathway gets a few long bars covering that stretch. The fast pathway gets many short bars covering exactly the same stretch, so nothing is seen by one pathway and missed by the other.",
+      "inExample": "At the 14:35 bar the slow window is 64 bars of 8 minutes and the fast window is 512 bars of 1 minute; both cover the same 512 minutes."
+    },
+    {
+      "title": "Prepare each pathway's numbers on its own scale",
+      "description": "Each pathway has its own numbers rescaled separately, so the one with the larger natural swings cannot drown out the other. Only closed bars are used in the slow window, so a half-formed long bar never leaks the move being predicted.",
+      "inExample": "The 64 slow bars and the 512 fast bars are each rescaled within their own window, and the slow window ends on the last fully closed 8-minute bar."
+    },
+    {
+      "title": "The slow pathway reads the wide picture",
+      "description": "The slow pathway is a wide network with many channels. It sees few bars, but each bar is rich, so it is good at context: where the session has been and whether the day is trending or rotating.",
+      "inExample": "The slow pathway concludes that the session has drifted up for most of the 512 minutes and is now sitting near the upper part of the day's range."
+    },
+    {
+      "title": "The fast pathway reads the fine timing",
+      "description": "The fast pathway is deliberately thin, with few channels, because it only needs timing and not richness. It sees every short bar, so it can notice a burst of selling or a sudden thinning of volume that the long bars average away.",
+      "inExample": "The fast pathway notices that the last 12 one-minute bars had heavy selling by aggressors and rising volume."
+    },
+    {
+      "title": "Pass notes between the pathways at several depths",
+      "description": "At a few points along the way, the fast pathway's summary is squeezed down to the slow pathway's time base and added in. Each pathway therefore adjusts its reading using the other's, instead of the two meeting only at the very end.",
+      "inExample": "The fast pathway's warning about recent selling is added into the slow pathway's picture of an upward-drifting session at two depths."
+    },
+    {
+      "title": "Fuse with a learned gate and give the answer",
+      "description": "The two pathways' final summaries are combined, and a learned gate decides how much weight each deserves for this particular bar. A final layer turns the mix into class probabilities. The gate values are reported so you can see which pathway drove the call.",
+      "inExample": "The gate gives 62 percent weight to the slow pathway and 38 percent to the fast one, and the model outputs a 55 percent chance that the move after this bar is up."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Combining a long view with a fast view",
+      "example": "Feeding 8-minute context and 1-minute detail on MNQ into one entry decision instead of averaging two separate models."
+    },
+    {
+      "task": "Keeping price shape apart from order flow",
+      "example": "Putting candle geometry in one pathway and trade count, bid volume and ask volume in the other so volume does not swamp price."
+    },
+    {
+      "task": "Session context with reaction timing",
+      "example": "Letting a slow pathway track the developing day while the fast pathway reacts to the current impulse near the open."
+    },
+    {
+      "task": "Reading which timescale mattered",
+      "example": "Using the gate values as a rough regime hint: trades are only allowed when slow and fast pathways agree on direction."
+    }
+  ],
+  "avoidWhen": [
+    "You have only one kind of information at one timescale; a single sequence model or a tree model on a feature table is simpler and just as informative.",
+    "You have very little data; two branches with lateral links have many settings to tune and overfit easily."
+  ],
+  "example": {
+    "scenario": "At 14:35 on an MNQ session, the model is asked whether the move after the latest 5-minute bar will be up. It receives a coarse 8-minute window and a fine 1-minute window ending on the same bar, and returns a probability plus how much it leaned on each window.",
+    "input": {
+      "summary": "Two aligned windows of the same 512 minutes: a slow set of long bars and a fast set of short bars.",
+      "fields": [
+        { "name": "slow window length", "value": "64 bars of 8 minutes", "meaning": "The coarse view that covers 512 minutes of the session." },
+        { "name": "fast window length", "value": "512 bars of 1 minute", "meaning": "The fine view that covers the same 512 minutes." },
+        { "name": "close of the latest bar", "value": "19,846", "meaning": "The MNQ price at which the bar ending 14:35 closed." },
+        { "name": "average true range, 14 five-minute bars", "value": "28 points", "meaning": "How far a typical recent bar travels from high to low." },
+        { "name": "session drift so far", "value": "up 160 points", "meaning": "How far price has risen since the session opened." },
+        { "name": "selling imbalance in the last 12 minutes", "value": "63 percent of volume", "meaning": "The share of recent traded volume that was initiated by sellers." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each outcome class and the gate values that show which pathway drove the answer.",
+      "fields": [
+        { "name": "probability the next move is up", "value": "55 percent", "meaning": "The fused pathways' estimate that price will be higher after the label horizon." },
+        { "name": "probability the next move is down", "value": "45 percent", "meaning": "The remaining probability, so the two classes sum to 100 percent." },
+        { "name": "slow pathway weight", "value": "62 percent", "meaning": "How much of the final answer came from the long-window context." },
+        { "name": "fast pathway weight", "value": "38 percent", "meaning": "How much came from the recent one-minute detail." }
+      ]
+    },
+    "reading": "A 55 percent lean is small and only matters after trading costs. The gate is the extra information: here context outweighed the recent selling. If the fast weight jumps while the slow pathway disagrees, that is a signal that the two timescales conflict and the trade is lower quality."
+  }
+}

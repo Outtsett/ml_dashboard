@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-feedforward-mlps-feedforward-neural-network-fnn",
+  "name": "Feedforward Neural Network (FNN)",
+  "analogy": "Think of it as an assembly line of scoring desks. The first desk reads the raw numbers about a bar, the next desk combines those readings into slightly more abstract judgments, and the last desk turns them into one answer. Information only ever moves forward, never back.",
+  "steps": [
+    {
+      "title": "Feed in one row of numbers",
+      "description": "The network receives a single row of numeric features describing one bar. Each number enters its own input slot. The features should be put on comparable scales first, so a price near 19,000 does not drown out a small momentum reading.",
+      "inExample": "A 5-minute MNQ bar arrives as six scaled numbers: close, relative strength index, volume against average, average true range, distance from the 50-bar average and the 6-bar return."
+    },
+    {
+      "title": "Mix the inputs in the first hidden layer",
+      "description": "Every input slot is connected to every unit in the first hidden layer. Each unit takes its own weighted blend of all the inputs, so each unit becomes a small detector for one combination of features.",
+      "inExample": "One unit in the first layer weighs a falling 6-bar return together with a low relative strength index, so it lights up when price has dropped fast and looks oversold."
+    },
+    {
+      "title": "Bend the result with an activation",
+      "description": "Each blended value passes through a simple bending rule, for example keeping positive values and zeroing negative ones. Without this bend, stacked layers would collapse into one straight-line formula and could never learn curved relationships.",
+      "inExample": "The oversold detector outputs a strong signal for this bar, while a unit that watches for overbought conditions is switched to zero."
+    },
+    {
+      "title": "Stack more hidden layers",
+      "description": "The outputs of the first layer become the inputs of the next layer, which blends them again. Later layers combine earlier detectors into broader ideas, such as a heavy-volume oversold drop.",
+      "inExample": "The second layer combines the oversold detector with a heavy-volume detector into a single unit meaning a sharp, busy sell-off."
+    },
+    {
+      "title": "Produce the answer at the output layer",
+      "description": "The last layer collapses the final ideas into the answer the task needs. For a direction call that is one probability squeezed between zero and one hundred percent.",
+      "inExample": "The output unit reads the sell-off idea and returns a 56 percent probability that the close 6 bars later is higher."
+    },
+    {
+      "title": "Learn by being corrected",
+      "description": "During training, the network compares its answers with what really happened, works out how each connection contributed to the error, and nudges every weight a little in the direction that shrinks the error. This repeats over many passes through the training bars.",
+      "inExample": "On a training bar that closed lower, the 56 percent answer was too bullish, so the weights behind the sell-off idea are nudged slightly so the next answer on a similar bar is lower."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction probability from a table of features",
+      "example": "Predicting whether MNQ's close 6 bars (30 minutes) after a 5-minute bar is above that bar's close, using the 35 base features as one row."
+    },
+    {
+      "task": "A first neural baseline",
+      "example": "Training a small two-layer network on the same walk-forward folds as a tree model to see whether curved feature interactions add anything."
+    },
+    {
+      "task": "Forecasting next-bar range",
+      "example": "Predicting the next 5-minute bar's high-to-low range in points from recent average true range, volume and time of day, to size stops."
+    },
+    {
+      "task": "Compressing indicators into a score",
+      "example": "Blending several of the 151 technical indicators into one trend-strength score that a rule-based strategy can threshold."
+    }
+  ],
+  "avoidWhen": [
+    "The order of the last 60 bars carries the signal; this network sees a flat row and has no sense of sequence, so a recurrent or attention model reads that order directly.",
+    "You have only a few thousand rows or need to explain each decision; the network overfits easily and its reasoning is hard to inspect, where a tree model is steadier and easier to audit."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 19,240. A small network with two hidden layers, trained on the previous 12 months of bars, is asked whether the close 6 bars (30 minutes) later will be higher.",
+    "input": {
+      "summary": "One row of scaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,240", "meaning": "The price at which the 5-minute bar closed, in index points." },
+        { "name": "relative strength index, 14 bars", "value": "31", "meaning": "A momentum reading from 0 to 100; low values mean price has fallen hard recently." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above average", "meaning": "How busy this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "67 points below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "minus 54 points", "meaning": "How much price fell over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "One probability and the side it implies.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "56 percent", "meaning": "The output unit's answer after the row passes through both hidden layers." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "56 percent is a slight lean, not a conviction. Compare it with the share of up-closes in the training bars and with trading costs before acting; a lean this small only pays if the average win clearly exceeds commission and slippage."
+  }
+}

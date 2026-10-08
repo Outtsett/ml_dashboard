@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-classical-optimization-linear-programming-lp",
+  "name": "Linear Programming (LP)",
+  "analogy": "Think of it as filling a fixed budget of margin and exposure into the best-paying slots first. Every limit is a straight fence, the fences enclose a shape with sharp corners, and the best answer is always sitting in one of those corners, so the solver just walks from corner to corner until no neighbour pays more.",
+  "steps": [
+    {
+      "title": "Write the goal as a straight-line payoff",
+      "description": "You give each choice a value per unit and the goal is the total of those values. Because the payoff is a plain sum, doubling a position exactly doubles its contribution.",
+      "inExample": "Each 10 percent of the basket earns a fixed score: 8 for MNQ held long, 5 for ES held long, 6 for M2K held short and 2 for YM held short."
+    },
+    {
+      "title": "Write every limit as a straight fence",
+      "description": "Each rule becomes a straight-line inequality or equation: total exposure, maximum per instrument, net exposure. Together the fences enclose a region with flat sides and sharp corners.",
+      "inExample": "Total gross exposure may not exceed 100 percent, net exposure must be zero, and no single weight may exceed 40 percent in size."
+    },
+    {
+      "title": "Start at a corner",
+      "description": "The solver begins at one corner of the region, a plan where as many limits as possible are exactly met. Corners are special because the best answer is always at one of them.",
+      "inExample": "It starts from the plan where every weight is zero."
+    },
+    {
+      "title": "Walk to a better neighbouring corner",
+      "description": "From the current corner, it looks at the edges leaving it, picks the edge along which the payoff rises fastest, and slides along it until the next fence blocks it. That is the next corner.",
+      "inExample": "It raises MNQ long and M2K short together, keeping net exposure at zero, until each reaches its 40 percent cap."
+    },
+    {
+      "title": "Stop when no edge improves the payoff",
+      "description": "When every edge leaving the current corner lowers or holds the payoff, the solver is done. With straight-line goals and limits, this corner is guaranteed to be the best of all, not just a local peak.",
+      "inExample": "After adding ES long and YM short up to the gross limit, no remaining move raises the total score."
+    },
+    {
+      "title": "Read the prices of the limits",
+      "description": "The solver also reports a shadow price for each limit: how much the best payoff would rise if that limit were relaxed by one unit. This tells you which fence is actually costing you.",
+      "inExample": "Raising the gross exposure limit by 10 percent would add 3 and a half score points, so that limit is the one holding the basket back."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Spreading a risk budget across instruments",
+      "example": "Maximising total signal score across MNQ, ES, M2K and YM subject to a fixed exposure total and a per-instrument cap."
+    },
+    {
+      "task": "Building a market-neutral basket",
+      "example": "Choosing long and short weights across index futures so net exposure is zero while the combined signal is as strong as possible."
+    },
+    {
+      "task": "Dividing margin among strategies",
+      "example": "Splitting a fixed margin pool across several strategies in proportion to each one's expected return per margin dollar."
+    },
+    {
+      "task": "Pricing the cost of a rule",
+      "example": "Reading the shadow price of the exposure cap to see how much a looser limit would be worth before asking for more capital."
+    }
+  ],
+  "avoidWhen": [
+    "Risk matters through correlation between instruments; the payoff here is linear, so it ignores diversification, and a quadratic programme that includes variance is the right tool.",
+    "Positions must be whole contracts; the answer comes back as fractions, so use integer programming when rounding would break a limit."
+  ],
+  "example": {
+    "scenario": "A researcher builds a market-neutral basket of four index futures. Each has a signal score for going long or short, and the solver chooses weights to maximise the total score under exposure limits.",
+    "input": {
+      "summary": "Signed scores and exposure limits. The scores are illustrative.",
+      "fields": [
+        { "name": "MNQ long score per 10 percent", "value": "8", "meaning": "How much the signal rewards each 10 percent of the basket held long in Micro E-mini Nasdaq-100 futures." },
+        { "name": "ES long score per 10 percent", "value": "5", "meaning": "The reward per 10 percent held long in E-mini S&P 500 futures." },
+        { "name": "M2K short score per 10 percent", "value": "6", "meaning": "The reward per 10 percent held short in Micro E-mini Russell 2000 futures." },
+        { "name": "YM short score per 10 percent", "value": "2", "meaning": "The reward per 10 percent held short in E-mini Dow futures." },
+        { "name": "gross exposure limit", "value": "100 percent", "meaning": "Total of longs plus shorts may not exceed this." },
+        { "name": "net exposure required", "value": "0 percent", "meaning": "Longs must equal shorts so the basket is neutral." },
+        { "name": "cap per instrument", "value": "40 percent", "meaning": "No single position may exceed this size." }
+      ]
+    },
+    "output": {
+      "summary": "The best weights, the score they reach, and the price of the binding limit.",
+      "fields": [
+        { "name": "long weights, MNQ and ES", "value": "40 and 10 percent", "meaning": "MNQ is filled to its cap first, then ES takes the rest of the long side." },
+        { "name": "short weights, M2K and YM", "value": "40 and 10 percent", "meaning": "M2K is filled to its cap first, then YM takes the rest of the short side." },
+        { "name": "total score", "value": "63", "meaning": "8 times 4 plus 5 times 1 plus 6 times 4 plus 2 times 1, counting each 10 percent of the basket as one unit." },
+        { "name": "shadow price of the gross limit", "value": "3 and a half per extra 10 percent", "meaning": "The score gained for each extra 10 percent of gross exposure allowed: half of it goes to ES long at 5 and half to YM short at 2." }
+      ]
+    },
+    "reading": "The solver fills the best score per percent first and stops at the caps, so the answer is easy to audit by hand. A shadow price of 3 and a half says a looser gross limit is worth something; whether it is worth the extra margin and risk is a decision the model cannot make for you."
+  }
+}

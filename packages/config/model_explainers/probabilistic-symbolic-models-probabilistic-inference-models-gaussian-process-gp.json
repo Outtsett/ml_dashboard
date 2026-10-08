@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-inference-models-gaussian-process-gp",
+  "name": "Gaussian Process (GP)",
+  "analogy": "Think of it as stretching a flexible rubber sheet through the points you have measured. Near the pins the sheet is held firmly and you can trust it; far from any pin it sags and wobbles, and the model tells you exactly how much.",
+  "steps": [
+    {
+      "title": "Say what kind of smoothness to expect",
+      "description": "You choose a similarity rule, called the kernel, that says inputs close together should give similar outputs. This single choice is all the model assumes about the shape of the relationship.",
+      "inExample": "Two bars with similar recent moves and similar volatility are expected to have similar next-6-bar moves."
+    },
+    {
+      "title": "Imagine every smooth curve that fits the rule",
+      "description": "Instead of one fitted curve, the model starts with the whole family of curves that obey the smoothness rule, each as plausible as any other before seeing data.",
+      "inExample": "Before seeing any bars, curves that wiggle slowly and ones that wiggle faster are both allowed."
+    },
+    {
+      "title": "Keep only the curves that pass near the data",
+      "description": "As training points are added, curves that miss them are thrown out and curves that pass close to them stay. Because the points are noisy, curves are allowed to pass near but not exactly through each one.",
+      "inExample": "With 400 training bars, only gently varying curves that run through the cloud of past moves survive."
+    },
+    {
+      "title": "Tune the length of the wiggle and the noise",
+      "description": "The model adjusts how quickly the curve may change and how noisy the data is by asking which setting makes the observed data most believable. Settings that are needlessly flexible are penalized automatically.",
+      "inExample": "The tuned setting says two bars must differ by about 80 points in their recent 6-bar move before their outcomes stop resembling each other."
+    },
+    {
+      "title": "Predict at a new input",
+      "description": "For a new input, the model averages the surviving curves at that point and also reports how much they disagree. The average is the forecast and the disagreement is the uncertainty.",
+      "inExample": "At the new bar's features the surviving curves average a plus 8 point move and, together with market noise, leave an uncertainty of about 37 points."
+    },
+    {
+      "title": "Read uncertainty as distance from known ground",
+      "description": "Where training points are dense the curves agree and the uncertainty is small. Far from any training point they disagree and the uncertainty grows, so the model signals when it is out of its depth.",
+      "inExample": "The new bar sits close to many training bars, so its uncertainty is near the ordinary noise level rather than inflated."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A smooth forecast curve with error bands",
+      "example": "Fitting a smooth line through noisy forward-return estimates across several lookback windows of MNQ 5-minute bars."
+    },
+    {
+      "task": "Interpolating a surface",
+      "example": "Filling in implied volatility between the strikes you actually have quotes for, with a band showing where the fill is shaky."
+    },
+    {
+      "task": "Refusing to trade unfamiliar conditions",
+      "example": "Skipping a signal when the current features are far from the training bars and the predictive uncertainty balloons."
+    },
+    {
+      "task": "Tuning a strategy cheaply",
+      "example": "Acting as the stand-in model in a search over strategy settings, so each costly walk-forward run is chosen wisely."
+    }
+  ],
+  "avoidWhen": [
+    "You have tens of thousands of training bars, because the cost of an exact fit grows with the cube of the number of points; use a gradient boosting model or a neural network instead.",
+    "The relationship has sharp breaks, such as a regime switch, where an assumption of smoothness will blur the jump."
+  ],
+  "example": {
+    "scenario": "You model the 6-bar forward move of MNQ 5-minute bars as a smooth function of the last 30 minutes' move and of volatility, using the most recent 400 bars. A new bar has just closed.",
+    "input": {
+      "summary": "The two inputs of the new bar and the training window the curve was fit on.",
+      "fields": [
+        { "name": "move over the last 6 bars", "value": "minus 60 points", "meaning": "How far the close has moved over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "A measure of how much the market is moving, in index points." },
+        { "name": "training bars", "value": "400", "meaning": "How many past bars the curves were required to pass near." },
+        { "name": "tuned length of the wiggle", "value": "80 points of recent move", "meaning": "How much the recent move must change before outcomes stop being similar." },
+        { "name": "nearest training bar distance", "value": "10 points of recent move", "meaning": "How close the new bar's input is to the nearest bar the model learned from." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast of the 6-bar move together with how unsure the model is.",
+      "fields": [
+        { "name": "expected 6-bar move", "value": "plus 8 points", "meaning": "The average of the surviving curves at the new bar's inputs; one point is worth 2 US dollars per contract, so about 16 US dollars." },
+        { "name": "uncertainty, one standard deviation", "value": "37 points", "meaning": "How much the surviving curves and the market noise together leave the true move uncertain." },
+        { "name": "familiarity of the input", "value": "high", "meaning": "Whether the new bar sits inside the region the training bars covered." }
+      ]
+    },
+    "reading": "A plus 8 point lean inside a 37-point spread is faint, and a high familiarity means the model is not just guessing in the dark. Use the forecast to rank bars from most to least promising, and use the spread to decide whether any of them clears the cost of trading."
+  }
+}

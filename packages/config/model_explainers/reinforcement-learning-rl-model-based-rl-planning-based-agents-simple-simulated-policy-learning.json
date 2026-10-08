@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-simple-simulated-policy-learning",
+  "name": "SimPLe (Simulated Policy Learning)",
+  "analogy": "Think of it as a flight simulator for a trading rookie. First you record a modest amount of real market behaviour and build a simulator from it. Then the rookie practises thousands of sessions in the simulator, and only occasionally steps into the real market to check that the simulator still feels right.",
+  "steps": [
+    {
+      "title": "Gather a small amount of real experience",
+      "description": "The agent first acts in the real environment for a short while, using a rough policy, and records what it saw, what it did and what reward followed. Real data is treated as scarce and valuable.",
+      "inExample": "A starter rule trades through 20,000 real five-minute MNQ bars from the training window, and every bar, action and reward is recorded."
+    },
+    {
+      "title": "Teach a world model to predict the next bars",
+      "description": "A sequence model is trained to predict what the next bars will look like after each action. It outputs a full picture of the next observation, not a compressed code, and it includes a random element so it can produce more than one plausible future.",
+      "inExample": "Given the last 20 bars and an action to go long, the world model produces the next bar's open, high, low, close and volume, with some randomness each time."
+    },
+    {
+      "title": "Make the world model behave like a real environment",
+      "description": "The world model is wrapped so that it answers the same calls a real market environment would: reset to a starting point and step forward one bar. Imagined episodes are kept short, because small errors compound the further the simulator runs from a real starting bar.",
+      "inExample": "The simulator starts an episode from a random real window and then steps 30 bars (150 minutes of five-minute bars), handing back imagined bars and rewards."
+    },
+    {
+      "title": "Train an ordinary policy entirely inside the simulator",
+      "description": "A standard learning method for choosing actions is run for a long time against the simulator. Because simulated bars cost nothing, it can practise far more than the real record would allow.",
+      "inExample": "The policy trains on 2,000 simulated 30-bar episodes, learning to be long when the imagined bars drift up and flat when they chop sideways."
+    },
+    {
+      "title": "Return to the real market to correct the model",
+      "description": "The improved policy is run in the real environment for a short stretch. That fresh real data shows where the simulator was wrong, particularly in situations the policy now visits that the first data never covered.",
+      "inExample": "The new policy trades another 5,000 real bars, and the model is found to have underestimated how often prices gap at the open."
+    },
+    {
+      "title": "Repeat the loop of real data, model, and practice",
+      "description": "The world model is retrained with the extra real data and the policy is practised again. Each cycle makes the simulator more faithful where the policy actually goes.",
+      "inExample": "After 4 cycles the policy's simulated and real results are close enough that the loop stops."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning a trading policy from limited history",
+      "example": "Training a position policy for a thinly traded futures contract where only a few months of five-minute bars exist."
+    },
+    {
+      "task": "Trying many policy designs against one fixed simulator",
+      "example": "Comparing five different reward settings for an MNQ policy without paying for new real-market runs each time."
+    },
+    {
+      "task": "A scheduled refresh-then-retrain routine",
+      "example": "Each weekend adding the week's new bars to the world model and retraining the policy on the refreshed simulator."
+    },
+    {
+      "task": "Stress-testing a policy on imagined paths",
+      "example": "Running a finished policy through thousands of simulated episodes to see how it behaves in sequences the historical record only shows once or twice."
+    }
+  ],
+  "avoidWhen": [
+    "The simulator is clearly inaccurate, for example after a regime change; a policy trained inside a wrong world learns to exploit its flaws, and a method that checks the real market on every decision is safer.",
+    "A simple supervised model on engineered features already answers the question; building a world model and a policy is much heavier than predicting direction."
+  ],
+  "example": {
+    "scenario": "A research run on MNQ five-minute bars has finished its second cycle. The policy was trained inside the learned simulator and is now asked what to hold at the 11:00 bar.",
+    "input": {
+      "summary": "The recent bars and current position, which the trained policy reads exactly as it did inside the simulator.",
+      "fields": [
+        { "name": "close", "value": "20,106", "meaning": "The price at which the 11:00 five-minute bar closed." },
+        { "name": "recent bars read", "value": "20 five-minute bars", "meaning": "The window of history the policy sees as its state." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts held going into the decision." },
+        { "name": "real bars used to build the simulator", "value": "25,000", "meaning": "How much real history the world model has learned from so far." },
+        { "name": "simulated episodes practised", "value": "2,000 episodes of 30 bars", "meaning": "How many imagined stretches of trading the policy trained on." }
+      ]
+    },
+    "output": {
+      "summary": "The policy's chance of choosing each action, and the action it takes.",
+      "fields": [
+        { "name": "chance of going short", "value": "16 percent", "meaning": "How strongly the policy favours a short position on this bar." },
+        { "name": "chance of staying flat", "value": "38 percent", "meaning": "How strongly the policy favours doing nothing." },
+        { "name": "chance of going long", "value": "46 percent", "meaning": "How strongly the policy favours a long position." },
+        { "name": "action taken", "value": "go long 1 contract", "meaning": "The option chosen from those chances." }
+      ]
+    },
+    "reading": "The policy leans long but is far from sure, since flat is almost as likely. Compare its simulated results with its results on real held-out bars: a large gap means the simulator is flattering the policy and the real market result is the one to trust."
+  }
+}

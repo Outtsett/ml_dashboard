@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-value-based-methods-q-learning",
+  "name": "Q-Learning",
+  "analogy": "Think of it as a trader's playbook written as a lookup table. Each row is a market situation, such as uptrend with high volatility, and each column is an action. Every time the trader acts and sees what follows, they update one cell with what that action turned out to be worth.",
+  "steps": [
+    {
+      "title": "Sort the market into a small number of situations",
+      "description": "A table can only hold a limited number of rows, so continuous readings are cut into buckets and combined into a handful of named situations.",
+      "inExample": "The trend over 12 bars is bucketed as down, flat or up, momentum as weak, neutral or strong, and volatility as low or high, giving 18 situations."
+    },
+    {
+      "title": "Start with a blank table",
+      "description": "Every cell, one per situation and action, starts at zero. The table is the entire model; there is no network.",
+      "inExample": "The table has 18 rows and 3 columns for short, flat and long, 54 cells, all at zero."
+    },
+    {
+      "title": "Choose an action, usually the best so far",
+      "description": "In each situation the agent mostly picks the action with the highest value in that row, but now and then picks one at random to keep discovering.",
+      "inExample": "In the up, strong, high-volatility situation, the agent picks long most of the time and a random action 1 time in 10."
+    },
+    {
+      "title": "Observe the reward and the next situation",
+      "description": "The agent acts, then sees the reward from that action and which situation the market has moved into.",
+      "inExample": "Going long earned 6 US dollars, and the market moved to the up, neutral, high-volatility situation."
+    },
+    {
+      "title": "Nudge the cell toward what was just learned",
+      "description": "The cell for the situation and action is moved a small step toward the reward plus the best value available in the next situation, discounted slightly. The next action actually taken does not matter, which is why the method is called off-policy.",
+      "inExample": "The long cell starts at 3. The new estimate is 6 plus 90 percent of the best value in the next situation, 10, which is 15, and the cell moves a quarter of the way there, to 6."
+    },
+    {
+      "title": "Repeat until the table settles",
+      "description": "With enough passes over enough data and a shrinking exploration rate, the table settles on the worth of each action in each situation, and the policy is simply the best action in each row.",
+      "inExample": "After 500,000 bars the table stops changing much, and in the up, strong, high-volatility row long ends as the highest of the three values."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A simple rule table from a few indicators",
+      "example": "Learning whether to be short, flat or long from three bucketed readings on MNQ five-minute bars, giving a playbook you can print and read."
+    },
+    {
+      "task": "Quick tests of reward designs",
+      "example": "Seeing in minutes whether charging costs per trade makes the agent trade less often."
+    },
+    {
+      "task": "Checking an environment before building a neural agent",
+      "example": "Confirming that a trading simulator pays more for sensible behaviour before adding a network on top."
+    },
+    {
+      "task": "Very fast lookup in a live system",
+      "example": "Running a decision as a single table read, with no network, inside a latency-sensitive loop."
+    }
+  ],
+  "avoidWhen": [
+    "The state has many continuous features; the table grows beyond reach and loses information when cut into buckets, so a neural network version is the better choice.",
+    "Data is limited and the number of situations is large; most cells are visited rarely, and their values are essentially guesses."
+  ],
+  "example": {
+    "scenario": "A tabular agent, still in training, trades MNQ five-minute bars with 18 bucketed situations. At the 14:05 bar it reads its row, acts, and then updates one cell after seeing the result.",
+    "input": {
+      "summary": "The three bucketed readings that define the situation, the reward that followed and the table's current values.",
+      "fields": [
+        { "name": "trend over the last 12 bars", "value": "up", "meaning": "Price rose more than a set amount over the previous hour." },
+        { "name": "momentum", "value": "strong", "meaning": "The relative strength index, 14 bars, stands above 60." },
+        { "name": "volatility", "value": "high", "meaning": "The average true range, 14 bars, is above its usual level, here 30 points." },
+        { "name": "close", "value": "20,140", "meaning": "The price of the 14:05 bar, kept for context; the table sees only the buckets." },
+        { "name": "value of long before the update", "value": "3 US dollars", "meaning": "The table cell for this situation and the long action." },
+        { "name": "reward after going long", "value": "6 US dollars", "meaning": "What the position earned over the next bar, after costs." },
+        { "name": "best value in the next situation", "value": "10 US dollars", "meaning": "The highest cell in the row of the situation the market moved into." },
+        { "name": "discount for later reward", "value": "90 percent", "meaning": "How much of the next situation's value still counts when it is one step away." },
+        { "name": "learning rate", "value": "25 percent", "meaning": "The fraction of the gap between old value and new estimate that one update closes." }
+      ]
+    },
+    "output": {
+      "summary": "The row of the table for this situation after one update, and the action it recommends.",
+      "fields": [
+        { "name": "value of short", "value": "minus 3 US dollars", "meaning": "The table's learned worth of going short in this situation." },
+        { "name": "value of flat", "value": "plus 1 US dollar", "meaning": "The learned worth of standing aside." },
+        { "name": "value of long after the update", "value": "plus 6 US dollars", "meaning": "The long cell moved a quarter of the way from 3 toward the new estimate of 15 (6 plus 90 percent of 10)." },
+        { "name": "recommended action", "value": "long", "meaning": "The action with the highest value in the row." }
+      ]
+    },
+    "reading": "Each update moves a cell only part of the way, which is what makes the table steady. Read the final table as a playbook, and check how many bars visited each row: a row with a few visits is a guess, however clean its numbers look."
+  }
+}

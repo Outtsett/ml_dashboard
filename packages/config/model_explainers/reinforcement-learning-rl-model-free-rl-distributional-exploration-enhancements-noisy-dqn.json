@@ -1,0 +1,79 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-noisy-dqn",
+  "name": "Noisy DQN",
+  "analogy": "Think of it as a trader whose judgement has a built-in wobble. In situations they know well the wobble is tiny and they act consistently; in unfamiliar ones the wobble is large and they try odd things. The wobble is learned, so nobody has to schedule how much experimenting happens.",
+  "steps": [
+    {
+      "title": "Score each action from the state",
+      "description": "A deep Q-network reads the market state and outputs one score per action, the reward it expects from taking that action and then playing well. The highest score is the usual pick.",
+      "inExample": "For the 09:50 five-minute bar the network scores buy, hold and sell."
+    },
+    {
+      "title": "Give each connection a learned wobble",
+      "description": "In the last layers, every connection weight is a typical value plus a wobble amount multiplied by random noise. Both the typical value and the wobble amount are learned like any other weight.",
+      "inExample": "Each connection in the final two layers carries a typical value and a learned wobble amount, starting from a common small value."
+    },
+    {
+      "title": "Draw fresh noise and act",
+      "description": "Before each decision the noise is redrawn, which slightly changes the scores. The action with the top changed score is taken, so the agent explores without any separate coin flip.",
+      "inExample": "A fresh draw shifts the scores to buy 3, hold 1 and sell minus 1 US dollars, and the agent buys."
+    },
+    {
+      "title": "Store the step and learn from it",
+      "description": "The step is saved and the network is trained from random old steps in the usual way, moving the score of the chosen action toward the reward plus the discounted best score of the next state.",
+      "inExample": "A reward of 4 US dollars pulls the buy score for this kind of state upward."
+    },
+    {
+      "title": "Let training shrink or keep the wobble",
+      "description": "The wobble amounts are trained by the same process. Where noise hurts, it is reduced; where the agent is still uncertain, it stays larger. Exploration therefore fades on its own state by state.",
+      "inExample": "In familiar opening-range states the wobble amount falls, while in a rare news-driven state it stays high."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Exploration that follows familiarity",
+      "example": "Letting a trading agent explore a lot in a market regime it has rarely seen and settle down in regimes it knows."
+    },
+    {
+      "task": "Removing a setting to tune",
+      "example": "Dropping the decay schedule for random-action probability from the hyperparameter search of a deep Q-network."
+    },
+    {
+      "task": "Long-running agents",
+      "example": "Keeping a deployed discrete-action agent on Micro E-mini Nasdaq-100 futures (MNQ) bars exploring slightly forever instead of freezing at a fixed floor."
+    },
+    {
+      "task": "A rough uncertainty signal",
+      "example": "Reading the size of the learned wobble in a state as a hint of how unsure the agent is there."
+    }
+  ],
+  "avoidWhen": [
+    "The action is a continuous size rather than a choice among a few actions; use an actor-critic method built for continuous output.",
+    "You need exploration you can switch off and control exactly; a plain random-action probability is simple and predictable, while the learned wobble is harder to reason about."
+  ],
+  "example": {
+    "scenario": "A deep Q-network with noisy layers picks among buy, hold and sell one contract of Micro E-mini Nasdaq-100 futures (MNQ) on 5-minute bars. At 09:50 the account is flat.",
+    "input": {
+      "summary": "The state read by the network, in the same columns used for training.",
+      "fields": [
+        { "name": "close", "value": "19,845", "meaning": "The price at which the 09:50 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "44", "meaning": "A momentum reading from 0 to 100; near the middle." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar; wide because it is near the open." },
+        { "name": "volume against its 20-bar average", "value": "90 percent above average", "meaning": "Trading is much heavier than normal." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "minutes since the session open", "value": "20", "meaning": "The bar sits in the first half hour of the day." }
+      ]
+    },
+    "output": {
+      "summary": "A score for each action under this bar's noise draw, and the action taken.",
+      "fields": [
+        { "name": "score for buy", "value": "3 US dollars", "meaning": "The expected reward from buying and then playing well, under this noise draw." },
+        { "name": "score for hold", "value": "1 US dollar", "meaning": "The expected reward from staying flat." },
+        { "name": "score for sell", "value": "minus 1 US dollar", "meaning": "The expected reward from selling short." },
+        { "name": "action taken", "value": "buy", "meaning": "The action with the highest score under the current noise draw." },
+        { "name": "average learned wobble", "value": "17 percent of a typical weight", "meaning": "How large the noise is on a typical connection in this state; larger means more exploration." }
+      ]
+    },
+    "reading": "Scores change from draw to draw while training, which is the intended exploration. At deployment you can switch the noise off or average over several draws to get steadier choices. The scores are an internal estimate, not a forecast; judge the agent on held-out folds after costs."
+  }
+}

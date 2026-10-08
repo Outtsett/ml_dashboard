@@ -1,0 +1,85 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-world-models-ha-and-schmidhuber",
+  "name": "World Models (Ha and Schmidhuber)",
+  "analogy": "Think of it as three people on a desk: a note-taker who condenses each bar into a short memo, a historian who remembers how the memos tend to follow one another, and a small decision maker who reads the latest memo and the historian's expectation and just says buy, sell or hold.",
+  "steps": [
+    {
+      "title": "Compress each bar into a short code",
+      "description": "The vision part is a variational autoencoder. It squeezes a bar, with its features, down to a small list of numbers and learns to rebuild the bar from them. The small list is the code. It is learned without any reward.",
+      "inExample": "Each 5-minute MNQ bar with its 35 features is squeezed to a code of 16 numbers."
+    },
+    {
+      "title": "Learn how codes follow one another",
+      "description": "The memory part is a recurrent network that reads the sequence of codes and the actions taken, and predicts the next code. It predicts a spread of likely next codes, not a single one, because the market can go several ways.",
+      "inExample": "After a run of narrow bars, the memory expects the next code to be near the quiet cluster but with a small chance of a big-range bar."
+    },
+    {
+      "title": "Freeze the first two parts",
+      "description": "Once the vision and memory parts are trained on plenty of unlabeled history, they are held fixed. They become a trusted way to describe the market's present and likely near future.",
+      "inExample": "Both parts are trained on a year of bars and then locked, so nothing downstream changes how bars are encoded."
+    },
+    {
+      "title": "Build the tiny controller",
+      "description": "The controller reads only the current code and the memory's running state and outputs an action through a simple weighted sum. It is deliberately tiny, a few hundred numbers at most, because the other two parts have done most of the work.",
+      "inExample": "The controller takes the 16-number code plus a 32-number memory state, and outputs buy, hold or sell using about 150 adjustable numbers."
+    },
+    {
+      "title": "Search for good controller settings",
+      "description": "Because the controller is so small, its settings can be found by trying many variations and keeping the best, a method called an evolution strategy, instead of by gradient training.",
+      "inExample": "Sixty-four candidate controllers are tried per round on training bars, and the best-scoring ones seed the next round."
+    },
+    {
+      "title": "Optionally train inside the dream",
+      "description": "The memory part can generate its own imagined sequences of codes. The controller can then be trained on those, with few or no real bars, though it must be checked against real data afterwards.",
+      "inExample": "A candidate controller is first scored on 1,000 imagined 20-bar sequences, then confirmed on a walk-forward fold of real bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning from price history with no labels",
+      "example": "Training the compressor and the memory on years of MNQ and ES bars before any profit target is defined."
+    },
+    {
+      "task": "Generating plausible synthetic paths",
+      "example": "Rolling the memory forward to produce hundreds of 50-bar synthetic sequences for stress-testing a strategy."
+    },
+    {
+      "task": "Deploying a very small decision maker",
+      "example": "Running only the tiny controller and the frozen encoder on live 1-minute bars to keep inference fast."
+    },
+    {
+      "task": "Sharing one compressor across instruments",
+      "example": "Reusing a compressor trained on several index futures as the starting description of a new instrument."
+    },
+    {
+      "task": "Training a sizing policy mostly in simulation",
+      "example": "Optimizing position sizing inside the memory's imagined sequences, then checking it on real held-out bars."
+    }
+  ],
+  "avoidWhen": [
+    "A direction call from a table of features is all you need; a gradient boosting model is quicker to fit and to check.",
+    "The compressor cannot keep what matters; if the code loses the features that drive returns, everything downstream is built on a blurry picture."
+  ],
+  "example": {
+    "scenario": "At 13:15 the frozen compressor and memory describe an MNQ 5-minute bar, and the tiny controller chooses an action from that description.",
+    "input": {
+      "summary": "One bar's feature vector, plus the memory's running state from the bars before it.",
+      "fields": [
+        { "name": "close", "value": "19,662", "meaning": "The close of the 13:15 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "17 points", "meaning": "The typical high-to-low travel of a recent five-minute bar; low here, so the market is quiet." },
+        { "name": "volume against its 20-bar average", "value": "30 percent below average", "meaning": "How light trading in this bar was compared with the recent norm." },
+        { "name": "bar feature count", "value": "35", "meaning": "The number of base features the compressor reads for each bar." },
+        { "name": "memory state size", "value": "32 numbers", "meaning": "The size of the running summary the memory has built from earlier bars." }
+      ]
+    },
+    "output": {
+      "summary": "The code for this bar, the memory's expectation and the controller's action.",
+      "fields": [
+        { "name": "bar code", "value": "16 numbers", "meaning": "The compressed description of this bar produced by the vision part." },
+        { "name": "expected next bar", "value": "quiet cluster 78 percent, wide-range cluster 22 percent", "meaning": "The memory's spread of likely next codes, grouped by how they look." },
+        { "name": "controller action", "value": "hold", "meaning": "What the tiny controller decides from the code and the memory state." }
+      ]
+    },
+    "reading": "A hold in a quiet, low-volume stretch is a sensible, unremarkable output. The value of this design shows up in checks: how well the compressor rebuilds bars, how well the memory's expectation matches what followed, and the controller's net result on walk-forward folds."
+  }
+}

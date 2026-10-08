@@ -1,0 +1,78 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-bayesian-ridge-regression",
+  "name": "Bayesian Ridge Regression",
+  "analogy": "Think of it as a weighted checklist written by a cautious analyst who says how sure they are. Every feature gets a weight, weights are held close to zero unless the data insists, and the forecast comes with a range instead of a single number.",
+  "steps": [
+    {
+      "title": "Start with a weighted sum of features",
+      "description": "Like ordinary linear regression, the forecast is each feature multiplied by a weight and added up. The difference is that each weight is treated as a range of plausible values, not one fixed number.",
+      "inExample": "The 6-bar-ahead move in MNQ is forecast from 35 base features, each with its own weight, and every weight begins as a wide guess centred on zero."
+    },
+    {
+      "title": "Hold the weights near zero at the start",
+      "description": "Before seeing data, the model assumes most weights are small. This is the gentle brake that stops it from chasing noise, the same idea as ridge regression but expressed as a belief about the weights.",
+      "inExample": "No feature is allowed to look important until the training bars give evidence for it."
+    },
+    {
+      "title": "Update the beliefs with the training bars",
+      "description": "Looking at the bars and their outcomes, the model narrows each weight's range. Features that help repeatedly get a weight clearly away from zero; features that do not stay near zero with a wide range.",
+      "inExample": "After 40,000 bars, the weight on the 6-bar return settles slightly negative, while most volume-based weights stay near zero."
+    },
+    {
+      "title": "Learn how noisy the target is",
+      "description": "The model also estimates how much of the outcome is unexplained noise and how strong the brake on the weights should be. Both are learned from the data in a few rounds of adjustment, so there is no strength setting to tune by hand.",
+      "inExample": "It concludes the typical 6-bar move not explained by the features is about 48 points, which is most of the movement."
+    },
+    {
+      "title": "Forecast with a range",
+      "description": "For a new bar it computes the average forecast using the typical weights. It then widens the forecast into a range by combining the unexplained noise with the leftover uncertainty about the weights.",
+      "inExample": "For the 14:35 bar the average forecast is a rise of 5 points, with a spread of 48 points around it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A forecast that states its own uncertainty",
+      "example": "Predicting the 30-minute MNQ move together with a range, so position size can shrink when the range is wide."
+    },
+    {
+      "task": "Noisy targets with many correlated features",
+      "example": "Fitting a forward-return target from many overlapping momentum indicators without hand-tuning a penalty."
+    },
+    {
+      "task": "A stable, cheap baseline",
+      "example": "Setting a floor for walk-forward folds before trying trees or neural networks."
+    },
+    {
+      "task": "Seeing which features the data really supports",
+      "example": "Reading which weights are clearly away from zero and which stay uncertain, as an honest check on a favourite indicator."
+    }
+  ],
+  "avoidWhen": [
+    "The relationship is clearly curved or depends on combinations of features; a straight weighted sum cannot represent it and a tree or network is better.",
+    "The target has very fat tails, as price moves often do; the model assumes bell-shaped noise, so its ranges will be too narrow in the tails."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model forecasts the change in the close 6 bars (30 minutes) later, in points, along with how uncertain that forecast is.",
+    "input": {
+      "summary": "One row of features for the bar that just closed, rescaled the way the training bars were.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "An average forecast for the 30-minute move and the spread around it.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 5 points", "meaning": "The model's average expectation of how far the close will be above this bar's close." },
+        { "name": "uncertainty of the forecast", "value": "48 points", "meaning": "One standard spread around the forecast, combining market noise and doubt about the weights." },
+        { "name": "range holding about 90 percent of outcomes", "value": "minus 75 to plus 85 points", "meaning": "The forecast plus and minus about 80 points, where the model expects the move to land nine times in ten." },
+        { "name": "forecast in US dollars per contract", "value": "plus 10 US dollars", "meaning": "5 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "The forecast of 5 points is tiny next to a 48-point spread, which is what to expect from a noisy market. Use the spread as much as the forecast: it says how large a position the call can carry, and a forecast this small has to clear commission and slippage before it is worth acting on."
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-modular-meta-rl-agent",
+  "name": "Modular Meta-RL Agent",
+  "analogy": "Think of it as a trading desk with several specialists, one for trends, one for fading moves, one for thin markets and one for breakouts. A dispatcher watches the tape and decides how much weight to give each specialist at every bar, and a new specialist can join without retraining the rest.",
+  "steps": [
+    {
+      "title": "Read the bar through a shared encoder",
+      "description": "A shared front end turns the bar's features into a compact description of the market state. Every specialist works from the same description, which saves effort.",
+      "inExample": "The 35 base features of the 13:40 bar become a 16-number description."
+    },
+    {
+      "title": "Let each module give its own opinion",
+      "description": "Every module in the library is a small policy with its own specialty. Each gives its own preference over the possible positions.",
+      "inExample": "The trend module leans long at 60 percent, the fading module leans long at 30 percent, the thin-market module at 33 percent and the breakout module at 55 percent."
+    },
+    {
+      "title": "Let the router weigh the modules",
+      "description": "A small router network reads the same description and assigns a weight to each module. The weights add up to 100 percent, so they say how much each specialist is trusted right now.",
+      "inExample": "The router weights are trend 55 percent, fading 25 percent, thin market 5 percent and breakout 15 percent."
+    },
+    {
+      "title": "Blend the opinions into one decision",
+      "description": "The module preferences are combined using the router weights, giving one blended preference over positions. A sparse variant uses only the top few modules to save time.",
+      "inExample": "The blend gives long 50 percent, flat 28 percent and short 22 percent."
+    },
+    {
+      "title": "Train everything together with a balance penalty",
+      "description": "Modules and router are trained from the reward on the blended decisions. A penalty prevents the router from sending every bar to the same module early on, which would leave the others unused.",
+      "inExample": "Over a training fold each module receives a non-trivial share of bars rather than one module taking nearly all of them."
+    },
+    {
+      "title": "Add or replace a module later",
+      "description": "A new module for a newly identified condition can join the library, and only the router has to adapt. The existing, validated modules are left as they are.",
+      "inExample": "A fifth module for the first five minutes after a news release is added and the router learns when to call on it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime-specialised decision logic",
+      "example": "Keeping separate trend, mean-reversion and low-liquidity modules on 5-minute MNQ bars, with the router picking the right mix."
+    },
+    {
+      "task": "Growing a strategy library safely",
+      "example": "Adding a module for the opening five minutes without disturbing modules already validated on walk-forward folds."
+    },
+    {
+      "task": "Sharing one feature extractor across instruments",
+      "example": "Using a common encoder for MNQ and ES while keeping instrument-specific modules."
+    },
+    {
+      "task": "Auditing which logic drove each bar",
+      "example": "Reading the router weights bar by bar to see whether trades came from the trend module or the breakout module."
+    },
+    {
+      "task": "Bounded cost as the library grows",
+      "example": "Using sparse routing so that only the top two modules run on each live bar."
+    }
+  ],
+  "avoidWhen": [
+    "You have one steady market and little data; a single policy or a boosted tree has fewer parts to tune and no router to collapse.",
+    "You cannot monitor module usage across folds; without that check the router can quietly collapse onto one module and the library is just one policy in disguise."
+  ],
+  "example": {
+    "scenario": "At 13:40 on MNQ the agent has four modules: trend, fading, thin market and breakout. The shared encoder describes the bar, the router weighs the modules, and the blended policy states its preference.",
+    "input": {
+      "summary": "The bar's features and the four modules' individual opinions.",
+      "fields": [
+        { "name": "close", "value": "19,360", "meaning": "The price at which the newest five-minute bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "relative strength index, 14 bars", "value": "63", "meaning": "A momentum reading from 0 to 100; moderately strong." },
+        { "name": "trend module, preference for long", "value": "60 percent", "meaning": "How strongly the trend specialist favours a long position." },
+        { "name": "fading module, preference for long", "value": "30 percent", "meaning": "How strongly the mean-reversion specialist favours a long position." },
+        { "name": "thin-market module, preference for long", "value": "33 percent", "meaning": "How strongly the low-liquidity specialist favours a long position." },
+        { "name": "breakout module, preference for long", "value": "55 percent", "meaning": "How strongly the breakout specialist favours a long position." }
+      ]
+    },
+    "output": {
+      "summary": "The router's weights and the blended preference over positions.",
+      "fields": [
+        { "name": "router weights", "value": "trend 55 percent, fading 25 percent, thin market 5 percent, breakout 15 percent", "meaning": "How much the dispatcher trusts each specialist on this bar." },
+        { "name": "blended share long", "value": "50 percent", "meaning": "The weighted combination of the modules' long preferences: 55 percent of 60, plus 25 percent of 30, plus 5 percent of 33, plus 15 percent of 55." },
+        { "name": "blended share flat", "value": "28 percent", "meaning": "The weighted combination of the modules' preference for staying out." },
+        { "name": "blended share short", "value": "22 percent", "meaning": "The weighted combination of the modules' short preferences." }
+      ]
+    },
+    "reading": "Look at the router weights before the blend: a router that gives nearly all of its weight to one module on every bar has collapsed. Compare the whole agent with a single policy of the same size, and judge the blended position after trading costs."
+  }
+}

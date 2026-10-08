@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-particle-swarm-optimization-pso",
+  "name": "Particle Swarm Optimization (PSO)",
+  "analogy": "Think of it as a flock of birds searching a valley for the best feeding spot. Each bird keeps flying in roughly its current direction, but is pulled both toward the best spot it has found itself and toward the best spot anyone in the flock has found. Gradually the whole flock gathers around the richest area.",
+  "steps": [
+    {
+      "title": "Scatter the swarm",
+      "description": "Place a group of particles at random positions in the allowed range of settings, each with a random starting velocity. A position is one full set of settings.",
+      "inExample": "15 particles, each with a stop distance and a profit target in points, scattered between 20 and 80 points for the stop and between 30 and 150 points for the target."
+    },
+    {
+      "title": "Score every particle",
+      "description": "Run each particle's settings through the test and record the score. No slope is needed.",
+      "inExample": "Each particle's stop and target are backtested on the tuning folds of MNQ 5-minute bars after costs."
+    },
+    {
+      "title": "Update personal and swarm bests",
+      "description": "Each particle remembers the best position it has personally visited. The swarm remembers the single best position anyone has visited.",
+      "inExample": "The followed particle's personal best is a 40 point stop and a 70 point target; the swarm's best is a 50 point stop and a 90 point target."
+    },
+    {
+      "title": "Blend three pulls into a new velocity",
+      "description": "The new velocity is part of the old velocity, plus a random-sized pull toward the particle's own best, plus a random-sized pull toward the swarm's best. The randomness stops the flock collapsing too early.",
+      "inExample": "The particle sits at a 30 point stop and 50 point target, moving at plus 10 and plus 20 points per round. It keeps 70 percent of that, adds 30 percent of the gap to its own best and 40 percent of the gap to the swarm best, for a total move of plus 18 and plus 36 points."
+    },
+    {
+      "title": "Move every particle",
+      "description": "Each particle shifts by its new velocity and is held inside the allowed range. Nothing is discarded; the whole swarm moves together.",
+      "inExample": "The particle moves to a 48 point stop and an 86 point target, close to the swarm's best and past its own."
+    },
+    {
+      "title": "Repeat, calming the swarm down",
+      "description": "Rounds repeat while the weight on the old velocity is gradually lowered, so the flock first explores and then settles. The swarm's best position at the end is the answer.",
+      "inExample": "After 60 rounds the 15 particles sit within 3 points of each other and the swarm's best is read out."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Tuning thresholds on a jumpy score",
+      "example": "Choosing the stop and target distances of an MNQ strategy when the backtest score jumps from trade to trade."
+    },
+    {
+      "task": "Fitting execution cost coefficients",
+      "example": "Calibrating a market-impact model so its predicted slippage matches realised slippage on recent fills."
+    },
+    {
+      "task": "Searching weights of a small model",
+      "example": "Finding weights of a small trading model directly against simulated profit when the simulator cannot pass slopes back."
+    },
+    {
+      "task": "Portfolio weights with awkward constraints",
+      "example": "Searching continuous position weights against a risk-adjusted score that a standard quadratic solver cannot handle."
+    }
+  ],
+  "avoidWhen": [
+    "The score is smooth and a slope is available; gradient descent needs far fewer evaluations.",
+    "Each evaluation is very slow; a swarm of 15 particles for 60 rounds needs 900 runs, so Bayesian optimization, which learns from every run, is a better fit."
+  ],
+  "example": {
+    "scenario": "A researcher tunes two numbers of an MNQ 5-minute strategy, the stop distance and the profit target, both in points, using a swarm of 15 particles.",
+    "input": {
+      "summary": "The two settings with their ranges, the swarm size, and one particle's state to follow through a step.",
+      "fields": [
+        { "name": "stop distance range", "value": "20 to 80 points", "meaning": "How far from entry the protective stop may sit. One MNQ point is worth 2 US dollars." },
+        { "name": "profit target range", "value": "30 to 150 points", "meaning": "How far from entry the profit target may sit." },
+        { "name": "typical average true range", "value": "25 points", "meaning": "Recent 5-minute bar size, so a 50 point stop is about two bars of travel." },
+        { "name": "swarm size and rounds", "value": "15 particles, 60 rounds", "meaning": "How many settings are tested per round and for how long." },
+        { "name": "followed particle position", "value": "stop 30, target 50", "meaning": "Where the example particle starts this round, in points." },
+        { "name": "followed particle velocity", "value": "plus 10 and plus 20", "meaning": "How it was already moving, in points per round." },
+        { "name": "own best and swarm best", "value": "(40, 70) and (50, 90)", "meaning": "The two places this particle is pulled toward, as stop and target in points." }
+      ]
+    },
+    "output": {
+      "summary": "The followed particle's new position and the swarm's final best setting.",
+      "fields": [
+        { "name": "followed particle new position", "value": "stop 48, target 86", "meaning": "After one velocity update and move, in points." },
+        { "name": "swarm best stop distance", "value": "45 points", "meaning": "Final best stop after 60 rounds, worth 90 US dollars of risk per contract." },
+        { "name": "swarm best profit target", "value": "80 points", "meaning": "Final best target, worth 160 US dollars per contract if reached." },
+        { "name": "best tuning score", "value": "11 points per day net", "meaning": "Net result after costs on the tuning folds, an in-sample number." }
+      ]
+    },
+    "reading": "The best score is a result of searching, so it overstates what to expect. Retest the setting on later folds. A broad region of similar scores around the best setting is more trustworthy than one sharp spike."
+  }
+}

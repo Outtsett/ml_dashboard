@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-lasso-regression",
+  "name": "Lasso Regression",
+  "analogy": "Think of it as a tight budget for how much total weight you may spend on indicators. When the budget is small, the model spends it only on the few indicators that earn it and gives the rest exactly nothing.",
+  "steps": [
+    {
+      "title": "Write the forecast as a weighted sum",
+      "description": "The forecast is each feature multiplied by a weight and added together, the same as ordinary linear regression. On its own that would give every feature some weight, including useless ones.",
+      "inExample": "The 6-bar-ahead MNQ move is forecast from 151 technical indicators, each needing a weight."
+    },
+    {
+      "title": "Rescale every feature to the same size",
+      "description": "The budget on weights is fair only if features are on the same scale. Each feature is rescaled with past bars only, so no indicator gets a free pass for being measured in tiny units.",
+      "inExample": "All 151 indicators are rescaled to have a similar typical size using trailing statistics."
+    },
+    {
+      "title": "Limit the total size of the weights",
+      "description": "The model is told to minimise forecast errors but to pay a cost for every unit of weight it uses, counted by adding up the sizes of all weights. A cost on the plain sum of sizes is what pushes small weights to land on zero rather than merely near zero.",
+      "inExample": "A strength setting is chosen so that the budget is tight enough to leave only a small group of indicators."
+    },
+    {
+      "title": "Update one weight at a time",
+      "description": "The model repeatedly goes through the features. For each it asks how much that feature alone could still improve the forecast; if the gain is smaller than the cost, the weight is set to zero, otherwise it is nudged and reduced a little by the cost.",
+      "inExample": "On the first sweeps most of the 151 weights fall to zero; later sweeps adjust the remaining few until nothing changes much."
+    },
+    {
+      "title": "Pick the strength on later data",
+      "description": "The strength is chosen by testing on bars after the training period. Too strong a cost leaves an empty model; too weak a cost keeps noise.",
+      "inExample": "Across walk-forward folds, the strength with the smallest held-out error keeps 12 indicators."
+    },
+    {
+      "title": "Forecast from the survivors",
+      "description": "A new bar is scored using only indicators with non-zero weights. Everything else is ignored entirely, which makes the model short enough to read in one glance.",
+      "inExample": "The 14:35 bar is scored with the 12 surviving indicators and the forecast is a rise of 3 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing which indicators to keep",
+      "example": "Cutting 151 technical indicators on MNQ 5-minute bars to the dozen or so that the data supports."
+    },
+    {
+      "task": "A short, auditable forecast",
+      "example": "Producing a forecast of the 30-minute move that can be written on a card with a dozen entries."
+    },
+    {
+      "task": "Screening before a heavier model",
+      "example": "Using the surviving indicators as the narrower input list for a boosted-tree model."
+    },
+    {
+      "task": "Testing whether an indicator earns its place",
+      "example": "Checking whether a favourite oscillator keeps a non-zero weight in every walk-forward fold or disappears in most."
+    }
+  ],
+  "avoidWhen": [
+    "Several useful indicators are near copies of each other; lasso tends to keep one and drop the rest somewhat arbitrarily, and the pick can change between folds. A blend of removal and shrinking, such as ElasticNet, is steadier.",
+    "The signal is a combination of features; a weighted sum cannot express it, so a tree-based model is the better choice."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A lasso model trained on 151 technical indicators forecasts the change in the close 6 bars (30 minutes) later in points.",
+    "input": {
+      "summary": "The indicator values of the bar, rescaled as in training, shown for the few that matter.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "indicators offered", "value": "151", "meaning": "The number of technical indicators the model could use." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast move and the short list of indicators that made it.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 3 points", "meaning": "The expected amount by which the close 30 minutes later is above this bar's close." },
+        { "name": "indicators with a non-zero weight", "value": "12 of 151", "meaning": "The group the model kept; the other 139 were set to exactly zero." },
+        { "name": "largest push upward", "value": "distance from the 50-bar moving average", "meaning": "The surviving feature that added the most to this forecast." },
+        { "name": "forecast in US dollars per contract", "value": "plus 6 US dollars", "meaning": "3 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "The forecast is a faint lean, so act on it only if it clears costs on held-out folds. The more durable product is the list of 12 indicators: if the same handful survives in each fold, they deserve attention; if the list changes every fold, the signal is probably noise."
+  }
+}

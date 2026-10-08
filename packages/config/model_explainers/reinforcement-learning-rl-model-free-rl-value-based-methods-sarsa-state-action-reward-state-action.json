@@ -1,0 +1,85 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-value-based-methods-sarsa-state-action-reward-state-action",
+  "name": "SARSA (State-Action-Reward-State-Action)",
+  "analogy": "Think of it as a trader who rates every move by how their own habits, mistakes included, actually played out. A careful trader who sometimes slips knows that stepping near a cliff edge is riskier than the map suggests, and learns to keep a safer distance.",
+  "steps": [
+    {
+      "title": "Sort the market into a small number of situations",
+      "description": "As with a lookup-table playbook, continuous readings are cut into buckets and combined into a few named situations, one row of the table for each.",
+      "inExample": "Trend over 12 bars is bucketed as down, flat or up, momentum as weak, neutral or strong, and volatility as low or high, making 18 situations."
+    },
+    {
+      "title": "Choose an action, usually the best so far",
+      "description": "In the current situation the agent picks the action with the highest value in its row most of the time, and a random one now and then to keep exploring.",
+      "inExample": "In the up, neutral, high-volatility situation the agent picks long."
+    },
+    {
+      "title": "Act and see the reward and the next situation",
+      "description": "The agent takes the action, receives the reward and sees which situation the market moves into.",
+      "inExample": "Long earned minus 2 US dollars, as the bar reversed, and the market moved to the flat, weak, high-volatility situation."
+    },
+    {
+      "title": "Choose the next action before updating",
+      "description": "Before learning, the agent decides on its next action using the same exploring policy it follows when trading. That actual next choice, which may be a random one, is the only one used in the update.",
+      "inExample": "In the new situation the agent's exploring policy happens to pick a random action, short, instead of its usual best."
+    },
+    {
+      "title": "Nudge the cell toward what really happened",
+      "description": "The cell for the earlier situation and action moves a step toward the reward plus the value of the next action the agent actually chose. The learned values therefore include the cost of the agent's own exploratory slips.",
+      "inExample": "The long cell starts at 5. The new estimate is minus 2 plus 90 percent of the value of short in the new situation, minus 10, which is minus 11, and the cell moves halfway there, to minus 3."
+    },
+    {
+      "title": "Repeat while exploration shrinks",
+      "description": "As training continues and exploration is turned down, the table settles on the worth of each action when followed by this agent's own behaviour. The values near risky situations come out more cautious than in the off-policy version.",
+      "inExample": "After 500,000 bars, values in volatile situations that precede large losses are lower than a greedy table would show."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Policies where an exploratory slip is costly",
+      "example": "A futures agent that can take a large loss from a random wrong-way position in volatile conditions, where a cautious value table is wanted."
+    },
+    {
+      "task": "Measuring the cost of exploration",
+      "example": "Running it beside the lookup-table method that assumes perfect follow-up, to see how much value the agent loses to its own random actions."
+    },
+    {
+      "task": "A small, readable playbook",
+      "example": "Learning short, flat or long from three bucketed readings on MNQ five-minute bars and printing the table."
+    },
+    {
+      "task": "A live agent that keeps exploring",
+      "example": "A paper-trading agent that always keeps a small random-action rate, where the estimates should describe the policy it actually runs."
+    }
+  ],
+  "avoidWhen": [
+    "You want the best possible greedy policy and exploration will be switched off in use; the off-policy lookup-table method targets that directly.",
+    "The state has many continuous features; a table cannot hold it, and a neural network version of a value method is needed."
+  ],
+  "example": {
+    "scenario": "A tabular agent trades MNQ five-minute bars with 18 bucketed situations. At the 15:10 bar it goes long, the bar reverses, and it then draws a random exploratory action. The table is updated from exactly those two choices.",
+    "input": {
+      "summary": "The situation, the chosen action, the reward, the next situation and the next action actually chosen.",
+      "fields": [
+        { "name": "situation", "value": "up trend, neutral momentum, high volatility", "meaning": "The bucketed readings for the 15:10 bar." },
+        { "name": "close", "value": "19,730", "meaning": "The price of the 15:10 bar, kept for context; the table sees only the buckets." },
+        { "name": "action taken", "value": "go long", "meaning": "The agent's choice in that situation." },
+        { "name": "value of long before the update", "value": "5 US dollars", "meaning": "The table cell for this situation and the long action." },
+        { "name": "reward", "value": "minus 2 US dollars", "meaning": "What the position earned over the next bar, after costs." },
+        { "name": "next situation", "value": "flat trend, weak momentum, high volatility", "meaning": "Where the market moved after the bar." },
+        { "name": "next action actually chosen", "value": "go short, a random exploratory pick", "meaning": "The action the exploring policy drew, which the update uses. The table values it at minus 10 US dollars." },
+        { "name": "best value in the next situation", "value": "plus 10 US dollars", "meaning": "The highest cell in the next situation's row, which an off-policy rule would use instead." },
+        { "name": "discount and learning rate", "value": "90 percent and 50 percent", "meaning": "How much later value counts, and the fraction of the gap one update closes." }
+      ]
+    },
+    "output": {
+      "summary": "The updated cell and how it differs from the cell an off-policy update would give.",
+      "fields": [
+        { "name": "value of long before the update", "value": "5 US dollars", "meaning": "The cell's earlier value." },
+        { "name": "value of long after the update", "value": "minus 3 US dollars", "meaning": "The cell moved halfway toward the new estimate of minus 11 (minus 2 plus 90 percent of minus 10)." },
+        { "name": "value an off-policy rule would give", "value": "plus 6 US dollars", "meaning": "The off-policy rule would use the best next value, plus 10, giving a new estimate of plus 7 and a cell that rises slightly instead of falling." }
+      ]
+    },
+    "reading": "The difference between the two updates is the point: the cell for going long in a volatile uptrend drops sharply because, with this agent's real behaviour, things can go wrong. Use the table when you want to know how the policy performs as it is actually run, and compare it with the greedy version to see how much exploration costs."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-model-agnostic-meta-learning-maml",
+  "name": "Model-Agnostic Meta-Learning (MAML)",
+  "analogy": "Think of it as a trader who does not memorise one market but trains for the first hour of any new market: they keep a stance that is easy to bend, so a quick look at the last few dozen bars is enough to adapt it. The training is judged only on how well the stance works after that quick bend.",
+  "steps": [
+    {
+      "title": "Split history into many small tasks",
+      "description": "Each task is a short stretch of market history. For each one, the bars just before are the support set, whose outcomes are already known, and the bars right after are the query set, used only to test.",
+      "inExample": "One task uses the previous 40 five-minute MNQ bars as support and the next 120 bars as query, with the query strictly later in time."
+    },
+    {
+      "title": "Hold one shared starting model",
+      "description": "There is a single set of starting weights shared by every task. These are not meant to be good on any single task; they are meant to be good starting points for quick adjustment.",
+      "inExample": "The shared model, untouched, calls the direction correctly on 51 percent of the 120 query bars, barely better than a coin flip."
+    },
+    {
+      "title": "Adapt with a few ordinary gradient steps",
+      "description": "For a task, the shared weights are copied and nudged for just a few ordinary learning steps using only the support set. The result is a task-specific model, built in seconds.",
+      "inExample": "Three steps with a learning rate of 5 hundredths on the 40 support bars produce an adapted copy."
+    },
+    {
+      "title": "Score the adapted copy on the query set",
+      "description": "The adapted copy is tested on the later query bars it has never seen. This measures what actually matters: how good the model is after adapting, not before.",
+      "inExample": "On the 120 query bars the adapted copy calls the direction correctly 54 percent of the time, up from 51 percent for the untouched shared model."
+    },
+    {
+      "title": "Move the shared start so adapting works better",
+      "description": "The model works out how the shared starting weights should change so that the quick adaptation would have scored better. This looks through the adaptation steps themselves, which is what makes it more than ordinary training.",
+      "inExample": "The shared weights shift slightly so that three steps on 40 bars would have scored higher on the query bars."
+    },
+    {
+      "title": "Repeat over many tasks, then deploy",
+      "description": "This repeats over batches of tasks until the starting weights are easy to bend in useful directions. At deployment a new task needs only its small support set and the same few steps.",
+      "inExample": "On a live session the shared weights adapt on the latest 40 bars and give a 57 percent probability that the close 6 bars ahead is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Onboarding a new instrument with little history",
+      "example": "Adapting a direction classifier to a newly listed futures contract using only its first few days of 5-minute bars."
+    },
+    {
+      "task": "Fine-tuning to a freshly detected regime",
+      "example": "After a regime detector flags a high-volatility stretch, adapting the model on the 40 most recent bars rather than retraining on years of data."
+    },
+    {
+      "task": "Thinly traded timeframes",
+      "example": "Getting a usable model for a 30-minute timeframe with few bars by borrowing the starting point learned on 5-minute tasks."
+    },
+    {
+      "task": "Post-event recalibration",
+      "example": "Re-tuning a model within an hour of a central bank announcement using the bars since the release."
+    }
+  ],
+  "avoidWhen": [
+    "The market is steady and you have years of clean history for the exact series; ordinary training on all the data is simpler and more stable.",
+    "Tasks are not alike, such as equities and crypto with unrelated behaviour; a shared starting point that bends easily for all of them may bend well for none."
+  ],
+  "example": {
+    "scenario": "At 10:30 an MNQ session turns volatile. A direction model that was meta-trained over many earlier blocks adapts to the last 40 five-minute bars, then is asked about the bar that just closed.",
+    "input": {
+      "summary": "Shared starting weights, a small support set with known outcomes and the newest bar.",
+      "fields": [
+        { "name": "support set", "value": "40 five-minute bars", "meaning": "The recent bars whose outcomes 6 bars ahead are already known." },
+        { "name": "inner learning rate", "value": "5 hundredths", "meaning": "How big each quick adaptation step is." },
+        { "name": "inner steps", "value": "3", "meaning": "How many quick steps are taken on the support set." },
+        { "name": "close", "value": "19,241", "meaning": "The price at which the newest five-minute bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar, here elevated." },
+        { "name": "relative strength index, 14 bars", "value": "36", "meaning": "A momentum reading from 0 to 100; lower means recent weakness." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability from the adapted model, and how much the adaptation changed the fit.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "57 percent", "meaning": "The adapted model's belief for the newest bar." },
+        { "name": "share of query bars called correctly before adaptation", "value": "51 percent", "meaning": "How often the shared weights called the direction right on the later test bars." },
+        { "name": "share of query bars called correctly after adaptation", "value": "54 percent", "meaning": "How often the adapted copy called the direction right on the same test bars." }
+      ]
+    },
+    "reading": "The useful comparison is the rise from 51 to 54 percent: if adapting never improves the score on later bars, the meta-trained start is not doing its job. A 57 percent lean is modest and has to be larger than the trading cost before it is worth acting on."
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-graph-neural-networks-graph-convolutional-network-gcn",
+  "name": "Graph Convolutional Network (GCN)",
+  "analogy": "Think of it as every instrument at a trading floor taking an evenly weighted poll of its neighbors before forming a view. Each desk averages its own reading with the readings of the desks next to it, and after a couple of rounds every desk has a view colored by its whole neighborhood.",
+  "steps": [
+    {
+      "title": "Build the network of instruments",
+      "description": "Each instrument is a node and a link joins two nodes when they are meaningfully related, for example when their returns have recently moved together. The pattern of links is fixed for the run.",
+      "inExample": "Five equity index futures are nodes; links join those whose recent 5-minute returns agreed more than 50 percent of the time."
+    },
+    {
+      "title": "Give every node its own facts",
+      "description": "Each node carries a row of numbers describing it: recent returns, range, volume ratio and similar readings. These are what get passed around.",
+      "inExample": "MNQ carries a 6-bar return, average true range, relative strength index and volume ratio."
+    },
+    {
+      "title": "Average over the neighborhood",
+      "description": "Each node replaces its description with an average of its own and its neighbors' descriptions. The average is balanced so that a node with many links is not drowned out or inflated compared with one with few.",
+      "inExample": "MNQ's description becomes a balanced average of its own readings and those of its four linked neighbors, ES and three other index futures."
+    },
+    {
+      "title": "Apply a learned transformation",
+      "description": "The averaged description is passed through a learned set of weights and a bending rule, the same weights for every node. This is where the network learns which combinations of neighbor features are useful.",
+      "inExample": "The averaged readings are turned into 16 new numbers that emphasize shared momentum and a joint volume surge."
+    },
+    {
+      "title": "Repeat to widen the view",
+      "description": "The averaging and transformation are done again, so each node now hears from neighbors of its neighbors. Two rounds cover things two links away; many more rounds tend to blur all nodes into the same view.",
+      "inExample": "After the second round, MNQ's description also carries what ES itself learned from its own neighbors in the first round, not just the raw readings."
+    },
+    {
+      "title": "Read the answer for each node",
+      "description": "A final layer converts each node's description into an output, such as a direction probability or a regime label. Training compares these outputs with real outcomes and adjusts the shared weights.",
+      "inExample": "The MNQ node outputs a 56 percent probability of a higher close 6 bars later."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting one market with help from linked markets",
+      "example": "Estimating MNQ's next-30-minute direction using the returns and volume of ES and other index futures through the network."
+    },
+    {
+      "task": "Cross-market regime labeling",
+      "example": "Labeling each bar risk-on or risk-off from the joint state of equity, rate and volatility series."
+    },
+    {
+      "task": "Smoothing noisy signals across related series",
+      "example": "Pulling a thin market's noisy volume reading toward the typical reading of its linked markets."
+    },
+    {
+      "task": "Finding clusters of assets that behave alike",
+      "example": "Using the learned node descriptions to group instruments that move together, as an input to diversification checks."
+    }
+  ],
+  "avoidWhen": [
+    "The links between instruments change quickly; the averaging weights here are fixed by the graph, so an attention-based graph model that re-weights neighbors on the fly adapts better.",
+    "Only one instrument is involved; a graph of one node adds nothing, so a feature-table or sequence model is the better fit."
+  ],
+  "example": {
+    "scenario": "At the 11:30 bar, a Graph Convolutional Network over five US index futures is asked for the probability that MNQ's close 6 bars (30 minutes) later is higher.",
+    "input": {
+      "summary": "Five nodes with features, joined by a graph of recent return agreement.",
+      "fields": [
+        { "name": "MNQ return over the last 6 bars", "value": "plus 36 points", "meaning": "Recent 30-minute change of the node being predicted." },
+        { "name": "ES return over the last 6 bars", "value": "plus 15 points", "meaning": "Recent 30-minute change of the most closely linked neighbor." },
+        { "name": "MNQ volume against its 20-bar average", "value": "30 percent above average", "meaning": "Trading is moderately heavier than normal." },
+        { "name": "MNQ average true range, 14 bars", "value": "25 points", "meaning": "How much MNQ has been moving per bar." },
+        { "name": "links to MNQ", "value": "4", "meaning": "How many neighbors are averaged into the MNQ node." },
+        { "name": "rounds of averaging", "value": "2", "meaning": "How far information travels across the network." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability for each node; MNQ's is shown.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "56 percent", "meaning": "The MNQ node's final answer after two rounds of neighborhood averaging." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "A 56 percent lean built largely from a close neighbor is a mild tilt. Check that it beats simply following ES's recent move, and judge it on net result after commission and slippage across walk-forward folds."
+  }
+}

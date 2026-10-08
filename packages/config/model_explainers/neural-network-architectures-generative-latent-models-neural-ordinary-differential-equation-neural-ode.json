@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-generative-latent-models-neural-ordinary-differential-equation-neural-ode",
+  "name": "Neural Ordinary Differential Equation (Neural ODE)",
+  "analogy": "Think of it as learning the current of a river instead of memorizing snapshots of a boat. Once the network knows how the water pushes at every spot, you can drop the boat anywhere and let it drift for any length of time to see where it ends up, even between the moments you measured.",
+  "steps": [
+    {
+      "title": "Encode the starting state",
+      "description": "The first observation or window of observations is turned into a hidden state, a short list of numbers that stands for where the market is right now. This is the boat's starting position.",
+      "inExample": "The latest MNQ bars and indicators are summarized as a hidden state of 16 numbers at the 10:00 bar."
+    },
+    {
+      "title": "Learn the rule of change",
+      "description": "A small neural network is trained to say how the hidden state is changing at any moment: its speed and direction. The network does not predict the next state directly; it predicts the push on the state.",
+      "inExample": "At the 10:00 state the network says volatility is rising slowly and momentum is fading."
+    },
+    {
+      "title": "Let the state flow forward in time",
+      "description": "A numerical solver follows the learned push forward in many tiny steps, like tracing a drifting boat. It can stop at any chosen time, including times with no bar, which is why irregular sampling is natural for this model.",
+      "inExample": "The solver advances the state by 5, 10, 15 and 30 minutes, taking small internal steps in between."
+    },
+    {
+      "title": "Read the outputs along the path",
+      "description": "At each time of interest the hidden state is converted back to something meaningful, such as a forecast price change or a range estimate. The whole path gives a smooth trajectory rather than a single point.",
+      "inExample": "The path reads as an expected move of plus 3 points at 5 minutes, plus 5 at 15 minutes and plus 4 at 30 minutes, as momentum cools."
+    },
+    {
+      "title": "Compare with what happened",
+      "description": "During training, the predicted values at the real observation times are compared with the actual ones and the gap is measured. The learned rule of change is adjusted so the drifting path passes closer to the real data.",
+      "inExample": "On a training day the path predicted plus 6 points but price fell 9 points, so the rule of change is adjusted to bend the path down in similar states."
+    },
+    {
+      "title": "Send corrections backward efficiently",
+      "description": "To adjust the rule, the model runs a second pass backward through time, called the adjoint method. This avoids storing every tiny solver step, so long paths cost far less memory.",
+      "inExample": "The backward pass produces the weight adjustments for the day without storing the roughly 200 solver steps taken."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting on irregular time stamps",
+      "example": "Predicting where price will be 90 seconds after a tick-driven event even though bars are not evenly spaced."
+    },
+    {
+      "task": "Smooth multi-step forecast paths",
+      "example": "Producing the expected path of MNQ over the next 30 minutes, not only the final point, to place a stop and a target along it."
+    },
+    {
+      "task": "Modeling volatility drift",
+      "example": "Following how average true range evolves through the afternoon session to size positions ahead of the close."
+    },
+    {
+      "task": "Simulating synthetic trajectories",
+      "example": "Sampling plausible paths from perturbed starting states to stress-test a strategy, with care that they are only illustrations."
+    }
+  ],
+  "avoidWhen": [
+    "You need a fast, simple direction call from a table of features; the solver makes training and scoring slower, and a tree model or small feedforward network is quicker and usually enough.",
+    "The data is clean and evenly spaced and you want a battle-tested sequence model; a gated recurrent model has far more tooling and community experience in trading research."
+  ],
+  "example": {
+    "scenario": "At the 10:00 bar of an MNQ session, a Neural ODE trained on 12 months of 5-minute bars is asked how price is likely to evolve over the next 30 minutes, at 5-minute intervals.",
+    "input": {
+      "summary": "The recent window encoded into a hidden state, plus the times to forecast.",
+      "fields": [
+        { "name": "close at 10:00", "value": "19,870", "meaning": "The last closing price in index points." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "return over the last 6 bars", "value": "plus 30 points", "meaning": "Price has risen modestly over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "10 percent below average", "meaning": "Trading is slightly lighter than normal." },
+        { "name": "forecast times", "value": "5, 10, 15, 20, 25, 30 minutes", "meaning": "The moments at which the model is asked for a value." }
+      ]
+    },
+    "output": {
+      "summary": "A path of expected price changes at the requested times.",
+      "fields": [
+        { "name": "expected change at 5 minutes", "value": "plus 3 points", "meaning": "The model's expected move from the 10:00 close after five minutes." },
+        { "name": "expected change at 15 minutes", "value": "plus 5 points", "meaning": "The expected move after fifteen minutes." },
+        { "name": "expected change at 30 minutes", "value": "plus 4 points", "meaning": "The expected move after thirty minutes; the push fades as momentum cools." },
+        { "name": "expected range around the path", "value": "plus or minus 28 points", "meaning": "A rough width taken from recent average true range, since the path itself is a single best guess." }
+      ]
+    },
+    "reading": "The path says a small upward drift that flattens, but a 4-point expected move is far smaller than a 28-point typical bar, and one MNQ point is worth only 2 US dollars, so 4 points is about 8 US dollars per contract before costs. Treat it as a gentle tilt for target placement, and test whether it beats a plain persistence forecast after costs."
+  }
+}

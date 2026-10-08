@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-regularization-theoretical-semi-supervised-svm-s3vm",
+  "name": "Semi-Supervised Support Vector Machine (S3VM)",
+  "analogy": "Think of it as laying a ruler across a scatter of bars to separate up-bars from down-bars, choosing the position where the empty strip on both sides of the ruler is widest. Unlabelled bars count too, so the ruler learns to avoid slicing through any dense cluster.",
+  "steps": [
+    {
+      "title": "Describe and scale the bars",
+      "description": "Each bar becomes a row of features, and the features are scaled to the same range. Scaling matters a great deal here because the method works by measuring distances in feature space.",
+      "inExample": "1,200 five-minute MNQ bars are described by 5 scaled features. 80 have a known outcome and 1,120 do not."
+    },
+    {
+      "title": "Fit an ordinary support vector machine on the labelled bars",
+      "description": "First the method finds the line that separates the known up-bars from the known down-bars with the widest possible empty strip between them. This is the standard supervised starting point.",
+      "inExample": "From the 80 labelled bars it finds a first dividing line with a strip of a certain width."
+    },
+    {
+      "title": "Guess labels for the unlabelled bars",
+      "description": "Every unlabelled bar is given a provisional label according to which side of the first line it falls on. Bars very close to the line are the least trustworthy guesses.",
+      "inExample": "Of the 1,120 unlabelled bars, 590 are guessed up and 530 are guessed down."
+    },
+    {
+      "title": "Refit with the guessed bars counted gradually",
+      "description": "The line is refitted using both labelled and guessed bars, with the guessed ones given more influence step by step. Because the guessed bars must also stay outside the strip, the line shifts toward the sparse gaps between clusters.",
+      "inExample": "Across 10 steps the influence of guessed bars rises from 10 percent to full, and the line slides toward a thin region with few bars."
+    },
+    {
+      "title": "Swap guesses that sit on the wrong side",
+      "description": "Pairs of guessed bars whose swap would widen the strip or reduce the errors are swapped, and the line is refitted. This repeats until no swap helps.",
+      "inExample": "About 40 guessed bars change sides before no further swap helps."
+    },
+    {
+      "title": "Score new bars by side and distance",
+      "description": "The final line is kept. A new bar is scored by which side of the line it falls on and how far from the line it sits; far from the line means a firmer call, near the line means doubt.",
+      "inExample": "The 11:25 bar lands on the up side, 80 percent of the way from the line to the edge of the empty strip."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A classifier with a clear gap between classes",
+      "example": "Separating trending from ranging stretches of MNQ 5-minute bars described by the average directional index and range width, when only a few stretches are tagged."
+    },
+    {
+      "task": "Labelling a fixed pile of bars",
+      "example": "Assigning up or down to 1,000 existing bars when only 80 are labelled, since the method optimizes those unlabelled bars directly."
+    },
+    {
+      "task": "Chart-pattern classification from few examples",
+      "example": "Classifying chart images as head-and-shoulders or not from a handful of hand-checked examples plus a larger unlabelled set."
+    },
+    {
+      "task": "Flagging bars near the boundary",
+      "example": "Listing bars that sit within 20 percent of the way from the line to the edge of the strip, which are where the market gives no clear call."
+    }
+  ],
+  "avoidWhen": [
+    "You need a probability for trade sizing; the method returns a side and a distance, so a Calibrated Classifier step must be added.",
+    "The dataset is very large, such as millions of one-minute bars; the repeated refitting is slow, and LightGBM or a neural network with a semi-supervised term scales better."
+  ],
+  "example": {
+    "scenario": "A researcher has 1,200 five-minute MNQ bars, 80 with a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. The finished line is used to place the 11:25 bar on one side or the other.",
+    "input": {
+      "summary": "Scaled features for 1,200 bars with 80 labels, and the features of the 11:25 bar.",
+      "fields": [
+        { "name": "labelled bars", "value": "80", "meaning": "Bars with a known 6-bar outcome that fix the first line." },
+        { "name": "unlabelled bars", "value": "1,120", "meaning": "Bars whose provisional labels shape the final line." },
+        { "name": "features per bar", "value": "5", "meaning": "The scaled numbers describing each bar." },
+        { "name": "close of the 11:25 bar", "value": "19,620", "meaning": "The price at which the bar to be scored closed." },
+        { "name": "price change over the last 6 bars", "value": "plus 39 points", "meaning": "How far price rose over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "50 percent above average", "meaning": "How heavy trading was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "The side of the line, the distance from it and an approximate probability.",
+      "fields": [
+        { "name": "side of the line", "value": "up", "meaning": "The side of the dividing line on which the 11:25 bar falls." },
+        { "name": "distance from the line", "value": "80 percent of the way to the strip edge", "meaning": "How far the bar sits from the line, with 0 percent on the line and 100 percent at the edge of the empty strip." },
+        { "name": "approximate probability of a higher close", "value": "56 percent", "meaning": "The distance after a calibration step, since the method does not output probabilities itself." }
+      ]
+    },
+    "reading": "At 80 percent of the way to the strip edge, the bar sits inside the strip rather than clearly beyond it, so the call is a gentle one. Act on the calibrated probability only after checking it on later folds."
+  }
+}

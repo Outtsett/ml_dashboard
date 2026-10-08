@@ -1,0 +1,85 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-simulated-annealing",
+  "name": "Simulated Annealing",
+  "analogy": "Think of it as shaking a tray of marbles to find its lowest hollow. At first you shake hard, so marbles hop out of shallow dips; as you shake more gently they settle into the deepest hollow. The shaking strength is the temperature, and it is lowered slowly on a schedule.",
+  "steps": [
+    {
+      "title": "Start with one solution and a high temperature",
+      "description": "Unlike a swarm or a population, only one current solution is held. The temperature starts high, which means worse moves are accepted easily.",
+      "inExample": "The current setting is a 20-bar lookback window and a hold of 12 bars, with a score of 30 net points per day and a starting temperature of 50 points."
+    },
+    {
+      "title": "Propose a small random change",
+      "description": "Nudge the current solution a little to get a neighbour. The size of the nudge defines how the search wanders through the space.",
+      "inExample": "The window is nudged to 22 bars and the hold to 11 bars, and the new setting scores 26 points per day, worse by 4 points."
+    },
+    {
+      "title": "Always accept an improvement",
+      "description": "If the neighbour scores better, move to it at once. The search never turns down a gain.",
+      "inExample": "A later neighbour of 24 bars and a hold of 10 bars scores 33 points per day and is accepted immediately."
+    },
+    {
+      "title": "Sometimes accept a worse move",
+      "description": "A worse neighbour is accepted with a chance that depends on how much worse it is and on the temperature. At high temperature the chance is high; at low temperature it is small. This is how the search climbs out of dead ends.",
+      "inExample": "A move that is worse by 4 points is accepted with about a 92 percent chance when the temperature is 50 points, but only about a 14 percent chance when the temperature has cooled to 2 points."
+    },
+    {
+      "title": "Cool the temperature step by step",
+      "description": "After a set number of tries the temperature is reduced. The cooling schedule is the most important design choice, because it decides how long the search explores before it settles.",
+      "inExample": "The temperature keeps 95 percent of itself every 20 tries over 2,000 tries, falling from 50 points to under 1 point."
+    },
+    {
+      "title": "Report the best setting seen",
+      "description": "When the temperature is near zero, the search behaves like a plain climb. The best solution seen along the whole trail is returned.",
+      "inExample": "The best setting seen is a 26-bar lookback window and a hold of 9 bars, scoring 38 net points per day."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Tuning a rugged parameter surface",
+      "example": "Searching the lookback window and holding time of an MNQ mean-reversion rule where small changes flip many trades."
+    },
+    {
+      "task": "Ordering trades or steps",
+      "example": "Searching sequences of execution steps by swapping two at a time, accepting some worse sequences early on."
+    },
+    {
+      "task": "Portfolio weights with non-convex limits",
+      "example": "Searching continuous weights against a risk-adjusted score with awkward constraints when a single trail is preferred over a swarm."
+    },
+    {
+      "task": "Choosing rule structure",
+      "example": "Exploring which indicators to combine and in what order through small structural edits."
+    }
+  ],
+  "avoidWhen": [
+    "The score is smooth and a slope is available; gradient descent finds the minimum with far fewer evaluations.",
+    "Each evaluation is slow and the budget is a few dozen runs; Bayesian optimization learns from every run, whereas annealing needs thousands of tries."
+  ],
+  "example": {
+    "scenario": "A researcher tunes a mean-reversion rule on MNQ 5-minute bars with two settings, a lookback window and a holding time. The score is jumpy, so the search uses annealing with 2,000 tries.",
+    "input": {
+      "summary": "The two settings, the starting state and the cooling schedule.",
+      "fields": [
+        { "name": "lookback window range", "value": "10 to 60 bars", "meaning": "How many past 5-minute bars define the average that price must stretch away from before the rule enters." },
+        { "name": "holding time range", "value": "3 to 30 bars", "meaning": "How many 5-minute bars a trade is held before exit." },
+        { "name": "starting setting", "value": "20-bar window, 12-bar hold", "meaning": "Where the single trail begins." },
+        { "name": "starting score", "value": "30 points per day net", "meaning": "Net result after costs of the starting setting on the tuning folds. One MNQ point is worth 2 US dollars." },
+        { "name": "starting temperature", "value": "50 points", "meaning": "High enough to accept most worse moves; it is measured in the same points as the score." },
+        { "name": "cooling rate", "value": "95 percent kept every 20 tries", "meaning": "Share of temperature kept at each cooling step." },
+        { "name": "total tries", "value": "2,000", "meaning": "Total number of settings scored." }
+      ]
+    },
+    "output": {
+      "summary": "The best setting seen, its score and how often worse moves were accepted.",
+      "fields": [
+        { "name": "best lookback window", "value": "26 bars", "meaning": "Window of the best setting seen." },
+        { "name": "best holding time", "value": "9 bars", "meaning": "Holding time of the best setting seen." },
+        { "name": "best tuning score", "value": "38 points per day net", "meaning": "In-sample result after costs." },
+        { "name": "worse moves accepted early", "value": "31 percent of worse tries", "meaning": "Share accepted while the temperature was high." },
+        { "name": "worse moves accepted late", "value": "2 percent of worse tries", "meaning": "Share accepted once the temperature was near zero." }
+      ]
+    },
+    "reading": "The falling acceptance of worse moves, from 31 percent to 2 percent, shows the search moving from wandering to settling. The score of 38 points per day is in-sample, so re-test the setting on later folds. Running the search again from other starting points and landing on similar settings is a good sign."
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-byol-bootstrap-your-own-latent",
+  "name": "BYOL (Bootstrap Your Own Latent)",
+  "analogy": "Think of it as a trainee who must guess what an experienced mentor will say about a chart. The trainee sees one version of the chart, the mentor sees another, and the trainee tries to predict the mentor's description. The mentor is just a slow-moving average of the trainee's past selves, and there is never a list of wrong answers to avoid.",
+  "steps": [
+    {
+      "title": "Make two altered views of a window",
+      "description": "A window of bars is copied twice, and each copy is slightly changed by things that should not alter its meaning, such as adding noise, rescaling a little or hiding some bars. The model's job is to see the same window through both.",
+      "inExample": "A 48-bar MNQ window becomes view A with noise and view B with 20 percent of its bars masked."
+    },
+    {
+      "title": "Run view A through the online network",
+      "description": "The online network is the one being trained. It has a backbone that reads the window, a projector that shrinks the result to a short vector, and an extra predictor that tries to guess the other side's vector.",
+      "inExample": "The online network turns view A into a 64-number vector and its predictor produces a guess of 64 numbers."
+    },
+    {
+      "title": "Run view B through the target network",
+      "description": "The target network has the same shape but has no predictor and is not trained by direct updates. It reads view B and produces its own vector, which serves as the thing the online side must match.",
+      "inExample": "The target network turns view B into a 64-number vector, held fixed for this step."
+    },
+    {
+      "title": "Make the guess match the target",
+      "description": "Both vectors are scaled to unit length, and the online side is adjusted so that its guess points the same way as the target's vector. Notably, no other windows are used as wrong answers. The loss is applied in both directions, swapping the two views.",
+      "inExample": "The direction match between the guess and the target rises from 55 percent early in training to 90 percent later."
+    },
+    {
+      "title": "Let the target slowly follow the online network",
+      "description": "After each update, the target network's weights move a tiny fraction of the way toward the online network's weights. This slow trailing is what keeps the model from collapsing to the same output for every window.",
+      "inExample": "Each step the target takes about 1 percent of the online weights, so it lags by about a hundred updates."
+    },
+    {
+      "title": "Keep the backbone, discard the extras",
+      "description": "After training, the projector, predictor and target are thrown away. The backbone's output for a window is the reusable description, handed to a small model trained on whatever labels exist.",
+      "inExample": "The backbone gives a 128-number description of today's window, used as input to a direction classifier."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning features without labels",
+      "example": "Training on several years of unlabelled MNQ and ES 5-minute windows so that later labelled work needs far less data."
+    },
+    {
+      "task": "Embeddings for clustering",
+      "example": "Clustering window descriptions into recurring market states such as steady uptrends or choppy rotations."
+    },
+    {
+      "task": "Pretraining a direction classifier",
+      "example": "Starting a classifier from the learned backbone and fine-tuning on a few months of direction labels."
+    },
+    {
+      "task": "Combining price and news",
+      "example": "Building one description from price windows and FinBERT news sentiment scores for the same hour."
+    }
+  ],
+  "avoidWhen": [
+    "You have few unlabelled windows; the method needs a long history to learn anything beyond noise.",
+    "You need to explain why a window is similar to another; neighbour-based methods such as a Siamese network let you point at the specific look-alikes."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains BYOL on two years of unlabelled MNQ 5-minute windows. Afterward, they take today's window, run it through the backbone, and compare the description with the descriptions of recent windows.",
+    "input": {
+      "summary": "One window of 48 five-minute bars described by rescaled features, plus the backbone trained by the procedure above.",
+      "fields": [
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "features per bar", "value": "8", "meaning": "Rescaled return, range, body share, wick balance, volume and related measures." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The recent typical bar travel." },
+        { "name": "volume against its 20-bar average", "value": "10 percent above", "meaning": "Trading is roughly at its recent norm." },
+        { "name": "pretraining windows", "value": "about 500,000", "meaning": "How many unlabelled windows the backbone was trained on." }
+      ]
+    },
+    "output": {
+      "summary": "A reusable description of the window and how it compares with others.",
+      "fields": [
+        { "name": "window description", "value": "128 numbers", "meaning": "The backbone's output, to be fed to later models." },
+        { "name": "similarity between two altered views", "value": "91 percent", "meaning": "How closely the descriptions of two distorted copies agree; higher is more stable." },
+        { "name": "similarity to the most similar earlier window", "value": "84 percent", "meaning": "How close the best look-alike in the last 30 days is." }
+      ]
+    },
+    "reading": "High agreement between altered views means the description is stable; it does not mean it is useful for trading. The honest test is whether a classifier on these descriptions does better than the same classifier on raw features across walk-forward folds, after costs."
+  }
+}

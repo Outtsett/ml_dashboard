@@ -1,0 +1,86 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-anomaly-detection-isolation-forest-anomaly-detection",
+  "name": "Isolation Forest (Anomaly Detection)",
+  "analogy": "Think of it as playing hide and seek in a crowd. A bar that looks like thousands of others takes many questions to single out, but a freak bar standing alone out in the open is picked out after just a few. The fewer questions it takes, the stranger the bar.",
+  "steps": [
+    {
+      "title": "Use only ordinary bars, with no labels",
+      "description": "The model needs no list of known bad bars. It is given a pile of bars described by numbers and assumes most of them are normal, because unusual ones are rare by nature.",
+      "inExample": "It is given 50,000 one-minute MNQ bars described by range, volume and gap, with no flags on any of them."
+    },
+    {
+      "title": "Take a small random sample for each tree",
+      "description": "Each tree works on a small random sample of the bars rather than all of them. Small samples keep the trees quick and stop dense crowds from hiding the odd bars.",
+      "inExample": "Each of 200 trees is built from a random 256 bars."
+    },
+    {
+      "title": "Cut the data with random questions",
+      "description": "A tree picks a feature at random and a cut point at random between that feature's lowest and highest value, and splits the bars into two groups. It repeats inside each group, with no attempt to make good splits.",
+      "inExample": "One tree asks 'is the bar's range above 17 points?' and the first cut leaves only 3 of 256 bars on the yes side."
+    },
+    {
+      "title": "Keep cutting until each bar is alone",
+      "description": "Splitting continues until every bar sits by itself in its own group, or a depth limit is reached. The number of cuts needed to get a bar alone is its path length.",
+      "inExample": "Ordinary bars need around 10 cuts to be alone; a bar with a 41-point range and about 9 times normal volume is alone after 4."
+    },
+    {
+      "title": "Average the path lengths over all trees",
+      "description": "One tree's randomness can be lucky or unlucky, so each bar's path length is averaged over every tree. Consistently short paths mean the bar is easy to isolate in almost any random slicing.",
+      "inExample": "Across 200 trees the average path length for the news-minute bar is about 4 cuts, against about 10 for a typical bar."
+    },
+    {
+      "title": "Turn path length into an anomaly score",
+      "description": "Short average paths are converted into a score between 0 and 1, where scores near 1 are very anomalous and scores near or below one half look normal. The conversion is scaled to the sample size so scores are comparable. Here the score is shown multiplied by 100.",
+      "inExample": "An average path of about 4 cuts converts to a score of 74 on the 0-to-100 scale, while a typical bar scores about 50."
+    },
+    {
+      "title": "Flag the most unusual share of bars",
+      "description": "You choose how many bars to flag, either as a score cutoff or as an expected share of anomalies. Bars scoring above the cutoff are marked anomalous.",
+      "inExample": "With the cutoff set to flag the top 1 percent, scores above 62 are flagged, so this bar is flagged."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Spotting abnormal bars before training",
+      "example": "Flagging 1-minute MNQ bars with a bad tick or a data glitch so they can be inspected before they distort a model."
+    },
+    {
+      "task": "Marking news-shock periods",
+      "example": "Flagging minutes around economic releases where range and volume are far outside normal, to avoid trading them or to study them separately."
+    },
+    {
+      "task": "Risk warnings",
+      "example": "Cutting position size when the current bar's anomaly score is high, since normal volatility assumptions may not hold."
+    },
+    {
+      "task": "A cheap screen across many features at once",
+      "example": "Scoring each bar on all 35 base features at once, which scales to millions of bars quickly."
+    }
+  ],
+  "avoidWhen": [
+    "You need to know why a bar is unusual; the score does not say which feature caused it, so a method that works in feature units such as robust covariance is easier to explain.",
+    "Anomalies are not rare, for example in a very volatile week where half the bars look unusual; the model assumes few and different, and would flag the wrong bars."
+  ],
+  "example": {
+    "scenario": "At 8:30 in the morning an economic report is released. The Isolation Forest, trained on a year of ordinary 1-minute MNQ bars, scores the minute that follows.",
+    "input": {
+      "summary": "One row of features for the 1-minute bar, in the same columns used for training.",
+      "fields": [
+        { "name": "close", "value": "19,311", "meaning": "The price at which the 1-minute bar closed." },
+        { "name": "bar range", "value": "41 points", "meaning": "The distance from the bar's high to its low." },
+        { "name": "average true range, 14 bars", "value": "5 points", "meaning": "The typical travel of a recent 1-minute bar, for comparison with the range." },
+        { "name": "volume against its 20-bar average", "value": "about 9 times", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "gap from the previous close", "value": "12 points", "meaning": "How far the bar's open sat from the previous bar's close." }
+      ]
+    },
+    "output": {
+      "summary": "An anomaly score and a flag for the bar.",
+      "fields": [
+        { "name": "anomaly score, scaled 0 to 100", "value": "74", "meaning": "The model's own score is a fraction between 0 and 1, shown here times 100; higher means easier to isolate and so more unusual." },
+        { "name": "average cuts needed to isolate the bar", "value": "about 4", "meaning": "How many random cuts were needed on average, against about 10 for a typical bar." },
+        { "name": "flag", "value": "anomaly", "meaning": "The bar scored above the cutoff of 62 chosen to flag the top 1 percent." }
+      ]
+    },
+    "reading": "A score of 74 against a cutoff of 62 puts this minute in the most unusual 1 percent of the bars the model has seen, which fits a data release. Use the flag to widen stops, skip entries or exclude the minute from training, and remember the score alone does not say which feature drove it."
+  }
+}

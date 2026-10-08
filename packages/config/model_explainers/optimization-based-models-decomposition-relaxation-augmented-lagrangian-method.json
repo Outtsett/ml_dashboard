@@ -1,0 +1,83 @@
+{
+  "specificationId": "optimization-based-models-decomposition-relaxation-augmented-lagrangian-method",
+  "name": "Augmented Lagrangian Method",
+  "analogy": "Think of it as a strict risk manager who keeps a running fine for rule-breaking. At first the fine is a moderate penalty, and after each round the manager raises the fine on the specific rule being broken, until the trader lands exactly on the limit without the fine ever needing to become absurdly large.",
+  "steps": [
+    {
+      "title": "State the goal and the rules that must hold exactly",
+      "description": "You give a goal to improve and rules that must be met exactly, called equality constraints. These can be curved rules that straight-line methods cannot express.",
+      "inExample": "Maximise the expected return of four index futures, with the portfolio's yearly volatility equal to exactly 10 percent."
+    },
+    {
+      "title": "Add a fine for breaking the rules",
+      "description": "The goal is combined with two penalty pieces for each rule: a price that is adjusted over time, called the multiplier, and a squared penalty that grows quickly with the size of the violation. Together they make breaking the rule costly.",
+      "inExample": "Any gap between portfolio volatility and 10 percent is charged by both a price and a squared penalty."
+    },
+    {
+      "title": "Solve the fined problem with ordinary tools",
+      "description": "With the rules folded into the goal, the problem has no limits left, so a standard downhill method can solve it. The result is a plan that is close to the rules, though usually not exactly on them.",
+      "inExample": "The first round gives weights whose volatility is 12 percent, over the target by 2 points."
+    },
+    {
+      "title": "Measure the violation",
+      "description": "The solver checks how far the plan misses each rule. If the miss is small enough, it can stop; otherwise it continues.",
+      "inExample": "The miss of 2 percentage points is far above the tolerance of a hundredth of a point."
+    },
+    {
+      "title": "Raise the price on the broken rule",
+      "description": "The multiplier is updated in proportion to the miss, so the rule that is being broken becomes more expensive in the next round. If the miss is not shrinking quickly, the squared penalty weight is raised as well, but only modestly.",
+      "inExample": "The price on the volatility rule is increased, and the penalty weight is doubled from 5 to 10 because the miss did not shrink fast enough."
+    },
+    {
+      "title": "Repeat until the rules hold",
+      "description": "Solving, measuring and updating repeat. Because the price carries the memory of past misses, the plan lands exactly on the rule at a moderate penalty, which keeps every round numerically well behaved.",
+      "inExample": "After 6 rounds with the penalty weight reaching 40, the volatility is 10 percent, within a miss of under a thousandth of a point."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Equal-risk-contribution portfolios",
+      "example": "Finding weights across MNQ, ES, YM and M2K so each contributes the same share of total risk, a rule that a straight-line solver cannot state."
+    },
+    {
+      "task": "Hitting a risk target exactly",
+      "example": "Maximising expected return with portfolio volatility set to exactly 10 percent a year."
+    },
+    {
+      "task": "Tracking a benchmark closely",
+      "example": "Rebalancing a basket at the lowest trading cost while keeping its tracking error to a benchmark at exactly a chosen level."
+    },
+    {
+      "task": "Fitting models with exact rules",
+      "example": "Calibrating a volatility model whose parameters must satisfy equality conditions to avoid riskless profit."
+    }
+  ],
+  "avoidWhen": [
+    "The problem is a plain bowl-shaped one with straight-line rules; an interior-point solver is simpler and gives a certified answer.",
+    "The goal has many local peaks; this method only finds a nearby answer, so pair it with many starting points."
+  ],
+  "example": {
+    "scenario": "A researcher wants weights for four index futures that maximise expected return while holding the portfolio's yearly volatility at exactly 10 percent. The return and risk inputs are illustrative.",
+    "input": {
+      "summary": "Expected returns, a risk table and the exact rule to meet.",
+      "fields": [
+        { "name": "expected yearly return, MNQ and ES", "value": "9 and 7 percent", "meaning": "Illustrative forecasts for Micro E-mini Nasdaq-100 and E-mini S&P 500 futures." },
+        { "name": "expected yearly return, YM and M2K", "value": "5 and 6 percent", "meaning": "Illustrative forecasts for E-mini Dow and Micro E-mini Russell 2000 futures." },
+        { "name": "yearly volatility target", "value": "10 percent", "meaning": "The exact portfolio volatility that must be met." },
+        { "name": "weights add to", "value": "100 percent", "meaning": "The portfolio is fully invested." },
+        { "name": "starting penalty weight", "value": "5", "meaning": "How heavily the squared violation is charged in the first round." },
+        { "name": "tolerance on the violation", "value": "a hundredth of a percentage point", "meaning": "How close to the rule the answer must be before stopping." }
+      ]
+    },
+    "output": {
+      "summary": "The weights, the rule check and how the rounds went.",
+      "fields": [
+        { "name": "weights of MNQ, ES, YM, M2K", "value": "34, 28, 18, 20 percent", "meaning": "The share of the portfolio in each instrument." },
+        { "name": "portfolio volatility reached", "value": "10 percent", "meaning": "The result matches the target within the tolerance." },
+        { "name": "remaining violation", "value": "under a thousandth of a percentage point", "meaning": "How far the final plan still misses the rule." },
+        { "name": "rounds and final penalty weight", "value": "6 rounds, weight 40", "meaning": "The number of solve-and-update cycles and the largest penalty weight used." }
+      ]
+    },
+    "reading": "The answer is a nearby best, not a proven global best, because volatility is a curved rule. Try a few different starting weights and keep the plan only if they agree, then test the weights out of sample, as forecasts do the real work."
+  }
+}

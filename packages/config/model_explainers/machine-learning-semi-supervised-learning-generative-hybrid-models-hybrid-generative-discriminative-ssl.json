@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-generative-hybrid-models-hybrid-generative-discriminative-ssl",
+  "name": "Hybrid Generative-Discriminative Semi-Supervised Learning",
+  "analogy": "Think of it as an apprentice who does two jobs at once. On every chart he has ever seen, he practises redrawing it from a short memory note. On the few charts that carry a label, he also learns to classify them from the same note. Because the note must serve both jobs, it ends up capturing what really matters.",
+  "steps": [
+    {
+      "title": "Compress each window into a short code",
+      "description": "A shared encoder turns each window of bars into a short list of numbers, called the latent code. Both jobs below use this same code, which is the point of the hybrid.",
+      "inExample": "A 30-bar window of five-minute MNQ bars becomes a latent code of 16 numbers."
+    },
+    {
+      "title": "Rebuild the window from the code (generative job)",
+      "description": "A decoder tries to redraw the original window from the code alone. This job needs no labels, so it runs on every window, labelled or not. It forces the code to keep the real structure of the market.",
+      "inExample": "The decoder rebuilds the 30 bars from the 16 numbers, and the average rebuilt close is off by about 4 points against a typical bar range of 22 points."
+    },
+    {
+      "title": "Classify the window from the code (discriminative job)",
+      "description": "A small classifier head reads the same code and gives probabilities for the classes, for example trending, ranging or volatile. This job is graded only on the windows that have a label.",
+      "inExample": "The head gives trending 57 percent, ranging 31 percent, volatile 12 percent for the window."
+    },
+    {
+      "title": "Add the two errors together",
+      "description": "The rebuild error, from every window, and the classification error, from the labelled windows, are combined with a weight that sets how much each job counts. The weights of the encoder, the decoder and the classifier are all adjusted at once.",
+      "inExample": "The rebuild error is weighted at half the classification error, so neither job dominates."
+    },
+    {
+      "title": "Repeat over all the data",
+      "description": "Training sweeps over the large pool of unlabeled windows and the few labelled ones many times. The code becomes steadily better at both describing the market and separating the classes.",
+      "inExample": "After 40 passes over 20,000 windows with 300 labelled, the rebuild error falls by about 40 percent and the classification error on a held-out labelled set improves."
+    },
+    {
+      "title": "Predict and flag unusual windows",
+      "description": "For a new window the classifier gives class probabilities. The rebuild error is also available, and a window that cannot be rebuilt well is unlike anything the model has seen and can be treated with caution.",
+      "inExample": "The 14:35 window gets trending 57 percent and a rebuild error 60 percent above the typical error, which is slightly unusual but not alarming."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime or signal classification with few labels",
+      "example": "Classifying windows as trending, ranging or volatile from 300 labelled windows plus a large pool of unlabeled ones."
+    },
+    {
+      "task": "Spotting unusual market windows",
+      "example": "Using a high rebuild error to flag windows around a surprise release as unlike the training history."
+    },
+    {
+      "task": "Making synthetic windows for testing",
+      "example": "Decoding random codes into plausible 30-bar windows to stress test a rule, kept clearly separate from real history."
+    },
+    {
+      "task": "Combining prices with another source",
+      "example": "Sharing the encoder between price windows and news sentiment so one code describes both."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labels; the rebuild job then competes for the model's capacity and a plain classifier is simpler and often better.",
+    "You cannot afford to tune the balance weight; a poorly set balance lets the rebuild job win, and the code serves redrawing rather than classification.",
+    "You need a quick, readable model; a gradient boosted tree on named features is easier to explain than a network with a decoder."
+  ],
+  "example": {
+    "scenario": "A research job trains a hybrid model on 20,000 unlabeled and 300 labelled five-minute MNQ windows. For the 14:35 window it returns class probabilities and a measure of how well the window could be rebuilt.",
+    "input": {
+      "summary": "One 30-bar window, passed through the shared encoder.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "latent code size", "value": "16 numbers", "meaning": "The length of the short summary that both the decoder and the classifier read." },
+        { "name": "rebuild weight", "value": "half of the classification weight", "meaning": "How much the rebuild error counts against the classification error during training." }
+      ]
+    },
+    "output": {
+      "summary": "Class probabilities, a rebuild error, and the latent code.",
+      "fields": [
+        { "name": "regime probabilities", "value": "trending 57 percent, ranging 31 percent, volatile 12 percent", "meaning": "What the classifier head returns for the window." },
+        { "name": "rebuild error against typical", "value": "60 percent above typical", "meaning": "How badly the window was rebuilt compared with a typical window; above 3 times typical would mark an unusual one." },
+        { "name": "average rebuilt close error", "value": "4 points", "meaning": "The average miss in the redrawn bars, against a typical bar range of 22 points." },
+        { "name": "latent code", "value": "16 numbers", "meaning": "The shared description of the window, kept for use in other models." }
+      ]
+    },
+    "reading": "Trending at 57 percent is a lean rather than a verdict. A rebuild error 60 percent above typical says the window is a little unusual but within the range the model understands. Compare the classifier with the same network trained on labels alone on the run page, to see whether the rebuild job helped."
+  }
+}

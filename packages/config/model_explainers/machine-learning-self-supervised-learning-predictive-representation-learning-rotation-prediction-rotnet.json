@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-predictive-representation-learning-rotation-prediction-rotnet",
+  "name": "Rotation Prediction (RotNet)",
+  "analogy": "Think of it as a chart reader who is handed a candlestick picture that may have been turned upside down or sideways and must say which way it was turned. To answer, they have to know what a normal chart looks like, so practising on the turning puzzle teaches them how real charts are built.",
+  "steps": [
+    {
+      "title": "Collect unlabeled pictures",
+      "description": "The model needs only images, with no labels of any kind. In a trading setting the pictures are chart images, for example the last 60 bars drawn as candlesticks.",
+      "inExample": "Thousands of 64 by 64 pixel candlestick pictures of MNQ 5-minute windows, each showing 60 bars, are drawn from the lake."
+    },
+    {
+      "title": "Turn each picture by a random quarter turn",
+      "description": "Each picture is rotated by 0, 90, 180 or 270 degrees, chosen at random, and the training code writes down which turn it applied. The answer key is manufactured automatically.",
+      "inExample": "One chart picture is turned by 180 degrees, so the price axis runs the wrong way and the newest bars sit on the left."
+    },
+    {
+      "title": "Extract features with a convolutional network",
+      "description": "A convolutional network slides small windows across the picture and builds up features, from edges and candle bodies to the shapes of runs and gaps. The result is a feature vector describing the picture.",
+      "inExample": "The network turns the rotated chart into a vector of 256 numbers that describe candle shapes and the direction of the run."
+    },
+    {
+      "title": "Name the rotation",
+      "description": "A small head reads the feature vector and gives a probability for each of the four turns. Telling the turns apart requires knowing that candles rise and fall in time from left to right and that tall wicks point outward.",
+      "inExample": "The head gives 88 percent to 180 degrees, 5 percent to 90, 4 percent to 270 and 3 percent to no turn."
+    },
+    {
+      "title": "Score and adjust",
+      "description": "The probability given to the true turn is the score. Low probability on the true turn means a larger correction. This repeats across a huge pool of pictures until naming the turn becomes easy.",
+      "inExample": "The true turn was 180 degrees and the model gave 88 percent, a good score, so the adjustment is small."
+    },
+    {
+      "title": "Discard the rotation head and keep the features",
+      "description": "The rotation head was only a means to an end. It is thrown away, and the network's features are reused for a real task, either by training a simple classifier on top or by fine-tuning the whole network on labelled pictures.",
+      "inExample": "A simple classifier on the 256 features is trained on 800 labelled chart pictures to tell breakouts from failed breakouts."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining a chart picture network",
+      "example": "Learning general features from 200,000 unlabeled candlestick pictures before using 800 labelled ones to classify patterns."
+    },
+    {
+      "task": "Reducing the need for hand labelled chart patterns",
+      "example": "Classifying double tops or head and shoulders shapes using only a small labelled set on top of the pretrained features."
+    },
+    {
+      "task": "Spotting charts that look unusual",
+      "example": "Flagging pictures where the model cannot tell the turn easily, which can mark odd, irregular formations."
+    },
+    {
+      "task": "Pretraining for a bar-image model",
+      "example": "Feeding the features into the dashboard's chart pattern work as a starting point rather than training from random weights."
+    }
+  ],
+  "avoidWhen": [
+    "Your input is a table of numbers or a sequence of bars; a window of bars has no quarter turn, so the method does not apply as designed, and a sequence model or tree model fits better.",
+    "You need a direct forecast of price or direction; the rotation puzzle teaches picture structure, and nothing in it is about where the market goes next.",
+    "A very simple cue lets the model solve the puzzle, such as a fixed price axis on a chart; it then learns nothing useful and the features are poor."
+  ],
+  "example": {
+    "scenario": "A research job draws the last 60 five-minute MNQ bars as a 64 by 64 candlestick picture, rotates it by 180 degrees for the practice puzzle, and later reuses the trained network to classify chart patterns.",
+    "input": {
+      "summary": "One chart picture, rotated by 180 degrees during training.",
+      "fields": [
+        { "name": "picture size", "value": "64 by 64 pixels", "meaning": "The number of pixels across and down in the chart image." },
+        { "name": "bars drawn", "value": "60 five-minute bars", "meaning": "Five hours of trading shown as candlesticks in one picture." },
+        { "name": "price range drawn", "value": "18,380 to 18,520", "meaning": "The lowest and highest prices in the window, which set the vertical scale of the picture." },
+        { "name": "rotation applied", "value": "180 degrees", "meaning": "The turn chosen at random by the training code; the model is not told it." },
+        { "name": "labels used", "value": "none", "meaning": "The only answer key is the rotation the code applied itself." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each of the four turns, and a feature vector kept for later use.",
+      "fields": [
+        { "name": "probability the turn is 180 degrees", "value": "88 percent", "meaning": "The model's belief that the picture was turned upside down." },
+        { "name": "probability the turn is 90 degrees", "value": "5 percent", "meaning": "A small share of belief on a quarter turn clockwise." },
+        { "name": "probability the turn is 270 degrees", "value": "4 percent", "meaning": "A small share of belief on a quarter turn the other way." },
+        { "name": "probability of no turn", "value": "3 percent", "meaning": "The share of belief that the picture is the right way up." },
+        { "name": "feature vector", "value": "256 numbers", "meaning": "The reusable description of the chart picture; this is the actual product." }
+      ]
+    },
+    "reading": "The four turn probabilities only show that the network has learned what a normal chart looks like. The product is the 256-number feature vector. Train a small classifier on it using your labelled patterns, compare it with the same classifier on a randomly initialised network, and treat any gain as an estimate to confirm out of sample."
+  }
+}

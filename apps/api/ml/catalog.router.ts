@@ -9,6 +9,7 @@
  * GET  /api/model-catalog/taxonomy     — category → subcategory tree
  * GET  /api/model-catalog/lifecycle    — per-spec stage: trainable, trained, lens-ready, deployed
  * GET  /api/model-catalog/:id          — single model detail (raw markdown)
+ * GET  /api/model-catalog/:id/explainer — how the model works in plain words, uses, one worked example
  * POST /api/model-catalog/refresh      — force cache refresh
  */
 import { Router, Request, Response } from 'express';
@@ -22,6 +23,7 @@ import {
 import { getTrainableModels } from '../infrastructure/lib/catalogBridge';
 import { CACHE_SEMI } from '../infrastructure/cache/headers';
 import { getCatalogLifecycle } from './lifecycle';
+import { getModelExplainer } from '../infrastructure/lib/modelImport/explainers';
 
 const router = Router();
 
@@ -104,6 +106,22 @@ router.get('/model-catalog/:id', (req: Request, res: Response) => {
       return res.status(404).json({ error: `Model "${id}" not found` });
     }
     res.json(model);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ─── GET /model-catalog/:id/explainer ──────────────────────────────────────
+//
+// 404 with `written: false` when the specification has no explainer file: the
+// panel states that instead of treating it as a failure.
+
+router.get('/model-catalog/:id/explainer', async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id ?? '');
+    const explainer = await getModelExplainer(id);
+    if (!explainer) return res.status(404).json({ error: `No explainer is written for "${id}"`, written: false });
+    res.json(explainer);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

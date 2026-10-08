@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-multi-modal-temporal-fusion-hierarchical-task-oriented-agent",
+  "name": "Hierarchical Task-Oriented Agent",
+  "analogy": "Think of it as a trading desk with a head and a trader. The head looks at the whole picture, price, news and linked markets, and sets the current goal, such as build a long position slowly. The trader watches every bar and carries out that goal, choosing when and how much to buy or sell.",
+  "steps": [
+    {
+      "title": "Read each kind of information separately",
+      "description": "Each type of input gets its own reader: one for the price and volume series, one for news sentiment, and one for relationships between markets. Each reader boils its input into a short summary.",
+      "inExample": "A price reader, a FinBERT sentiment reader and a linked-markets reader each produce 16 numbers."
+    },
+    {
+      "title": "Fuse the summaries over time",
+      "description": "The summaries are combined into a single description of the market and carried forward with a memory, so the agent remembers recent developments and not just this moment.",
+      "inExample": "The three summaries are fused and the memory still holds the quiet hour followed by the recent selloff."
+    },
+    {
+      "title": "The head picks a goal",
+      "description": "A high-level decision maker looks at the fused description and chooses a goal for the coming stretch, such as build long, build short, hold, or reduce risk. It decides on a slow rhythm, not every bar.",
+      "inExample": "At 14:35 the head chooses the goal reduce risk for the next 6 bars."
+    },
+    {
+      "title": "The trader acts toward the goal",
+      "description": "A low-level decision maker sees the fused description plus the current goal and chooses the actual action on each bar: buy, sell or hold, and how much. It works on the fast rhythm of the bars.",
+      "inExample": "With the goal reduce risk, the trader sells 1 of the 2 contracts held."
+    },
+    {
+      "title": "Reward at both levels",
+      "description": "The trader is rewarded for progress toward the goal and for net profit after costs. The head is rewarded for the profit achieved over the whole stretch its goal covered. Different time scales get different feedback.",
+      "inExample": "Over the 6 bars the account gains 8 points on the reduced position, minus 1 point in costs, which feeds both rewards."
+    },
+    {
+      "title": "Improve both policies together",
+      "description": "Through many simulated sessions both levels adjust so that the goals chosen are ones the trader can carry out profitably. This takes a lot of experience and a faithful simulator.",
+      "inExample": "Over many simulated sessions the head learns to choose reduce risk when volatility and bad news coincide."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Separating strategy from execution",
+      "example": "Letting a slow layer choose the daily stance on MNQ while a fast layer decides the exact bar-by-bar orders."
+    },
+    {
+      "task": "Using several kinds of information at once",
+      "example": "Deciding position goals from price bars, FinBERT sentiment and the state of linked index futures together."
+    },
+    {
+      "task": "Research on cost-aware policies",
+      "example": "Training in a simulator that charges commission and slippage so the trader learns not to over-trade the head's goals."
+    },
+    {
+      "task": "Inspecting intent",
+      "example": "Reading the sequence of goals the head chose to understand why the trader bought or sold."
+    }
+  ],
+  "avoidWhen": [
+    "You want a dependable result with limited data; reinforcement learning with two levels needs very large amounts of experience and is easily fooled by a flawed simulator, so a supervised model is safer.",
+    "A single decision on a fixed horizon is enough; a classifier for the next 6 bars is simpler to build, check and explain."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, a trained agent holding 2 long contracts reads price, news and linked-market information, then its head sets a goal and its trader acts on it.",
+    "input": {
+      "summary": "A fused description of the market, the agent's holdings and the current goal.",
+      "fields": [
+        { "name": "close of the latest bar", "value": "19,298", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "current holdings", "value": "2 MNQ contracts long", "meaning": "The position the agent holds before deciding." },
+        { "name": "average true range, 14 bars", "value": "34 points", "meaning": "Typical high-to-low travel of a recent bar, elevated today." },
+        { "name": "FinBERT sentiment score", "value": "minus 42 on a scale from minus 100 to plus 100", "meaning": "News tone, where minus 100 is very negative and plus 100 is very positive." },
+        { "name": "linked market move", "value": "ES down about a third of a percent in 30 minutes", "meaning": "What the E-mini S&P 500 future, a related index, has done recently." },
+        { "name": "previous goal", "value": "hold", "meaning": "The head's goal from the last decision." }
+      ]
+    },
+    "output": {
+      "summary": "A new goal from the head and the trader's action for the next bar.",
+      "fields": [
+        { "name": "goal chosen by the head", "value": "reduce risk", "meaning": "The high-level stance for the coming stretch of bars." },
+        { "name": "trader action", "value": "sell 1 contract", "meaning": "The order placed on the next bar to move toward the goal." },
+        { "name": "resulting holdings", "value": "1 MNQ contract long", "meaning": "The position after the action." },
+        { "name": "head confidence in the goal", "value": "62 percent", "meaning": "How strongly the head prefers this goal over the alternatives." }
+      ]
+    },
+    "reading": "The agent cut exposure because volatility, negative news and a falling linked market lined up. A 62 percent preference is clear but not absolute. Judge such an agent only through walk-forward results with real costs, and compare it against a simple fixed risk rule; a learned goal is worth keeping only if it scores better than that rule."
+  }
+}

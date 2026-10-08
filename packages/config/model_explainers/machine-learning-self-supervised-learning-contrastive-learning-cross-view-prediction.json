@@ -1,0 +1,81 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-cross-view-prediction",
+  "name": "Cross-View Prediction",
+  "analogy": "Think of it as a reporter who has to guess tomorrow's headline from the price chart, or the price chart from the headlines. Doing that over and over teaches the reporter how news and price move together. A day when the guess is badly wrong is a day when the two sources disagree.",
+  "steps": [
+    {
+      "title": "Choose two views of the same moment",
+      "description": "Each training example has two views that describe the same time. They can be two altered copies of one window, or two different kinds of information, such as price bars and news sentiment for the same hour.",
+      "inExample": "For each hour on MNQ, view one is the last 48 five-minute bars and view two is the FinBERT news sentiment scores for that hour."
+    },
+    {
+      "title": "Describe each view with its own network",
+      "description": "Each view is read by a network that turns it into a list of numbers. Different kinds of information normally get different networks, because bars and sentiment scores have different shapes.",
+      "inExample": "The price view becomes a 64-number description and the sentiment view becomes a 64-number description."
+    },
+    {
+      "title": "Predict one description from the other",
+      "description": "A small predictor takes the description of view one and tries to produce the description of view two. This is the heart of the method: the model is rewarded for knowing what the other view says, rather than for telling the two apart.",
+      "inExample": "The predictor takes the price description and outputs a guess for the sentiment description."
+    },
+    {
+      "title": "Measure the miss",
+      "description": "The guess is compared with the real description of the second view, and the gap is the training error. The comparison can be repeated in the other direction, predicting the price description from the sentiment description.",
+      "inExample": "On a typical hour the gap between guess and truth is 35 percent of a typical description number's spread."
+    },
+    {
+      "title": "Adjust both networks to shrink the miss",
+      "description": "Over many hours, the networks are adjusted so that the first view's description carries what is needed to anticipate the second. The descriptions end up capturing the structure that the two sources share.",
+      "inExample": "After training on about 8,000 hours the typical gap falls to 21 percent on held-out hours."
+    },
+    {
+      "title": "Use the descriptions or the miss",
+      "description": "The learned descriptions can be handed to later models. The size of the miss on a fresh example is also useful, since a large miss means the two views disagree more than usual.",
+      "inExample": "On today's 14:00 hour the gap is 48 percent, well above the typical 21 percent, so price and news disagree."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Linking price and news",
+      "example": "Learning how MNQ bars and FinBERT sentiment scores usually move together, and flagging hours when they diverge."
+    },
+    {
+      "task": "Pretraining from several information sources",
+      "example": "Training a shared description from bars, volume measures and sentiment, then fine-tuning a direction model."
+    },
+    {
+      "task": "Spotting disagreement",
+      "example": "Treating a large prediction miss as a warning that the market is moving against its usual news response."
+    },
+    {
+      "task": "Predicting a related quantity",
+      "example": "Learning to estimate next-hour volatility description from the current price description without volatility labels."
+    }
+  ],
+  "avoidWhen": [
+    "The two views are close to independent; there is nothing shared to learn, and the predictor will just guess the average.",
+    "Your news history is thin or sparse; with little sentiment data the second view is mostly empty and the model learns little."
+  ],
+  "example": {
+    "scenario": "An MNQ researcher trains a cross-view model on hours of price bars paired with FinBERT news sentiment scores for the same hour. At 14:00 they ask how well the price view predicts the news view and what that gap implies.",
+    "input": {
+      "summary": "Two views of the same hour: a window of price bars and a set of news sentiment scores.",
+      "fields": [
+        { "name": "price view", "value": "48 five-minute bars", "meaning": "The last four hours of MNQ bars described by rescaled features." },
+        { "name": "news view", "value": "9 sentiment scores", "meaning": "News sentiment measures for the hour, such as share positive and share negative." },
+        { "name": "average true range, 14 bars", "value": "29 points", "meaning": "The recent typical bar travel." },
+        { "name": "return over the last hour", "value": "down about 120 points", "meaning": "How much price fell over the hour." },
+        { "name": "news sentiment, share positive", "value": "71 percent", "meaning": "News that hour was mostly positive even though price fell." }
+      ]
+    },
+    "output": {
+      "summary": "A description of each view, the guess for the news description, and how far it missed.",
+      "fields": [
+        { "name": "price description", "value": "64 numbers", "meaning": "The learned summary of the price view." },
+        { "name": "prediction miss for the news view", "value": "48 percent", "meaning": "The gap between the guessed and the real news description today, as a share of a typical description number's spread." },
+        { "name": "typical miss on held-out hours", "value": "21 percent", "meaning": "The usual size of the gap, used as the comparison." }
+      ]
+    },
+    "reading": "A miss more than twice the typical one means price fell while news stayed positive, which is a pattern the model rarely saw. Treat it as a flag for a closer look, not a forecast. Whether divergence precedes any tradable move has to be tested separately on walk-forward folds."
+  }
+}

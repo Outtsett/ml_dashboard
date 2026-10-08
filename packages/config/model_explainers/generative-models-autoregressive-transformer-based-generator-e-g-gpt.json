@@ -1,0 +1,84 @@
+{
+  "specificationId": "generative-models-autoregressive-transformer-based-generator-e-g-gpt",
+  "name": "Transformer-Based Generator (e.g., GPT)",
+  "analogy": "Think of it as a very well-read analyst who finishes your sentence. Given everything written so far, the analyst weighs which earlier words matter most for what comes next, lists how likely each possible next word is, picks one, and then repeats the process one word at a time.",
+  "steps": [
+    {
+      "title": "Chop the input into tokens",
+      "description": "Text, or any sequence, is cut into small pieces called tokens. Each token is swapped for a list of numbers that stands for it, and a marker for its position is added so the model knows the order.",
+      "inExample": "The last 8 five-minute MNQ bars are each turned into one token from a vocabulary of 21 move-size tokens, such as 'small up' or 'big down'."
+    },
+    {
+      "title": "Let each token look back at earlier ones",
+      "description": "In each layer, every token decides how much attention to pay to the tokens before it, and blends their information into its own. It is never allowed to look at later tokens. This is how the model picks out which earlier items matter.",
+      "inExample": "The last token, a small up bar, pays most attention to the big down bar three steps earlier and to the flat bar that followed it."
+    },
+    {
+      "title": "Process the blended information",
+      "description": "After attention, each token passes through a small network that reworks what it has gathered. Attention and reworking repeat through many stacked layers, so understanding builds up from simple to complex.",
+      "inExample": "Across 12 layers the model builds a sense that the sequence is a sell-off followed by a small rebound."
+    },
+    {
+      "title": "Turn the last position into a probability list",
+      "description": "The final layer converts the last position into a probability for every token in the vocabulary. The list adds up to 100 percent and says how likely each token is to come next.",
+      "inExample": "The model gives 'small up' 31 percent, 'flat' 27 percent and 'small down' 19 percent, with the other 23 percent spread over the larger moves."
+    },
+    {
+      "title": "Choose a token with a chosen amount of randomness",
+      "description": "A setting called temperature controls how adventurous the choice is. A low temperature nearly always takes the top token and a high one spreads choices out. Other rules limit the choice to the top few tokens.",
+      "inExample": "At a temperature just below the neutral setting the model draws 'small up' as the next token."
+    },
+    {
+      "title": "Add the token and repeat",
+      "description": "The chosen token is appended to the input and the whole process runs again for the following token. This one-at-a-time loop is how a long passage or sequence is generated.",
+      "inExample": "The drawn token is added after the 8 bars and the model produces the probability list for bar 10."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Reading and summarizing news text",
+      "example": "Turning a day's headlines about the Federal Reserve into a short summary or a sentiment label that can sit beside the FinBERT sentiment columns."
+    },
+    {
+      "task": "Next-token probabilities for tokenized price moves",
+      "example": "Cutting 5-minute MNQ bars into move-size tokens and reading the model's probability for the next token as a distribution rather than a single call."
+    },
+    {
+      "task": "Explaining and drafting research text",
+      "example": "Writing a plain-language description of a backtest's results from its table of numbers, to be checked by a person."
+    },
+    {
+      "task": "Generating synthetic token sequences",
+      "example": "Sampling many 24-bar token sequences to use as scenarios, with temperature controlling how wild they are."
+    }
+  ],
+  "avoidWhen": [
+    "The data is a small table of numeric features; gradient boosting is faster to train, easier to explain and usually stronger on tables.",
+    "You cannot check the output; these models can write fluent text that is wrong, so any number or claim it produces needs to be verified against the data."
+  ],
+  "example": {
+    "scenario": "A researcher converts MNQ 5-minute bars into move-size tokens and trains a small GPT-style model on a year of them. After 8 bars they ask what the next token probably is.",
+    "input": {
+      "summary": "The eight most recent bars as tokens, plus the sampling settings.",
+      "fields": [
+        { "name": "token sequence", "value": "small up, small up, flat, small down, big down, flat, small up, small up", "meaning": "The last 8 five-minute bars, each reduced to a size-of-move token." },
+        { "name": "vocabulary size", "value": "21 tokens", "meaning": "How many different move sizes the model can name, from big down to big up." },
+        { "name": "token size rule", "value": "half the average true range", "meaning": "How big a bar move must be to move up one size class." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a bar, used to set the size rule." },
+        { "name": "temperature", "value": "80 percent of the neutral setting", "meaning": "How adventurous the choice of next token is; lower is more conservative." }
+      ]
+    },
+    "output": {
+      "summary": "The top probabilities for the next token, the totals for rises and falls, and the token drawn.",
+      "fields": [
+        { "name": "probability of small up", "value": "31 percent", "meaning": "How likely the model thinks the next bar is a small rise." },
+        { "name": "probability of flat", "value": "27 percent", "meaning": "How likely the model thinks the next bar barely moves." },
+        { "name": "probability of small down", "value": "19 percent", "meaning": "How likely the model thinks the next bar is a small fall." },
+        { "name": "probability of any rise", "value": "41 percent", "meaning": "The small up token plus all larger rise tokens added together." },
+        { "name": "probability of any fall", "value": "32 percent", "meaning": "The small down token plus all larger fall tokens added together." },
+        { "name": "token drawn", "value": "small up", "meaning": "The token picked at random from the list at the chosen temperature." }
+      ]
+    },
+    "reading": "The useful output is the full list. Rises add up to 41 percent against 32 percent for falls and 27 percent flat, so among bars that move the lean is about 56 percent up, a mild lean. Judge it on held-out bars and after trading costs, not on how reasonable the list looks."
+  }
+}

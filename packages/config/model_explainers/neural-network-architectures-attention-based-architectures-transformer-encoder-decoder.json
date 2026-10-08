@@ -1,0 +1,78 @@
+{
+  "specificationId": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
+  "name": "Transformer (Encoder-Decoder)",
+  "analogy": "Think of it as two people at a trading desk. The first reads the whole last few hours of the tape at once and writes a briefing note; the second takes the briefing and dictates the next six bars one at a time, glancing back at the note before each one and at what they have already said.",
+  "steps": [
+    {
+      "title": "Describe each bar and mark its place in time",
+      "description": "Each bar in the input window becomes a list of numbers, and a position signal is added so the model knows which bar came first. Attention itself ignores order, so this marking is what keeps the sequence meaningful.",
+      "inExample": "The last 48 five-minute MNQ bars, each with price change, range and volume ratio, receive position markers from oldest to newest."
+    },
+    {
+      "title": "The encoder builds a briefing note",
+      "description": "Stacked encoder layers let every bar look at every other bar through self-attention, over several heads that each look for a different relationship. The output is a rich description of each bar in light of the whole window.",
+      "inExample": "After six encoder layers the bar at 14:20 carries information about the volume spike at 13:45 and the lower high at 14:05."
+    },
+    {
+      "title": "The decoder starts the forecast",
+      "description": "The decoder begins with a start token and produces the first forecast step. It uses self-attention over what it has produced so far, with a mask so it cannot peek ahead, and cross-attention to look back at the encoder's briefing.",
+      "inExample": "Starting from the start token, the decoder attends to the briefing and outputs the first forecast bar, a close of 19,403."
+    },
+    {
+      "title": "Generate the rest one step at a time",
+      "description": "Each forecast step is fed back in as input for the next, and the decoder repeats until the requested horizon is covered. In training, the true bars are fed in instead so the model learns each step quickly, which is called teacher forcing.",
+      "inExample": "It feeds each forecast back and produces bars 2 to 6 with closes of 19,405, 19,404, 19,409, 19,410 and 19,412."
+    },
+    {
+      "title": "Report the path and an uncertainty range",
+      "description": "The output is a whole sequence, not a single number, and the model can also be trained to give low and high estimates around each step. Training minimises the gap between the generated sequence and the true future bars across many windows.",
+      "inExample": "The path ends 12 points above the last close, with a low and high estimate at bar 6 of about 19,350 and 19,474."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Multi-step price path forecasts",
+      "example": "Forecasting the next 6 five-minute MNQ closes from the last 48 bars, with a range around each step."
+    },
+    {
+      "task": "Sequence-to-sequence mapping",
+      "example": "Reading a window of 1-minute bars and writing out the next 5-minute bar's open, high, low and close."
+    },
+    {
+      "task": "Pre-training a representation",
+      "example": "Training the encoder on millions of bars to forecast, then reusing its summaries as features for a smaller classifier."
+    },
+    {
+      "task": "Long-range patterns",
+      "example": "Finding that behaviour in the first hour of the session informs afternoon moves, which a short-memory model would miss."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a single direction call from a table of features; a gradient boosted tree is quicker, easier to explain and often as accurate.",
+    "You have a short history; these models have millions of settings and will fit noise in a few months of bars unless carefully regularised and tested walk-forward.",
+    "You need predictions in microseconds; the stacked attention and step-by-step decoding is slow for tick-by-tick use."
+  ],
+  "example": {
+    "scenario": "At the 14:35 close of a 5-minute bar the model reads the last 48 bars of MNQ (four hours) and generates a forecast path for the next 6 bars (30 minutes).",
+    "input": {
+      "summary": "A window of 48 bars with features per bar, and the length of the path to produce.",
+      "fields": [
+        { "name": "window length", "value": "48 bars", "meaning": "How many five-minute bars the encoder reads, four hours of trading." },
+        { "name": "latest close", "value": "19,400", "meaning": "The close of the most recent bar, the starting level for the forecast." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "10 percent above", "meaning": "How heavy trading in the last bar was compared with the recent norm." },
+        { "name": "forecast horizon", "value": "6 bars", "meaning": "How many future five-minute bars the decoder produces." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast close for each of the next 6 bars and an estimated range at the end.",
+      "fields": [
+        { "name": "forecast close, bar 1", "value": "19,403", "meaning": "The model's estimate of the next five-minute close." },
+        { "name": "forecast close, bar 3", "value": "19,404", "meaning": "The estimate for 15 minutes ahead." },
+        { "name": "forecast close, bar 6", "value": "19,412", "meaning": "The estimate for 30 minutes ahead, 12 points above the last close." },
+        { "name": "estimated range at bar 6", "value": "19,350 to 19,474", "meaning": "The low and high estimates the model was trained to give around its bar 6 forecast." }
+      ]
+    },
+    "reading": "The central path rises 12 points, worth 24 US dollars per contract, while the range is more than 120 points wide, so the direction is a gentle lean inside a lot of uncertainty. Judge the model by how often the real path stays inside the range and by net results after costs on later folds."
+  }
+}

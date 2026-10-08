@@ -1,0 +1,85 @@
+{
+  "specificationId": "optimization-based-models-reinforcement-guided-methods-reinforcement-learning-with-mpc",
+  "name": "Reinforcement Learning with MPC",
+  "analogy": "Think of it as a driver who plans the next three corners carefully using a map, but only commits to the first turn and then re-plans. For anything beyond the three corners he relies on a feel for the road learned from experience. The map handles the near term and the experience handles the far.",
+  "steps": [
+    {
+      "title": "Read the current situation",
+      "description": "At each decision time, collect the state: the current position, time left, price and anything the cost model needs. The plan always starts from the real situation, not from an old forecast.",
+      "inExample": "The trader is long 6 MNQ contracts with 30 minutes left to flatten, at a price near 19,200, with a 5-minute step."
+    },
+    {
+      "title": "Plan a few steps ahead with the known cost model",
+      "description": "Using an explicit model of costs and price effects, search over action sequences for a short stretch ahead. The model is trusted only over this short stretch, so its errors do not pile up.",
+      "inExample": "The planner looks 3 steps (15 minutes) ahead and tries sequences of contracts to sell each step. The model charges the square of the contracts sold in a step in US dollars, plus 1 US dollar for each contract still held after each step."
+    },
+    {
+      "title": "Add a learned value for what lies beyond",
+      "description": "A value function learned from experience says how costly it is to be in a given leftover situation at the end of the plan. It replaces a hand-written end cost and lets a short plan still respect long-term consequences.",
+      "inExample": "Ending the plan with 1 contract still held and 15 minutes left is judged to cost 1 US dollar more; ending with 3 held costs 6."
+    },
+    {
+      "title": "Enforce hard limits inside the plan",
+      "description": "Position caps, order-size limits and margin rules are written as strict rules in the search, so no plan can break them. A learned policy alone could only discourage a breach.",
+      "inExample": "No more than 3 contracts may be sold per step, so plans that sell 4 in one step are rejected."
+    },
+    {
+      "title": "Pick the cheapest plan and act on its first move only",
+      "description": "The plan with the lowest total of modelled cost plus learned end value is chosen. Only its first action is sent; the rest is discarded.",
+      "inExample": "The plan sell 2, 2, 1 costs 16 US dollars in the model plus 1 learned, 17 in total, the cheapest of the options, so 2 contracts are sold now."
+    },
+    {
+      "title": "Re-plan at the next step and keep learning",
+      "description": "Next step, the same cycle runs from the new situation, starting from the old plan shifted forward. Meanwhile real outcomes are used to improve the learned end value.",
+      "inExample": "Five minutes later, with 4 contracts left, the planner starts again from the earlier plan's remaining 2 and 1 and refines it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Closing a position under a deadline",
+      "example": "Flattening a position over the last 30 minutes of a session with a cost model for impact, while a learned value accounts for the price risk of what is left."
+    },
+    {
+      "task": "Hedging with strict limits",
+      "example": "Adjusting a hedge in the short term with explicit transaction costs and position caps, guided by a learned long-run tracking value."
+    },
+    {
+      "task": "Managing risk limits",
+      "example": "Keeping drawdown and margin inside strict bounds in every plan while a learned value aims for long-run risk-adjusted return."
+    },
+    {
+      "task": "Rebalancing with turnover caps",
+      "example": "Planning a short sequence of rebalancing trades under a turnover limit, with a learned value for long-run portfolio results."
+    }
+  ],
+  "avoidWhen": [
+    "No usable model of costs or dynamics exists; the planning part has nothing to plan with, so a model-free method learned from data is simpler.",
+    "The problem is small enough to solve exactly; dynamic programming gives the exact answer with no learning required."
+  ],
+  "example": {
+    "scenario": "A trader is long 6 MNQ contracts and must be flat in 30 minutes. At every 5-minute step the controller, using model predictive control (MPC, which re-plans a short stretch ahead each time), plans 3 steps ahead and decides how many contracts to sell right now.",
+    "input": {
+      "summary": "The current position and time, the planning horizon, the hard limits, the cost model and the learned end values.",
+      "fields": [
+        { "name": "position", "value": "long 6 contracts", "meaning": "Contracts still to sell." },
+        { "name": "time left", "value": "30 minutes", "meaning": "Six 5-minute steps remain." },
+        { "name": "planning horizon", "value": "3 steps (15 minutes)", "meaning": "How far ahead the plan looks." },
+        { "name": "order size cap", "value": "3 contracts per step", "meaning": "A hard limit enforced in every plan." },
+        { "name": "cost model", "value": "contracts sold squared, plus 1 per contract held", "meaning": "Impact in US dollars equals the square of the contracts sold in a step; holding costs 1 US dollar, half a point, per contract after each step." },
+        { "name": "learned end cost, 1 contract left", "value": "1 US dollar", "meaning": "Estimated extra cost of holding one contract with 15 minutes left." },
+        { "name": "learned end cost, 3 contracts left", "value": "6 US dollars", "meaning": "Estimated extra cost of holding three contracts at the end of the plan." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen first action and the plan behind it.",
+      "fields": [
+        { "name": "action now", "value": "sell 2 contracts", "meaning": "Only the first step of the plan is executed." },
+        { "name": "full plan", "value": "sell 2, 2, then 1", "meaning": "Planned sales over the next three steps; the later steps will be re-planned." },
+        { "name": "modelled cost of the plan", "value": "16 US dollars", "meaning": "Impact 9 plus holding 7 from the explicit model." },
+        { "name": "learned end cost", "value": "1 US dollar", "meaning": "Value attached to ending with 1 contract still held." },
+        { "name": "total plan cost", "value": "17 US dollars", "meaning": "Lower than the alternatives of 18 for selling 2, 2, 2 and 21 for selling 1, 1, 1." }
+      ]
+    },
+    "reading": "Selling 2 now is the first move of the cheapest plan, not a promise of the next moves. The numbers come from the cost model and the learned value, so check both against fills. If real fills cost more than the model says, the plan will under-estimate the price of selling."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-masked-modeling-masked-autoencoder-mae",
+  "name": "Masked Autoencoder (MAE)",
+  "analogy": "Think of it as a fill-in-the-blanks exercise on a chart. Half of the chart is covered with sticky notes, and the analyst must redraw what is underneath using only the visible half. To do that well, the analyst has to learn how bars normally follow one another, and that knowledge is what the model keeps.",
+  "steps": [
+    {
+      "title": "Cut the window into segments",
+      "description": "A window of bars is divided into short, equal segments, much like tiles. Each segment is a block of consecutive bars, described by rescaled numbers, and keeps a note of its position in the window.",
+      "inExample": "A 96-bar MNQ window is cut into 12 segments of 8 five-minute bars, each with 6 rescaled features per bar."
+    },
+    {
+      "title": "Hide a large share of the segments at random",
+      "description": "A high share of the segments is covered at random, 50 percent or more for time series. Hiding many segments makes the task hard enough that it cannot be solved by copying a neighbour.",
+      "inExample": "6 of the 12 segments are hidden, leaving 6 visible."
+    },
+    {
+      "title": "The encoder reads only the visible segments",
+      "description": "The encoder, a transformer, sees only the segments that are visible, with their positions. Since the hidden ones are not fed in, the encoder does less work than it would on the whole window, and has to build an understanding from partial evidence.",
+      "inExample": "The encoder reads 6 visible segments and produces a description of 192 numbers."
+    },
+    {
+      "title": "Insert blank placeholders for the hidden segments",
+      "description": "A lighter decoder takes the encoder's description of the visible segments and adds a learnable blank token in each hidden position. It uses the positions to know where the missing segments belong in time.",
+      "inExample": "6 blank placeholders are placed at the hidden positions among the 6 visible segment descriptions."
+    },
+    {
+      "title": "Rebuild the hidden segments and score only those",
+      "description": "The decoder produces a guess for the contents of every hidden segment. Only the hidden segments count in the error, measured against the true values. The visible ones are not scored, because copying them would be too easy.",
+      "inExample": "The average gap on the 6 hidden segments is 31 percent of a typical feature's spread, against 52 percent for guessing the window's average."
+    },
+    {
+      "title": "Keep the encoder for later",
+      "description": "After training the decoder is thrown away. The encoder, now given the whole window with nothing hidden, produces a description that captures how market bars usually fit together. This is what is passed to a classifier or forecaster.",
+      "inExample": "Given today's full window, the encoder gives a 192-number description fed to a direction classifier."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining on unlabelled history",
+      "example": "Learning from years of MNQ and ES windows with half of each hidden, then fine-tuning on a few months of direction labels."
+    },
+    {
+      "task": "Filling gaps in a window",
+      "example": "Estimating a few missing or glitched stretches of bars from the surrounding bars."
+    },
+    {
+      "task": "Unusual window detection",
+      "example": "Flagging a window whose hidden segments are rebuilt much worse than normal as unusual, such as around a surprise release."
+    },
+    {
+      "task": "Features for a downstream model",
+      "example": "Feeding the encoder's 192-number description beside the 35 base features into a tree model."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a plain forecast and have enough labels; training directly on the labels is simpler and avoids a second stage.",
+    "Bar-to-bar structure is mostly random, as it often is for short horizons; the model may only learn smooth averages that carry little predictive information."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains an MAE on two years of unlabelled MNQ 5-minute windows of 96 bars with half the segments hidden. They then check how well it rebuilds hidden segments in a fresh window and extract the description of a full window.",
+    "input": {
+      "summary": "One window cut into 12 segments, 6 of which are hidden during training.",
+      "fields": [
+        { "name": "window length", "value": "96 five-minute bars", "meaning": "Eight hours of trading described to the model." },
+        { "name": "segments", "value": "12 segments of 8 bars", "meaning": "How the window is cut for the transformer." },
+        { "name": "share hidden", "value": "50 percent", "meaning": "How many segments are covered during training." },
+        { "name": "features per bar", "value": "6", "meaning": "Rescaled return, range, body share, wick balance, volume and trade count." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The recent typical bar travel." }
+      ]
+    },
+    "output": {
+      "summary": "Rebuilt versions of the hidden segments, how far off they were, and a description of a full window.",
+      "fields": [
+        { "name": "rebuilt hidden segments", "value": "6 segments of 8 bars", "meaning": "The model's guess for the contents of the covered segments." },
+        { "name": "rebuild error on hidden segments", "value": "31 percent", "meaning": "The average gap between the guess and the true values, as a share of a typical feature's spread." },
+        { "name": "error from guessing the window average", "value": "52 percent", "meaning": "The comparison: how far off a naive fill with the average would be." },
+        { "name": "full window description", "value": "192 numbers", "meaning": "The encoder output for a full, uncovered window, for later models." }
+      ]
+    },
+    "reading": "Rebuilding the hidden segments better than the naive average shows the encoder has learned real structure in the bars. That is not forecasting skill. Judge the description by feeding it to a labelled model and comparing against raw indicators over walk-forward folds, net of costs."
+  }
+}

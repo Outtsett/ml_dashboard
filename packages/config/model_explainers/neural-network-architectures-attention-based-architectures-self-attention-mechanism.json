@@ -1,0 +1,77 @@
+{
+  "specificationId": "neural-network-architectures-attention-based-architectures-self-attention-mechanism",
+  "name": "Self-Attention Mechanism",
+  "analogy": "Think of it as a trader replaying the last hour of the tape and, for each bar, asking which earlier bars matter most to understanding it. The bar after a volume spike glances back hard at the spike and barely at the quiet bars before it, and each bar ends up carrying a summary of the bars it found relevant.",
+  "steps": [
+    {
+      "title": "Describe every bar as a list of numbers",
+      "description": "Each bar in the window, with its open, high, low, close, volume and indicators, is turned into a short list of numbers, and a marker for its position in the window is added so the model knows the order of the bars.",
+      "inExample": "The last 8 five-minute MNQ bars each become one list of numbers, with their place in the window from oldest to newest attached."
+    },
+    {
+      "title": "Give every bar a question, a label and a message",
+      "description": "From its list, each bar produces three things: a query, which is what it is looking for; a key, which is what it offers to be found by; and a value, which is the content it will pass on if chosen. They come from three learned conversions of the same list.",
+      "inExample": "The newest bar writes a query about unusual volume; the third bar, a big-volume spike, writes a key that says unusual volume."
+    },
+    {
+      "title": "Score how well each pair fits",
+      "description": "Every bar's query is compared with every bar's key to give a relevance score. A high score means that bar looks like what the asking bar is hunting for. The scores are scaled down so they stay stable during training.",
+      "inExample": "The newest bar scores the volume spike higher than the quiet bars around it, and scores the quiet bars before the spike low."
+    },
+    {
+      "title": "Turn the scores into shares of attention",
+      "description": "For each asking bar the scores are converted into shares that add up to 100 percent, so a strong match gets a large share and a weak match gets almost none.",
+      "inExample": "The newest bar's attention splits across the 8 bars as 4, 6, 15, 5, 8, 12, 18 and 32 percent, which adds up to 100."
+    },
+    {
+      "title": "Blend the messages by those shares",
+      "description": "Each bar's new summary is the weighted mix of all bars' values, using its shares. The result is a version of every bar enriched with what the relevant bars said. This runs for all bars at once, which is why it is fast, and it can be repeated in several heads that look for different things.",
+      "inExample": "The newest bar's new summary is built 32 percent from itself, 18 percent from the bar before and 15 percent from the volume spike."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Letting a bar see distant bars that matter",
+      "example": "Letting the current MNQ bar draw on a high-volume reversal 40 bars ago that a short-memory filter would have forgotten."
+    },
+    {
+      "task": "Building block for sequence forecasters",
+      "example": "Being the core layer in a transformer that forecasts the next 6 five-minute bars from the last 60."
+    },
+    {
+      "task": "Seeing which past bars a model leaned on",
+      "example": "Plotting the attention shares over a window to check that the model attends to the same bars a trader would circle."
+    },
+    {
+      "task": "Capturing relationships among instruments",
+      "example": "Treating MNQ, E-mini S&P 500 and micro Dow readings at one time as the items and letting attention show which one the forecast leaned on."
+    }
+  ],
+  "avoidWhen": [
+    "The window is very short or the problem is a flat table of features with no order; a gradient boosted tree handles that more cheaply.",
+    "The sequence is extremely long, such as every tick for a day; attention cost grows quickly with length, so compress the series or use a model built for long inputs.",
+    "You have little data; attention layers have many settings to learn and a small history of bars will be overfit."
+  ],
+  "example": {
+    "scenario": "After a 5-minute MNQ bar closes, an attention layer looks at the last 8 bars and works out how much the newest bar should draw on each of them before a later layer forecasts the next move.",
+    "input": {
+      "summary": "Eight consecutive 5-minute bars described by their features, oldest to newest, one of which carried unusual volume.",
+      "fields": [
+        { "name": "window length", "value": "8 bars", "meaning": "How many recent five-minute bars the layer can look at, 40 minutes in total." },
+        { "name": "latest close", "value": "19,561", "meaning": "The close of the newest bar, the one doing the asking." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, giving a sense of scale." },
+        { "name": "bar 3 volume against its 20-bar average", "value": "210 percent above", "meaning": "The third bar saw heavy trading, about three times the norm: the unusual event the others may refer back to." },
+        { "name": "other bars volume against average", "value": "within 20 percent either way", "meaning": "The remaining bars traded close to the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "How the newest bar splits its attention across the 8 bars, and the summary that results.",
+      "fields": [
+        { "name": "attention shares, oldest to newest", "value": "4, 6, 15, 5, 8, 12, 18, 32 percent", "meaning": "How much of the newest bar's new summary is taken from each of the 8 bars; they add up to 100 percent." },
+        { "name": "share given to the volume spike", "value": "bar 3, 15 percent", "meaning": "The spike earned a share two and a half to three times that of the quiet bars on either side of it, which got 6 and 5 percent." },
+        { "name": "downstream probability of a higher close in 6 bars", "value": "57 percent", "meaning": "What a simple prediction layer reading the enriched summary reports; the attention itself does not predict, it prepares the input." }
+      ]
+    },
+    "reading": "Check that the attention goes where a trader would look. Here it picks out the volume spike, which is sensible; if it spread evenly or locked onto the oldest bar, the layer has not learned anything useful. The 57 percent belongs to the later layer and still needs testing against costs."
+  }
+}

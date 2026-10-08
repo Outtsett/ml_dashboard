@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-linear-regression",
+  "name": "Linear Regression",
+  "analogy": "Think of it as a recipe card with one line per indicator: take this much of the relative strength index, subtract that much of the distance from the moving average, and so on. The forecast is the total of all the lines, and the card is fitted so past totals landed as close as possible to what really happened.",
+  "steps": [
+    {
+      "title": "Choose a target and some features",
+      "description": "You decide on one number to forecast and a set of features that describe each bar. Every row in the training data pairs the features with the number that actually followed.",
+      "inExample": "The target is the change in the close 6 bars later, in points, and the features are 35 base features of each 5-minute MNQ bar."
+    },
+    {
+      "title": "Give each feature a weight",
+      "description": "The forecast is the sum of each feature times its weight, plus a starting level. A positive weight means the feature pushes the forecast up when it is high; a negative weight pushes it down.",
+      "inExample": "The 6-bar return and the relative strength index each get a small negative weight, so oversold readings lift the forecast."
+    },
+    {
+      "title": "Measure the miss on every training bar",
+      "description": "For each bar the model compares its forecast with the real outcome. Misses are squared so that big misses count far more than small ones and plus and minus misses do not cancel.",
+      "inExample": "A bar forecast at plus 4 points that actually moved minus 30 points has a miss of 34 points, which counts as 1,156 in the total."
+    },
+    {
+      "title": "Find the weights that make the total miss smallest",
+      "description": "The best weights can be calculated directly in one step, or found by nudging the weights downhill in many small steps. Both reach the same answer: the weights with the least total squared miss on the training bars.",
+      "inExample": "The 35 weights and the starting level are solved in a fraction of a second on 40,000 training bars."
+    },
+    {
+      "title": "Check the weights on later bars",
+      "description": "The fitted card is tested on bars that come after the training period. This shows whether the weights learned something that lasts or just described the training bars.",
+      "inExample": "The card is scored on the next fold of bars, and its miss there is compared with simply forecasting zero move."
+    },
+    {
+      "title": "Forecast by adding up the card",
+      "description": "A new bar is run down the card. Each line contributes its feature times its weight, and the total plus the starting level is the forecast.",
+      "inExample": "The 14:35 bar adds up to a forecast rise of 3 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A baseline other models are measured against",
+      "example": "Fitting it first on MNQ 5-minute bars so a boosted-tree or neural model has to show gains over a straight weighted sum."
+    },
+    {
+      "task": "Reading how each feature pushes the forecast",
+      "example": "Looking at the weights to see whether volume or momentum moves the 30-minute forecast more."
+    },
+    {
+      "task": "Forecasting a number rather than a class",
+      "example": "Predicting the next 30-minute move in points, or next-hour average true range for sizing."
+    },
+    {
+      "task": "Quick checks of an idea",
+      "example": "Adding one new feature and seeing in seconds whether the held-out miss improves."
+    }
+  ],
+  "avoidWhen": [
+    "Many of your features are near copies of each other, as moving averages of neighbouring windows are; the weights become unstable and swing wildly, so ridge or a similar penalised version is safer.",
+    "The effect depends on thresholds or combinations, such as only when volume is heavy and price is oversold; a straight sum cannot represent that.",
+    "The target is a yes-or-no outcome; a classification model such as logistic regression gives a proper probability."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A fitted linear regression forecasts the change in the close 6 bars (30 minutes) later, in points.",
+    "input": {
+      "summary": "One row of features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "One forecast number and how its lines add up.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 3 points", "meaning": "The sum of every feature times its weight, plus the starting level." },
+        { "name": "starting level", "value": "about half a point", "meaning": "The forecast before any feature is counted, close to the average training move." },
+        { "name": "largest push upward", "value": "distance from the 50-bar moving average, about plus 2 points", "meaning": "The single line of the card that added the most to the forecast." },
+        { "name": "forecast in US dollars per contract", "value": "plus 6 US dollars", "meaning": "3 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "A forecast of 3 points against a 23-point average true range is a tiny lean. Use it mainly to compare with other models on the same folds, and look at the lines of the card to see what is driving it. Trade it only if its net result after commission and slippage holds on held-out folds."
+  }
+}

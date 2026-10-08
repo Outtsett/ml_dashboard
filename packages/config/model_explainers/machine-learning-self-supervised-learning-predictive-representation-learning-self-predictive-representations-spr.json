@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-predictive-representation-learning-self-predictive-representations-spr",
+  "name": "Self-Predictive Representations (SPR)",
+  "analogy": "Think of it as a student and a slowly changing tutor looking at two slightly different photos of the same market moment. The student tries to predict what the tutor will say about the other photo, and the tutor only ever drifts a little toward the student, so the two keep each other honest.",
+  "steps": [
+    {
+      "title": "Make two views of the same window",
+      "description": "Take one window of bars and create two versions of it, each lightly changed, for example with a little noise added or the scale nudged. They show the same market moment seen slightly differently.",
+      "inExample": "A 30-bar window of 5-minute MNQ bars becomes view A, left as it is, and view B, with small random noise and a 2 percent change of scale."
+    },
+    {
+      "title": "Encode with the online network",
+      "description": "The first view goes through the online encoder, the network that is being trained. It produces a summary of the window as a list of numbers.",
+      "inExample": "View A becomes a summary of 32 numbers."
+    },
+    {
+      "title": "Predict the tutor's answer",
+      "description": "A small predictor network takes the online summary and tries to guess what the second network, the tutor, will produce for the other view. The goal is agreement between the guess and the tutor.",
+      "inExample": "The predictor turns the 32-number summary of view A into a guess of what the tutor will say about view B."
+    },
+    {
+      "title": "Encode the other view with the slow tutor",
+      "description": "The second view goes through the tutor encoder. The tutor is not trained directly. Its weights are a slow moving average of the online network's weights, and no correction flows back through it, which keeps training stable.",
+      "inExample": "View B goes through the tutor, whose weights are 99 parts the old tutor to 1 part the current online network, and returns its own 32 numbers."
+    },
+    {
+      "title": "Shrink the disagreement, with no decoys",
+      "description": "The distance between the guess and the tutor's answer is the score. Only the online network and the predictor are adjusted to shrink it. No fake examples are used, unlike contrastive methods. The tutor then drifts slightly toward the online network.",
+      "inExample": "The guess and the tutor's answer have a similarity of 91 percent, so the adjustment is small and the tutor moves only a hair."
+    },
+    {
+      "title": "Check the summary has not collapsed, then reuse it",
+      "description": "Because there are no decoys, both networks could agree by always outputting the same thing. Training is therefore watched for a flat summary. A healthy online summary is then frozen and passed to a simple model for a real task.",
+      "inExample": "The summaries of 5,000 different windows still vary in about 20 independent directions, so the model has not collapsed, and a linear model on them returns a 55 percent probability of an up move."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning window summaries without labels or decoys",
+      "example": "Pretraining on years of MNQ 5-minute windows and using the 32-number summary as input to a direction model."
+    },
+    {
+      "task": "Features that survive small changes in the data",
+      "example": "Getting a summary that stays the same when noise is added to the bars, so small timing differences do not change the features."
+    },
+    {
+      "task": "Classifying market regimes with few labels",
+      "example": "Training a simple trending or ranging classifier on top of the summary using only a few hundred labelled windows."
+    },
+    {
+      "task": "Pretraining a state description for a trading agent",
+      "example": "Giving a reinforcement learning agent a compact market state so it needs fewer episodes to learn."
+    }
+  ],
+  "avoidWhen": [
+    "Two views of the same moment cannot be made sensibly, as with a short tabular row that has no natural small change; a tree model on the raw columns is simpler.",
+    "You cannot monitor for collapse; without checking that the summaries still vary, a model that outputs one constant vector looks perfect on its own loss.",
+    "You need exact price forecasts; the model predicts summaries of other views, not prices."
+  ],
+  "example": {
+    "scenario": "A research job pretrains on 30-bar windows of MNQ 5-minute bars. For one window it makes a clean view and a lightly changed view, and shows how the student, the predictor and the slow tutor line up.",
+    "input": {
+      "summary": "One 30-bar window and the two views made from it.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "noise added to view B", "value": "about 3 points per bar", "meaning": "A small random change that stands in for the natural variation between views." },
+        { "name": "tutor update speed", "value": "99 to 1", "meaning": "How slowly the tutor weights follow the online weights: 99 parts old, 1 part new." }
+      ]
+    },
+    "output": {
+      "summary": "A summary of the window, how closely the guess matched the tutor, and the reading of a simple model on the summary.",
+      "fields": [
+        { "name": "window summary", "value": "32 numbers", "meaning": "The online network's description of the window, kept for later use." },
+        { "name": "similarity between guess and tutor", "value": "91 percent", "meaning": "How closely the predictor matched the tutor's answer, where 100 percent is a perfect match." },
+        { "name": "independent directions in the summaries", "value": "about 20 of 32", "meaning": "A check that the summaries still vary from window to window, which rules out collapse." },
+        { "name": "probability the close 6 bars later is higher", "value": "55 percent", "meaning": "The reading of a simple linear model on the frozen summary." }
+      ]
+    },
+    "reading": "A similarity near 91 percent means the model has learned that the two views are the same moment. It does not show direction. Watch the number of independent directions, because a similarity that rises while that number falls means collapse. Treat 55 percent as a mild lean and judge it on the run page after costs."
+  }
+}

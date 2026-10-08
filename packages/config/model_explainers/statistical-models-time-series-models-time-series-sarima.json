@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-time-series-models-time-series-sarima",
+  "name": "Time Series - SARIMA",
+  "analogy": "Think of it as a floor trader who keeps two notebooks. One records how the last few bars led into the next. The other records how today at this time of day compared with yesterday at the same time. The forecast uses both.",
+  "steps": [
+    {
+      "title": "Fix the length of the repeating cycle",
+      "description": "You tell the model how many bars make one full cycle. This must be an exact count and must stay the same through the history, because the model has no way to discover it.",
+      "inExample": "For regular-hours MNQ, one session is 78 five-minute bars, so the cycle length is 78."
+    },
+    {
+      "title": "Compare each bar with the same time one cycle ago",
+      "description": "The seasonal step replaces each value with its change from the same position one cycle earlier. This removes a stable daily shape, in the same way ordinary differencing removes a drifting trend.",
+      "inExample": "The 14:35 volume of 4,100 contracts is compared with 14:35 yesterday at 3,650, a seasonal change of plus 450."
+    },
+    {
+      "title": "Study the short-range echoes",
+      "description": "On the differenced series, the usual short-range patterns are examined: how a bar relates to the bars just before it and to the last few forecast misses. This is the same step an ordinary model takes.",
+      "inExample": "A bar's gap from yesterday carries into the next bar: about half of it persists, so one short-range lag is kept."
+    },
+    {
+      "title": "Study the echoes at the cycle length",
+      "description": "The same patterns are examined at multiples of the cycle length: how today's gap versus yesterday relates to yesterday's gap versus the day before. This second set of terms is what the seasonal version adds.",
+      "inExample": "The gap from yesterday shows only a weak echo of the same gap one session earlier, so one cycle-length lag is kept; it adds almost nothing to this next-bar forecast."
+    },
+    {
+      "title": "Fit both sets of weights together",
+      "description": "The short-range and cycle-length terms are multiplied into one model and fitted at once. Because it estimates more weights, it needs several full cycles of history to be steady.",
+      "inExample": "The fit uses 60 sessions, about 4,700 bars, to estimate the weights for the short-range and cycle-length terms."
+    },
+    {
+      "title": "Forecast using both memories",
+      "description": "The forecast starts from the value one cycle earlier, adds the share of the recent gap that is expected to persist, and adds the short-range adjustments. Uncertainty bands grow with the horizon.",
+      "inExample": "Yesterday's next bar was 3,700 contracts; half of today's lead of 450 carries over, so the forecast for the next bar is about 3,925."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting volume through the session",
+      "example": "Forecasting MNQ volume for the next 5-minute bar, knowing that volume has a daily shape with heavy opens and closes."
+    },
+    {
+      "task": "Forecasting bar range with a daily pattern",
+      "example": "Forecasting the high-to-low range of each bar, separating the U-shaped daily pattern from true changes in activity."
+    },
+    {
+      "task": "Cleaning a series before another model",
+      "example": "Removing the daily rhythm from volatility so the remaining series is easier for a separate model to learn."
+    },
+    {
+      "task": "Testing the same time yesterday rule",
+      "example": "Using it as a careful version of the idea that this bar will look like the same bar yesterday, with a measured band."
+    }
+  ],
+  "avoidWhen": [
+    "The cycle is irregular or changes length, such as sessions of different lengths around holidays; a model with flexible seasonal curves copes better.",
+    "You have fewer than a few dozen full cycles of history; the many weights cannot be estimated steadily and a simple same-time-yesterday average is safer."
+  ],
+  "example": {
+    "scenario": "During the regular MNQ session, the model forecasts the volume of the 14:40 five-minute bar after seeing the 14:35 bar, using a cycle of 78 bars.",
+    "input": {
+      "summary": "Today's latest volume, the same bar yesterday, and yesterday's following bar.",
+      "fields": [
+        { "name": "volume of the 14:35 bar today", "value": "4,100 contracts", "meaning": "Number of contracts traded in the bar that just closed." },
+        { "name": "volume of the 14:35 bar yesterday", "value": "3,650 contracts", "meaning": "The same time of day one session earlier." },
+        { "name": "volume of the 14:40 bar yesterday", "value": "3,700 contracts", "meaning": "What happened in the bar after that time yesterday." },
+        { "name": "cycle length", "value": "78 bars", "meaning": "One regular-hours session of 5-minute bars." },
+        { "name": "history used", "value": "60 sessions", "meaning": "How many full cycles the weights were fitted on." },
+        { "name": "carry-over weight", "value": "one half", "meaning": "The fitted share of today's gap from yesterday that persists into the next bar." }
+      ]
+    },
+    "output": {
+      "summary": "A volume forecast for the next bar with an uncertainty band.",
+      "fields": [
+        { "name": "forecast volume of the 14:40 bar", "value": "3,925 contracts", "meaning": "Yesterday's 3,700 plus half of today's 450-contract lead." },
+        { "name": "95 percent band", "value": "3,150 to 4,700 contracts", "meaning": "The range expected to hold the next bar's volume 19 times in 20." },
+        { "name": "daily-rhythm part of the forecast", "value": "3,700 contracts", "meaning": "What the same time yesterday contributes." },
+        { "name": "momentum part of the forecast", "value": "plus 225 contracts", "meaning": "The share of today's lead expected to persist." }
+      ]
+    },
+    "reading": "Today is running busier than yesterday, and the model expects about half of that extra activity to continue. Use the forecast to judge whether a bar's volume is unusual: a 14:40 print of 5,500 would sit well outside the band and be worth a look."
+  }
+}

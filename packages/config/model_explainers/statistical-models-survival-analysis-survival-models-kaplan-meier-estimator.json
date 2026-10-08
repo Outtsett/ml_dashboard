@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-survival-analysis-survival-models-kaplan-meier-estimator",
+  "name": "Survival Models - Kaplan-Meier Estimator",
+  "analogy": "Think of it as a roll call that is taken every time a trade ends. Each time, you count how many trades were still open just before, and how many dropped out. Trades still open when the data stops are not counted as failures; they simply stop being asked.",
+  "steps": [
+    {
+      "title": "Collect lifetimes and mark the unfinished ones",
+      "description": "Every trade gets a lifetime. If it ended, that is an event. If it was still open when the data stopped, its lifetime is only a lower limit, and it is marked as unfinished, not discarded.",
+      "inExample": "Of 240 MNQ trades, 202 ended and 38 were still open; the longest lifetime seen is 96 five-minute bars."
+    },
+    {
+      "title": "Walk through the moments when a trade ended",
+      "description": "The estimator moves through time and stops only at the moments when at least one trade ended. Between those moments nothing new has been learned, so the curve stays flat.",
+      "inExample": "Trades ended at bars 1, 2, 3 and so on; the walk stops at each of the distinct bar counts where one did."
+    },
+    {
+      "title": "Count who was still at risk",
+      "description": "At each stopping moment it counts how many trades were still open just before it, which includes the ones about to end. This is the group the ended trades are compared against.",
+      "inExample": "Just before bar 12, 150 trades were still open, and 6 of them ended at bar 12."
+    },
+    {
+      "title": "Work out the share that survived that moment",
+      "description": "The share that got through this moment is the number still open afterwards divided by the number that were open before it. Early, with many trades open, a single ending changes little; late, with few open, it changes a lot.",
+      "inExample": "At bar 12, 144 of 150 trades got through, a survival share of 96 percent for that moment."
+    },
+    {
+      "title": "Multiply the shares into a running curve",
+      "description": "The chance of surviving up to a time is the product of the shares for every earlier moment. Each ending lowers the curve, so the result is a staircase that only steps down.",
+      "inExample": "Multiplying the moment-by-moment shares gives 84 percent still open after 6 bars, 70 percent after 12 and 41 percent after 24."
+    },
+    {
+      "title": "Add an uncertainty band and compare groups",
+      "description": "A band around the curve shows how much to trust it, and gets wider where few trades remain. Two curves, such as two exit rules, can be compared with a log-rank test to see if their lifetimes truly differ.",
+      "inExample": "At 12 bars the 95 percent band runs from 64 to 76 percent; a log-rank test compares the curve for a 30-point stop with the curve for a 45-point stop."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Describing how long trades stay open",
+      "example": "Plotting the share of an MNQ strategy's trades still open at each number of 5-minute bars, counting trades still open now correctly."
+    },
+    {
+      "task": "Building a fill-time curve for limit orders",
+      "example": "Estimating the chance a resting limit order is still unfilled after 30 seconds, then setting a cancel time from the curve."
+    },
+    {
+      "task": "Comparing two exit rules",
+      "example": "Testing with the log-rank test whether a trailing exit really changes holding time compared with a fixed stop."
+    },
+    {
+      "task": "Setting a timeout from the data",
+      "example": "Reading the bar count where the curve crosses 50 percent and using it as the maximum holding period."
+    }
+  ],
+  "avoidWhen": [
+    "You want to know how entry features change the lifetime; this method has no features, and a Cox model or an accelerated failure time model carries them.",
+    "You need a smooth curve or a forecast beyond the longest observed lifetime; the estimate is a staircase and says nothing past the data, so a parametric time model is needed."
+  ],
+  "example": {
+    "scenario": "An MNQ strategy has taken 240 trades with a 30-point stop and a 60-point target. The analyst wants to know how long a typical trade stays open, counting the 38 trades still open today.",
+    "input": {
+      "summary": "A list of lifetimes in 5-minute bars, each marked as ended or still open.",
+      "fields": [
+        { "name": "trades in the list", "value": "240", "meaning": "All trades taken by the strategy so far." },
+        { "name": "trades that ended", "value": "202", "meaning": "Trades closed at either the stop or the target." },
+        { "name": "trades still open", "value": "38", "meaning": "Trades whose lifetime is only known to be at least their age so far." },
+        { "name": "longest lifetime seen", "value": "96 bars", "meaning": "The oldest trade in the list, 8 hours of 5-minute bars." },
+        { "name": "stop distance and target distance", "value": "30 and 60 points", "meaning": "The exit rule these trades share." }
+      ]
+    },
+    "output": {
+      "summary": "Points on the survival staircase, the median lifetime and an uncertainty band.",
+      "fields": [
+        { "name": "still open after 6 bars", "value": "84 percent", "meaning": "The estimated share of trades that last beyond 30 minutes." },
+        { "name": "still open after 12 bars", "value": "70 percent", "meaning": "The estimated share of trades that last beyond one hour." },
+        { "name": "still open after 24 bars", "value": "41 percent", "meaning": "The estimated share of trades that last beyond two hours." },
+        { "name": "median lifetime", "value": "20 bars", "meaning": "The time where the curve first falls below 50 percent, 100 minutes." },
+        { "name": "95 percent band at 12 bars", "value": "64 to 76 percent", "meaning": "The range within which the true share at 12 bars plausibly sits." }
+      ]
+    },
+    "reading": "Half of these trades are over by about 100 minutes. A timeout at 24 bars would close the 41 percent still open at that point, so choose it by looking at what those trades go on to do. The staircase describes this strategy's past only; repeat it per exit rule and compare with the log-rank test before changing a rule."
+  }
+}

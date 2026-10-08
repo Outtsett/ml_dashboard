@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-adversarial-conditional-gan-cgan",
+  "name": "Conditional Generative Adversarial Network (cGAN)",
+  "analogy": "Think of it as a forger and an inspector who are both handed the same order slip, for example 'a quiet London-open morning'. The forger draws a price path to fit the slip, and the inspector checks both whether it looks real and whether it fits the slip.",
+  "steps": [
+    {
+      "title": "Write the order slip",
+      "description": "The condition is whatever you want to control: a class label, a regime, a time of day, or even another picture. It is turned into numbers so both networks can read it.",
+      "inExample": "The slip says: regime high-volatility downtrend, start time 09:35, average true range 31 points."
+    },
+    {
+      "title": "Give the forger noise plus the slip",
+      "description": "The generator receives a list of random numbers and the slip joined together. The random numbers supply variety and the slip supplies direction, so one slip can produce many different results.",
+      "inExample": "A list of 32 random numbers is joined to the slip and passed into the generator."
+    },
+    {
+      "title": "Forge a sample that fits the slip",
+      "description": "The generator produces a sample in the same format as the real data, such as a short run of bar returns, aiming to look like real data that came under that condition.",
+      "inExample": "The generator outputs 6 five-minute bar returns that mostly fall one after another, with big bodies."
+    },
+    {
+      "title": "Show the inspector real and forged pairs",
+      "description": "The discriminator sees pairs: a sample together with its slip. Real pairs come from history, forged pairs from the generator. It must catch both a forged sample and a real sample paired with the wrong slip.",
+      "inExample": "It sees the forged 6-bar run labelled high-volatility downtrend next to real runs with that label and scores each."
+    },
+    {
+      "title": "Both networks improve through the contest",
+      "description": "When the inspector catches a forgery, the forger learns what gave it away. When the inspector is fooled, the inspector learns. Over many rounds, forgeries for each slip come to resemble real data under that slip.",
+      "inExample": "After many rounds, forged runs for the downtrend slip have the right size and sequence of moves, and the inspector's scores sit near 50 percent."
+    },
+    {
+      "title": "Generate on demand for any slip",
+      "description": "Once trained, you choose a slip, draw fresh random numbers, and get a new sample each time. Changing only the slip changes the kind of sample while keeping everything else the same.",
+      "inExample": "Drawing 3 times with the same slip yields 3 different 6-bar paths: two end 49 and 28 points lower, and one ends 11 points higher after a bounce inside the downtrend."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime-specific synthetic price paths",
+      "example": "Generating many plausible 6-bar paths for MNQ 5-minute bars given a high-volatility regime, to stress-test a stop placement rule."
+    },
+    {
+      "task": "Balancing rare conditions in training data",
+      "example": "Creating extra examples of the rare news-spike morning so a direction model does not see only calm days."
+    },
+    {
+      "task": "Time-of-day controlled generation",
+      "example": "Asking for paths at 09:35 versus 15:45 to see how a strategy's results would change with the opening-hour range."
+    },
+    {
+      "task": "What-if sampling for risk checks",
+      "example": "Holding a regime fixed and drawing hundreds of paths to look at the spread of worst-case 30-minute moves."
+    }
+  ],
+  "avoidWhen": [
+    "You need a trustworthy price forecast rather than plausible examples; a model trained directly on the target, such as gradient boosting, gives a calibrated probability.",
+    "You have too little data per condition; a conditional model needs enough real examples of each slip, or the forged samples will simply copy a few real ones."
+  ],
+  "example": {
+    "scenario": "A researcher wants to see what a high-volatility downtrend looks like over the next 30 minutes on MNQ 5-minute bars, to test whether a 40-point stop survives. They give the trained cGAN the regime and time of day and ask for three paths.",
+    "input": {
+      "summary": "The order slip and the number of samples requested.",
+      "fields": [
+        { "name": "regime label", "value": "high-volatility downtrend", "meaning": "The condition the generated paths must fit." },
+        { "name": "start time", "value": "09:35", "meaning": "The time of day of the first generated bar." },
+        { "name": "starting price", "value": "19,480", "meaning": "The price every generated path starts from." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar, used to scale the moves." },
+        { "name": "paths requested", "value": "3", "meaning": "How many different samples to draw for the same order." },
+        { "name": "bars per path", "value": "6", "meaning": "Each path covers 6 bars of 5 minutes, which is 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "Three synthetic 6-bar paths for the same order, each ending at a different price.",
+      "fields": [
+        { "name": "path A final close", "value": "19,431", "meaning": "Where the first generated path ends after 30 minutes, 49 points below the start." },
+        { "name": "path B final close", "value": "19,452", "meaning": "Where the second path ends, 28 points below the start." },
+        { "name": "path C final close", "value": "19,491", "meaning": "Where the third path ends, 11 points above the start, a bounce inside the downtrend." },
+        { "name": "inspector realness score, average", "value": "52 percent", "meaning": "How real the inspector finds the three paths on average; near 50 percent means it cannot tell them from history." }
+      ]
+    },
+    "reading": "Paths are examples of what could happen under the slip, not predictions. Run many, look at how far each path falls from the start against the 40-point stop, and compare with how real paths from that regime behaved. If real history and the generated paths disagree, trust history."
+  }
+}

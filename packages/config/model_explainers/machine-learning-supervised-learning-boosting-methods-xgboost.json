@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-supervised-learning-boosting-methods-xgboost",
+  "name": "XGBoost",
+  "analogy": "Think of it as a desk of junior analysts adding checklists one after another, with an auditor who charges a fee for every new rule and for every extreme correction. An analyst keeps a rule only if the improvement it brings is larger than the fee.",
+  "steps": [
+    {
+      "title": "Start from a flat first guess",
+      "description": "Every bar begins with the same guess, the average outcome in the training bars. All later trees only correct this starting point.",
+      "inExample": "Of the training bars, 51 percent closed higher 6 bars later, so every bar starts at 51 percent."
+    },
+    {
+      "title": "Measure how wrong and how sensitive",
+      "description": "For every bar the model computes the error of the current guess and also how fast that error would change if the guess moved. Using both gives each tree a more careful direction than error alone.",
+      "inExample": "A bar that closed higher while the guess said 51 percent has a large error. A bar the guess already puts near 90 percent changes little with a nudge."
+    },
+    {
+      "title": "Grow the tree one level at a time",
+      "description": "The tree is built level by level. At each node, every feature and every cut-off is tested in parallel, and each candidate split is scored by how much error it removes, minus a penalty for adding a split.",
+      "inExample": "At the first node, the split on volume against its 20-bar average removes the most error after the penalty, so it becomes the first question."
+    },
+    {
+      "title": "Cut back splits that do not pay for themselves",
+      "description": "Any split whose benefit is smaller than the fee is removed, and the size of the predictions in each group is also pulled toward zero. This regularization is the main reason the model resists overfitting.",
+      "inExample": "A split that would separate 14 bars is removed because its gain is smaller than the penalty."
+    },
+    {
+      "title": "Learn what to do with missing values",
+      "description": "When a feature is missing for a bar, each split has learned a default direction to send it, picked because it reduces error on the training data. No filling in of the missing values is needed.",
+      "inExample": "Bars with no news sentiment score, because no headline arrived, are sent down the branch that fit best on training bars with the same gap."
+    },
+    {
+      "title": "Add a small part of the correction, repeat, then score",
+      "description": "Each tree's correction is added at reduced strength. Many trees follow, until a held-back later period stops improving. A new bar is passed down every tree and the corrections are summed into a probability.",
+      "inExample": "After 350 trees, training stops. The 11:05 bar is scored by all 350 and lands at 53 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls from a table of features",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close from the 35 base features and a selection of the 151 indicators."
+    },
+    {
+      "task": "Tables with gaps",
+      "example": "Training on features such as the news sentiment score that are missing for many bars, with no manual filling."
+    },
+    {
+      "task": "Ranking which features carry information",
+      "example": "Reading how much each feature adds across the trees to see whether volume or momentum features do the work."
+    },
+    {
+      "task": "Deciding whether to take another signal's trade",
+      "example": "Scoring each breakout entry for its chance of reaching its target before its stop, and trading only those above 55 percent."
+    }
+  ],
+  "avoidWhen": [
+    "The information is in the order of the bars, such as the shape of the last 60 candles; a sequence model reads that directly, while XGBoost sees only the summary features you hand it.",
+    "The table has millions of rows and many experiments to run; LightGBM is usually faster to train on very large tables."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 11:05. The model, trained on the previous 12 months of bars, is asked whether the close 6 bars (30 minutes) later will be higher than this close. No news headline arrived near this bar, so the sentiment value is missing.",
+    "input": {
+      "summary": "One row of features for the bar that just closed, with one value missing.",
+      "fields": [
+        { "name": "close", "value": "20,119", "meaning": "The price at which the 11:05 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "58", "meaning": "A momentum reading from 0 to 100; above 50 means recent strength." },
+        { "name": "average true range, 14 bars", "value": "18 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "10 percent below average", "meaning": "How heavy trading was compared with the recent norm; below average means quieter than usual." },
+        { "name": "distance from the 50-bar moving average", "value": "44 points above", "meaning": "How far the close sits above its recent average price." },
+        { "name": "news sentiment score", "value": "missing", "meaning": "No headline arrived near this bar, so no tone score exists; the trees use their learned default direction." }
+      ]
+    },
+    "output": {
+      "summary": "One probability for the bar and the feature that pushed it most.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "53 percent", "meaning": "The summed vote of all 350 trees, against a 51 percent starting guess." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push", "value": "distance from the 50-bar moving average", "meaning": "The feature whose trees added the most to this bar's probability." }
+      ]
+    },
+    "reading": "53 percent is only two points above the starting guess, a very weak lean. At that size costs usually dominate, so use it as one input to a ranking or filter, and rely on the net result after costs across all folds to judge it."
+  }
+}

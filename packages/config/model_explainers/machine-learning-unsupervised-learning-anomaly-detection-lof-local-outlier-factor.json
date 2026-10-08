@@ -1,0 +1,86 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-anomaly-detection-lof-local-outlier-factor",
+  "name": "Local Outlier Factor (LOF)",
+  "analogy": "Think of it as judging a house by its own street. A lone house in a crowded city block looks out of place, while the same spacing in the countryside is normal. The model compares how crowded a bar's surroundings are with how crowded its neighbours' surroundings are, so what counts as strange depends on the neighbourhood.",
+  "steps": [
+    {
+      "title": "Describe every bar as a point",
+      "description": "Each bar becomes a point in a space whose axes are the chosen features, after scaling them to comparable sizes. Bars that behave alike sit close together and unusual bars sit apart.",
+      "inExample": "Each 5-minute bar becomes a point described by three scaled features: range against average true range, volume ratio and the move from open to close."
+    },
+    {
+      "title": "Find each bar's nearest neighbours",
+      "description": "For every bar the model finds a fixed number of nearest other bars. That number is the main setting: small values look at very local structure, larger ones look at wider neighbourhoods.",
+      "inExample": "With the neighbour count set to 20, each bar is linked to its 20 closest bars."
+    },
+    {
+      "title": "Measure how crowded each bar's surroundings are",
+      "description": "It measures how far a bar has to reach to touch its neighbours. A bar whose neighbours are close by lives in a dense area, and one that must reach far lives in a sparse area. This gives each bar a local crowdedness.",
+      "inExample": "The bar in question reaches about 2 scaled units to touch its 20 neighbours, whereas its neighbours typically reach about 1 scaled unit."
+    },
+    {
+      "title": "Compare with the neighbours' crowdedness",
+      "description": "The bar's crowdedness is compared with the crowdedness of each of its neighbours. If the bar is about as crowded as the bars around it, it fits in; if it is much more spread out than they are, it is a local outlier.",
+      "inExample": "The bar is about twice as spread out as its neighbours, so its comparison ratio is about 2."
+    },
+    {
+      "title": "Read the ratio as the outlier factor",
+      "description": "A ratio near 1 means normal, a ratio well above 1 means the bar is more isolated than its surroundings, and a value under 1 means it sits in an unusually tight spot. There is no universal cutoff, so one is picked from the scores.",
+      "inExample": "A ratio of about 2 is far above 1; typical bars score close to 1."
+    },
+    {
+      "title": "Choose the flagging cutoff",
+      "description": "Bars above the chosen cutoff are marked as outliers. A cutoff can be a fixed ratio or the top few percent of scores in the training data.",
+      "inExample": "The cutoff is set to the top 1 percent of scores, which falls at about 1 and a half, so this bar is flagged."
+    },
+    {
+      "title": "Score new bars in novelty mode",
+      "description": "By default the model scores only the bars it was fitted on. To score a fresh bar as it arrives, it is switched to novelty mode, where the fitted bars are the reference crowd and the new bar is compared with them.",
+      "inExample": "The newest bar is scored against the 50,000 stored bars without being added to them."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding odd bars in a market with several moods",
+      "example": "Flagging a bar that is strange for a quiet afternoon even though its volume would be normal at the open, because the comparison is made locally."
+    },
+    {
+      "task": "Cleaning training data",
+      "example": "Dropping the few percent of 5-minute MNQ bars whose features are locally isolated before fitting a model."
+    },
+    {
+      "task": "Spotting a new kind of bar",
+      "example": "Raising a warning when the current bar has no close neighbours among past bars, such as a regime the model has not seen."
+    },
+    {
+      "task": "A second opinion for another anomaly detector",
+      "example": "Running it alongside an isolation forest and reviewing bars that both flag."
+    }
+  ],
+  "avoidWhen": [
+    "You have millions of bars and need fast scoring; finding neighbours for every bar becomes slow, so an isolation forest is the better choice at that scale.",
+    "You have many features that are mostly noise; distances between points become unreliable in many dimensions, so reduce the features first or use a method that does not rely on distances."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes during a quiet midday stretch. The Local Outlier Factor model, fitted on a year of bars and set to look at 20 neighbours, is asked how out of place the bar is compared with similar bars.",
+    "input": {
+      "summary": "Three scaled features describing the bar that just closed, plus the neighbour count.",
+      "fields": [
+        { "name": "close", "value": "19,120", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "range against average true range", "value": "90 percent of normal", "meaning": "The bar's high-to-low range compared with the typical recent range; slightly below normal." },
+        { "name": "volume against its 20-bar average", "value": "260 percent above", "meaning": "Trading volume was far heavier than the recent norm; more than three times as large." },
+        { "name": "move from open to close", "value": "plus 4 points", "meaning": "The bar barely moved, even though volume was heavy." },
+        { "name": "neighbour count", "value": "20", "meaning": "How many nearest past bars the model compares against." }
+      ]
+    },
+    "output": {
+      "summary": "A local outlier factor and a flag for the bar.",
+      "fields": [
+        { "name": "local outlier factor", "value": "about 2", "meaning": "How much more spread out the bar is than its neighbours; 1 means it fits in." },
+        { "name": "typical factor for normal bars", "value": "close to 1", "meaning": "The level seen for ordinary bars in the fitted data." },
+        { "name": "flag", "value": "outlier", "meaning": "The factor is above the cutoff of about 1 and a half set at the top 1 percent of scores." }
+      ]
+    },
+    "reading": "Heavy volume with almost no price movement is a combination that few past bars share, so the bar stands alone and scores about 2. Look at what happened in the market then, such as a large resting order absorbing trades, before deciding whether to exclude it from training or treat it as information."
+  }
+}

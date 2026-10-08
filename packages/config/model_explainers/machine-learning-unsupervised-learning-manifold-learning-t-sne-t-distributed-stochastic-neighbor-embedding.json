@@ -1,0 +1,73 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-manifold-learning-t-sne-t-distributed-stochastic-neighbor-embedding",
+  "name": "t-Distributed Stochastic Neighbor Embedding (t-SNE)",
+  "analogy": "Think of it as shuffling name tags at a party. Each bar's tag starts in a random spot, then everyone repeatedly edges toward the people they truly resemble and away from the rest, until the room settles into clear huddles.",
+  "steps": [
+    {
+      "title": "Turn closeness into probabilities",
+      "description": "For each bar, the model works out how likely it is that every other bar is its neighbour, giving the closest bars a high chance and distant ones almost none. A setting called perplexity decides roughly how many neighbours count as close.",
+      "inExample": "With the neighbourhood size set to about 30 bars, the 14:35 bar gives most of its neighbour probability to roughly 30 similar sharp-selloff bars."
+    },
+    {
+      "title": "Scatter the bars on a flat map at random",
+      "description": "Every bar is dropped at a random position on a two-coordinate map. This starting picture is meaningless, and everything after is about improving it.",
+      "inExample": "All 5,000 bars begin as an even random cloud on the map."
+    },
+    {
+      "title": "Compute the same probabilities on the map",
+      "description": "On the flat map, the model again works out how likely each bar is to be a neighbour of each other bar. It uses a heavy-tailed curve here, so moderately distant points are not squeezed together.",
+      "inExample": "In the random cloud, the 14:35 bar's selloff neighbours are scattered, so their map probabilities are low."
+    },
+    {
+      "title": "Nudge the map to match the original",
+      "description": "It compares the original probabilities with the map probabilities and moves each point a little to shrink the mismatch: true neighbours are pulled together and non-neighbours are pushed apart. This repeats for hundreds or thousands of small moves.",
+      "inExample": "Over 1,000 nudges, the selloff bars slide into a tight huddle and the quiet-drift bars slide into a different one."
+    },
+    {
+      "title": "Read the huddles",
+      "description": "When the nudging settles, bars in the same huddle were similar in the original space. The sizes of huddles and the gaps between them are not trustworthy measurements, only which bars belong together.",
+      "inExample": "The map shows five huddles; the 14:35 bar sits in the selloff huddle at coordinates minus 12 and 7."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Drawing a picture of market behaviour",
+      "example": "Projecting 5,000 MNQ 5-minute bars described by 35 features onto a flat map to see whether volatility regimes form separate huddles."
+    },
+    {
+      "task": "Checking whether labels make sense",
+      "example": "Colouring the map by a bar's regime label to see whether bars given the same label sit together or are scattered."
+    },
+    {
+      "task": "Inspecting what a neural network has learned",
+      "example": "Mapping the internal representation of a pattern model and checking that bars with the same candlestick pattern end up in the same huddle."
+    }
+  ],
+  "avoidWhen": [
+    "You need coordinates to feed a downstream model or to place new bars; the map is built only for the bars it was given and cannot place a fresh one, so use principal component analysis or an autoencoder.",
+    "You plan to read distances or huddle sizes as real measurements; they are artefacts of the nudging, so a method that preserves distances is more honest."
+  ],
+  "example": {
+    "scenario": "A researcher takes 5,000 five-minute Micro E-mini Nasdaq-100 futures (MNQ) bars from one quarter, each described by 35 base features, and draws them on a flat map to look for natural groups of bars.",
+    "input": {
+      "summary": "A table of 5,000 bars by 35 standardised features and the settings that control the map.",
+      "fields": [
+        { "name": "number of bars", "value": "5,000", "meaning": "The five-minute MNQ bars included; this method suits thousands, not millions." },
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features describing each bar." },
+        { "name": "neighbourhood size (perplexity)", "value": "30", "meaning": "Roughly how many close neighbours each bar considers when judging similarity." },
+        { "name": "number of nudging rounds", "value": "1,000", "meaning": "How many small moves are made before the map is read." },
+        { "name": "coordinates wanted", "value": "2", "meaning": "The size of the flat map each bar is placed on." },
+        { "name": "average true range of the 14:35 bar", "value": "23 points", "meaning": "One feature of the bar being examined, the typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "Two map coordinates for each bar, to plot and colour.",
+      "fields": [
+        { "name": "map coordinates of the 14:35 bar", "value": "minus 12 and 7", "meaning": "Where the bar landed; its neighbours on the map are bars with similar features." },
+        { "name": "huddles visible", "value": "5", "meaning": "Separate groups of bars, such as quiet drift, steady trend, selloff, rally and open-bell spike." },
+        { "name": "mismatch left after nudging", "value": "about 1", "meaning": "A score of how far the map probabilities still differ from the original ones; lower means a more faithful map." }
+      ]
+    },
+    "reading": "Read the map by who is grouped with whom, not by how far apart groups look. Colour it by the next 6-bar direction or by volatility; a huddle that is consistently one colour suggests a useful feature set, while a mixed colouring says the features do not separate outcomes."
+  }
+}

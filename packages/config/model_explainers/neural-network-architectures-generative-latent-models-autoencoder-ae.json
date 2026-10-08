@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-generative-latent-models-autoencoder-ae",
+  "name": "Autoencoder (AE)",
+  "analogy": "Think of it as a trader who must summarize a whole chart on a sticky note and then redraw the chart from the note alone. If the note is good, the redrawing looks right. If the market does something the trader has never seen, the redrawing comes out wrong, and that mismatch is the warning.",
+  "steps": [
+    {
+      "title": "Take in a window of market data",
+      "description": "The model receives a chunk of numbers describing recent market behavior, such as a handful of indicator readings or a short run of bars. There is no label and no right answer to predict; the input itself is the target.",
+      "inExample": "One MNQ 5-minute bar is described by 12 features, including range, volume ratio, momentum and distance from its moving average."
+    },
+    {
+      "title": "Squeeze it through the encoder",
+      "description": "The encoder is a stack of layers that shrinks the input step by step into a much smaller set of numbers. The model must decide which information is worth keeping, because there is room for only a few values.",
+      "inExample": "The 12 features are compressed into 3 numbers, the sticky note, which might loosely mean how volatile, how directional and how busy."
+    },
+    {
+      "title": "Hold the compact code",
+      "description": "The small set of numbers in the middle is called the latent code. Similar market conditions end up with similar codes, so it works as a compact fingerprint of the bar.",
+      "inExample": "The bar gets a code of 8, minus 3 and 14 on a scale where ordinary training bars sit between minus 10 and plus 10, close to the codes of earlier high-volume bars."
+    },
+    {
+      "title": "Rebuild with the decoder",
+      "description": "The decoder mirrors the encoder. It expands the small code back to the original size and tries to recreate the input features as faithfully as possible using only the sticky note.",
+      "inExample": "From the three numbers, the decoder produces 12 rebuilt feature values."
+    },
+    {
+      "title": "Measure the rebuild error",
+      "description": "The rebuilt values are compared with the original input. Training adjusts the layers to shrink this gap across many ordinary bars, which teaches the model what normal market data looks like.",
+      "inExample": "On ordinary bars the average rebuild error drops to about 11 percent of the features' usual spread; the model has learned the usual patterns."
+    },
+    {
+      "title": "Use the code or the error",
+      "description": "After training, either the compact code is handed to another model as a cleaner input, or the rebuild error on new data is read as an oddness score. A large error means the bar does not look like the data the model learned.",
+      "inExample": "A bar from a news spike rebuilds poorly, with an error of 74 percent, about seven times the typical 11 percent, and is flagged as unusual."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Spotting unusual market conditions",
+      "example": "Flagging 1-minute MNQ bars whose features cannot be rebuilt well, such as a data glitch or a sudden liquidity gap, so a strategy pauses."
+    },
+    {
+      "task": "Compressing many indicators",
+      "example": "Reducing the 151 technical indicators to a handful of codes that a forecasting model can use with less noise."
+    },
+    {
+      "task": "Denoising feature series",
+      "example": "Replacing a jumpy volume-ratio series with its rebuilt, smoother version before it feeds a classifier."
+    },
+    {
+      "task": "Grouping similar market states",
+      "example": "Clustering the compact codes to find recurring conditions, such as quiet drift versus busy reversal, across walk-forward folds."
+    }
+  ],
+  "avoidWhen": [
+    "You need a direct buy or sell probability; an autoencoder never sees an outcome, so a supervised model trained on labeled results is the more direct choice.",
+    "You want to generate new realistic market data; a standard autoencoder has no reliable way to sample new codes, whereas a variational autoencoder is built for generation."
+  ],
+  "example": {
+    "scenario": "An autoencoder was trained on 12 months of ordinary MNQ 5-minute bars, each described by 12 features squeezed into a 3-number code. A new bar arrives right after a surprise economic release and is checked for oddness.",
+    "input": {
+      "summary": "Twelve scaled features for one new 5-minute bar; four are shown.",
+      "fields": [
+        { "name": "bar range", "value": "96 points", "meaning": "The high-to-low distance of this bar, far above the usual 15 to 40 points." },
+        { "name": "volume against its 20-bar average", "value": "530 percent above average", "meaning": "Trading was more than six times heavier than the recent norm." },
+        { "name": "move from open to close", "value": "minus 90 points", "meaning": "Price fell sharply within one bar." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The recent typical range before this bar arrived." }
+      ]
+    },
+    "output": {
+      "summary": "The compact code, the rebuilt features and the rebuild error.",
+      "fields": [
+        { "name": "latent code", "value": "29, minus 21, 34", "meaning": "The three-number fingerprint, far outside the minus 10 to plus 10 range seen on ordinary training bars." },
+        { "name": "rebuild error", "value": "74 percent of the usual spread", "meaning": "The average gap between the original and rebuilt features, measured against how much each feature normally varies." },
+        { "name": "typical rebuild error on training bars", "value": "11 percent of the usual spread", "meaning": "The usual gap on ordinary bars, for comparison." },
+        { "name": "oddness flag", "value": "unusual", "meaning": "Raised because the error is far above the typical level." }
+      ]
+    },
+    "reading": "An error roughly seven times the normal level says the bar does not resemble anything the model learned. Use it as a stand-down signal for a pattern-based strategy, and check the news calendar. It says the bar is unusual, not which direction price will go."
+  }
+}

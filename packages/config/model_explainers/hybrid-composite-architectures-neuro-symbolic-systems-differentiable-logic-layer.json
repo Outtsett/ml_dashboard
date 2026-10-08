@@ -1,0 +1,76 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-differentiable-logic-layer",
+  "name": "Differentiable Logic Layer",
+  "analogy": "Think of it as a risk checklist with dimmer switches instead of on-off switches. A pilot reads conditions off the instruments, each condition is a dial from 0 to 100 percent true, and the checklist says to proceed only when all the dials it cares about read high at the same time.",
+  "steps": [
+    {
+      "title": "Let a neural network read the raw data",
+      "description": "An ordinary neural network looks at the bars and indicators and produces two things: its own prediction, and a set of condition readings such as how true it is that the trend is up. Each reading is a degree of truth between 0 and 100 percent, not a hard yes or no.",
+      "inExample": "From the 5-minute bars it reports: trend is up, 78 percent; volatility is not extreme, 90 percent; close to the end of the session, 5 percent; and a raw buy probability of 61 percent."
+    },
+    {
+      "title": "Write the trading rule in plain logic",
+      "description": "A person writes the rule in words, joined by AND, OR and NOT. Here the rule is: buy only if the trend is up AND volatility is not extreme AND it is NOT near the end of the session.",
+      "inExample": "The rule is: trend up AND volatility not extreme AND NOT close to session end."
+    },
+    {
+      "title": "Turn AND, OR and NOT into smooth arithmetic",
+      "description": "Normal logic only has true and false, which cannot be trained. The layer swaps in smooth versions: AND multiplies two readings, NOT flips a reading to its opposite, and OR combines them so the result is high when either is high. The rule then gives a score from 0 to 100 percent.",
+      "inExample": "NOT near the end becomes 95 percent. Multiplying 78, 90 and 95 percent together gives a rule satisfaction of about 67 percent."
+    },
+    {
+      "title": "Combine the rule score with the network's prediction",
+      "description": "The rule score gates or blends with the network's own output, so a prediction that breaks the rule is pulled down and one that respects it passes through. Rule weights can be learned, so important rules count more.",
+      "inExample": "The raw buy probability of 61 percent is scaled by the rule satisfaction of 67 percent, giving a gated buy score of about 41 percent."
+    },
+    {
+      "title": "Train the network and the rules together",
+      "description": "Because every piece is smooth, training can pass its error signal through the logic into the network. The loss has two parts: the usual prediction error, plus a penalty whenever the model acts against its rules. The network learns to produce condition readings that make the rules useful.",
+      "inExample": "During training, bars where the model bought while near the session end were penalised, which is why that reading is now close to 0 at 11:05."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Keeping a learned model inside risk rules",
+      "example": "Forcing a direction model to stay flat when volatility is extreme or when the session is about to close, while still learning from data inside those limits."
+    },
+    {
+      "task": "Turning a written playbook into something trainable",
+      "example": "Encoding 'long only when the 5-minute trend is up and the volume is above average' and letting the network learn how to read the trend and volume conditions from bars."
+    },
+    {
+      "task": "A readable reason for each decision",
+      "example": "Reporting that a buy was withheld because the 'not extreme volatility' reading was only 35 percent, so a reviewer sees which part of the rule blocked it."
+    },
+    {
+      "task": "Learning which of several rules matter",
+      "example": "Starting with eight candidate entry conditions and reading the learned rule weights to see that only two of them carried weight."
+    }
+  ],
+  "avoidWhen": [
+    "You do not have clear rules to write down; without real domain knowledge the logic layer adds complexity and nothing else, and a plain model is better.",
+    "The rules are simple hard limits that never need learning, such as a maximum position size; enforce those in the trading code after the model instead of inside it."
+  ],
+  "example": {
+    "scenario": "At 11:05 Eastern, after a 5-minute MNQ bar closes, a model must decide whether to open a long. The playbook says: only if the trend is up, volatility is not extreme, and it is not near the end of the session.",
+    "input": {
+      "summary": "The network's condition readings for this bar, each a degree of truth from 0 to 100 percent, and its own unconstrained buy probability.",
+      "fields": [
+        { "name": "close", "value": "19,640", "meaning": "The price at which the 11:05 five-minute MNQ bar closed." },
+        { "name": "trend is up", "value": "78 percent true", "meaning": "How strongly the network judges that the recent trend is upward, from 0 (not at all) to 100 (fully)." },
+        { "name": "volatility is not extreme", "value": "90 percent true", "meaning": "How strongly the network judges that the average true range of 24 points is within its normal band." },
+        { "name": "near the end of the session", "value": "5 percent true", "meaning": "How strongly the network judges that the bar is close to the session close; low at 11:05." },
+        { "name": "raw buy probability", "value": "61 percent", "meaning": "The network's own chance that the close 6 bars later is higher, before any rule is applied." }
+      ]
+    },
+    "output": {
+      "summary": "The rule score, the rule-gated buy score and the resulting decision.",
+      "fields": [
+        { "name": "rule satisfaction", "value": "67 percent", "meaning": "How fully the three-part rule holds: 78 percent times 90 percent times 95 percent, where 95 percent is the opposite of near the end of the session." },
+        { "name": "gated buy score", "value": "41 percent", "meaning": "The raw buy probability of 61 percent scaled by the rule satisfaction of 67 percent." },
+        { "name": "decision", "value": "stay flat", "meaning": "The gated score is below the 50 percent line the playbook uses to enter, so no order is placed." }
+      ]
+    },
+    "reading": "The raw network would have bought at 61 percent, but the rule only held 67 percent, which dragged the score under the line. The weakest dial is the trend reading at 78 percent, so if you want more trades, look at how trend is defined before loosening the rule."
+  }
+}

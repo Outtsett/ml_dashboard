@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-hierarchical-clustering-agglomerative-divisive",
+  "name": "Hierarchical Clustering (Agglomerative, Divisive)",
+  "analogy": "Think of it as building a family tree for your instruments. It starts with every instrument alone, joins the two closest relatives first, then joins those pairs into larger families, until everything belongs to one big family. You then decide how far up the tree to cut to get your groups.",
+  "steps": [
+    {
+      "title": "Start with every item on its own",
+      "description": "In the common bottom-up version, every item begins as a cluster of one. The opposite top-down version starts with everything in one group and splits it, but the bottom-up version is far more widely used.",
+      "inExample": "Eight futures contracts start as eight single-member clusters: MNQ, NQ, ES, YM, RTY, GC, CL and ZN."
+    },
+    {
+      "title": "Measure the distance between every pair",
+      "description": "A distance is computed for every pair of items from their features. Small means alike. For instruments, a natural choice makes the distance small when their returns move together.",
+      "inExample": "The distance is built from 250 days of daily returns and is one minus how closely two instruments move together, shown times 100: tiny for MNQ and NQ, large for MNQ and ZN."
+    },
+    {
+      "title": "Join the two closest clusters",
+      "description": "The two clusters with the smallest distance are merged into one. The model records the distance at which the merge happened, because that distance is what draws the tree.",
+      "inExample": "MNQ and NQ merge first, at a distance of 5, since they track the same index."
+    },
+    {
+      "title": "Decide how far apart two groups are",
+      "description": "Once clusters hold several items, a rule is needed for the distance between clusters. Options include the closest pair, the farthest pair or the average of all pairs, and each produces different shapes of groups.",
+      "inExample": "Average linkage is used, so the distance between two groups is the average over all pairs between them."
+    },
+    {
+      "title": "Keep merging until one cluster remains",
+      "description": "Each round joins the two closest clusters and records the distance, and the process continues until all items are in one cluster. The full sequence of merges is the tree, called a dendrogram.",
+      "inExample": "ES joins the MNQ and NQ group at 18, YM joins at 30 and RTY at 35, GC and CL join each other at 82, the index family and the gold-oil pair join at 100, and ZN joins last at 115."
+    },
+    {
+      "title": "Cut the tree at a chosen height",
+      "description": "A horizontal cut across the tree gives a set of groups: cutting low gives many small groups and cutting high gives a few big ones. The height can be chosen by eye, by a target number of groups or by a quality score.",
+      "inExample": "Cutting at a distance of 90 gives three groups."
+    },
+    {
+      "title": "Read the groups and the structure",
+      "description": "Besides the final groups, the tree shows which items were closest and in what order families formed. That nested picture is the main thing hierarchical clustering offers over flat methods.",
+      "inExample": "Stock index futures form one family, gold and crude oil another, and the ten-year note stands alone."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Grouping instruments by how they move",
+      "example": "Clustering index, metal, energy and bond futures on daily return co-movement to see which ones really provide diversification."
+    },
+    {
+      "task": "Building a diversified basket",
+      "example": "Picking one instrument from each branch of the tree so that the basket does not hold five copies of the same bet."
+    },
+    {
+      "task": "Seeing market states at several levels of detail",
+      "example": "Clustering trading days and reading the tree at 3 groups for a broad view or 8 groups for a detailed one."
+    },
+    {
+      "task": "Ordering a correlation table",
+      "example": "Using the tree order to arrange a correlation grid so related instruments sit next to each other and blocks become visible."
+    }
+  ],
+  "avoidWhen": [
+    "You have tens of thousands of items; the distance table grows with the square of the number of items, so use K-means or a density method for bars.",
+    "You need to add new items later without redoing the tree; the tree has no simple way to place a new item, so a model with a predict step such as K-means is more convenient."
+  ],
+  "example": {
+    "scenario": "A researcher wants to know which of eight futures contracts behave alike, using 250 days of daily returns, in order to avoid doubling up on one exposure.",
+    "input": {
+      "summary": "Daily returns for eight instruments, turned into a distance between every pair where small means they move together.",
+      "fields": [
+        { "name": "instruments", "value": "MNQ, NQ, ES, YM, RTY, GC, CL, ZN", "meaning": "Five stock index futures (micro Nasdaq, Nasdaq, S&P 500, Dow, Russell 2000), two commodity futures (gold, crude oil) and one bond future (ten-year note)." },
+        { "name": "history length", "value": "250 trading days", "meaning": "The number of daily returns used to measure co-movement." },
+        { "name": "distance between MNQ and NQ", "value": "5", "meaning": "Very small, since both follow the Nasdaq 100 index. Distances are one minus the co-movement, shown times 100." },
+        { "name": "distance between MNQ and ZN", "value": "115", "meaning": "Large, since stocks and bonds rarely move together." },
+        { "name": "linkage rule", "value": "average", "meaning": "The distance between two groups is the average of all pairs between them." },
+        { "name": "cut height", "value": "90", "meaning": "The distance at which the tree is cut to form groups." }
+      ]
+    },
+    "output": {
+      "summary": "The order in which items merged and the groups after the cut.",
+      "fields": [
+        { "name": "first merge", "value": "MNQ with NQ at 5", "meaning": "The closest pair, which joined first." },
+        { "name": "group 1", "value": "MNQ, NQ, ES, YM, RTY", "meaning": "The stock index futures, which formed one family below the cut." },
+        { "name": "group 2", "value": "GC, CL", "meaning": "Gold and crude oil joined at 82, below the cut." },
+        { "name": "group 3", "value": "ZN", "meaning": "The ten-year note stayed alone because its closest join was above the cut." }
+      ]
+    },
+    "reading": "Holding MNQ, NQ and ES is close to holding one position three times, while ZN is a different exposure altogether. Pick one name per group for diversification, then check that the grouping holds in a different year, since correlations change."
+  }
+}

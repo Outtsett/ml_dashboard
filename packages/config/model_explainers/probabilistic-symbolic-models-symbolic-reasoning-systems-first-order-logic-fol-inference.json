@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-first-order-logic-fol-inference",
+  "name": "First-Order Logic (FOL) Inference",
+  "analogy": "Think of it as a lawyer who has one rule that covers every instrument and a file of facts. To prove a point, the lawyer assumes the opposite and shows that the file makes that assumption impossible.",
+  "steps": [
+    {
+      "title": "Write general rules with for-every and there-exists",
+      "description": "A rule can talk about every item of a kind at once, rather than listing the items one by one. One written rule then covers every instrument, bar or session.",
+      "inExample": "For every instrument, if its volume is more than 50 percent above average and its price is above its 50-bar average, then a breakout is likely."
+    },
+    {
+      "title": "Add the specific facts",
+      "description": "Facts are statements about particular items. They are what a general rule needs in order to say anything about the real world.",
+      "inExample": "MNQ has volume 80 percent above average and MNQ is above its 50-bar average."
+    },
+    {
+      "title": "Ask a question and assume the opposite",
+      "description": "To prove that a conclusion follows, the question is turned upside down and added to the knowledge. If that opposite leads to a contradiction, the original must be true.",
+      "inExample": "The question is whether a breakout is likely for MNQ; the added assumption is that a breakout is not likely for MNQ."
+    },
+    {
+      "title": "Flatten everything into simple clauses",
+      "description": "Rules, facts and the assumed opposite are all rewritten into one uniform shape made of simple either-or clauses, so one mechanical procedure can work on all of them.",
+      "inExample": "The big rule becomes a clause saying that either volume is not high, or price is not above the average, or a breakout is likely."
+    },
+    {
+      "title": "Match general clauses to specific facts",
+      "description": "Unification finds the substitution that makes a general clause line up with a fact, such as replacing the word instrument with MNQ. This is how a rule that speaks about everything is applied to one thing.",
+      "inExample": "The general clause is matched with the MNQ facts by replacing the instrument with MNQ."
+    },
+    {
+      "title": "Resolve until a contradiction appears",
+      "description": "Pairs of clauses with opposite statements cancel, leaving a shorter clause. If the process reaches an empty clause, the assumed opposite is impossible and the question is proved. If nothing more can be cancelled, the question is not provable from what is known.",
+      "inExample": "Three cancellations reach the empty clause, so a breakout is proved likely for MNQ."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Proving a trade follows the rules",
+      "example": "Checking that a proposed MNQ long entry really follows from the desk's stated rules and the current facts, rather than from a loose pattern match."
+    },
+    {
+      "task": "One rule for every instrument",
+      "example": "Writing the breakout rule once and having it apply to MNQ, ES and every other contract in the universe."
+    },
+    {
+      "task": "Finding contradictions in a rulebook",
+      "example": "Detecting that two risk rules cannot both hold in some situation, because their combination derives a contradiction."
+    },
+    {
+      "task": "Audit trails for compliance",
+      "example": "Producing a step-by-step proof that a trade does or does not break a written exposure rule."
+    }
+  ],
+  "avoidWhen": [
+    "The facts are uncertain or graded, because this system treats every statement as simply true or false; a probabilistic or fuzzy model is the better fit.",
+    "You need a quick numeric forecast, since proof search can run for a very long time or never end when the answer is not entailed."
+  ],
+  "example": {
+    "scenario": "A desk has one general breakout rule and two current facts about MNQ. A compliance check asks whether the rules entail that a breakout is likely for MNQ, and for ES.",
+    "input": {
+      "summary": "One general rule, the current facts, and the two questions to be proved.",
+      "fields": [
+        { "name": "general rule", "value": "high volume and above the 50-bar average means breakout likely", "meaning": "Written once for every instrument, with high volume meaning more than 50 percent above its 20-bar average." },
+        { "name": "fact about MNQ volume", "value": "80 percent above average", "meaning": "Meets the high-volume condition." },
+        { "name": "fact about MNQ price", "value": "above its 50-bar average", "meaning": "Meets the second condition." },
+        { "name": "fact about ES volume", "value": "10 percent above average", "meaning": "Does not meet the high-volume condition." },
+        { "name": "questions asked", "value": "breakout likely for MNQ; breakout likely for ES", "meaning": "The two statements the engine is asked to prove." }
+      ]
+    },
+    "output": {
+      "summary": "A proof outcome for each question, with the number of steps.",
+      "fields": [
+        { "name": "breakout likely for MNQ", "value": "proved", "meaning": "The assumed opposite led to a contradiction, so the rules entail the statement." },
+        { "name": "resolution steps for MNQ", "value": "3", "meaning": "How many cancellations were needed to reach the empty clause." },
+        { "name": "breakout likely for ES", "value": "not provable from current facts", "meaning": "Nothing more could be cancelled; it does not mean a breakout is unlikely, only that the rules do not entail it." }
+      ]
+    },
+    "reading": "A proof says the conclusion follows from your rules and facts, not that the market will break out. The ES answer is a reminder that not provable is different from false; use this tool to enforce consistency in the rulebook and test the rules themselves on data."
+  }
+}

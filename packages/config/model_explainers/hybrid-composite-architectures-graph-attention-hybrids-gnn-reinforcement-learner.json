@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-graph-attention-hybrids-gnn-reinforcement-learner",
+  "name": "GNN + Reinforcement Learner Hybrid",
+  "analogy": "Think of it as a portfolio manager with a wall map of how markets are linked. A graph network reads the map and reports what is happening across all linked markets at once, and a decision learner, trained by trial, reward and penalty, uses that report to decide what to buy, sell or hold.",
+  "steps": [
+    {
+      "title": "Draw the market as a graph",
+      "description": "Each instrument becomes a node carrying its own recent features, and a link joins two nodes when they are related, for instance through a high rolling correlation or a shared index. The graph is the wall map.",
+      "inExample": "Four index futures are nodes, each with 10 features, and links join pairs whose recent correlation is above 80 percent."
+    },
+    {
+      "title": "Pass messages along the links",
+      "description": "Each node collects information from its linked neighbours, mixes it with its own, and updates its summary. After a few rounds each summary reflects not just the instrument itself but the state of its neighbourhood.",
+      "inExample": "After two rounds, the MNQ node's summary includes the weakness building in ES and YM."
+    },
+    {
+      "title": "Combine node summaries into one state",
+      "description": "The summaries of all nodes are combined into a single description of the market, which the learner treats as its current situation, together with the current positions it holds.",
+      "inExample": "The four summaries and the current holdings form one state of 64 numbers."
+    },
+    {
+      "title": "Choose an action",
+      "description": "The decision learner reads the state and picks an action for each instrument: buy, sell or hold. Early in training it explores at random so that it can discover what works.",
+      "inExample": "The learner chooses to hold MNQ, sell ES and hold the others."
+    },
+    {
+      "title": "Receive a reward after costs",
+      "description": "The chosen actions run through a simulated market. The reward is the profit or loss over the next bar minus trading costs, so the learner is paid for net performance, not for activity.",
+      "inExample": "Selling ES earns plus 12 US dollars from the bar's fall, minus 4 US dollars in costs, for a reward of plus 8 US dollars."
+    },
+    {
+      "title": "Improve the policy and the graph reader together",
+      "description": "Learning raises the odds of actions that led to better total rewards. The same signal tunes the graph reader, so it learns to extract the neighbour information that actually helps decisions.",
+      "inExample": "Over many simulated sessions the reader learns to weight ES and YM weakness when deciding on MNQ."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing positions across linked instruments",
+      "example": "Deciding positions in MNQ, MES, ES and YM together so the book is not unintentionally doubled up on one factor."
+    },
+    {
+      "task": "Portfolio allocation with learned reactions",
+      "example": "Letting the learner shift weight between index futures after a shock based on how neighbours moved."
+    },
+    {
+      "task": "Studying lead-lag structure",
+      "example": "Inspecting which neighbours the reader leans on when the model acts, to see which instrument is leading."
+    },
+    {
+      "task": "Research on cost-aware trading policies",
+      "example": "Training in a simulator that charges commission and slippage so the policy learns to avoid over-trading."
+    }
+  ],
+  "avoidWhen": [
+    "You trade a single instrument; the graph has nothing to link, so a plain sequence model or boosted trees are simpler and usually steadier.",
+    "You have short history and cannot afford a noisy simulation; reinforcement learning needs a great deal of experience and is easily fooled by a flawed simulator, so a supervised model is safer."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute bar, a trained policy reads a graph of four index futures and sets a position for each for the next bar.",
+    "input": {
+      "summary": "A small graph of four instruments with features, links and the current holdings.",
+      "fields": [
+        { "name": "instruments in the graph", "value": "MNQ, MES, ES, YM", "meaning": "Micro E-mini Nasdaq-100, Micro E-mini S&P 500, E-mini S&P 500 and E-mini Dow futures, the nodes of the graph." },
+        { "name": "links between instruments", "value": "5 of 6 possible pairs", "meaning": "Pairs joined because their recent correlation exceeds 80 percent." },
+        { "name": "MNQ return over the last 5 bars", "value": "minus about a seventh of a percent", "meaning": "Recent price change in the main instrument." },
+        { "name": "ES return over the last 5 bars", "value": "minus over a quarter of a percent", "meaning": "Recent price change in its neighbour, weaker than MNQ." },
+        { "name": "average true range of MNQ, 14 bars", "value": "26 points", "meaning": "Typical high-to-low travel of an MNQ bar." },
+        { "name": "current holdings", "value": "flat in all four", "meaning": "The positions the policy holds before deciding." }
+      ]
+    },
+    "output": {
+      "summary": "A chosen action for each instrument and the policy's confidence in it.",
+      "fields": [
+        { "name": "MNQ action", "value": "hold flat", "meaning": "The policy does not take a position in MNQ." },
+        { "name": "ES action", "value": "sell 1 contract", "meaning": "The policy goes short one ES contract." },
+        { "name": "MES and YM actions", "value": "hold flat", "meaning": "No position is taken in the other two instruments." },
+        { "name": "probability of the chosen action set", "value": "48 percent", "meaning": "How strongly the policy prefers this combination over others." }
+      ]
+    },
+    "reading": "A 48 percent preference means the policy is decisive but not locked in. Check how it behaves across walk-forward folds with costs before trusting it; a policy that looks good in training can be exploiting the simulator. Treat the action as a research output until it has earned trust."
+  }
+}

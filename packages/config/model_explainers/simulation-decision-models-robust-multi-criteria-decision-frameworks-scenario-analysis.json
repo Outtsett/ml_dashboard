@@ -1,0 +1,79 @@
+{
+  "specificationId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-scenario-analysis",
+  "name": "Scenario Analysis",
+  "analogy": "Think of it as a fire drill for your portfolio. You do not guess which emergency will happen; you name a few specific ones, walk through exactly what each would do to the positions you hold today, and put the results side by side.",
+  "steps": [
+    {
+      "title": "Write a few named stories",
+      "description": "You choose a small number of scenarios, each a coherent story in which several things move together. They can replay a real past episode or be a made-up shock judged plausible.",
+      "inExample": "Three scenarios: a central bank rate surprise, a liquidity crisis, and a quiet upward grind."
+    },
+    {
+      "title": "Say how the main drivers move in each story",
+      "description": "Each story is defined by a few big drivers, such as the market level, volatility and spreads. The assumptions are written down so anyone can disagree with a specific one.",
+      "inExample": "Rate surprise: the index falls 4 percent. Liquidity crisis: the index falls 5 percent and exits cost an extra 12 points. Quiet grind: the index rises 1 percent."
+    },
+    {
+      "title": "Translate driver moves into price moves",
+      "description": "Using known sensitivities, each driver shock is converted into a new price for every instrument held. This links a broad story to the specific contracts in the book.",
+      "inExample": "A 4 percent fall applied to MNQ at 19,800 moves it down by 792 points."
+    },
+    {
+      "title": "Revalue the portfolio under each story",
+      "description": "The current positions are marked at the shocked prices, giving the profit or loss and any other risk measure, such as the share of the account lost.",
+      "inExample": "Five long MNQ contracts at 2 US dollars per point lose 792 times 2 times 5, or 7,920 US dollars, in the rate surprise."
+    },
+    {
+      "title": "Lay the results side by side",
+      "description": "The output is a table with one row per scenario, showing the result next to its assumptions. It does not say which scenario will occur; it says what would happen if each did.",
+      "inExample": "The table shows a loss of 7,920 for the rate surprise, 10,020 for the liquidity crisis, and a gain of 1,980 for the quiet grind."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Daily stress review of the current book",
+      "example": "Reporting what the open MNQ and ES positions would gain or lose under a replay of a past sharp sell-off."
+    },
+    {
+      "task": "Correlation breakdown checks",
+      "example": "Asking what a pairs trade between two index futures loses if their usual relationship reverses for a week."
+    },
+    {
+      "task": "Preparing for a scheduled event",
+      "example": "Estimating the book's exposure to a surprise rate decision the afternoon before it is announced."
+    },
+    {
+      "task": "Working backwards from a loss limit",
+      "example": "Identifying which move in the index and in volatility would produce the maximum tolerable loss, and watching for it."
+    }
+  ],
+  "avoidWhen": [
+    "You need the probability of each outcome or the full range of possibilities; a Monte Carlo simulation covers the space where this method covers only the stories you thought of.",
+    "You expect the stories to predict the future; they are tools for preparing, and the real event will rarely match one."
+  ],
+  "example": {
+    "scenario": "Before a central bank announcement, a trader holding five long MNQ contracts at 19,800 in a 50,000 US dollar account wants to see what three named scenarios would do to the account.",
+    "input": {
+      "summary": "The current position and three scenarios with their assumed index moves.",
+      "fields": [
+        { "name": "position", "value": "long 5 MNQ contracts", "meaning": "The current holding in the book." },
+        { "name": "reference price", "value": "19,800", "meaning": "The MNQ price at which the scenarios are applied." },
+        { "name": "point value", "value": "2 US dollars per contract", "meaning": "What one index point is worth for one MNQ contract." },
+        { "name": "account equity", "value": "50,000 US dollars", "meaning": "The size of the account against which losses are judged." },
+        { "name": "rate surprise", "value": "index down 4 percent", "meaning": "A hike that the market did not expect." },
+        { "name": "liquidity crisis", "value": "index down 5 percent, 12 points of extra exit slippage", "meaning": "A fall made worse by thin order books." },
+        { "name": "quiet grind", "value": "index up 1 percent", "meaning": "A slow rise with low volatility." }
+      ]
+    },
+    "output": {
+      "summary": "The profit or loss of the current position under each scenario.",
+      "fields": [
+        { "name": "rate surprise result", "value": "minus 7,920 US dollars", "meaning": "A fall of 792 points on 5 contracts at 2 US dollars per point." },
+        { "name": "liquidity crisis result", "value": "minus 10,020 US dollars", "meaning": "A fall of 990 points plus 120 US dollars of extra slippage." },
+        { "name": "quiet grind result", "value": "plus 1,980 US dollars", "meaning": "A rise of 198 points on 5 contracts." },
+        { "name": "worst case share of account", "value": "20 percent", "meaning": "The liquidity crisis loss as a share of 50,000 US dollars of equity." }
+      ]
+    },
+    "reading": "The book risks about a fifth of the account in the worst story and gains only a little in the best. If a 20 percent hit is more than you accept, reduce size or add a hedge before the event, then run the same scenarios again to confirm the change."
+  }
+}

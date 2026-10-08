@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-soft-logic-psl",
+  "name": "Probabilistic Soft Logic (PSL)",
+  "analogy": "Think of it as a committee of weighted rules of thumb, each shouting how it thinks things should be, with volume turned up or down by its weight. The model finds the compromise that annoys the loudest rules the least.",
+  "steps": [
+    {
+      "title": "Write weighted rules in plain logic",
+      "description": "Each rule is an if-then statement, such as if trend is up and it is the New York session then the move continues. Each rule has a weight that says how much it matters when rules disagree.",
+      "inExample": "Rule one, weight 3: trend up and New York session implies continuation. Rule two, weight 2: high volatility implies no continuation."
+    },
+    {
+      "title": "Apply the rules to the actual items",
+      "description": "The general rules are filled in with the real things in view, such as this instrument at this bar. One short rule list then produces a rule instance for every instrument and every bar.",
+      "inExample": "Both rules are applied to the current MNQ 5-minute bar."
+    },
+    {
+      "title": "Let every statement be a degree of truth",
+      "description": "Instead of true or false, each statement has a truth between zero and 100 percent. Observed facts are fixed at their measured degree and unknowns are free to be solved for.",
+      "inExample": "Trend up is set at 70 percent, high volatility at 40 percent and New York session at 100 percent; continuation is the unknown."
+    },
+    {
+      "title": "Turn each rule into a penalty",
+      "description": "A rule is broken by the amount its condition is truer than its conclusion. That shortfall, scaled by the rule's weight, is the rule's penalty. When all truths are zero or 100 percent this matches ordinary logic.",
+      "inExample": "Rule one is broken by 70 percent minus continuation, if that is positive; rule two is broken when continuation climbs above 60 percent."
+    },
+    {
+      "title": "Find the least-penalized answer in one step",
+      "description": "Because the penalties are all simple bent lines, finding the lowest total penalty is a convex problem with one best answer. It is solved directly, with no repeated guesswork.",
+      "inExample": "The weight of 3 on rule one beats the weight of 2 on rule two, so the solution sits at continuation 70 percent."
+    },
+    {
+      "title": "Read the truths and see which rules gave way",
+      "description": "The output is a degree of truth for each unknown statement, plus which rules ended up satisfied and which were bent. The bent ones show where the rules were in conflict.",
+      "inExample": "Rule one is fully satisfied; rule two is bent by 10 percent, a weighted penalty of 2 times 10 percent, which is 20 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Fusing graded technical readings",
+      "example": "Combining trend strength, volatility level and session on an MNQ bar into one consistent continuation score."
+    },
+    {
+      "task": "Keeping correlated markets consistent",
+      "example": "Forcing the inferred regime degrees of MNQ and ES to agree where a rule says they should move together."
+    },
+    {
+      "task": "Fusing technicals and news",
+      "example": "Reasoning over indicator rules and a graded FinBERT sentiment reading in the same pass."
+    },
+    {
+      "task": "Smooth risk gating",
+      "example": "Producing a risk flag between zero and 100 percent so position size shrinks gradually instead of switching on and off."
+    }
+  ],
+  "avoidWhen": [
+    "Plenty of labelled bars exist and no firm rules are known; a supervised model will learn the pattern better than a hand-written rule set.",
+    "Every statement really is true or false and conflicts are not possible, where a plain rule engine or constraint solver is simpler."
+  ],
+  "example": {
+    "scenario": "At the New York open you have two weighted rules about whether the current MNQ move will continue, and measured degrees for the conditions.",
+    "input": {
+      "summary": "Two weighted rules and the measured degree of truth of each condition.",
+      "fields": [
+        { "name": "rule one weight", "value": "3", "meaning": "Trend up and New York session imply the move continues; the larger weight means it matters more." },
+        { "name": "rule two weight", "value": "2", "meaning": "High volatility implies the move does not continue; a smaller weight than rule one." },
+        { "name": "trend is up", "value": "70 percent true", "meaning": "A degree of truth set from the close sitting above a rising 50-bar average." },
+        { "name": "volatility is high", "value": "40 percent true", "meaning": "A degree of truth set from an average true range of 24 points against its usual range." },
+        { "name": "New York session", "value": "100 percent true", "meaning": "Fully true, since the bar is inside the New York open." }
+      ]
+    },
+    "output": {
+      "summary": "The degree of truth for continuation and how each rule fared.",
+      "fields": [
+        { "name": "continuation", "value": "70 percent true", "meaning": "The jointly least-penalized degree of truth that the move continues." },
+        { "name": "rule one shortfall", "value": "0 percent", "meaning": "How far rule one is from being satisfied; zero means fully satisfied." },
+        { "name": "rule two shortfall", "value": "10 percent", "meaning": "How far rule two is bent; its weighted penalty is 2 times 10 percent, which is 20 percent." }
+      ]
+    },
+    "reading": "A continuation of 70 percent true is a moderate lean, and the shortfalls show the heavier rule won the argument. Use it as a graded input to sizing, and if the shortfall on the lighter rule is large for many bars, revisit that rule's weight."
+  }
+}

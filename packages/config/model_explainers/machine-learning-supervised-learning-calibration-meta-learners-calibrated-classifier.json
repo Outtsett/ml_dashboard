@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-supervised-learning-calibration-meta-learners-calibrated-classifier",
+  "name": "Calibrated Classifier",
+  "analogy": "Think of it as a forecaster who says 64 percent every time he feels strongly, but is right only 55 percent of those times. Calibration is the correction chart taped to his desk that says: when he says 64, read it as 55.",
+  "steps": [
+    {
+      "title": "Train the base classifier first",
+      "description": "Any classifier that outputs a score is trained as usual on an earlier block of bars. Calibration does not change what the classifier has learned, only how its numbers are read.",
+      "inExample": "A gradient boosting model is trained on 12 months of five-minute MNQ bars to predict a higher close 6 bars later."
+    },
+    {
+      "title": "Score a later block the model has never seen",
+      "description": "A separate, later block of bars is set aside for calibration, and the base classifier scores it. This block must come after the training bars in time, and must be kept out of the training, or the correction chart would be built from flattering numbers.",
+      "inExample": "The following 2 months, 12,000 bars, are scored by the base model and set aside."
+    },
+    {
+      "title": "Sort the scores into groups and count outcomes",
+      "description": "The scores are grouped into bands such as 40 to 45 percent, 45 to 50 percent and so on. In each band, the true share of bars that closed higher is counted. Perfectly calibrated scores would match their band.",
+      "inExample": "In the band of scores from 60 to 70 percent there are 900 bars, and 55 percent of them actually closed higher."
+    },
+    {
+      "title": "Compare what was claimed with what happened",
+      "description": "For each band, the claimed probability is set against the observed share. The gaps show whether the model is overconfident, underconfident or well behaved, and where.",
+      "inExample": "The 60 to 70 percent band claims about 64 percent, but only 55 percent happened, a gap of 9 points of overconfidence."
+    },
+    {
+      "title": "Fit a smooth correction curve",
+      "description": "A simple curve is fitted that maps raw scores to observed shares. Two common choices are a smooth S-shaped curve, or a staircase that only ever goes upward, which suits larger calibration blocks.",
+      "inExample": "A staircase that never decreases is fitted through the bands, mapping a raw 64 percent to 55 percent."
+    },
+    {
+      "title": "Apply the correction to every new score",
+      "description": "From then on, each raw score from the base model passes through the curve before anyone reads it. The model's ranking of bars is largely unchanged, but the numbers now mean what they say.",
+      "inExample": "A new bar's raw score of 64 percent is reported as 55 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Turning scores into usable probabilities",
+      "example": "Making a gradient boosting model's 'up' score on MNQ bars mean what it says, so a reported 60 percent really is roughly 60 percent of the time."
+    },
+    {
+      "task": "Setting trade thresholds",
+      "example": "Choosing to trade only bars above a calibrated 56 percent, because the threshold now refers to a real frequency and not a model's mood."
+    },
+    {
+      "task": "Sizing positions from confidence",
+      "example": "Scaling position size with the calibrated probability, which only makes sense if the probability is honest."
+    },
+    {
+      "task": "Fixing a sharpened semi-supervised model",
+      "example": "Correcting the overconfident outputs of an Entropy Minimization or Pseudo-Labeling model before using them."
+    }
+  ],
+  "avoidWhen": [
+    "The calibration block is small, a few hundred bars; the correction curve would be driven by noise, so a simple smooth curve is safer than a staircase, or skip calibration.",
+    "You only need a ranking of bars from best to worst; calibration does not change the order much, so it adds little."
+  ],
+  "example": {
+    "scenario": "A gradient boosting model scores 5-minute MNQ bars on the chance that the close 6 bars (30 minutes) later is higher. It tends to say 64 percent on bars it likes most. A later block of 12,000 bars shows how often that actually happened.",
+    "input": {
+      "summary": "A raw model score for a new bar and the calibration table built from a later block of bars.",
+      "fields": [
+        { "name": "raw score from the base model", "value": "64 percent", "meaning": "The probability of a higher close the base model reports for the new bar." },
+        { "name": "bars in the calibration block", "value": "12,000", "meaning": "Later bars, scored by the base model, kept out of its training." },
+        { "name": "score band under study", "value": "60 to 70 percent", "meaning": "The group of raw scores that contains the new bar's score." },
+        { "name": "bars in that band", "value": "900", "meaning": "How many calibration bars had a raw score in that band." },
+        { "name": "share of those bars that closed higher", "value": "55 percent", "meaning": "The observed frequency in the band, which the correction curve maps to." },
+        { "name": "close of the new bar", "value": "19,930", "meaning": "The price at which the bar being scored closed." }
+      ]
+    },
+    "output": {
+      "summary": "The corrected probability and how much the raw score overstated it.",
+      "fields": [
+        { "name": "calibrated probability of a higher close", "value": "55 percent", "meaning": "The raw score after passing through the correction curve." },
+        { "name": "overstatement removed", "value": "9 points", "meaning": "The difference between the raw 64 percent and the calibrated 55 percent." },
+        { "name": "call", "value": "up", "meaning": "The side the calibrated probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "The raw 64 percent looked like a clear signal, but the evidence supports 55 percent. Base position size and trade thresholds on the calibrated number, and rebuild the correction on each walk-forward fold so it follows the market as it changes."
+  }
+}

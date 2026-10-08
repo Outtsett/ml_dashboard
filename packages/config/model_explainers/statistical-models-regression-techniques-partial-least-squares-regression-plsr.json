@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-regression-techniques-partial-least-squares-regression-plsr",
+  "name": "Partial Least Squares Regression (PLSR)",
+  "analogy": "Think of it as a committee that merges forty overlapping indicator readings into three headline scores, with each score chosen because it lines up with what price did next. You then forecast from three scores instead of forty readings that were mostly saying the same thing.",
+  "steps": [
+    {
+      "title": "Put every indicator on the same scale",
+      "description": "Each feature is centered and rescaled so that no indicator dominates simply because its raw numbers are big. Without this, a volume count in the thousands would drown a momentum reading between 0 and 100.",
+      "inExample": "All 40 indicators, from the relative strength index to volume against its average, are rescaled so each has an average of zero and a typical size of one."
+    },
+    {
+      "title": "Find the first blend that tracks the outcome",
+      "description": "It searches for the single mix of indicators whose ups and downs line up most strongly with the outcome being forecast. This is what separates it from plain compression methods, which look only at the indicators and ignore the outcome.",
+      "inExample": "The first blend leans on the moving-average distances and the momentum readings, which all say price is stretched below its recent average."
+    },
+    {
+      "title": "Subtract what that blend explains",
+      "description": "The part of the indicators and of the outcome that the first blend accounts for is removed. What remains is searched again, so the next blend captures something new and not a repeat of the first.",
+      "inExample": "After the stretched-below-average story is removed, the remaining variation is mostly about how heavy and how volatile trading was."
+    },
+    {
+      "title": "Repeat for a few blends",
+      "description": "Each round extracts another blend and removes it. Because every blend is built from what the earlier ones left behind, the blends do not overlap, which is what makes the final fit stable even when the original indicators were near copies of each other.",
+      "inExample": "Three blends are extracted, each describing a different story: stretched price, heavy volume, and rising volatility."
+    },
+    {
+      "title": "Choose how many blends to keep by testing",
+      "description": "Too few blends miss real signal; too many start fitting noise. The right number is chosen by holding bars out, fitting on the rest, and seeing which count forecasts the held-out bars best.",
+      "inExample": "Testing on held-out walk-forward folds shows that three blends forecast better than one, two or six, so three are kept."
+    },
+    {
+      "title": "Forecast from the blend scores",
+      "description": "A new bar's indicators are rescaled and turned into its three blend scores, and the outcome is forecast from those scores. The blends' recipes can be inspected to see which original indicators drive each score.",
+      "inExample": "The 14:35 bar scores high on the stretched-price blend, moderately high on the heavy-volume blend because its volume is 80 percent above average, and near neutral on volatility, giving a forecast of plus 9 points over the next 6 bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting from many overlapping indicators",
+      "example": "Using dozens of moving averages, oscillators and volatility readings from the 151 technical indicators together, without the weights flipping sign between folds."
+    },
+    {
+      "task": "Combining several timeframes",
+      "example": "Merging 1-minute, 5-minute and 1-hour features of MNQ into a few scores that feed one forecast."
+    },
+    {
+      "task": "Shrinking a feature set before another model",
+      "example": "Passing the three blend scores to a classifier as a compact, outcome-aware input instead of all forty raw columns."
+    },
+    {
+      "task": "Seeing which indicators travel together",
+      "example": "Reading each blend's recipe to learn that a group of indicators is really saying one thing, so you can stop counting them as separate evidence."
+    }
+  ],
+  "avoidWhen": [
+    "There are few, clearly different features; a plain linear regression is just as good and easier to read.",
+    "The link between features and outcome is strongly curved or depends on regime; blends are still straight-line mixes, so a tree-based model is the better tool."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. Forty technical indicators describe it, many of them near copies of each other. The model compresses them into three blend scores and forecasts the change over the next 6 bars.",
+    "input": {
+      "summary": "Forty rescaled indicator readings for one bar; six representative ones are shown.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance below the 20-bar moving average", "value": "52 points", "meaning": "How far the close sits below its 20-bar average price." },
+        { "name": "distance below the 50-bar moving average", "value": "77 points", "meaning": "How far the close sits below its 50-bar average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "Three blend scores and the forecast made from them.",
+      "fields": [
+        { "name": "stretched-price blend score", "value": "high", "meaning": "This bar fits strongly the story of price stretched below its averages, a bit more than one typical size above neutral." },
+        { "name": "heavy-volume blend score", "value": "moderately high", "meaning": "This bar sits clearly above the blend's reference on the volume story, as expected with volume 80 percent above average." },
+        { "name": "rising-volatility blend score", "value": "near neutral", "meaning": "This bar sits close to the middle on the volatility story." },
+        { "name": "forecast change over the next 6 bars", "value": "plus 9 points", "meaning": "The outcome forecast made from the three scores, about 18 US dollars per contract before costs." }
+      ]
+    },
+    "reading": "The forecast is dominated by the first blend, so the real message is that price is stretched below its averages, a familiar idea. A lean of 9 points is small next to a typical bar's travel of 22 points, so check it against trading costs, and look at the blend recipes to confirm the forty indicators are not simply repeating one fact."
+  }
+}

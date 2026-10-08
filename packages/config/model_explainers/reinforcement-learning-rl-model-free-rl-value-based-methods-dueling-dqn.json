@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-value-based-methods-dueling-dqn",
+  "name": "Dueling DQN",
+  "analogy": "Think of it as two separate questions on a trader's desk. One person answers how good is this market situation, whatever we do. A second person answers how much better or worse is each action than the usual one. The price of an action is the first answer plus the second.",
+  "steps": [
+    {
+      "title": "Read the state with a shared front end",
+      "description": "The state, a row of recent features and the current position, goes through a shared set of layers first. Both later parts of the network work from this same reading of the market.",
+      "inExample": "The 11:40 MNQ five-minute bar becomes a 40-number state, which the shared layers turn into a compact internal picture."
+    },
+    {
+      "title": "Ask how good this situation is, whatever we do",
+      "description": "One branch outputs a single number, the worth of being in this state at all. It learns from every bar, because every bar tells it something about how favourable the situation was, whichever action was taken.",
+      "inExample": "The state branch outputs plus 3 US dollars, as a mild uptrend with normal volume is mildly favourable."
+    },
+    {
+      "title": "Ask how much each action changes things",
+      "description": "The other branch outputs one number per action, the advantage of that action over the usual action in this state. When the choice barely matters, these numbers sit close together.",
+      "inExample": "The advantage branch outputs about minus 6, minus 1 and plus 7 for short, flat and long."
+    },
+    {
+      "title": "Centre the advantages",
+      "description": "The average of the advantages is subtracted from each one. This forces the advantages to sum to zero, which makes the split between the state's worth and the action's effect unambiguous.",
+      "inExample": "The average of the three numbers is zero here, so they are unchanged; in general the average is subtracted first."
+    },
+    {
+      "title": "Add the two answers to price each action",
+      "description": "The worth of each action is the state's worth plus that action's centred advantage. From here the method is the ordinary deep Q-network: the same replay buffer, frozen target copy and exploration.",
+      "inExample": "Short is worth minus 3, flat plus 2 and long plus 10 US dollars."
+    },
+    {
+      "title": "Learn the state's worth faster",
+      "description": "Because the state branch is updated whichever action was taken, it learns quickly from the many bars where the choice made little difference. The agent generalises faster across similar bars than a single combined output would.",
+      "inExample": "After a few thousand steps, the state branch already separates calm uptrends from choppy sessions even for actions the agent rarely tried."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Judging how favourable a market state is on its own",
+      "example": "Plotting the state branch over a trading day on MNQ to see which hours the agent considers good places to be in the market."
+    },
+    {
+      "task": "Spotting bars where the choice hardly matters",
+      "example": "Skipping trades when the three advantages are within 1 dollar of each other and costs would eat the difference."
+    },
+    {
+      "task": "Auditing a trained agent",
+      "example": "Showing a reviewer two simple curves, the state's worth and the action advantages, instead of three tangled estimates."
+    },
+    {
+      "task": "A building block for stronger agents",
+      "example": "Pairing it with Double DQN targets and prioritised replay in a larger value-based agent."
+    }
+  ],
+  "avoidWhen": [
+    "The choice of action matters on nearly every bar; the benefit comes from separating state from action, and it shrinks when actions always differ sharply.",
+    "The action set is continuous or a single number is wanted; this layout still produces a fixed list of action values."
+  ],
+  "example": {
+    "scenario": "A trained dueling agent reads the 11:40 five-minute bar on MNQ and chooses between short, flat and long. It holds no position.",
+    "input": {
+      "summary": "One row of state features for the bar and the current position.",
+      "fields": [
+        { "name": "close", "value": "20,060", "meaning": "The price at which the 11:40 five-minute bar closed." },
+        { "name": "price change over the last 12 bars", "value": "up 70 points", "meaning": "How much price rose over the previous hour, about a third of a percent." },
+        { "name": "relative strength index, 14 bars", "value": "61", "meaning": "A momentum reading from 0 to 100; above 50 means recent buying." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "at average", "meaning": "Trading is at its normal level." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts held." }
+      ]
+    },
+    "output": {
+      "summary": "The two answers and the price of each action built from them.",
+      "fields": [
+        { "name": "worth of this state", "value": "plus 3 US dollars", "meaning": "How favourable the situation is, whatever action is taken." },
+        { "name": "advantage of short", "value": "minus 6 US dollars", "meaning": "How much worse short is than the average action here." },
+        { "name": "advantage of flat", "value": "minus 1 US dollar", "meaning": "How much worse flat is than the average action here." },
+        { "name": "advantage of long", "value": "plus 7 US dollars", "meaning": "How much better long is than the average action here." },
+        { "name": "worth of each action", "value": "short minus 3, flat plus 2, long plus 10 US dollars", "meaning": "The state's worth plus each advantage." }
+      ]
+    },
+    "reading": "The state worth says whether the market situation is good; the advantages say whether the action matters. A wide advantage spread like this one means a clear choice. When the spread is under a dollar or so, treat the bar as a hold, since costs would swallow any edge."
+  }
+}

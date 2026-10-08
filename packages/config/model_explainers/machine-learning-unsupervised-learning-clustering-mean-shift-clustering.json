@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-mean-shift-clustering",
+  "name": "Mean Shift Clustering",
+  "analogy": "Think of it as rolling marbles across a bumpy sheet where the hills are crowds of similar bars. Each marble keeps rolling toward the busiest nearby spot until it settles on a hilltop, and marbles that settle on the same hilltop belong to the same group.",
+  "steps": [
+    {
+      "title": "Choose a window size",
+      "description": "The one main setting is the window size, called the bandwidth. A small window sees only the very local crowd and finds many groups; a large window blurs together and finds few.",
+      "inExample": "The window size is set to eight tenths of a scaled unit, estimated from the typical spacing between bars."
+    },
+    {
+      "title": "Put a window on every bar",
+      "description": "A window is centred on each bar. The model will move each window uphill, toward where bars are most densely packed.",
+      "inExample": "20,000 windows start, one centred on each 5-minute bar."
+    },
+    {
+      "title": "Find the average of the bars inside the window",
+      "description": "For each window the model averages the position of the bars inside it, often weighting closer bars more heavily. That average is the middle of the local crowd.",
+      "inExample": "For the window on one bar, the average of the 340 bars inside is slightly toward higher volatility."
+    },
+    {
+      "title": "Slide the window to that average",
+      "description": "The window moves to the average it just found. Because the average is pulled toward the thicker side of the crowd, each move heads uphill in density.",
+      "inExample": "The window slides about a third of a scaled unit toward the heavier crowd of active bars."
+    },
+    {
+      "title": "Repeat until the window stops moving",
+      "description": "Finding the average and sliding is repeated until the window barely moves. It then sits on a peak of density, called a mode.",
+      "inExample": "After 6 slides the window moves less than a thousandth of a scaled unit and has settled on a peak."
+    },
+    {
+      "title": "Merge windows that settled on the same peak",
+      "description": "Windows that ended at the same peak, within a small tolerance, form one cluster. The number of clusters is the number of distinct peaks, so it is found by the method.",
+      "inExample": "The 20,000 windows settle on 3 distinct peaks, which become 3 clusters."
+    },
+    {
+      "title": "Give new bars to the nearest peak",
+      "description": "A new bar is assigned to the nearest peak, or can be slid uphill the same way until it settles. The peak itself is a good description of the typical bar in that cluster.",
+      "inExample": "The new bar is nearest to peak B and joins that cluster."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding the most common market states",
+      "example": "Letting the density of 5-minute MNQ bars in volatility, trend and volume features reveal how many typical states there are."
+    },
+    {
+      "task": "Locating the typical bar of each state",
+      "example": "Reading the peak of each cluster as the most representative combination of volatility, trend and volume."
+    },
+    {
+      "task": "Clustering without choosing the count",
+      "example": "Running it before K-means to decide how many groups K-means should be asked for."
+    },
+    {
+      "task": "Grouping uneven shapes",
+      "example": "Capturing a long curved band of moderate bars that K-means would split into artificial pieces."
+    }
+  ],
+  "avoidWhen": [
+    "You have hundreds of thousands of bars; every bar starts its own window and each slide looks at many neighbours, so it becomes slow and K-means is more practical.",
+    "Your states have very different densities, so one window size cannot suit all of them; a Gaussian mixture can adapt to each group's own size."
+  ],
+  "example": {
+    "scenario": "A researcher looks for the natural market states in a year of 5-minute MNQ bars using three rescaled features, then finds which state the latest bar belongs to.",
+    "input": {
+      "summary": "Three rescaled features for the latest bar, with the window size.",
+      "fields": [
+        { "name": "close", "value": "19,415", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "20-bar volatility", "value": "two fifths of a standard deviation above average", "meaning": "Volatility is a little above the average over the year." },
+        { "name": "20-bar trend", "value": "just over one standard deviation above average", "meaning": "Price has been rising more than usual." },
+        { "name": "volume against its 20-bar average", "value": "seven tenths of a standard deviation above average", "meaning": "Volume is somewhat heavier than usual." },
+        { "name": "window size", "value": "eight tenths of a scaled unit", "meaning": "How wide a neighbourhood each window looks at." }
+      ]
+    },
+    "output": {
+      "summary": "The peak the bar settled on, its cluster and the cluster's size.",
+      "fields": [
+        { "name": "cluster", "value": "B of 3", "meaning": "The density peak this bar settled on; the number of peaks was found by the method." },
+        { "name": "peak position", "value": "volatility half a standard deviation above, trend one above, volume three fifths above", "meaning": "The typical bar of the cluster, in standard deviations from the yearly average." },
+        { "name": "slides before settling", "value": "6", "meaning": "How many moves the window made before it stopped, a sign of how far the bar was from the peak." },
+        { "name": "bars in the cluster", "value": "5,900 of 20,000", "meaning": "How common this state is: roughly 30 percent of the year." }
+      ]
+    },
+    "reading": "The bar belongs to an active uptrend state that holds roughly 30 percent of the year's bars. As with any clustering, the label describes conditions rather than predicting direction, so test whether your strategy performs differently inside each state."
+  }
+}

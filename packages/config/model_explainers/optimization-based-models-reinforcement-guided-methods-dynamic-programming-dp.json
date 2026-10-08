@@ -1,0 +1,82 @@
+{
+  "specificationId": "optimization-based-models-reinforcement-guided-methods-dynamic-programming-dp",
+  "name": "Dynamic Programming (DP)",
+  "analogy": "Think of it as planning a sale of a big position by starting at the closing bell and working backwards. You first work out the cheapest way to finish from every possible leftover, then step back one slot at a time, always reusing the answers you wrote down for later slots.",
+  "steps": [
+    {
+      "title": "Break the job into stages and states",
+      "description": "Split the problem into time steps. At each step, write down what you need to know to decide, such as how much is left to do. Every combination of step and leftover is a state.",
+      "inExample": "A 10-contract MNQ sale is spread over 5 five-minute slots. A state is the slot number plus the contracts still unsold, from 0 to 10."
+    },
+    {
+      "title": "Solve the last stage directly",
+      "description": "In the last stage there is no choice left, so the cost for each leftover can be written down exactly. This is the anchor of everything that follows.",
+      "inExample": "In slot 5 everything left must be sold. The cost of selling 3 left is 9 US dollars; selling 2 costs 4; selling 1 costs 1."
+    },
+    {
+      "title": "Step back and try each action",
+      "description": "In the stage before, try every possible action. The cost of an action is its cost now plus the stored best cost of the state it leads to. Nothing is recomputed from scratch.",
+      "inExample": "In slot 4 with 3 left: selling 1 costs 7 US dollars in total, selling 2 costs 6, and selling all 3 costs 9."
+    },
+    {
+      "title": "Keep the best action for every state",
+      "description": "For each state, store the cheapest total cost and which action achieved it. This table is the only thing the next step back needs.",
+      "inExample": "For slot 4 with 3 left, the table stores a cost of 6 US dollars and the action sell 2 and keep 1."
+    },
+    {
+      "title": "Keep stepping back to the first stage",
+      "description": "Repeat for every earlier stage. Because every state is solved once and reused, the work grows only with the number of states and actions, not with the number of possible full plans.",
+      "inExample": "The table is filled for slots 3, 2 and 1, covering all leftovers from 0 to 10."
+    },
+    {
+      "title": "Read the plan forward",
+      "description": "Starting from the real starting state, follow the stored best action, move to the state it leads to, and look up the next action. The result is the full best plan.",
+      "inExample": "Starting with 10 contracts in slot 1, the stored actions give a plan of selling 3, 2, 2, 2 and 1. A second plan, 3, 3, 2, 1 and 1, costs exactly the same and the table keeps the first it found."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Splitting a large order over time",
+      "example": "Choosing how many MNQ contracts to sell in each 5-minute slot, balancing market impact against the risk of price drifting while waiting."
+    },
+    {
+      "task": "Managing inventory",
+      "example": "Deciding the best sequence of position adjustments when holding a position costs money each period."
+    },
+    {
+      "task": "Deciding when to enter or exit",
+      "example": "Treating an exit as a stopping problem and finding, for each price and elapsed time, whether stopping now beats waiting."
+    },
+    {
+      "task": "Scheduling hedges",
+      "example": "Choosing when to adjust a hedge over the day given a cost per adjustment."
+    }
+  ],
+  "avoidWhen": [
+    "The state has many variables, such as dozens of positions at once; the table grows exponentially and a learned approximation such as reinforcement learning is needed.",
+    "The rules of how things change are not known; dynamic programming needs a model of the costs and the transitions, so a model-free method must learn them from data."
+  ],
+  "example": {
+    "scenario": "A trader must sell 10 MNQ contracts within 25 minutes, in five 5-minute slots. Selling many at once pushes the price against him; waiting lets the price drift against him. Dynamic programming finds the cheapest schedule.",
+    "input": {
+      "summary": "The size of the job, the number of slots and the two cost rules.",
+      "fields": [
+        { "name": "contracts to sell", "value": "10", "meaning": "Position that must be fully closed by the end of the fifth slot." },
+        { "name": "number of slots", "value": "5 slots of 5 minutes", "meaning": "How many decisions are made." },
+        { "name": "impact cost rule", "value": "1 US dollar times the contracts sold in the slot, squared", "meaning": "Selling more in one slot costs disproportionately more in price impact." },
+        { "name": "waiting cost rule", "value": "1 US dollar per unsold contract per slot", "meaning": "Expected adverse drift of half a point per slot, charged on contracts still held after each slot." },
+        { "name": "value of one MNQ point", "value": "2 US dollars", "meaning": "Converts the half point of drift into 1 US dollar." }
+      ]
+    },
+    "output": {
+      "summary": "The best contracts to sell in each slot and the total cost.",
+      "fields": [
+        { "name": "contracts sold per slot", "value": "3, 2, 2, 2, 1", "meaning": "Sells more early to limit waiting cost, but not so much that impact dominates." },
+        { "name": "total expected cost of the plan", "value": "38 US dollars", "meaning": "Impact cost 22 plus waiting cost 16." },
+        { "name": "cost of selling 2 per slot", "value": "40 US dollars", "meaning": "An even split costs slightly more." },
+        { "name": "cost of selling all 10 in slot 1", "value": "100 US dollars", "meaning": "All impact, no waiting." }
+      ]
+    },
+    "reading": "The plan front-loads the selling because waiting has a price. The answer is exact for these cost rules, so it is only as good as the rules; real impact and drift should be measured from fills. If the cost rules change, the table is recomputed in an instant."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-evolutionary-strategies-evolution-strategies-es",
+  "name": "Evolution Strategies (ES)",
+  "analogy": "Think of it as a portfolio manager testing a new blend of three signals. He throws a dart cluster of sixteen slightly different blends around his current favourite, checks how each one did, and then moves his favourite toward the blends that did best, tightening or widening the cluster as he learns.",
+  "steps": [
+    {
+      "title": "Start with a centre and a spread",
+      "description": "Hold one current best guess for every value being tuned, called the centre, and a spread that says how far to wander from it. Together they describe a cloud of candidates to try.",
+      "inExample": "The centre is a blend of 40 percent trend signal, 40 percent mean-reversion signal and 20 percent news signal, with a spread of 10 percentage points on each weight."
+    },
+    {
+      "title": "Sample a batch around the centre",
+      "description": "Draw a batch of candidates at random from the cloud. Larger batches give a clearer picture of which direction is better, at the price of more evaluations per round.",
+      "inExample": "16 candidate blends are drawn, each a small random wobble away from the centre, and then rescaled so the weights add to 100 percent."
+    },
+    {
+      "title": "Score every candidate",
+      "description": "Run each candidate through the same test, usually a walk-forward backtest, and record one number. No slope is needed, only the score.",
+      "inExample": "Each blend is backtested on the same walk-forward folds of MNQ 5-minute bars, after costs, and receives a score in net points per day."
+    },
+    {
+      "title": "Rank rather than trust the raw scores",
+      "description": "Candidates are sorted from best to worst and only their rank matters. This makes the method robust to one freak score or to scores measured on a different scale.",
+      "inExample": "The 16 blends are ranked; one blend with an unusually huge score counts only as rank one, not as 10 times better."
+    },
+    {
+      "title": "Move the centre toward the best",
+      "description": "The new centre is a weighted average of the top-ranked candidates, with more weight on higher ranks. The centre therefore drifts uphill without any slope being calculated.",
+      "inExample": "The best 4 blends are averaged, moving the centre to 45 percent trend, 30 percent mean reversion and 25 percent news."
+    },
+    {
+      "title": "Adapt the spread and repeat",
+      "description": "If recent moves kept paying off, the spread widens to step faster; if progress stalls, it narrows to refine. The cycle repeats until progress stops or the budget ends.",
+      "inExample": "The spread shrinks from 10 to 4 percentage points over 30 rounds as the centre settles."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing ensemble weights",
+      "example": "Finding how much of an MNQ forecast to take from a trend model, a mean-reversion model and a news-sentiment model, scored on walk-forward folds."
+    },
+    {
+      "task": "Searching policy weights directly",
+      "example": "Tuning the weights of a small trading policy against simulated profit when the simulator cannot pass a slope back."
+    },
+    {
+      "task": "Tuning execution parameters",
+      "example": "Shaping how a parent order is sliced over 30 minutes to minimise simulated slippage."
+    },
+    {
+      "task": "Calibrating a risk model",
+      "example": "Fitting decay and window settings of a volatility estimator so that its out-of-sample coverage of daily moves is close to the target."
+    }
+  ],
+  "avoidWhen": [
+    "The score is smooth and cheap to differentiate; gradient descent uses the slope and needs a tiny fraction of the evaluations.",
+    "A single evaluation is very expensive; sixteen evaluations per round for dozens of rounds adds up quickly, and Bayesian optimization is more frugal."
+  ],
+  "example": {
+    "scenario": "A researcher blends three signals into one MNQ forecast and wants the weights that score best on walk-forward folds after costs. The backtest is a black box, so no slope is available.",
+    "input": {
+      "summary": "Starting weights, the cloud size, and the batch size per round.",
+      "fields": [
+        { "name": "starting trend weight", "value": "40 percent", "meaning": "Initial share of the blend given to the trend signal." },
+        { "name": "starting mean-reversion weight", "value": "40 percent", "meaning": "Initial share given to the mean-reversion signal." },
+        { "name": "starting news weight", "value": "20 percent", "meaning": "Initial share given to the news sentiment signal." },
+        { "name": "starting spread", "value": "10 percentage points", "meaning": "How far each weight wanders from the centre when candidates are drawn." },
+        { "name": "candidates per round", "value": "16", "meaning": "How many blends are scored in each round." },
+        { "name": "rounds", "value": "30", "meaning": "How many times the centre is moved." }
+      ]
+    },
+    "output": {
+      "summary": "The final centre, the final spread and the score it reached.",
+      "fields": [
+        { "name": "final trend weight", "value": "50 percent", "meaning": "Share of the blend given to the trend signal at the end." },
+        { "name": "final mean-reversion weight", "value": "25 percent", "meaning": "Share given to the mean-reversion signal at the end." },
+        { "name": "final news weight", "value": "25 percent", "meaning": "Share given to the news signal at the end." },
+        { "name": "final spread", "value": "4 percentage points", "meaning": "A smaller spread shows the search has narrowed to one region." },
+        { "name": "final tuning score", "value": "9 points per day net", "meaning": "Net result after costs on the tuning folds, an in-sample figure that must be re-checked on untouched folds." }
+      ]
+    },
+    "reading": "The weights are a suggestion found by search, not a proven mix. Re-run the final blend on folds the search never used and look at how stable the weights are across several runs from different starting centres; if they differ widely, the score surface is flat and the weights carry little meaning."
+  }
+}

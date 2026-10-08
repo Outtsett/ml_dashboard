@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-evolutionary-methods-cross-entropy-method-cem",
+  "name": "Cross-Entropy Method (CEM)",
+  "analogy": "Think of it as a strategy tournament. You draw a field of candidate settings from a best-guess range, run each one over the training history, keep only the top few, and then redraw the next field from a range centred on the winners. Round after round the range tightens around settings that work.",
+  "steps": [
+    {
+      "title": "Describe the policy by a few numbers",
+      "description": "The policy is a small rule whose behaviour is set by a handful of numbers, such as thresholds and distances. Searching for a good policy means searching for good values of these numbers.",
+      "inExample": "A policy buys when the relative strength index falls below a threshold, sells above another, and uses a stop distance and a target distance, giving four numbers."
+    },
+    {
+      "title": "Start with a wide range of guesses",
+      "description": "Each number gets an initial centre and a spread, a best guess at where good values lie. The search will narrow these.",
+      "inExample": "The buy threshold starts at 35 plus or minus 10, the sell threshold at 65 plus or minus 10, the stop at 30 points plus or minus 15, and the target at 50 points plus or minus 25."
+    },
+    {
+      "title": "Draw a population of candidates",
+      "description": "Many candidate policies are drawn at random from the current ranges. Each is a complete policy, ready to be run.",
+      "inExample": "Fifty candidates are drawn, such as buy at 31, sell at 70, stop 24 points and target 58 points."
+    },
+    {
+      "title": "Run each candidate over the training bars",
+      "description": "Every candidate trades the full training period with costs included, and its total result is recorded. No gradient is needed; only the ranking of results matters.",
+      "inExample": "All fifty are backtested on the same 5-minute Micro E-mini Nasdaq-100 futures bars with 2 US dollars of costs per round trip."
+    },
+    {
+      "title": "Keep the elite fraction",
+      "description": "Only the top candidates by total result survive, commonly the top fifth. The rest are discarded as if they had never been drawn.",
+      "inExample": "The ten best of the fifty are kept as the elite."
+    },
+    {
+      "title": "Refit the ranges to the elite and repeat",
+      "description": "The new centre of each number is the average of the elite, and the new spread is how much the elite differ. The next population is drawn from these tighter ranges, and the loop repeats until the ranges collapse.",
+      "inExample": "The buy threshold's centre moves from 35 to 33 and its spread shrinks from 10 to 6, and after 12 rounds the spreads are below 2."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Tuning a rule-based strategy",
+      "example": "Searching entry and exit thresholds for a relative strength index strategy on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars without writing an optimiser."
+    },
+    {
+      "task": "Optimising something that cannot be differentiated",
+      "example": "Tuning parameters whose effect on result passes through a stop-and-fill simulation, which has no usable gradient."
+    },
+    {
+      "task": "A check on whether deep learning is needed",
+      "example": "Seeing how far a four-number policy gets before building a neural network; if it matches, the network adds only cost."
+    },
+    {
+      "task": "Initialising a larger policy",
+      "example": "Using the converged numbers as the starting point for the first layer of a neural policy."
+    }
+  ],
+  "avoidWhen": [
+    "The policy has thousands of parameters, because random search over that many numbers is very slow and gradient-based methods scale far better.",
+    "Each candidate takes hours to evaluate; the method needs many full runs, so a smarter sequential search such as Bayesian optimisation uses fewer."
+  ],
+  "example": {
+    "scenario": "A four-number relative strength index strategy on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars is searched with the cross-entropy method over one training window, then handed to later walk-forward folds for testing.",
+    "input": {
+      "summary": "The search setup and the starting ranges for each number.",
+      "fields": [
+        { "name": "candidates per round", "value": "50", "meaning": "How many policies are drawn and backtested each round." },
+        { "name": "elite size", "value": "10", "meaning": "How many top candidates are kept to refit the ranges." },
+        { "name": "rounds", "value": "12", "meaning": "How many draw, run, keep and refit cycles are performed." },
+        { "name": "starting buy threshold", "value": "35, spread 10", "meaning": "The relative strength index level that triggers a buy, and how uncertain the starting guess is." },
+        { "name": "starting stop distance", "value": "30 points, spread 15", "meaning": "How far below entry the stop sits, with the starting uncertainty." },
+        { "name": "trading cost per round trip", "value": "2 US dollars", "meaning": "Charged inside every candidate's backtest." }
+      ]
+    },
+    "output": {
+      "summary": "The settled numbers for the policy and how tightly the search has converged.",
+      "fields": [
+        { "name": "buy threshold", "value": "32", "meaning": "The relative strength index level below which the policy buys." },
+        { "name": "sell threshold", "value": "62", "meaning": "The level above which the policy sells." },
+        { "name": "stop distance", "value": "28 points", "meaning": "The loss, equal to 56 US dollars per contract, at which a trade is closed." },
+        { "name": "target distance", "value": "56 points", "meaning": "The profit, equal to 112 US dollars per contract, at which a trade is closed." },
+        { "name": "remaining spread of the buy threshold", "value": "under 2", "meaning": "How far the elite candidates still differ; a small value means the search has converged." }
+      ]
+    },
+    "reading": "Converged numbers show where the training window liked the policy, not that it works. A search over a few numbers can easily fit noise, so run the settled policy untouched on later walk-forward folds with costs, and be suspicious if its result falls sharply there."
+  }
+}

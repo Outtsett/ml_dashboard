@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-supervised-learning-tree-based-models-classification-and-regression-trees-cart",
+  "name": "Classification And Regression Trees (CART)",
+  "analogy": "Think of it as a game of twenty questions played over your past bars. It keeps asking whichever yes-or-no question best separates calm bars from wild ones, then asks follow-up questions inside each group, until every group is small and similar enough to answer with its own average.",
+  "steps": [
+    {
+      "title": "Start with every bar in one group",
+      "description": "All the training bars begin together in a single group, and the model's first answer would simply be the average outcome of that whole group. Every later step exists to improve on that blunt answer.",
+      "inExample": "All 40,000 training bars sit in one group whose average forward 6-bar range is 31 points."
+    },
+    {
+      "title": "Try every question on every feature",
+      "description": "For each feature the model tries many cut points, such as 'is the average true range above 20 points?', and measures how much more alike the bars become on each side. It keeps the single best question.",
+      "inExample": "Of all questions tried, 'is the 14-bar average true range above 24 points?' separates quiet bars from active ones best."
+    },
+    {
+      "title": "Split the group in two",
+      "description": "The best question divides the group into exactly two smaller groups, one for yes and one for no. Every split in this model is two-way, whatever the feature.",
+      "inExample": "The bars split into 26,000 below 24 points (average forward range 19 points) and 14,000 above (average forward range 52 points)."
+    },
+    {
+      "title": "Repeat inside each new group",
+      "description": "The same search runs again inside each new group, which may pick a different feature and cut point for each. The groups keep shrinking and become more alike each time.",
+      "inExample": "Inside the active group the next best question is 'is volume more than 50 percent above its 20-bar average?', and then 'are we within 60 minutes of the open?'."
+    },
+    {
+      "title": "Grow it too large on purpose",
+      "description": "Rather than stopping early, the model keeps splitting until groups are tiny. This oversized tree fits the training bars almost perfectly, including their noise, which sets up the pruning step.",
+      "inExample": "The full tree reaches 1,900 leaves, many holding fewer than 10 bars."
+    },
+    {
+      "title": "Prune back the weak branches",
+      "description": "Branches that add little accuracy for the complexity they cost are cut off, trading a slightly worse fit on the training bars for a simpler tree that holds up on new bars. Held-back bars, taken from a later stretch of time, decide how much to cut.",
+      "inExample": "Pruning leaves 24 leaves; the held-back bars show errors stop improving beyond that size."
+    },
+    {
+      "title": "Read the answer from a leaf",
+      "description": "A new bar answers the questions along one path and lands in a leaf. For a number target the answer is the average of the training bars in that leaf; for a category target it is the share of each category there.",
+      "inExample": "The new 5-minute bar answers yes, yes, yes and lands in a leaf of 187 training bars whose average forward range is 46 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting how much the market will move",
+      "example": "Regressing the next 6 bars' high-to-low range on volatility and volume features, to decide how wide a stop to use."
+    },
+    {
+      "task": "Turning a pattern into a readable rule",
+      "example": "Extracting the path 'average true range above 24 points, volume more than 50 percent above its average, within 60 minutes of the open' as a filter that can be checked by eye."
+    },
+    {
+      "task": "Screening which indicators matter",
+      "example": "Ranking the 35 base features by how much each reduced the spread of outcomes, to prune the 151 indicators before a bigger model."
+    },
+    {
+      "task": "A simple baseline for tree ensembles",
+      "example": "Fitting one pruned tree on the same walk-forward folds, so a random forest or boosted model has to show it adds something."
+    }
+  ],
+  "avoidWhen": [
+    "You need the best accuracy available; a single tree is unstable, and a small change in the training bars can rewrite its top questions, so a forest or boosted trees is usually better.",
+    "The signal is a smooth slanted relationship, such as outcome rising steadily with momentum; a tree can only approximate it with steps, so a linear or smooth model fits it more naturally."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes during the first hour of trading. The tree, trained on a year of bars, is asked how many points the market will travel from high to low over the next 6 bars (30 minutes).",
+    "input": {
+      "summary": "One row of features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,240", "meaning": "The price at which the 5-minute bar closed." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how active the market is." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm; more than double." },
+        { "name": "minutes since the session open", "value": "35", "meaning": "How far into the trading day this bar sits." },
+        { "name": "return over the last 6 bars", "value": "down about two-fifths of a percent", "meaning": "How much price fell over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "A predicted range for the next 6 bars, with the leaf it came from.",
+      "fields": [
+        { "name": "predicted high-to-low range, next 6 bars", "value": "46 points", "meaning": "The average forward range of the training bars that landed in the same leaf." },
+        { "name": "training bars in the leaf", "value": "187", "meaning": "How many past bars the prediction is averaged over; a small leaf means a less trustworthy average." },
+        { "name": "typical miss in that leaf", "value": "plus or minus 12 points", "meaning": "The usual gap between a bar's actual range and the leaf's average in the training data." },
+        { "name": "path taken", "value": "average true range above 24, volume more than 50 percent above normal, under 60 minutes from open", "meaning": "The three answers that sent this bar to its leaf, readable as a rule." }
+      ]
+    },
+    "reading": "46 points is about 60 percent more than this bar's own average true range of 28 points, so the model expects an active half hour. Use it to size a stop or to skip entries when the expected range is too small to cover costs, and read the path to check that the rule makes market sense."
+  }
+}

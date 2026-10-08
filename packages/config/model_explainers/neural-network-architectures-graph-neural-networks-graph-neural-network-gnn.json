@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-graph-neural-networks-graph-neural-network-gnn",
+  "name": "Graph Neural Network (GNN)",
+  "analogy": "Think of it as a group chat among related markets. Each round, every market reads its neighbors' latest messages, summarizes them, and posts an updated message of its own. After a few rounds each market's message reflects what the whole connected group has been saying.",
+  "steps": [
+    {
+      "title": "Turn the problem into a graph",
+      "description": "Items that relate to each other become nodes and their relationships become links. Nodes can be instruments, or even individual time steps linked to the ones before them. The graph says who is allowed to talk to whom.",
+      "inExample": "Six instruments are nodes: MNQ, ES, two other index futures, a volatility index and a Treasury note future. Links join pairs whose returns have recently moved together or in opposite directions."
+    },
+    {
+      "title": "Give each node a starting message",
+      "description": "Every node begins with a row of numbers describing itself, such as recent returns, range, volume ratio and momentum. This is its first message to its neighbors.",
+      "inExample": "The MNQ node starts with its 6-bar return, average true range and volume ratio as its message."
+    },
+    {
+      "title": "Collect the neighbors' messages",
+      "description": "Each node gathers the current messages from every node it is linked to and combines them, for example by adding or averaging. The combining rule is the same for all nodes, so the graph can have any size.",
+      "inExample": "MNQ collects messages from its four neighbors, ES, two other index futures and the volatility index, and averages them into one incoming summary."
+    },
+    {
+      "title": "Update with a learned rule",
+      "description": "A small neural network takes the node's own message and the incoming summary and produces its new message. This learned rule decides how much to trust itself versus its neighbors, and what matters in what it hears.",
+      "inExample": "MNQ's new message gives extra weight to the neighbors' shared volume surge and less to its own small return."
+    },
+    {
+      "title": "Repeat for several rounds",
+      "description": "The collect-and-update cycle is repeated a few times. After each round information reaches nodes one link further away, so a few rounds let a node feel the influence of the wider network.",
+      "inExample": "After three rounds, MNQ's message also reflects the Treasury note future, which is linked to MNQ only through ES, two links away."
+    },
+    {
+      "title": "Read out the prediction",
+      "description": "A final layer turns each node's message, or a pooled summary of all nodes, into the answer, such as a direction probability or a regime label. Training adjusts the shared update rule against real outcomes.",
+      "inExample": "The MNQ node outputs a 55 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting from relationships between instruments",
+      "example": "Using ES, the other index futures and a volatility series to estimate MNQ's next-30-minute direction."
+    },
+    {
+      "task": "Market-wide regime labeling",
+      "example": "Pooling the messages of all nodes into one risk-on or risk-off label for the current bar."
+    },
+    {
+      "task": "Detecting decoupling",
+      "example": "Flagging when a normally tied pair stops moving together and the node's message departs from its neighbors'."
+    },
+    {
+      "task": "Learning embeddings of instruments",
+      "example": "Producing a compact description of each future that reflects its place in the network, for clustering and diversification checks."
+    }
+  ],
+  "avoidWhen": [
+    "The data is a single instrument's table of features; with no meaningful links, a graph adds complexity without information, and a tree model is simpler and stronger.",
+    "The link structure is a guess you cannot validate; a poorly chosen graph hands the model misleading neighbors, so test simpler baselines first."
+  ],
+  "example": {
+    "scenario": "At the 11:30 bar, a Graph Neural Network over six instruments is asked for the probability that MNQ's close 6 bars (30 minutes) later is higher.",
+    "input": {
+      "summary": "Six nodes with features and links drawn from recent return agreement.",
+      "fields": [
+        { "name": "MNQ return over the last 6 bars", "value": "plus 36 points", "meaning": "Recent 30-minute change of the node being predicted." },
+        { "name": "ES return over the last 6 bars", "value": "plus 15 points", "meaning": "Recent 30-minute change of the most closely linked neighbor." },
+        { "name": "volatility index change over the last 6 bars", "value": "minus 1 percent", "meaning": "A falling fear gauge, linked to the equity nodes by a negative relationship." },
+        { "name": "MNQ average true range, 14 bars", "value": "25 points", "meaning": "How much MNQ has been moving per bar." },
+        { "name": "link threshold", "value": "agreement above 50 percent in either direction", "meaning": "The rule used to decide which pairs of instruments are joined." },
+        { "name": "rounds of message passing", "value": "3", "meaning": "How many times neighbors exchange messages." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability for the MNQ node.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "55 percent", "meaning": "The MNQ node's answer after three rounds of message passing." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "margin above a coin flip", "value": "5 points", "meaning": "How far the probability sits from 50 percent, a rough measure of decisiveness." }
+      ]
+    },
+    "reading": "A five-point margin is a gentle lean. Confirm it adds information beyond the single strongest neighbor, and check it survives trading costs across walk-forward folds before giving it any weight."
+  }
+}

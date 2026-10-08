@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-gaussian-mixture-model-gmm",
+  "name": "Gaussian Mixture Model (GMM)",
+  "analogy": "Think of it as sorting bars into a few fuzzy clouds. Each cloud has a centre, a size and a tilt, and a bar near the overlap of two clouds is not forced into one: it gets a percentage of belonging to each, like a bar that is 70 percent trending and 25 percent volatile.",
+  "steps": [
+    {
+      "title": "Choose how many clouds to look for",
+      "description": "You pick the number of clouds, which are called components. Each one is a bell-shaped blob in feature space that can be stretched and tilted to match a group of similar bars.",
+      "inExample": "Three components are requested, hoping for quiet, trending and volatile conditions."
+    },
+    {
+      "title": "Place rough starting guesses",
+      "description": "The model starts with rough guesses for each cloud's centre, spread and share of the bars. These guesses are often taken from a quick grouping, and a poor start can lead to a poorer final answer, so several starts are tried.",
+      "inExample": "The three clouds start at the centres found by a quick K-means pass, with equal shares."
+    },
+    {
+      "title": "Work out how much each cloud owns each bar",
+      "description": "For every bar the model asks how likely it is that each cloud produced it, and turns those into percentages that sum to 100. This soft ownership is what separates it from methods that force one label.",
+      "inExample": "A volatile-looking bar is 61 percent owned by cloud 3, 30 percent by cloud 2 and 9 percent by cloud 1."
+    },
+    {
+      "title": "Move each cloud toward the bars it owns",
+      "description": "Each cloud is re-fitted using all the bars, weighted by how much it owns each. Its centre moves to the weighted average, its spread matches the owned bars, and its tilt matches how features move together within them.",
+      "inExample": "Cloud 3 shifts toward higher volatility and heavier volume and widens along the volume direction."
+    },
+    {
+      "title": "Update each cloud's share of the data",
+      "description": "The share of all bars that each cloud accounts for is recalculated from the soft ownership. Clouds that own few bars end up small, which also hints that fewer components may be enough.",
+      "inExample": "Shares settle at 52 percent quiet, 33 percent trending and 15 percent volatile."
+    },
+    {
+      "title": "Repeat until the clouds stop moving",
+      "description": "The ownership step and the re-fitting step alternate until the fit stops improving. The result is a stable set of clouds and a score for how well they explain the bars.",
+      "inExample": "After 38 rounds the improvement is below the tolerance and the fit stops."
+    },
+    {
+      "title": "Score a new bar",
+      "description": "A new bar gets a percentage of belonging for each cloud, plus an overall likelihood saying how typical it is for the mixture as a whole. A very low likelihood marks a bar that fits none of the clouds.",
+      "inExample": "The new bar is 71 percent trending, 17 percent volatile and 12 percent quiet, with a typical overall likelihood."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Soft regime labelling",
+      "example": "Giving each 5-minute MNQ bar a probability of being in a quiet, trending or volatile regime, instead of one hard label."
+    },
+    {
+      "task": "Features for another model",
+      "example": "Feeding the three regime probabilities into a classifier as extra inputs that summarise the market state."
+    },
+    {
+      "task": "Choosing position size by regime",
+      "example": "Scaling size down in proportion to the probability of the volatile cloud."
+    },
+    {
+      "task": "Flagging unusual bars",
+      "example": "Marking bars whose overall likelihood is far lower than any training bar, since none of the clouds explains them."
+    }
+  ],
+  "avoidWhen": [
+    "Your groups are not roughly bell-shaped, for example curved or ring-shaped; the clouds will fit them badly, so use a density-based or spectral method.",
+    "You have few bars compared with the number of features; the tilt of each cloud needs many bars to estimate, so use fewer features or simpler clouds."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes during an active morning. A Gaussian mixture with three components, fitted on a year of bars, is asked which market condition the bar most resembles.",
+    "input": {
+      "summary": "Three features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,513", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "20-bar volatility", "value": "about a tenth of a percent", "meaning": "How much the 5-minute returns have varied over the last 20 bars." },
+        { "name": "20-bar return", "value": "plus nearly half a percent", "meaning": "How far price has risen over the last 20 bars, about 100 minutes." },
+        { "name": "volume against its 20-bar average", "value": "50 percent above", "meaning": "Trading was heavier than normal." },
+        { "name": "number of components", "value": "3", "meaning": "How many clouds the model was asked to find." }
+      ]
+    },
+    "output": {
+      "summary": "A percentage of belonging to each cloud, and the most likely cloud.",
+      "fields": [
+        { "name": "belonging to the trending cloud", "value": "71 percent", "meaning": "How strongly the bar resembles bars in the trending condition." },
+        { "name": "belonging to the volatile cloud", "value": "17 percent", "meaning": "How strongly the bar resembles bars in the volatile condition." },
+        { "name": "belonging to the quiet cloud", "value": "12 percent", "meaning": "How strongly the bar resembles bars in the quiet condition." },
+        { "name": "most likely cloud", "value": "trending", "meaning": "The cloud with the highest percentage; the names are chosen by you after inspecting each cloud." }
+      ]
+    },
+    "reading": "The bar is mainly trending with some resemblance to the volatile condition, so a trend-following rule would be favoured and size should not be raised as if the market were calm. The cloud names come from inspecting each cloud's centre, so check them on a chart before relying on them."
+  }
+}

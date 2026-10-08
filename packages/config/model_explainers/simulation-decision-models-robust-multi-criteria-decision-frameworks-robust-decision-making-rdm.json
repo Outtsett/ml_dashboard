@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-robust-decision-making-rdm",
+  "name": "Robust Decision Making (RDM)",
+  "analogy": "Think of it as a crash-test programme for trading strategies. Instead of asking which strategy is best on the one future you expect, you throw thousands of very different futures at every candidate and pick the one that survives the widest range, then find out exactly which crashes break it.",
+  "steps": [
+    {
+      "title": "Name what you genuinely cannot know",
+      "description": "You list the inputs where even experts disagree and no single probability can be trusted, such as how volatile the market becomes or how much costs rise. Each gets a wide plausible range rather than a best guess.",
+      "inExample": "Volatility could be anywhere from 70 to 250 percent of today's level, trading costs 100 to 300 percent of today's, and the tendency of trends to keep going could weaken to half of today's."
+    },
+    {
+      "title": "List the candidate strategies",
+      "description": "Several options are put forward to be compared on the same footing, including different hedges or limits applied to the same underlying idea.",
+      "inExample": "Strategy A is a trend strategy with fixed size. Strategy B scales its size down when volatility rises. Strategy C is A with a hard daily loss limit."
+    },
+    {
+      "title": "Generate thousands of different futures",
+      "description": "The uncertain inputs are varied systematically across their full ranges to produce a large set of scenarios. These are not forecasts and carry no probabilities; they only cover the space of what might happen.",
+      "inExample": "5,000 scenarios are produced by sweeping volatility, cost and trend persistence across their ranges."
+    },
+    {
+      "title": "Run every strategy through every scenario",
+      "description": "A trading simulation scores each strategy in each scenario on the measure you care about, producing a grid of results with one row per scenario and one column per strategy.",
+      "inExample": "Each of the 15,000 strategy-and-scenario pairs yields a maximum drawdown in US dollars."
+    },
+    {
+      "title": "Count how often each strategy is acceptable",
+      "description": "You set a line for what is acceptable. A strategy's robustness is the share of scenarios in which it stays on the right side of that line, not its average result.",
+      "inExample": "With acceptable defined as a maximum drawdown under 6,000 US dollars, A is acceptable in 58 percent of scenarios, B in 74 percent and C in 69 percent."
+    },
+    {
+      "title": "Discover where each one breaks",
+      "description": "A rule-finding method looks at the scenarios in which a strategy failed and describes the combination of conditions they share. This turns a vague worry into a specific condition to watch or hedge.",
+      "inExample": "Strategy A fails mostly when volatility is more than 80 percent above today's and costs are more than double today's together."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Stress testing across many regimes",
+      "example": "Comparing three MNQ strategies across 5,000 combinations of volatility, correlation and liquidity instead of one backtest path."
+    },
+    {
+      "task": "Choosing where to put a risk limit",
+      "example": "Finding which market conditions would breach a proposed 6,000 dollar drawdown limit and tightening it there."
+    },
+    {
+      "task": "Picking a hedge",
+      "example": "Measuring how much each candidate hedge shrinks the region of conditions in which the unhedged strategy fails."
+    },
+    {
+      "task": "Testing a model's own assumptions",
+      "example": "Sweeping the settings of a volatility forecast to see how wrong it must be before a sizing rule built on it fails."
+    }
+  ],
+  "avoidWhen": [
+    "The uncertainty is well described by one trusted distribution; a plain Monte Carlo simulation answers it more directly.",
+    "You need a forecast or a signal; this method ranks strategies by survival and produces no prediction."
+  ],
+  "example": {
+    "scenario": "A researcher compares three variants of an MNQ trend strategy and wants to know which holds up across very different market conditions, with a maximum drawdown of 6,000 US dollars as the acceptable limit.",
+    "input": {
+      "summary": "Three candidate strategies, three uncertain inputs and an acceptability line.",
+      "fields": [
+        { "name": "candidate strategies", "value": "A fixed size, B volatility-scaled, C with loss limit", "meaning": "Three variants of the same trend idea to be compared." },
+        { "name": "volatility range", "value": "70 to 250 percent of today's", "meaning": "How much more or less volatile the market could become." },
+        { "name": "trading cost range", "value": "100 to 300 percent of today's", "meaning": "How much wider spreads and slippage could get." },
+        { "name": "trend persistence", "value": "unchanged down to half of today's", "meaning": "How much the tendency of moves to keep going in one direction could weaken." },
+        { "name": "scenarios generated", "value": "5,000", "meaning": "How many combinations of the uncertain inputs are tried." },
+        { "name": "acceptable drawdown", "value": "under 6,000 US dollars", "meaning": "The line that decides whether a result counts as acceptable." }
+      ]
+    },
+    "output": {
+      "summary": "A robustness share per strategy and a description of where the weakest one breaks.",
+      "fields": [
+        { "name": "strategy A robustness", "value": "58 percent", "meaning": "The share of 5,000 scenarios in which A kept drawdown under 6,000 US dollars." },
+        { "name": "strategy B robustness", "value": "74 percent", "meaning": "The same measure for the volatility-scaled variant." },
+        { "name": "strategy C robustness", "value": "69 percent", "meaning": "The same measure for the variant with the daily loss limit." },
+        { "name": "strategy A vulnerability", "value": "volatility 80 percent above today's and costs double", "meaning": "The combination of conditions shared by most of A's failures." }
+      ]
+    },
+    "reading": "B survives the widest range, and the loss limit in C helps but less. Watch the joint condition of rising volatility and rising costs for A, since that pair accounts for most of its failures. These are results from a simulation, not a promise about the market."
+  }
+}

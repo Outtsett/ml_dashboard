@@ -1,0 +1,83 @@
+{
+  "specificationId": "hybrid-composite-architectures-composite-controllers-planners-hybrid-differentiable-planner",
+  "name": "Hybrid Differentiable Planner",
+  "analogy": "Think of it as a trader who plays out several plans in their head before each bar. For each plan they imagine how the market will respond, subtract the cost of every change in position, and favour the plan with the best result. They trade only the first step, then plan again on the next bar.",
+  "steps": [
+    {
+      "title": "Summarise the recent bars",
+      "description": "A network reads the trailing window of bars and compresses it into a short internal state that describes the market right now. Every feature is computed from past data only, so the state never sees the future.",
+      "inExample": "The last 128 five-minute MNQ bars are compressed into a state of 32 numbers."
+    },
+    {
+      "title": "Imagine how the market responds to each position",
+      "description": "A second network predicts how the internal state will evolve over the next bars if a given position is held, and what each bar's return is likely to be. It is a small learned model of the market that can be rolled forward without touching real data.",
+      "inExample": "For a long position it imagines the next 8 bars returning a small positive average, and for a short position the reverse."
+    },
+    {
+      "title": "Score each plan after costs",
+      "description": "A plan is a sequence of positions over the planning horizon. Each plan is scored by imagined profit minus the cost of every change in position, so plans that churn in and out are penalised.",
+      "inExample": "Out of 128 candidate plans, holding long for 8 bars scores plus 9 points after costs, and flipping every second bar scores minus 14 points."
+    },
+    {
+      "title": "Pick the plan softly",
+      "description": "Instead of choosing the single best plan outright, the planner weights all plans by how good they scored, with better plans getting much more weight. This softness lets learning signals flow back through the choice, while a temperature setting controls how sharply it favours the winner.",
+      "inExample": "The best plans share most of the weight, and the weighted first position works out to 60 percent of full size long."
+    },
+    {
+      "title": "Trade only the first step, then replan",
+      "description": "Only the first position of the chosen plan is traded. On the next bar, with fresh data, the whole planning process runs again from scratch. This keeps the plan fresh and limits damage from imagination errors.",
+      "inExample": "The 14:35 bar sets the target position at 60 percent of full size long; at 14:40 the plan is rebuilt."
+    },
+    {
+      "title": "Train the imagination and the planning together",
+      "description": "Training adjusts both networks so that real profit through the plan improves, while a second term keeps the imagined returns close to real returns. Without the second term the model could invent flattering markets that produce paper profit.",
+      "inExample": "Training balances a profit score with a penalty on imagined-return error, which stays near 8 points per bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing a position path, not a single call",
+      "example": "Deciding how much MNQ to hold over the next 8 bars given that every change in position costs commission and slippage."
+    },
+    {
+      "task": "Reducing over-trading",
+      "example": "Letting the cost term suppress small flips so that the model holds through minor noise on 5-minute bars."
+    },
+    {
+      "task": "Testing cost sensitivity",
+      "example": "Raising the assumed cost per contract and seeing at which level the planned positions collapse to flat."
+    },
+    {
+      "task": "Stress-testing with imagined shocks",
+      "example": "Rolling the learned market model forward with a sudden 60-point drop to see how the policy would respond before any capital is risked."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a probability of direction; a classifier is simpler, faster to train and easier to check than a planner with two linked networks.",
+    "Training data is short; the planner depends on a learned market model, and errors in that model are exploited by the plan, so a simple rule with fixed costs is more dependable."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, the planner looks 8 bars ahead, scores 128 candidate position plans after costs, and sets a target position for the next bar.",
+    "input": {
+      "summary": "A trailing window of normalised bars, the cost per change in position and the planner's settings.",
+      "fields": [
+        { "name": "bars in the trailing window", "value": "128", "meaning": "How much recent history is compressed into the internal state." },
+        { "name": "close of the latest bar", "value": "19,626", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "Typical high-to-low travel of a recent bar, which sets how far imagined moves can go." },
+        { "name": "planning horizon in bars", "value": "8", "meaning": "How many bars ahead each candidate plan covers." },
+        { "name": "candidate plans scored", "value": "128", "meaning": "How many alternative position sequences are compared." },
+        { "name": "cost per change of one contract", "value": "1 index point, or 2 US dollars", "meaning": "Commission and slippage charged each time the position changes by one contract." }
+      ]
+    },
+    "output": {
+      "summary": "A target position for the next bar plus the planned path that justified it.",
+      "fields": [
+        { "name": "target position for the next bar", "value": "60 percent of full size long", "meaning": "Share of full size, where 100 percent long is fully long and 100 percent short is fully short." },
+        { "name": "planned positions, next 4 bars", "value": "60, 60, 40 and 20 percent long", "meaning": "The rest of the chosen plan, shown for inspection but not traded yet." },
+        { "name": "imagined move per bar at full size, first 4 bars", "value": "plus 6, plus 4, plus 2 and minus 2 points", "meaning": "What the learned market model expects, which explains why the plan fades out." },
+        { "name": "plan value after costs", "value": "plus 7 points", "meaning": "The weighted value of the candidate plans over 8 bars with costs subtracted, a little under the best single plan's 9." }
+      ]
+    },
+    "reading": "The planner wants a moderate long that it will trim over the next bars. The 7 point value is imagined, not earned, so judge the model only on walk-forward results with real costs. If the imagined return and real return drift apart, distrust the plan."
+  }
+}

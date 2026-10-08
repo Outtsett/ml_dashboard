@@ -1,0 +1,81 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-poisson-regression",
+  "name": "Poisson Regression",
+  "analogy": "Think of it as forecasting how many customers walk through a shop door in the next five minutes. It first works out the typical arrival rate for current conditions, such as a busy lunch hour, then treats the actual count as a random draw around that rate. Busier conditions raise the rate by multiplying, never by going below zero.",
+  "steps": [
+    {
+      "title": "Take a target that counts events",
+      "description": "The target is a whole number of events in a bar: zero, one, two and so on. It can never be negative. The model learns what conditions make more events likely.",
+      "inExample": "The target is the number of trades of 20 contracts or more in each 5-minute MNQ bar, over 20,000 past bars."
+    },
+    {
+      "title": "Combine the features into a score",
+      "description": "Each feature gets a weight, and the weighted features are added into one score. The score sits on a logarithmic scale, so that each feature raises or lowers the expected count by a percentage, not by a fixed amount.",
+      "inExample": "A high volume and a busy last bar push the score up, while being late in the session pulls it down."
+    },
+    {
+      "title": "Exponentiate the score into an expected count",
+      "description": "The score is exponentiated, which always gives a positive number, so the expected count can never fall below zero. A weight reads as a rate ratio: each extra unit of a feature multiplies the expected count by a fixed factor.",
+      "inExample": "The bar's score becomes an expected count of 4 large trades in the next bar."
+    },
+    {
+      "title": "Assume the spread equals the average",
+      "description": "The model assumes that the counts scatter around the average by an amount tied exactly to the average: a bar expecting 4 events typically deviates by about the square root of that. This is the model's key assumption and also its most common weak point.",
+      "inExample": "With an average of 4, the typical deviation from it is about 2 trades."
+    },
+    {
+      "title": "Fit the weights to make the real counts likely",
+      "description": "Training adjusts the weights, using a repeated reweighted fitting routine, until the observed counts are as likely as possible under the model. If bars have different lengths, a fixed exposure term corrects for that without using up a weight.",
+      "inExample": "After 6 rounds on 20,000 bars the weights settle, with each doubling of relative volume raising the expected count by about a quarter."
+    },
+    {
+      "title": "Check the spread against the assumption",
+      "description": "The fitted model's leftover scatter is compared with what the equal-spread assumption predicts. If real counts are far wilder than that, the model is too sure of itself, and a variant that allows extra spread is needed.",
+      "inExample": "The leftover scatter is about 40 percent larger than the assumption implies, a mild warning that the probabilities in the tails are slightly too tight."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting activity counts per bar",
+      "example": "Predicting how many large trades will print in the next 5-minute MNQ bar, to plan how aggressively an order can be worked."
+    },
+    {
+      "task": "Modeling tick counts",
+      "example": "Forecasting the number of price ticks in the next bar as a gauge of how fast the market will be moving."
+    },
+    {
+      "task": "Estimating big-order arrivals",
+      "example": "Estimating how many block or iceberg orders per bar will appear, from order-flow features."
+    },
+    {
+      "task": "Activity around scheduled news",
+      "example": "Estimating expected counts of large trades in the five minutes after an inflation report from past releases."
+    }
+  ],
+  "avoidWhen": [
+    "Counts are much more spread out than their average, which is common in bursts; a negative binomial model allows that extra spread honestly.",
+    "Most bars have no events at all for a structural reason, such as no large participant being active; a zero-inflated model separates that from a low rate."
+  ],
+  "example": {
+    "scenario": "At 10:35 on an MNQ 5-minute chart, a trader wants to know how many trades of 20 or more contracts will print in the next bar, to judge how much block liquidity is likely to be around.",
+    "input": {
+      "summary": "Features for the bar that just closed, in the same form the model was trained on.",
+      "fields": [
+        { "name": "large trades in the last bar", "value": "5", "meaning": "How many trades of 20 contracts or more printed in the bar that just closed." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "minutes since the 09:30 open", "value": "65", "meaning": "How far into the session the bar is." },
+        { "name": "bar length", "value": "5 minutes", "meaning": "The fixed exposure: every bar covers the same amount of time." }
+      ]
+    },
+    "output": {
+      "summary": "An expected count and the chances of a few notable counts.",
+      "fields": [
+        { "name": "expected number of large trades", "value": "4", "meaning": "The score exponentiated: the model's average expectation for the next bar." },
+        { "name": "chance of no large trades", "value": "2 percent", "meaning": "The probability that the next bar prints none." },
+        { "name": "chance of 7 or more large trades", "value": "11 percent", "meaning": "The probability that the next bar is unusually busy." }
+      ]
+    },
+    "reading": "Expect around four large prints in the next bar, so a 20-contract order has company. The tail chances are narrower than reality if counts are bursty, so widen the 11 percent figure a little. Check on later bars whether the realized counts scatter as the model assumes."
+  }
+}

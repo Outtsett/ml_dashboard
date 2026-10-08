@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-consistency-based-methods-virtual-adversarial-training-vat",
+  "name": "Virtual Adversarial Training (VAT)",
+  "analogy": "Think of it as a stress tester who looks at each row of features and asks which tiny nudge to the numbers would shake the model's answer the most. He then trains the model until that nudge no longer matters. He does not need to know the right answer to do this, so every unlabeled row is useful.",
+  "steps": [
+    {
+      "title": "Take a row of features, labelled or not",
+      "description": "The model works on any row of inputs. For the labelled rows it is graded the usual way. For the unlabeled rows it uses the stress test below, since no truth is available to grade against.",
+      "inExample": "A row of 35 base features for one MNQ five-minute bar, with no label attached."
+    },
+    {
+      "title": "Record the model's current answer",
+      "description": "The model predicts the row as it is and the prediction is kept as the reference. It is treated as fixed, so the test measures how far a nudge pulls the answer away from it.",
+      "inExample": "The model says the probability that the close 6 bars later is higher is 58 percent."
+    },
+    {
+      "title": "Search for the worst small nudge",
+      "description": "A short search finds the direction in which a nudge of a fixed small size changes the model's answer the most. It does this with a few quick tries guided by how the answer reacts, not by trying every direction, and needs no label.",
+      "inExample": "A quick try shows that nudging the relative strength index down and the volume ratio up, by a total size of half a standardised unit, moves the answer the most."
+    },
+    {
+      "title": "Measure how much the nudge changes the answer",
+      "description": "The model predicts the nudged row, and the difference between the two predictions is measured. A large difference means the model's decision is fragile around this row.",
+      "inExample": "After the nudge the probability falls from 58 percent to 49 percent, a fragile change for such a small push."
+    },
+    {
+      "title": "Train the model to resist that nudge",
+      "description": "The size of the difference is added to the training error, so the weights are changed to make the model's answer steadier in exactly the direction where it was weakest. This is done for every row, which is how unlabeled rows contribute.",
+      "inExample": "After many rounds the same nudge only moves the answer from 58 percent to 57 percent."
+    },
+    {
+      "title": "Use the trained model as it is",
+      "description": "At prediction time no nudges are used. The model simply predicts. What changed is its shape: it is smoother, with fewer sharp edges in its decision boundary around real data.",
+      "inExample": "A new row for the 14:35 bar goes in unchanged and returns 57 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Classification with few labels",
+      "example": "Training a direction or regime classifier when only a few hundred rows are labelled and many thousands are not."
+    },
+    {
+      "task": "Smooth, stable probabilities",
+      "example": "Making a model whose probability does not jump by 10 points when one feature moves by a tick's worth of noise."
+    },
+    {
+      "task": "Finding fragile spots in a model",
+      "example": "Listing which features the worst nudge always acts on, to see which inputs the model leans on most precariously."
+    },
+    {
+      "task": "Adding robustness to a feature-based network",
+      "example": "Training a network on the 35 base features so it is steadier when a feature is measured with a small error."
+    }
+  ],
+  "avoidWhen": [
+    "Your inputs are discrete or categorical, such as a pattern name; a small continuous nudge makes little sense there.",
+    "You need to train as fast as possible; the search for the worst nudge adds extra passes through the network for every row.",
+    "The difference between nearby rows is the signal; forcing the model to ignore small changes can smooth away a real but narrow edge."
+  ],
+  "example": {
+    "scenario": "A research job trains a direction classifier on 400 labelled and 50,000 unlabeled five-minute MNQ rows. One unlabeled row is stress tested to show what the nudge does.",
+    "input": {
+      "summary": "One row of standardised features for the bar that closed at 14:35.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "nudge size", "value": "half a standardised unit", "meaning": "The fixed small distance the row is allowed to be pushed in the worst direction." },
+        { "name": "label", "value": "none", "meaning": "The row is unlabeled, so only the stress test applies to it." }
+      ]
+    },
+    "output": {
+      "summary": "The model's answer before and after the worst nudge, and how much training reduces the gap.",
+      "fields": [
+        { "name": "probability before the nudge", "value": "58 percent", "meaning": "The model's chance that the close 6 bars later is higher." },
+        { "name": "probability after the worst nudge", "value": "49 percent", "meaning": "The answer on the nudged row, early in training." },
+        { "name": "change caused by the nudge", "value": "9 points", "meaning": "The fragility of the model around this row; training shrinks it." },
+        { "name": "change after training", "value": "1 point", "meaning": "The same nudge moves the answer only from 58 to 57 percent in the finished model." }
+      ]
+    },
+    "reading": "A model that swings 9 points on a tiny nudge cannot be trusted at its 58 percent. After training the same nudge moves it 1 point, so the probability is stable. Stability is not accuracy; confirm that the model has a real lean on out-of-sample folds after costs on the run page."
+  }
+}

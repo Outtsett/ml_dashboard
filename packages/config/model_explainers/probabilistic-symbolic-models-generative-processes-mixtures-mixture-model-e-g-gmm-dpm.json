@@ -1,0 +1,82 @@
+{
+  "specificationId": "probabilistic-symbolic-models-generative-processes-mixtures-mixture-model-e-g-gmm-dpm",
+  "name": "Mixture Model (e.g., GMM, DPM)",
+  "analogy": "Think of it as sorting a pile of 5-minute bars into a few bins by feel, except no bar is forced into one bin. Each bar gets a share in every bin, so a bar that is half quiet and half busy is allowed to say so.",
+  "steps": [
+    {
+      "title": "Decide how many kinds of bar there are",
+      "description": "You choose how many hidden groups might have produced the data. A Gaussian mixture needs this number chosen up front, usually by comparing fits; the Dirichlet process version lets the data suggest how many groups it needs.",
+      "inExample": "Three groups are chosen for MNQ 5-minute bars: a quiet group, a normal group and a fast group."
+    },
+    {
+      "title": "Give each group a rough starting shape",
+      "description": "Every group starts with a guessed center, a guessed spread and a guessed share of all bars. These guesses can be poor, because the next steps repair them.",
+      "inExample": "The quiet group starts centered on a 10-point average true range, the fast group on 35 points, and each group starts with a third of the bars."
+    },
+    {
+      "title": "Give every bar a share in every group",
+      "description": "For each bar, the model asks how likely each group was to have produced a bar that looks like this. The answers become shares that add to 100 percent, so a borderline bar is split instead of being forced into one group.",
+      "inExample": "In the first round, a bar with a 6-bar gain of 24 points and a 21-point range is split 20 percent quiet, 55 percent normal and 25 percent fast."
+    },
+    {
+      "title": "Move each group toward the bars it owns",
+      "description": "Each group's center, spread and overall share are recomputed using the bars weighted by their shares. A group is pulled mostly toward the bars that belong to it most.",
+      "inExample": "The normal group's center shifts to an 18-point average true range and its share of all bars rises from a third to about 38 percent."
+    },
+    {
+      "title": "Repeat until the groups stop moving",
+      "description": "The share-giving step and the moving step alternate. Each round fits the data at least a little better, until the changes are too small to matter. The result is a local best fit, so different starting guesses can land on different answers.",
+      "inExample": "After about 40 rounds the three groups hold steady: quiet near 45 percent of bars, normal near 40 percent, fast near 15 percent."
+    },
+    {
+      "title": "Place a new bar among the groups",
+      "description": "A new bar is run through the share-giving step once more using the finished groups. The output is its share in each group, and also how typical it is of the whole mixture.",
+      "inExample": "The new 14:35 bar comes out 18 percent quiet, 57 percent normal and 25 percent fast."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Soft volatility regimes",
+      "example": "Sorting MNQ 5-minute bars into quiet, normal and fast groups from average true range and volume, so position size can scale with how fast the market is."
+    },
+    {
+      "task": "Spotting unusual bars",
+      "example": "Flagging a bar whose range and volume fit none of the three groups well, as a candidate data error or a genuine tail event."
+    },
+    {
+      "task": "Regime features for another model",
+      "example": "Feeding the three group shares into a gradient boosting model as extra columns beside the 35 base features."
+    },
+    {
+      "task": "Separating trading sessions",
+      "example": "Letting overnight, London and New York behavior fall into different groups from combined intraday ES data."
+    }
+  ],
+  "avoidWhen": [
+    "The order of the bars matters, because this model treats every bar as independent; a hidden Markov model keeps track of which group the market was in a moment ago.",
+    "You need a prediction of direction, because a mixture only describes what kinds of bars exist, not what happens after them."
+  ],
+  "example": {
+    "scenario": "A mixture of three groups was fit on twelve months of MNQ 5-minute bars. The 14:35 bar has just closed and you want to know which kind of bar it is.",
+    "input": {
+      "summary": "A few features of the bar that just closed, the same columns used when the three groups were fit.",
+      "fields": [
+        { "name": "close", "value": "19,840", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "average true range, 14 bars", "value": "19 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how fast the market is moving." },
+        { "name": "range of this bar", "value": "21 points", "meaning": "The distance from this bar's low to its high; one point is worth 2 US dollars per contract." },
+        { "name": "gain over the last 6 bars", "value": "plus 24 points", "meaning": "How far price has risen over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "30 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "A share of belonging for each of the three groups, plus how ordinary the bar is.",
+      "fields": [
+        { "name": "share in the quiet group", "value": "18 percent", "meaning": "The probability that this bar came from the quiet kind of market." },
+        { "name": "share in the normal group", "value": "57 percent", "meaning": "The probability that this bar came from the normal kind of market." },
+        { "name": "share in the fast group", "value": "25 percent", "meaning": "The probability that this bar came from the fast kind of market." },
+        { "name": "how typical the bar is", "value": "typical, not among the rarest 5 percent", "meaning": "Whether the bar fits the fitted mixture well or looks like an outlier." }
+      ]
+    },
+    "reading": "The bar leans normal but carries a real quarter share of the fast group, so volatility may be rising. A sensible use is to size positions with the blended picture, for example a weighted average of each group's usual stop distance, instead of acting on the single most likely group."
+  }
+}

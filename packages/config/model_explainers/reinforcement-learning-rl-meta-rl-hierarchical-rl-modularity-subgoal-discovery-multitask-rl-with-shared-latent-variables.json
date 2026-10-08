@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-multitask-rl-with-shared-latent-variables",
+  "name": "Multitask RL with Shared Latent Variables",
+  "analogy": "Think of it as a firm with a desk for each market condition and a house view that all desks pull toward. Each desk is free to specialise but pays a small penalty for straying from the house view, and the house view is itself updated to reflect what every desk is doing.",
+  "steps": [
+    {
+      "title": "Define the tasks",
+      "description": "A task is a market condition or instrument for which one policy is kept. Each task gets its own policy, and one additional shared policy represents what is common.",
+      "inExample": "Three regimes of MNQ get their own policies: quiet, trending and volatile, plus one shared policy."
+    },
+    {
+      "title": "Send each bar to its task",
+      "description": "Each bar is assigned to the task it belongs to, using statistics computed from past bars only. That task's policy is the one that acts.",
+      "inExample": "The 15:10 bar has rising volatility and a steady up-trend, so it is assigned to the trending regime."
+    },
+    {
+      "title": "Train each task policy with a pull toward the shared one",
+      "description": "Every task policy is improved to earn more reward, but its reward is reduced by how far its choices differ from the shared policy. A bonus for keeping choices varied avoids early lock-in.",
+      "inExample": "The trending policy earns reward but loses a small amount for each way it differs from the shared policy."
+    },
+    {
+      "title": "Fit the shared policy to all the task policies",
+      "description": "The shared policy is trained to imitate the average behaviour of all task policies. It captures the structure the tasks have in common, and learns from far more experience than any one task.",
+      "inExample": "The shared policy learns, for example, that momentum tends to persist in all three regimes."
+    },
+    {
+      "title": "Alternate until they settle",
+      "description": "The two updates take turns, so information flows both ways: the shared policy informs the tasks and the tasks inform the shared policy. One distillation weight sets how strongly they are tied.",
+      "inExample": "With a distillation weight of 1, the trending policy ends up at most 3 percentage points away from the shared policy on any position."
+    },
+    {
+      "title": "Use the task policy, or warm-start a new task",
+      "description": "At decision time the matching task policy acts. A task with too little data falls back to the shared policy, and a brand-new task begins as a copy of it.",
+      "inExample": "For the 15:10 bar the trending policy gives long 44 percent, flat 20 percent and short 36 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sharing common price behaviour across instruments",
+      "example": "Learning once what momentum persistence looks like on MNQ and ES and reusing it, while each instrument keeps its own quirks."
+    },
+    {
+      "task": "Warm-starting a new instrument",
+      "example": "Beginning a new contract's policy as a copy of the shared policy so it needs far fewer bars."
+    },
+    {
+      "task": "Finding which instruments are unusual",
+      "example": "Ranking instruments by how far their policies depart from the shared one to see which need special logic."
+    },
+    {
+      "task": "Regime policies that still share lessons",
+      "example": "Keeping a separate policy per volatility regime on 5-minute MNQ bars without each one starting from nothing."
+    }
+  ],
+  "avoidWhen": [
+    "The tasks are unrelated and share no behaviour; the pull toward the shared policy forces incompatible habits together, and separate models are better.",
+    "You have plenty of data for each regime and need a very simple model; one policy per regime without the shared part is less work."
+  ],
+  "example": {
+    "scenario": "At 15:10 an MNQ bar closes. Three regime policies and a shared policy have already been trained. The bar is routed to the trending regime and its policy states a preference.",
+    "input": {
+      "summary": "The bar's features and the statistics that decide its regime.",
+      "fields": [
+        { "name": "close", "value": "19,471", "meaning": "The price at which the newest five-minute bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical high-to-low travel of a recent bar, rising." },
+        { "name": "share of up bars, last 60", "value": "58 percent", "meaning": "How many of the last 60 five-minute bars closed above their open." },
+        { "name": "assigned regime", "value": "trending", "meaning": "The regime to which the bar is routed using trailing statistics." },
+        { "name": "distillation weight", "value": "1", "meaning": "How strongly each task policy is pulled toward the shared policy; zero would leave the tasks fully independent." },
+        { "name": "regimes", "value": "3", "meaning": "How many task policies are kept besides the shared one." }
+      ]
+    },
+    "output": {
+      "summary": "The trending policy's preference, the shared policy's preference and how far apart they are.",
+      "fields": [
+        { "name": "trending policy: long, flat, short", "value": "44, 20, 36 percent", "meaning": "The task policy's preference over the three positions." },
+        { "name": "shared policy: long, flat, short", "value": "41, 23, 36 percent", "meaning": "The shared policy's preference for the same bar." },
+        { "name": "largest gap from the shared policy", "value": "3 percentage points", "meaning": "The biggest difference between a task share and the matching shared share; zero means identical." },
+        { "name": "probability the close is higher", "value": "55 percent", "meaning": "The task policy's long share divided by the long and short shares combined." }
+      ]
+    },
+    "reading": "A gap near zero in every regime means the model collapsed to one policy, and a very large gap means the distillation weight is forcing regimes together that do not belong together. The 55 percent lean is small and must be tested after costs."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-supervised-learning-boosting-methods-gradient-boosting-machine-gbm",
+  "name": "Gradient Boosting Machine (GBM)",
+  "analogy": "Think of it as a desk of junior analysts who each write one short checklist. The first makes a rough call, and every analyst after that only studies the bars the desk has been getting wrong and writes a small correction. The final call is all the checklists added together.",
+  "steps": [
+    {
+      "title": "Start from a flat first guess",
+      "description": "Before it looks at any feature, the model makes the same guess for every bar: the average outcome in the training bars. Everything after this is a correction to that starting point.",
+      "inExample": "The training bars closed higher 6 bars later 51 percent of the time, so every bar starts at a 51 percent chance of closing higher."
+    },
+    {
+      "title": "Measure where the guess is wrong",
+      "description": "For every training bar it compares the current guess with what actually happened. The gap is the error: large where the guess was badly off, near zero where it was already right.",
+      "inExample": "A bar that actually closed higher has an error of plus 49 points of probability; a bar that closed lower has an error of minus 51."
+    },
+    {
+      "title": "Grow one small tree on the errors",
+      "description": "It builds a short decision tree, a few yes-or-no questions about the features, that sorts the bars into groups with similar errors. The tree is kept small on purpose so that it captures one simple pattern and nothing more.",
+      "inExample": "The first tree asks whether the relative strength index is under 30 and then whether volume is above its 20-bar average; bars answering yes to both were under-guessed."
+    },
+    {
+      "title": "Add a small part of the correction",
+      "description": "The tree's correction is added to the running guess, but only a fraction of it. Taking small steps stops any single tree from dominating and makes the model harder to fool with noise.",
+      "inExample": "The oversold, high-volume group moves from a 51 percent to a 53 percent chance of closing higher; the rest barely move."
+    },
+    {
+      "title": "Repeat a few hundred times",
+      "description": "Steps two to four run again and again. Each new tree looks only at what the trees before it still get wrong, so the model sharpens gradually. It stops when a held-back set of bars stops improving.",
+      "inExample": "After 300 trees the validation bars stop improving, so the model stops there and keeps those 300 trees."
+    },
+    {
+      "title": "Score a new bar by adding up every tree",
+      "description": "A new bar is passed down every tree. Each tree contributes its small correction, the corrections are summed onto the starting guess, and the total is turned into a probability.",
+      "inExample": "The 14:35 bar collects small upward corrections from 190 trees and downward ones from 110, landing at a 58 percent chance of closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls from a table of features",
+      "example": "Predicting whether MNQ's close 6 bars (30 minutes) after a 5-minute bar will be above that bar's close, from the 35 base features."
+    },
+    {
+      "task": "Ranking which features carry information",
+      "example": "Finding out whether volume features or momentum features are doing the work, by reading how often and how usefully each feature is used in the trees."
+    },
+    {
+      "task": "A strong baseline before anything deeper",
+      "example": "Running it on the same folds as a transformer so that the transformer has to beat a cheap, fast model to justify its training time."
+    },
+    {
+      "task": "Deciding whether to take another signal's trade",
+      "example": "Taking only the breakout entries that the model scores above a 55 percent chance of reaching their target before their stop."
+    }
+  ],
+  "avoidWhen": [
+    "The information is in the order of the bars themselves, such as the shape of the last 60 candles; a sequence model reads that directly, while this model only sees the summary features you hand it.",
+    "Prices will move far outside the range seen in training; trees cannot extend a trend beyond the values they were grown on."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model was trained on the previous 12 months of bars and is asked whether the close 30 minutes later will be higher than this close.",
+    "input": {
+      "summary": "One row of features describing the bar that just closed, the same columns the model was trained on.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "One probability for the bar, plus the features that pushed it there.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "58 percent", "meaning": "The summed vote of all 300 trees for this bar, against a 51 percent starting guess." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push", "value": "relative strength index under 30", "meaning": "The feature whose trees added the most to this bar's probability." }
+      ]
+    },
+    "reading": "58 percent is a modest lean, seven points above the starting guess. Whether it is worth a trade depends on costs: the lean has to be large enough that the average win covers commission and slippage, which is what the run page's net result measures."
+  }
+}

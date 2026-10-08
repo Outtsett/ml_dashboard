@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-advantage-actor-critic-a2c",
+  "name": "Advantage Actor-Critic (A2C)",
+  "analogy": "Think of it as a trading desk training eight junior traders at once, each replaying a different stretch of history. Everyone trades a short stretch, then the head trader pools all eight sets of results and gives one round of coaching, so no single week's quirks steer the lesson.",
+  "steps": [
+    {
+      "title": "Start several copies of the market",
+      "description": "Several independent copies of the trading environment run side by side, each starting at a different point in history or on a different instrument. They all share one actor and one critic.",
+      "inExample": "Eight copies are started on Micro E-mini Nasdaq-100 futures 5-minute bars, from eight different dates spread across the training year."
+    },
+    {
+      "title": "Every copy takes a short run of steps",
+      "description": "For a fixed number of bars, each copy asks the shared actor for an action, trades it, and records the reward. All copies move forward together, one bar at a time.",
+      "inExample": "Each of the eight copies trades 5 bars, giving 40 recorded steps in total."
+    },
+    {
+      "title": "Work out the advantage for each step",
+      "description": "The advantage says how much better a step went than the critic expected: the reward received plus the critic's view of the next state, minus its view of the current state.",
+      "inExample": "In copy three, a long entry earned 9 US dollars against an expectation of 3, an advantage of plus 6."
+    },
+    {
+      "title": "Pool the steps into one batch",
+      "description": "All 40 steps are stacked into one batch, so the lesson mixes trending, ranging, quiet and busy conditions instead of one narrow sequence.",
+      "inExample": "The batch contains advantages from morning trends, midday chop and late-session drift, averaging plus 2 US dollars."
+    },
+    {
+      "title": "Take one combined update",
+      "description": "The actor is moved toward actions with positive advantage and away from negative ones, and the critic is moved toward what actually happened. A small bonus for staying unpredictable keeps the actor from locking onto one action too soon.",
+      "inExample": "The shared actor shifts slightly toward long in oversold states and the critic's estimates are pulled toward the observed rewards."
+    },
+    {
+      "title": "Repeat with fresh runs",
+      "description": "The copies continue from where they stopped and the cycle repeats. Because all copies move in step, runs with the same random seed give the same result, which makes experiments comparable.",
+      "inExample": "The next round starts at bar 6 in each copy and produces another batch of 40 steps."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Training one policy across several instruments",
+      "example": "Giving each environment copy a different futures root, such as Micro E-mini Nasdaq-100 and E-mini S&P 500 futures, so the policy learns behaviour that is not specific to one contract."
+    },
+    {
+      "task": "Mixing market regimes in every update",
+      "example": "Staggering the start dates so each batch contains both trending and ranging stretches."
+    },
+    {
+      "task": "Fast iteration on state design",
+      "example": "Comparing two sets of input features by training each for the same number of steps and checking which learns faster."
+    },
+    {
+      "task": "A baseline for fancier methods",
+      "example": "Using it as the reference point to see whether proximal policy optimization's extra safeguards actually help on the same folds."
+    }
+  ],
+  "avoidWhen": [
+    "Data is scarce and each bar is precious; this method uses each batch once, so methods that reuse stored experience such as soft actor-critic make more of limited history.",
+    "A clear labelled target exists, such as next-hour direction; a supervised model learns it more directly and is much easier to validate."
+  ],
+  "example": {
+    "scenario": "An advantage actor-critic agent is trained with eight parallel copies of the Micro E-mini Nasdaq-100 futures (MNQ) 5-minute environment. One round of five bars per copy is gathered and used for a single update.",
+    "input": {
+      "summary": "The batch gathered by the eight copies in one round, with one copy shown in detail.",
+      "fields": [
+        { "name": "parallel environments", "value": "8", "meaning": "How many independent copies of the market ran side by side." },
+        { "name": "steps per environment", "value": "5 bars", "meaning": "How many five-minute bars each copy traded before the update." },
+        { "name": "steps in the batch", "value": "40", "meaning": "Eight copies times five bars, all used together in one update." },
+        { "name": "copy 3 close at its last step", "value": "19,880", "meaning": "The latest price seen by one of the copies, to show states differ across copies." },
+        { "name": "copy 3 average true range, 14 bars", "value": "27 points", "meaning": "The recent bar range in that copy, a measure of how fast the market was moving." },
+        { "name": "trading cost per round trip", "value": "2 US dollars", "meaning": "The cost deducted from the reward whenever a position is opened and closed." }
+      ]
+    },
+    "output": {
+      "summary": "What the batch says about the agent's choices and the size of the lesson taken from it.",
+      "fields": [
+        { "name": "actions taken across the batch", "value": "19 long, 12 flat, 9 short", "meaning": "How the shared actor split its 40 decisions." },
+        { "name": "average advantage", "value": "plus 2 US dollars", "meaning": "On average, steps did slightly better than the critic expected." },
+        { "name": "actor update", "value": "long a point or so more likely in oversold states", "meaning": "The small shift the single combined update made to the policy." },
+        { "name": "critic's average value estimate", "value": "3 US dollars", "meaning": "What the critic now expects per step, pulled toward the rewards actually seen." }
+      ]
+    },
+    "reading": "One update is a small nudge; the agent is the result of many thousands of them. Watch the average advantage and the action split across rounds: if every environment drifts to the same single action, exploration has collapsed. Judge the finished agent on held-out folds after costs."
+  }
+}

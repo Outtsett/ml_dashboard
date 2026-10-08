@@ -1,0 +1,85 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-tweedie-regression",
+  "name": "Tweedie Regression",
+  "analogy": "Think of it as an insurance claims desk. Most days nothing is claimed at all, and on the days something is, the size of the claim varies widely and leans toward the large. Tweedie regression handles both facts in one model: how likely a zero day is and how big the claim is when it is not zero.",
+  "steps": [
+    {
+      "title": "Take a target of many zeros and a skewed positive tail",
+      "description": "The target is a size that is exactly zero on many bars and a positive, right-skewed amount on the rest. Neither a counting model nor an always-positive model can describe such a column honestly, because one cannot produce zeros and the other cannot produce decimals.",
+      "inExample": "The target is the slippage of a market order in US dollars per contract: zero for about half of fills, and a positive amount, often small but sometimes large, for the rest."
+    },
+    {
+      "title": "Imagine the amount as a number of jumps",
+      "description": "The model views each bar's amount as the total of a random number of random-sized jumps. If no jump occurs the total is exactly zero; otherwise it is the sum of the jumps, which is positive and skewed. This one picture creates both the zeros and the tail.",
+      "inExample": "A fill either sees no price move against it, giving zero slippage, or sees one or more small adverse moves that add up to the slippage."
+    },
+    {
+      "title": "Choose how spread grows with size",
+      "description": "A single power setting decides how the spread of outcomes grows with the average size. Values between the counting and always-positive extremes give the mix of zeros and skew wanted here. The setting can be fixed from experience or chosen by trying a grid and keeping the best.",
+      "inExample": "A grid of ten settings between the two extremes is tried, and one about 40 percent of the way from the counting extreme gives the best fit on held-out bars."
+    },
+    {
+      "title": "Combine the features into a score and exponentiate",
+      "description": "Each feature gets a weight and the weighted features are added into one score, which is then exponentiated to give the average amount. This guarantees a positive average, and each feature acts by multiplying the average by a percentage.",
+      "inExample": "The bar's score converts into an average slippage of 1 US dollar per contract."
+    },
+    {
+      "title": "Fit the weights by repeated reweighted fitting",
+      "description": "With the power setting fixed, the weights are found by the standard repeated reweighted fitting used by every model in this family, which makes the observed amounts, zeros included, as likely as possible.",
+      "inExample": "The fit converges in 7 rounds on 12,000 past fills."
+    },
+    {
+      "title": "Read the average and the chance of zero",
+      "description": "For a new case the model gives one average amount, which blends the chance of a zero with the typical size otherwise. Using the fitted power setting it can also report the chance of an exact zero.",
+      "inExample": "The average is 1 US dollar per contract, and the chance of exactly zero slippage is 50 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting execution slippage",
+      "example": "Forecasting the expected slippage for a 5-contract MNQ market order, when many fills have none and some fills have a lot."
+    },
+    {
+      "task": "Predicting the size of opening gaps",
+      "example": "Forecasting the absolute gap between a bar's open and the prior close on 1-minute bars, where most gaps are exactly zero."
+    },
+    {
+      "task": "Excess volatility above a baseline",
+      "example": "Forecasting how much a bar's range exceeds a quiet baseline, which is near zero on calm bars and large on active ones."
+    },
+    {
+      "task": "Large-order price impact",
+      "example": "Forecasting the price impact of a large order, zero when none arrives and a skewed positive size when one does."
+    },
+    {
+      "task": "Severity of drawdown events",
+      "example": "Modeling how deep a drawdown goes, reusing the way insurance models claim sizes."
+    }
+  ],
+  "avoidWhen": [
+    "The target has no exact zeros; a plain Gamma regression is simpler and has fewer settings to choose.",
+    "You need to know separately why a zero happens and how big a nonzero amount is; a two-part model that fits each piece on its own features gives that separation."
+  ],
+  "example": {
+    "scenario": "Before sending a 5-contract MNQ market order right after an economic release, a trader asks for the expected slippage, using a model trained on 12,000 past fills.",
+    "input": {
+      "summary": "Conditions at the moment the order would be sent.",
+      "fields": [
+        { "name": "order size", "value": "5 contracts", "meaning": "How many contracts the market order buys or sells." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "bid-ask spread", "value": "one tick, a quarter of a point", "meaning": "The gap between the best buy and sell prices." },
+        { "name": "minutes since the news release", "value": "8", "meaning": "Recent news raises the chance of adverse moves in the short term." }
+      ]
+    },
+    "output": {
+      "summary": "The expected slippage, the chance of none, and the typical size when there is some.",
+      "fields": [
+        { "name": "expected slippage per fill", "value": "1 US dollar per contract", "meaning": "The average over fills that have none and fills that have some." },
+        { "name": "chance of exactly zero slippage", "value": "50 percent", "meaning": "How often the model expects the fill to match the quoted price." },
+        { "name": "typical slippage when there is some", "value": "2 US dollars per contract", "meaning": "The average amount on the fills that do slip; half of fills at zero and half at 2 US dollars average out to 1 US dollar." }
+      ]
+    },
+    "reading": "Budget about 1 US dollar per contract of slippage on top of the 2 US dollar round-trip fee. Do not treat that as what every fill costs: about half will cost nothing, and a few will cost much more. Check on later fills that the zero share matches 50 percent."
+  }
+}

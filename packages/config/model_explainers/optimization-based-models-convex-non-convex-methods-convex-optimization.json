@@ -1,0 +1,77 @@
+{
+  "specificationId": "optimization-based-models-convex-non-convex-methods-convex-optimization",
+  "name": "Convex Optimization",
+  "analogy": "Think of it as rolling a marble inside a smooth bowl. Wherever you drop it, the marble ends up at the one lowest point, so there is no worry about getting stuck in a shallow dip halfway down, and the solver can even hand you a certificate proving it reached the bottom.",
+  "steps": [
+    {
+      "title": "Write the problem in a bowl-shaped form",
+      "description": "The goal must be a bowl, a curve with no humps, and the allowed region must have no dents. Many trading problems fit: costs that grow faster as trades get bigger, penalties on large coefficients, and limits on exposure.",
+      "inExample": "Minimise the impact cost of selling 300 MNQ contracts over 6 five-minute bars, where cost per bar grows faster than the bar's size."
+    },
+    {
+      "title": "Check the shape with building blocks",
+      "description": "Modelling tools assemble the problem from known bowl-preserving pieces, such as sums, squares, absolute values and straight limits, and confirm the whole is a bowl automatically. You do not have to prove it by hand.",
+      "inExample": "The sum of squared slice sizes, weighted by each bar's expected thinness, is accepted as a valid bowl."
+    },
+    {
+      "title": "Pick a starting point",
+      "description": "Any allowed starting plan will do, because in a bowl every start leads to the same bottom. This removes the need for repeated restarts that rugged problems demand.",
+      "inExample": "The start is an even split of 50 contracts in each of the 6 bars."
+    },
+    {
+      "title": "Slide downhill, respecting the limits",
+      "description": "The solver repeatedly moves in the direction that lowers the goal most, using the slope and curvature of the bowl, while keeping every limit satisfied. Convexity guarantees each step makes real progress.",
+      "inExample": "It shifts contracts toward the thick-volume bars and away from the thin ones, while the total stays at 300."
+    },
+    {
+      "title": "Stop with a proof",
+      "description": "Alongside the answer, the solver produces a matching bound from the dual problem. When the answer and the bound touch, that is a certificate that no better plan exists.",
+      "inExample": "The answer and the bound agree to within a cent, so the schedule is certified best under this cost model."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Execution schedules",
+      "example": "Slicing a 300-contract MNQ order across 6 five-minute bars to minimise a modelled market-impact cost."
+    },
+    {
+      "task": "Robust portfolio weights",
+      "example": "Choosing weights that still hold up if every return forecast is wrong by up to a stated margin."
+    },
+    {
+      "task": "Regularised forecasting models",
+      "example": "Fitting a return forecast from the 151 indicators with a penalty that shrinks unhelpful coefficients to zero."
+    },
+    {
+      "task": "Fitting smooth curves with rules",
+      "example": "Fitting a volatility curve across strike prices with the rule that the curve must not allow riskless profit."
+    }
+  ],
+  "avoidWhen": [
+    "The true objective has several dips, such as a profit curve over rule parameters; forcing a bowl shape would misdescribe it, and a global search is more honest.",
+    "The cost model is a guess; a certified best plan for a wrong model is still wrong, so test it on walk-forward folds."
+  ],
+  "example": {
+    "scenario": "A researcher must sell 300 Micro E-mini Nasdaq-100 futures (MNQ) contracts over six consecutive five-minute bars. Selling more in one bar costs disproportionately more, and thin bars cost more than thick ones. The cost model is assumed.",
+    "input": {
+      "summary": "The total to sell, an expected volume for each bar, and a rule for how impact grows. All figures are illustrative.",
+      "fields": [
+        { "name": "total contracts to sell", "value": "300", "meaning": "The full size of the order that must be completed in six bars." },
+        { "name": "number of bars", "value": "6", "meaning": "The five-minute bars available to work the order." },
+        { "name": "expected volume per bar", "value": "1,000, 800, 600, 600, 600, 400 contracts", "meaning": "How many contracts typically trade in each bar; more volume means less impact." },
+        { "name": "impact rule", "value": "cost grows with the square of the slice and falls with the bar's volume", "meaning": "Doubling a slice more than doubles its cost, which makes the problem a bowl; one unit of the rule is priced at 14 US dollars." },
+        { "name": "tick size and value", "value": "a quarter point, 50 cents", "meaning": "One tick of MNQ moves a quarter of a point, and one point is worth 2 US dollars." },
+        { "name": "minimum per bar", "value": "0 contracts", "meaning": "A bar may be skipped but nothing can be bought back." }
+      ]
+    },
+    "output": {
+      "summary": "A sell schedule and its modelled cost, with a certificate of optimality.",
+      "fields": [
+        { "name": "contracts to sell in each bar", "value": "75, 60, 45, 45, 45, 30", "meaning": "Each bar gets a share of the order in proportion to its expected volume; the six slices add to 300." },
+        { "name": "modelled impact cost", "value": "315 US dollars", "meaning": "The total cost under the assumed impact rule, against 341 US dollars for an even split of 50 contracts per bar; not a measured fill result." },
+        { "name": "certified best", "value": "yes, within a cent", "meaning": "The matching bound from the dual problem agrees with the answer." }
+      ]
+    },
+    "reading": "The schedule is best only under the impact rule you supplied. Compare real fills with the modelled cost for a few weeks and update the rule; the solver then re-plans instantly, and the result is again provably the best for the corrected rule."
+  }
+}

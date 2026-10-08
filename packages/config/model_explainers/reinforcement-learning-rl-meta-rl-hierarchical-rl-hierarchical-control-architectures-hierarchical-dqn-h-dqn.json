@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-hierarchical-dqn-h-dqn",
+  "name": "Hierarchical DQN (h-DQN)",
+  "analogy": "Think of it as a head trader who sets the goal for the next stretch, such as getting the day back to break-even, and an execution trader who works bar by bar toward that goal and is rewarded the moment the goal is reached, long before the day's final profit is known.",
+  "steps": [
+    {
+      "title": "Define a small menu of goals",
+      "description": "Before training, a fixed list of goals is written down by hand. Each goal is something the lower level can recognize as reached or not reached. The top level only ever chooses from this list.",
+      "inExample": "The menu has three goals: get back to break-even for the day, reduce exposure before the release, and hold the position until the next support level."
+    },
+    {
+      "title": "The meta-controller picks a goal",
+      "description": "The slow top-level learner reads a coarse view of the market, such as 30-minute information, and scores each goal by how much real profit it expects from choosing it. It picks the best-scoring goal and then waits while that goal is pursued.",
+      "inExample": "With the day down 180 US dollars and 95 minutes left, the meta-controller picks the goal of getting back to break-even."
+    },
+    {
+      "title": "The controller acts toward that goal",
+      "description": "The fast lower-level learner reads each 1-minute bar together with the active goal and scores buy, sell and hold. Its scores depend on the goal, so the same bar can lead to different actions under different goals.",
+      "inExample": "Under the break-even goal, the controller buys 1 MNQ contract on a bar that closes back above the 20-bar average."
+    },
+    {
+      "title": "Pay the controller an inner reward",
+      "description": "The controller receives its own small reward whenever a goal is reached. That happens far more often than the real end-of-day profit arrives, so the controller gets learnable feedback long before the real payoff is known.",
+      "inExample": "The day's result climbs back to zero, the goal is recognized as reached, and the controller is paid its inner reward."
+    },
+    {
+      "title": "End the goal and pay the meta-controller",
+      "description": "The goal stays active until it is reached or its step budget runs out. The top level is then paid the real trading result over that span and learns which goals were worth choosing in which situations.",
+      "inExample": "After 40 bars the day is back to plus 10 US dollars, the goal ends as reached, and the meta-controller is paid that real profit minus costs."
+    },
+    {
+      "title": "Train both levels with Q-learning",
+      "description": "Both learners estimate how good each choice is and are updated from their own stored experience, using a slowly changing copy of themselves as a stable target. The two levels learn at the same time on different clocks.",
+      "inExample": "Thousands of stored goal episodes from walk-forward training folds update the meta-controller; the bar-level steps update the controller."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Reaching a defined end-of-session state",
+      "example": "Steering MNQ trading toward being flat or near break-even by the 15:55 close instead of carrying an open position."
+    },
+    {
+      "task": "Controlling exposure around scheduled events",
+      "example": "Choosing the goal of reducing size before an inflation release, so the lower level learns how to unwind without paying wide spreads."
+    },
+    {
+      "task": "Learning when reward is rare",
+      "example": "Training an agent whose real profit shows up only after a long chain of correct entries and exits, by giving it goal-based inner rewards."
+    },
+    {
+      "task": "Choosing which instrument to focus on",
+      "example": "Letting the top level pick between ES and MNQ for the next hour while the lower level handles the entries."
+    }
+  ],
+  "avoidWhen": [
+    "Reward already arrives often, for example on every trade; a plain deep Q-network is simpler and has no goal menu to design badly.",
+    "You cannot define goals that are clearly reached or not; vague goals give the lower level a confusing inner reward and training stalls."
+  ],
+  "example": {
+    "scenario": "At 14:20 an MNQ account is down 180 US dollars for the day with 95 minutes left. The top level must pick a goal for the next stretch of 1-minute bars.",
+    "input": {
+      "summary": "A coarse view for the top level and the active goal plus recent 1-minute bars for the lower level.",
+      "fields": [
+        { "name": "close", "value": "20,112", "meaning": "The most recent one-minute bar close, rounded to a whole point." },
+        { "name": "day profit and loss so far", "value": "minus 180 US dollars", "meaning": "The money result of today's trades so far, after costs." },
+        { "name": "minutes to the close", "value": "95", "meaning": "How much of the session remains for the goal to be reached." },
+        { "name": "average true range, 14 five-minute bars", "value": "25 points", "meaning": "The typical travel of a recent five-minute bar, a measure of how quickly the day could be recovered." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held when the goal is chosen." },
+        { "name": "goal menu size", "value": "3 goals", "meaning": "The number of fixed goals the top level can choose from." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen goal and the first action the lower level takes under it.",
+      "fields": [
+        { "name": "chosen goal", "value": "get back to break-even", "meaning": "The goal the top level selected as having the highest estimated value in this situation." },
+        { "name": "goal step budget", "value": "60 bars", "meaning": "The number of one-minute bars the goal may run before it is ended." },
+        { "name": "first action under the goal", "value": "buy 1 contract", "meaning": "The primitive action the lower level picked on the next bar while pursuing the goal." },
+        { "name": "estimated value of the goal", "value": "plus 35 US dollars", "meaning": "What the top level expects this goal choice to be worth from here, an estimate and not a result." }
+      ]
+    },
+    "reading": "The model is saying that, in this situation, aiming to recover to break-even is the best of its three goals. Treat the estimated value as the model's own guess. What matters is the net result over many such episodes in walk-forward folds, after costs."
+  }
+}

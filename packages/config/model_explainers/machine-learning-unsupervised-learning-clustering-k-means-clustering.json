@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-k-means-clustering",
+  "name": "K-Means Clustering",
+  "analogy": "Think of it as choosing where to open a few sandwich shops so every customer has one nearby. You drop the shops down, let each customer walk to the nearest one, then move each shop to the middle of its customers, and repeat until nobody wants to switch.",
+  "steps": [
+    {
+      "title": "Decide how many groups you want",
+      "description": "You choose the number of groups, called K, before anything runs. Common ways to choose are trying several values and picking where improvement flattens out or where a separation score is best.",
+      "inExample": "K is set to 4 after trying 2 through 8 and finding little gain beyond 4."
+    },
+    {
+      "title": "Rescale the features",
+      "description": "Because the model works with plain distances, a feature measured in big numbers would overwhelm the rest. Each feature is rescaled so they count equally.",
+      "inExample": "Volatility, trend and volume ratio are each rescaled to an average of zero and a typical size of one."
+    },
+    {
+      "title": "Drop K starting centres",
+      "description": "K points are placed in the feature space as the first guesses for the group centres. A smart spread-out placement is normally used, and the whole run is repeated from several starts to avoid an unlucky one.",
+      "inExample": "Four centres are placed using a spread-out start, and the run is repeated from 10 different starts."
+    },
+    {
+      "title": "Assign every bar to its nearest centre",
+      "description": "Each bar is given to the group whose centre is closest. Every bar belongs to exactly one group.",
+      "inExample": "Each of the 20,000 bars is given to one of the 4 centres by straight-line distance."
+    },
+    {
+      "title": "Move each centre to the middle of its bars",
+      "description": "Each centre moves to the average position of the bars now assigned to it. This reduces the total distance between bars and their centres.",
+      "inExample": "Centre 2 moves toward lower volatility and a mild upward trend, where its bars are concentrated."
+    },
+    {
+      "title": "Repeat until nothing changes",
+      "description": "Assignment and moving alternate until no bar switches groups, or the movement is negligible. The result is the K centres and each bar's group.",
+      "inExample": "After 14 rounds no bar changes group and the run stops."
+    },
+    {
+      "title": "Place a new bar in the nearest group",
+      "description": "A new bar is rescaled the same way and given to the nearest centre. The distance to that centre shows how typical the bar is of its group.",
+      "inExample": "The new bar is given to centre 2, at a distance of just under 1 scaled unit."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Labelling market conditions",
+      "example": "Sorting 5-minute MNQ bars into four types such as quiet, drifting up, drifting down and volatile using trailing features."
+    },
+    {
+      "task": "A quick regime feature for another model",
+      "example": "Adding the cluster number as an input to a classifier, a cheap way to summarise the market state."
+    },
+    {
+      "task": "Compressing a large table into a few typical rows",
+      "example": "Replacing 200,000 bars with 50 centre bars to test ideas quickly on a small sample."
+    },
+    {
+      "task": "A first look at hidden structure",
+      "example": "Clustering the 35 base features to see whether bars fall into natural groups before choosing a more complex model."
+    }
+  ],
+  "avoidWhen": [
+    "Your groups are curved, ring-shaped or very different in size; it assumes roughly round groups of similar size, so use a density-based or spectral method.",
+    "You want to know how confident the assignment is; each bar gets one hard label, so a Gaussian mixture gives probabilities instead."
+  ],
+  "example": {
+    "scenario": "A researcher clusters a year of 5-minute MNQ bars into four types using three rescaled features, then asks which type the latest bar belongs to.",
+    "input": {
+      "summary": "Three rescaled features for the latest bar, with the four fitted centres.",
+      "fields": [
+        { "name": "close", "value": "19,330", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "20-bar volatility", "value": "four fifths of a standard deviation below average", "meaning": "Volatility is lower than the average over the year." },
+        { "name": "20-bar trend", "value": "three fifths of a standard deviation above average", "meaning": "Price has been drifting upward more than average." },
+        { "name": "volume against its 20-bar average", "value": "a fifth of a standard deviation below average", "meaning": "Volume is close to normal." },
+        { "name": "number of groups", "value": "4", "meaning": "The value of K chosen before fitting." }
+      ]
+    },
+    "output": {
+      "summary": "A group number for the bar and how near it sits to that group.",
+      "fields": [
+        { "name": "group number", "value": "2", "meaning": "The group whose centre is nearest; its meaning is read from the centre, here low volatility with a mild upward drift." },
+        { "name": "distance to its centre", "value": "just under 1 scaled unit", "meaning": "How far the bar sits from the typical bar of the group." },
+        { "name": "distance to the next nearest centre", "value": "about 1 and a half scaled units", "meaning": "How far it is from the second-best group, so a large gap means a clear assignment." },
+        { "name": "bars in the group", "value": "6,300 of 20,000", "meaning": "How many bars the group holds, close to a third of the year." }
+      ]
+    },
+    "reading": "The bar is a quiet upward drift and it sits clearly nearer to group 2 than to any other. The label describes the market's state and does not predict direction, so use it as a context input and test whether a strategy behaves differently in each group."
+  }
+}

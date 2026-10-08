@@ -1,0 +1,77 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-manifold-learning-umap-uniform-manifold-approximation-and-projection",
+  "name": "Uniform Manifold Approximation and Projection (UMAP)",
+  "analogy": "Think of it as seating guests at a banquet using a friendship web. Everyone is pulled toward the guests they know well and pushed away from strangers, until the room settles into tables of friends, and the tables that share many friends end up near each other.",
+  "steps": [
+    {
+      "title": "Find each bar's closest neighbours",
+      "description": "For every bar, the model finds its nearest neighbours in the full feature space. It uses a fast search, which is why it copes with hundreds of thousands of bars where older methods slow down.",
+      "inExample": "Each of 20,000 five-minute MNQ bars, described by 35 features, is matched with its 15 closest bars."
+    },
+    {
+      "title": "Turn closeness into link strengths",
+      "description": "Each link gets a strength between zero and one: very close neighbours get a strong link, distant ones a weak link. The strengths are adjusted per bar, so bars in crowded regions and lonely regions are treated fairly.",
+      "inExample": "A bar in a dense, quiet region has 15 strong links; a bar in a rare spike region has a few strong links and the rest faint."
+    },
+    {
+      "title": "Start with a rough layout",
+      "description": "The model places every bar at a starting position on a flat map, usually two coordinates. The start is a sensible rough guess rather than pure randomness, which makes results more repeatable.",
+      "inExample": "All 20,000 bars are given starting positions on a two-coordinate map."
+    },
+    {
+      "title": "Pull friends together, push strangers apart",
+      "description": "It then moves the bars in many small rounds. Linked bars are pulled toward each other in proportion to link strength, and a random sample of unlinked bars is pushed away. A minimum-spacing setting controls how tightly friends may bunch.",
+      "inExample": "With minimum spacing set to one tenth, bars joined by strong links tighten into clumps while unrelated clumps drift apart over 200 rounds."
+    },
+    {
+      "title": "Read the final map",
+      "description": "After the rounds finish, every bar has a pair of coordinates. Local groups are reliable, and the rough arrangement of groups is also meaningful, more so than in t-SNE, though the exact gaps between groups are only a rough guide.",
+      "inExample": "The 14:35 bar lands at map position 42 and minus 11, inside a clump of high-volume selloff bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Looking at a large set of market states",
+      "example": "Mapping 200,000 MNQ 1-minute bars by their 35 base features to see which kinds of bars form their own clumps."
+    },
+    {
+      "task": "Preparing data for clustering",
+      "example": "Reducing the 151 technical indicators to a few coordinates and then running a clustering step on them to define market regimes."
+    },
+    {
+      "task": "Checking that a model learned something",
+      "example": "Mapping a neural network's internal representation of bars and colouring by its predicted direction to see whether similar predictions cluster."
+    },
+    {
+      "task": "Spotting unusual bars",
+      "example": "Finding the few bars that sit alone, far from any clump, such as news spikes, and reviewing them by hand."
+    }
+  ],
+  "avoidWhen": [
+    "You need distances on the map to be exact numbers; the size of gaps between clumps is only roughly meaningful, so use principal component analysis when true distances matter.",
+    "You need a stable result you can rerun and compare month to month without care; a different random seed or setting can reshape the map, so fix the seed and the settings if comparing."
+  ],
+  "example": {
+    "scenario": "A researcher maps 20,000 five-minute Micro E-mini Nasdaq-100 futures (MNQ) bars from the past quarter, each described by 35 base features, to see which kinds of bars cluster together.",
+    "input": {
+      "summary": "A table of 20,000 bars by 35 standardised features and three settings that shape the map.",
+      "fields": [
+        { "name": "number of bars", "value": "20,000", "meaning": "The five-minute MNQ bars included in the map." },
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features describing each bar: returns, volatility, volume, price structure and momentum." },
+        { "name": "neighbours per bar", "value": "15", "meaning": "How many close bars define each bar's local neighbourhood; smaller values emphasise fine detail." },
+        { "name": "minimum spacing", "value": "one tenth", "meaning": "How tightly points are allowed to bunch on the map; lower values give tighter clumps." },
+        { "name": "coordinates wanted", "value": "2", "meaning": "The size of the flat map each bar is placed on." },
+        { "name": "volume against its 20-bar average, 14:35 bar", "value": "80 percent above", "meaning": "One of the 35 features for the bar being examined." }
+      ]
+    },
+    "output": {
+      "summary": "Two map coordinates for each bar, ready to plot and colour.",
+      "fields": [
+        { "name": "map coordinates of the 14:35 bar", "value": "42 and minus 11", "meaning": "Where this bar sits on the map in map units; nearby bars have similar feature values." },
+        { "name": "clumps visible", "value": "6", "meaning": "Separate groups on the map, such as quiet drift, steady trend, sharp selloff and open-bell spike." },
+        { "name": "bars far from any clump", "value": "140", "meaning": "Isolated points that resemble no large group and are candidates for manual review." }
+      ]
+    },
+    "reading": "Colour the map by what happened over the next 6 bars. If a clump leans one way consistently on separate walk-forward folds, it is worth building a model around; if the colours look random, the features do not separate outcomes and the map is only a description."
+  }
+}

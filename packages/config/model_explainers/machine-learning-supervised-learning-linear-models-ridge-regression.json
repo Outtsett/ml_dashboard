@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-ridge-regression",
+  "name": "Ridge Regression",
+  "analogy": "Think of it as a team of analysts who all say nearly the same thing. A plain model lets them shout over each other with huge, opposite weights; ridge makes them share the work evenly and keeps every voice small, so the forecast stops swinging wildly from bar to bar.",
+  "steps": [
+    {
+      "title": "Write the forecast as a weighted sum",
+      "description": "Each feature gets a weight and the forecast is the sum of feature times weight plus a starting level. This is the same recipe as ordinary linear regression.",
+      "inExample": "The 6-bar-ahead MNQ move is forecast from 35 base features that include several overlapping momentum measures."
+    },
+    {
+      "title": "Rescale the features",
+      "description": "The brake on the weights treats them all alike, so the features need a common scale first. Each is rescaled using only past bars.",
+      "inExample": "The 35 features are each rescaled to a similar typical size with trailing statistics."
+    },
+    {
+      "title": "Add a brake on the size of the weights",
+      "description": "The model is told to keep forecast misses small and also to keep the weights small, paying a cost that grows quickly for large weights. Squaring the weights means one giant weight costs far more than many small ones.",
+      "inExample": "A penalty strength is set so that no single momentum weight is allowed to grow far beyond the others."
+    },
+    {
+      "title": "Share the weight among overlapping features",
+      "description": "When two features carry almost the same information, the brake splits the weight evenly between them. Plain regression might give one a huge positive weight and the other a huge negative one, which cancel on the training bars but fail on new ones.",
+      "inExample": "Three overlapping momentum features each take a moderate weight rather than two exploding in opposite directions."
+    },
+    {
+      "title": "Choose the brake strength on later data",
+      "description": "The strength is chosen by testing on bars after the training period. Too weak and the weights still swing; too strong and every weight collapses toward zero and the forecast becomes flat.",
+      "inExample": "Across walk-forward folds the strength with the smallest held-out miss is kept."
+    },
+    {
+      "title": "Forecast with the shrunk weights",
+      "description": "A new bar is scored as feature times weight, added up. Every feature still has some weight, only smaller and steadier than in the plain version.",
+      "inExample": "The 14:35 bar is scored and the forecast is a rise of 3 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Overlapping indicators",
+      "example": "Fitting a 30-minute forecast from several momentum and trend measures on different windows that are strongly related."
+    },
+    {
+      "task": "A steadier baseline than plain regression",
+      "example": "Using it as the linear reference in walk-forward tests because its forecasts change less from fold to fold."
+    },
+    {
+      "task": "Many features, limited bars",
+      "example": "Daily models with dozens of features and only a few thousand bars, where plain regression overfits."
+    },
+    {
+      "task": "Measuring how much information the features share",
+      "example": "Seeing how forecast quality changes as the brake strengthens, as a test of whether the indicators carry separate information."
+    }
+  ],
+  "avoidWhen": [
+    "You want to remove useless features entirely; ridge keeps all of them with small weights, while lasso or ElasticNet sets some exactly to zero.",
+    "The signal needs combined conditions or curves; a weighted sum cannot represent them.",
+    "You need a probability of a yes-or-no outcome; logistic regression is the natural choice."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A fitted ridge regression forecasts the change in the close 6 bars (30 minutes) later, in points.",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "return over the last 12 bars", "value": "down about half a percent", "meaning": "How much price has fallen over the previous hour, closely related to the 6-bar return." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "One forecast number and the largest shares of it.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 3 points", "meaning": "The sum of every feature times its shrunk weight, plus the starting level." },
+        { "name": "share from the two overlapping returns", "value": "plus 2 points", "meaning": "The combined contribution of the 6-bar and 12-bar returns, which split their weight evenly." },
+        { "name": "forecast in US dollars per contract", "value": "plus 6 US dollars", "meaning": "3 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "The forecast is a faint lean of 3 points. The value of ridge is that it would barely change if you added a 9-bar return alongside the others. Compare it with plain regression on the same folds, and trade it only if the net result after commission and slippage holds up."
+  }
+}

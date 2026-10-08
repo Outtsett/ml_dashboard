@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-dreamer-v1-v3",
+  "name": "Dreamer (V1-V3)",
+  "analogy": "Think of it as a pilot who learns a flight simulator from the real flights he has made, then does most of his practice in the simulator. He only flies for real now and then to check that the simulator still matches the sky.",
+  "steps": [
+    {
+      "title": "Compress the market into a hidden state",
+      "description": "A recurrent network reads each bar's features and builds a compact hidden state with two parts: a steady memory of the recent past and a small random part that captures what could not be predicted.",
+      "inExample": "A window of 64 five-minute MNQ bars is compressed into a hidden state of 256 memory numbers and 32 random numbers."
+    },
+    {
+      "title": "Teach the state to describe the market",
+      "description": "The hidden state is trained so that it can rebuild the bar's features and predict the reward that followed. This ties the invented state to the real market instead of letting it drift into fantasy.",
+      "inExample": "The state must reproduce the bar's volatility and volume and predict the next bar's reward within a small error."
+    },
+    {
+      "title": "Learn how the state moves forward",
+      "description": "The model also learns a prediction rule that moves the hidden state forward one bar without seeing the bar. This rule is what makes imagination possible.",
+      "inExample": "From the state at 14:35 the rule predicts the state at 14:40, the reward there and whether the episode continues."
+    },
+    {
+      "title": "Imagine many short futures",
+      "description": "Starting from real states, the policy and the learned rule are chained for a fixed number of steps entirely inside the hidden space. Thousands of such imagined sequences are produced cheaply.",
+      "inExample": "From 512 real states the model imagines 15-bar futures, a total of 512 imagined sequences, with no new market data used."
+    },
+    {
+      "title": "Improve the policy from the imagined returns",
+      "description": "A value estimator learns to predict the discounted reward of each imagined sequence. The policy is adjusted to increase that predicted reward, using the imagined steps rather than any new real trades.",
+      "inExample": "The policy shifts a little toward positions that the imagined 15-bar futures reward more."
+    },
+    {
+      "title": "Act on a real bar and refresh the model",
+      "description": "On a real bar the current state is encoded and the policy picks a position. New real bars flow back to keep the simulator accurate so that imagined futures stay trustworthy.",
+      "inExample": "For the newest bar the policy gives long 38 percent, flat 36 percent and short 26 percent, with a value estimate of about 4 ticks."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning a position-sizing policy with few real trades",
+      "example": "Training a sizing policy mostly on imagined sequences, because each real fill carries real slippage."
+    },
+    {
+      "task": "Stress-testing a policy by rehearsal",
+      "example": "Imagining the same policy starting from calm, trending and volatile states to see how it behaves in each."
+    },
+    {
+      "task": "Joint modelling of correlated instruments",
+      "example": "A single hidden state over MNQ and ES so the policy can imagine how a move in one affects the other."
+    },
+    {
+      "task": "Execution and order slicing",
+      "example": "Practising how to split a larger order over several bars by imagining fills and slippage."
+    }
+  ],
+  "avoidWhen": [
+    "You have a small table of features and a simple direction target; a boosted tree needs a fraction of the machinery and is easier to audit.",
+    "The market response to your orders matters little and rewards are mostly noise; the simulator would learn the noise and the imagined practice would teach the policy to chase it."
+  ],
+  "example": {
+    "scenario": "A Dreamer model has been trained on a year of five-minute MNQ bars. At 14:35 it encodes the last 64 bars, imagines futures from that state and reports the position it prefers.",
+    "input": {
+      "summary": "A window of recent bars and the settings of the imagination.",
+      "fields": [
+        { "name": "observation window", "value": "64 five-minute bars", "meaning": "The recent bars the hidden state is built from." },
+        { "name": "close", "value": "19,513", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "imagination horizon", "value": "15 bars", "meaning": "How many bars ahead each imagined future runs." },
+        { "name": "imagined sequences", "value": "512", "meaning": "How many imagined futures are used to judge the policy." },
+        { "name": "discount for future reward", "value": "97 percent per bar", "meaning": "How much a reward one bar further ahead counts compared with the reward before it." }
+      ]
+    },
+    "output": {
+      "summary": "A preference over positions and a value estimate for the current state.",
+      "fields": [
+        { "name": "share long", "value": "38 percent", "meaning": "The policy's preference for holding a long position." },
+        { "name": "share flat", "value": "36 percent", "meaning": "The policy's preference for staying out." },
+        { "name": "share short", "value": "26 percent", "meaning": "The policy's preference for holding a short position." },
+        { "name": "probability the close is higher", "value": "59 percent", "meaning": "The long share divided by the long and short shares combined." },
+        { "name": "value estimate", "value": "4 ticks", "meaning": "The reward, in quarter-point ticks, that the critic expects the policy to collect from this state." }
+      ]
+    },
+    "reading": "Check the gap between the reward the model imagined and the reward the policy later earned on real bars; a large gap means the simulator is overconfident. The 59 percent lean is only worth acting on if it clears trading costs on bars the model never trained on."
+  }
+}

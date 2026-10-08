@@ -1,0 +1,77 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-reinforce",
+  "name": "REINFORCE",
+  "analogy": "Think of it as a trader who plays a whole day, then checks the final profit and loss, and tells themselves: repeat the kinds of moves I made on good days a little more, and make the moves from bad days a little less likely. Nothing is judged until the day is over.",
+  "steps": [
+    {
+      "title": "Play one full episode with the current policy",
+      "description": "The policy chooses actions bar by bar, sampling each from its own stated chances, until the episode ends. Every state, action and reward along the way is written down.",
+      "inExample": "The policy trades one full session of 78 five-minute MNQ bars, choosing short, flat or long on every bar, and logs all 78 choices and their rewards."
+    },
+    {
+      "title": "Work out the total outcome from each point onward",
+      "description": "For every bar, the model adds up all the reward that came from that bar to the end of the episode, giving less weight to far-off reward. This number says how things turned out after that choice.",
+      "inExample": "The long entered at bar 20 was followed by a total of plus 46 US dollars of reward through the end of the day."
+    },
+    {
+      "title": "Raise or lower the chance of each action taken",
+      "description": "Each choice is nudged by its outcome. A choice followed by a good total becomes a little more likely in that situation, and a choice followed by a bad total becomes a little less likely. The bigger the outcome, the bigger the nudge.",
+      "inExample": "Going long at bar 20 becomes slightly more likely in similar situations, while the short at bar 55, followed by minus 31 dollars, becomes less likely."
+    },
+    {
+      "title": "Optionally subtract a typical outcome",
+      "description": "To cut noise, the average outcome can be subtracted first, so only better-than-usual and worse-than-usual results push the policy. This does not change what is learned on average, only how jumpy the learning is.",
+      "inExample": "The day's average outcome is plus 5 dollars, so the long at bar 20 is credited with plus 41 rather than plus 46."
+    },
+    {
+      "title": "Repeat with fresh episodes",
+      "description": "The old episode is discarded, since it was produced by the old policy, and a new episode is played with the improved one. Learning is slow and noisy but needs no estimate of value, only real outcomes.",
+      "inExample": "After the update the policy plays another session, and over several hundred sessions its average daily reward trends upward."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A first learning baseline in a new trading setup",
+      "example": "Checking whether a state made of 35 base features and a simple reward on MNQ bars produces any learnable behaviour before building anything larger."
+    },
+    {
+      "task": "Strategies with a natural end of episode",
+      "example": "Treating each trading day as one episode so the policy is judged on the day's net result after costs."
+    },
+    {
+      "task": "Rewards that only become clear at the end",
+      "example": "Scoring a swing position only when it is closed days later, with no useful reward on the bars in between."
+    },
+    {
+      "task": "Measuring how noisy learning really is",
+      "example": "Running it beside a version with a baseline to see how much steadier the learning curve becomes."
+    }
+  ],
+  "avoidWhen": [
+    "Episodes are long or data is limited; results swing hugely from one episode to the next, so learning needs very many episodes and a more stable method will get there sooner.",
+    "You need feedback within an episode, such as per-bar learning; this method waits for the episode to finish, and a method that estimates value as it goes is a better fit."
+  ],
+  "example": {
+    "scenario": "A policy has just finished one full trading session on MNQ five-minute bars, 78 bars, ending with a net day of plus 12 US dollars after costs. The model now learns from that single session.",
+    "input": {
+      "summary": "The record of one finished session: what the policy saw and did, and the reward on each bar.",
+      "fields": [
+        { "name": "bars in the session", "value": "78 five-minute bars", "meaning": "The length of the episode being learned from." },
+        { "name": "net result of the session", "value": "plus 12 US dollars", "meaning": "The total reward over the episode after trading costs." },
+        { "name": "action at bar 20", "value": "go long", "meaning": "One of the 78 choices, entered after a pullback near 19,380." },
+        { "name": "total reward from bar 20 onward", "value": "plus 46 US dollars", "meaning": "How things turned out after that choice, up to the end of the session." },
+        { "name": "action at bar 55", "value": "go short", "meaning": "A later choice made near 19,450." },
+        { "name": "total reward from bar 55 onward", "value": "minus 31 US dollars", "meaning": "How things turned out after the short." }
+      ]
+    },
+    "output": {
+      "summary": "How the policy's chances change in the situations seen in the session.",
+      "fields": [
+        { "name": "chance of long in the bar 20 situation", "value": "from 44 percent to 46 percent", "meaning": "A small rise because the choice was followed by a good result." },
+        { "name": "chance of short in the bar 55 situation", "value": "from 31 percent to 29 percent", "meaning": "A small fall because the choice was followed by a bad result." },
+        { "name": "size of one step", "value": "small by design", "meaning": "A single session moves the chances only slightly, since one session is a noisy sample." }
+      ]
+    },
+    "reading": "The model's output is a slightly changed policy, not a signal. Watch the average session result over many hundreds of sessions: a rising line means learning is working, while a line that bounces up and down means the noise is swamping the signal."
+  }
+}

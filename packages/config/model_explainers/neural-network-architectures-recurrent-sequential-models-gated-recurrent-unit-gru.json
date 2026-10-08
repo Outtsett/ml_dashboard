@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-recurrent-sequential-models-gated-recurrent-unit-gru",
+  "name": "Gated Recurrent Unit (GRU)",
+  "analogy": "Think of it as a trader keeping one notepad while reading the chart bar by bar. After each bar two dials decide the notes: one says how much of the old story to keep versus rewrite, and the other says how much of the old story to even consider when forming the new thought.",
+  "steps": [
+    {
+      "title": "Start with an empty notepad",
+      "description": "The model holds one hidden state, a short list of numbers that acts as its memory of everything seen so far. At the start of a window it is set to neutral values.",
+      "inExample": "A 32-number hidden state is cleared before reading a 60-bar window of MNQ 5-minute bars."
+    },
+    {
+      "title": "Feed in the next bar",
+      "description": "Each step takes the newest bar's features, such as return, range, volume ratio and momentum, together with the current notepad. The bars are processed strictly in time order.",
+      "inExample": "At bar 38 the model receives a bar with a 24-point range and volume 70 percent above average along with its current notes."
+    },
+    {
+      "title": "Decide how much of the past to look at",
+      "description": "A reset dial, between fully closed and fully open, controls how much of the old notes is used when forming a fresh candidate thought. When the market changes character the dial closes and the model effectively starts a new line of thought.",
+      "inExample": "A sudden regime change at bar 38 closes the reset dial to 20 percent, so the new thought mostly ignores the quiet earlier bars."
+    },
+    {
+      "title": "Form a candidate new note",
+      "description": "Using the new bar and the allowed part of the old notes, the model writes a candidate for what the notepad could say now. It is only a proposal at this point.",
+      "inExample": "The candidate note says: a fast, heavy-volume drop is under way."
+    },
+    {
+      "title": "Blend old and new with the update dial",
+      "description": "An update dial decides the mixture of old notes and candidate. If it stays near the old notes, information carries forward almost unchanged, which is what lets the model remember across many bars. If it moves to the candidate, the model rewrites its memory.",
+      "inExample": "The update dial sits at 70 percent toward the candidate, so the notepad is largely rewritten to reflect the drop."
+    },
+    {
+      "title": "Read the final notes and predict",
+      "description": "After the last bar, the notepad goes to an output layer that produces the prediction. Training compares many predictions with what actually happened and adjusts the dials and weights.",
+      "inExample": "After bar 60, the final notes produce a 46 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Next-few-bars direction probability",
+      "example": "Mapping a 60-bar MNQ window of open, high, low, close and volume to the chance that the close 30 minutes ahead is higher."
+    },
+    {
+      "task": "Triple-barrier outcome prediction",
+      "example": "Classifying whether a 40-point target, a 25-point stop or the time limit is hit first after an entry bar."
+    },
+    {
+      "task": "Forecasting volatility for sizing",
+      "example": "Predicting the next hour's average true range so contract count shrinks when large moves are expected."
+    },
+    {
+      "task": "A fast sequence model for screening ideas",
+      "example": "Using it as the quick sequence baseline to test feature sets before running a slower attention model on the same folds."
+    }
+  ],
+  "avoidWhen": [
+    "The call depends on exactly one old bar, such as a level from many hours back; a single notepad blurs distant bars, and an attention model can pick that bar out directly.",
+    "The inputs are a flat table of indicators with no ordering that matters; a tree model or small feedforward network is faster and simpler."
+  ],
+  "example": {
+    "scenario": "At 13:20, a gated recurrent unit with a 32-number state reads the last 60 bars of MNQ at 5-minute spacing and returns the probability that the close 6 bars later is higher.",
+    "input": {
+      "summary": "A window of 60 bars, each reduced to a handful of scaled features.",
+      "fields": [
+        { "name": "window length", "value": "60 bars (5 hours)", "meaning": "How many 5-minute bars are read in order." },
+        { "name": "last close", "value": "19,620", "meaning": "The closing price of the final bar, in index points." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "return over the last 6 bars", "value": "minus 60 points", "meaning": "Price fell over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "70 percent above average", "meaning": "The last bars were busier than normal." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability read from the final notepad.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "46 percent", "meaning": "The output layer's answer from the hidden state after bar 60." },
+        { "name": "call", "value": "down", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "update dial at bar 38", "value": "70 percent", "meaning": "How far the model rewrote its memory when the regime changed at bar 38; higher means it was reacting to something new." }
+      ]
+    },
+    "reading": "A 46 percent chance of up is a four-point lean toward more downside, which is slim. Compare it with the training share of up-closes and check that it holds after trading costs on out-of-sample folds before sizing anything on it."
+  }
+}

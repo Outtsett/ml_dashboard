@@ -4,7 +4,7 @@ import { Badge } from "@/shared/ui/badge";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { RunConfigurator } from "./RunConfigurator";
 
-import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, Activity, Gauge } from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, Info, Tag, Cpu, Brain, FileText, Play, LineChart, Bot, AlertTriangle, Activity, Gauge, Footprints } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
@@ -15,6 +15,7 @@ import { LifecyclePanel } from "./LifecycleStrip";
 import { ArchitecturePreview } from "./architecture/ArchitecturePreview";
 import { ModelRunsPanel } from "./metrics/ModelRunsPanel";
 import { SpecificationMetricsPanel } from "./metrics/panels";
+import { HowItWorksPanel } from "./explainer/HowItWorksPanel";
 
 interface ModelDetailViewProps {
   model: CatalogModelDetail;
@@ -25,6 +26,8 @@ interface ModelDetailViewProps {
 }
 
 const PANELS = [
+  // the model in plain words: its steps, what to use it for, one worked example
+  { id: "how", label: "How it works", icon: Footprints },
   // how this model is judged: its metrics, their types and roles, and why each applies
   { id: "metrics", label: "Metrics", icon: Gauge },
   { id: "spec", label: "Blueprint", icon: FileText },
@@ -49,7 +52,7 @@ export function ModelDetailView({
   const isActive = activeEntity?.type === 'model' && activeEntity?.id === model.id;
 
   // One panel at a time, in place: the tab strip picks it.
-  const [activePanel, setActivePanel] = useState<string>("metrics");
+  const [activePanel, setActivePanel] = useState<string>("how");
 
   const renderPanelContent = (id: string) => {
     switch (id) {
@@ -165,6 +168,12 @@ export function ModelDetailView({
             </div>
           </ScrollArea>
         );
+      case "how":
+        return (
+          <ScrollArea className="h-full w-full">
+            <HowItWorksPanel specificationId={model.id} name={model.name} />
+          </ScrollArea>
+        );
       case "metrics":
         return (
           <ScrollArea className="h-full w-full">
@@ -204,7 +213,7 @@ export function ModelDetailView({
       <div className="p-6 border-b border-border/50 flex flex-col gap-4 bg-card/30 shrink-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 shrink-0 md:hidden">
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 shrink-0" title="Back to the category" aria-label="Back to the category">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
@@ -215,8 +224,6 @@ export function ModelDetailView({
                 <span className="font-mono">{model.id}</span>
                 <span>•</span>
                 <span>{categoryLabels[model.category] ?? model.category}</span>
-                <span>•</span>
-                <span>v{model.version}</span>
               </div>
             </div>
           </div>
@@ -246,11 +253,6 @@ export function ModelDetailView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {model.tags?.map(t => (
-            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 bg-muted/50">
-              {t}
-            </Badge>
-          ))}
           {trainableKey && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-[hsl(var(--data-pos))] text-[hsl(var(--data-pos))]">
               Trainable

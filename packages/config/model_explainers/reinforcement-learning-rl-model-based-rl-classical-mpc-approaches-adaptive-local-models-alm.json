@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-classical-mpc-approaches-adaptive-local-models-alm",
+  "name": "Adaptive Local Models (ALM)",
+  "analogy": "Think of it as a trader who, instead of trusting one rulebook, flips back through a diary and pulls out only the days that looked like today. They draw a quick best-fit line through just those days, weighting the closest lookalikes most, and make a forecast from it.",
+  "steps": [
+    {
+      "title": "Keep every observed transition",
+      "description": "The model does not compress history into fixed weights. It stores each past step as a record of the state, the action taken and what happened on the next bar.",
+      "inExample": "The store holds 12,000 past steps from 5-minute Micro E-mini Nasdaq-100 futures bars, each with its features, position and next-bar change."
+    },
+    {
+      "title": "Describe today's situation",
+      "description": "When a prediction is needed, the current state and the action being considered are written in the same form as the stored records.",
+      "inExample": "The query is the 14:10 bar with an oversold reading, with the candidate action being to buy one contract."
+    },
+    {
+      "title": "Find the closest past situations",
+      "description": "Every stored record is given a distance from the query. A weight is then assigned that is large for near lookalikes and fades quickly to almost nothing for distant records.",
+      "inExample": "The 60 nearest records get meaningful weight; the other 11,940 are close to zero."
+    },
+    {
+      "title": "Fit a small model to just those neighbours",
+      "description": "A simple weighted best-fit line is solved from the weighted records only. It is thrown away after the prediction, so each query gets a model made to measure for its own neighbourhood.",
+      "inExample": "A weighted line is fitted through the 60 neighbours, relating the features and the action to the next-bar change in points."
+    },
+    {
+      "title": "Predict the next bar and its uncertainty",
+      "description": "The fitted line is evaluated at the query to give the expected next-bar change. The spread of the neighbours around the line gives a rough measure of how much to trust it.",
+      "inExample": "The model predicts a rise of about 2 points for a buy, with typical neighbour scatter of 9 points."
+    },
+    {
+      "title": "Add the new outcome to the store",
+      "description": "After the next bar arrives, the real outcome becomes another stored record. The model adapts by simply having more, and more recent, neighbours to draw from.",
+      "inExample": "The 14:15 result is appended, making the store 12,001 records long."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A one-step forecast inside a planning loop",
+      "example": "Supplying the next-bar prediction that a controller re-solves every bar to choose between holding, buying and selling."
+    },
+    {
+      "task": "Volatility forecasts that depend on the situation",
+      "example": "Forecasting the next bar's range using only past bars with a similar opening gap and volume ratio."
+    },
+    {
+      "task": "Estimating slippage from similar past fills",
+      "example": "Predicting the cost of a market order from earlier orders of similar size at similar times of day."
+    },
+    {
+      "task": "Adapting after a break in market behaviour",
+      "example": "Letting predictions shift toward post-break records as they accumulate, without retraining anything."
+    }
+  ],
+  "avoidWhen": [
+    "Predictions must be extremely fast on millions of stored records, because each query searches the whole store; a trained gradient boosting model answers in a fraction of the time.",
+    "The state has many dimensions, since lookalike days become scarce and distances lose meaning; a model that learns a compact representation is the better choice."
+  ],
+  "example": {
+    "scenario": "A planning loop on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars needs a one-step forecast of the next bar's change for the action of buying one contract at 14:10.",
+    "input": {
+      "summary": "The query state and action, and the store the neighbours are drawn from.",
+      "fields": [
+        { "name": "stored transitions", "value": "12,000", "meaning": "The number of past steps kept in memory, each with its next-bar outcome." },
+        { "name": "close", "value": "19,298", "meaning": "The price at which the 14:10 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "33", "meaning": "A momentum reading; the market is leaning oversold." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "Trading is heavier than normal." },
+        { "name": "candidate action", "value": "buy 1 contract", "meaning": "The action whose consequence the model is asked to predict." },
+        { "name": "neighbours used", "value": "60", "meaning": "How many nearest past records receive meaningful weight." }
+      ]
+    },
+    "output": {
+      "summary": "A predicted next-bar change for the action, and how much to trust it.",
+      "fields": [
+        { "name": "predicted next-bar change", "value": "plus 2 points", "meaning": "The expected move over the next five-minute bar if the contract is bought, about 4 US dollars." },
+        { "name": "neighbour scatter", "value": "9 points", "meaning": "Typical distance of the neighbours' real outcomes from the fitted line, a rough measure of uncertainty." },
+        { "name": "effective neighbours", "value": "34", "meaning": "The count of neighbours after weighting, which shows how thin the local evidence is." },
+        { "name": "distance to nearest neighbour", "value": "18 percent of the typical gap", "meaning": "How close the most similar past record is compared with the usual gap between stored records; a large value means today is unlike anything stored." }
+      ]
+    },
+    "reading": "A forecast of 2 points against a scatter of 9 is a small lean buried in noise, so treat it as one input to the planner rather than a trade signal. If the distance to the nearest neighbour is large, distrust the forecast and let the planner fall back to a cautious default."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-gradient-based-optimization-gradient-descent",
+  "name": "Gradient Descent",
+  "analogy": "Think of it as walking down a foggy hillside to the valley floor. You cannot see the valley, but you can feel which way the ground tilts under your feet. You take a step downhill, feel again, and repeat until the ground is flat.",
+  "steps": [
+    {
+      "title": "Start from a guess",
+      "description": "Begin with an arbitrary set of values for the model's weights, often zeros or small random numbers. The guess does not need to be good; it only needs to be a place to start walking from.",
+      "inExample": "A direction model with three features starts with all three weights at 0, so every bar gets a 50 percent probability of closing higher."
+    },
+    {
+      "title": "Measure the total error",
+      "description": "Run the model over every training bar and add up how wrong it is, using a loss that is large for confident wrong calls and small for right ones. This single number is the height of the hillside at the current position.",
+      "inExample": "Over 40,000 training bars the starting loss is 693 thousandths, the loss of calling every bar a coin flip."
+    },
+    {
+      "title": "Feel the tilt for each weight",
+      "description": "For every weight, work out whether nudging it up or down would raise the loss and by how much. This gives the direction of steepest climb; downhill is the opposite way.",
+      "inExample": "Nudging the relative strength index weight down lowers the loss the most, so the slope for that weight points to a negative step."
+    },
+    {
+      "title": "Step downhill by a set amount",
+      "description": "Move every weight a small distance opposite to its tilt. The size of that step is the learning rate: too large and the walker overshoots and bounces, too small and it takes forever.",
+      "inExample": "With a learning rate of one tenth, each weight moves one tenth of its slope: the relative strength index weight steps slightly below zero and the volume weight slightly above zero."
+    },
+    {
+      "title": "Repeat until the ground is flat",
+      "description": "Steps two to four repeat over the whole dataset every time. As the tilt shrinks toward zero the steps get smaller, and the walk stops when the loss barely changes between rounds.",
+      "inExample": "After 120 rounds the loss falls from 693 to 689 thousandths and barely changes from round to round, so the walk stops."
+    },
+    {
+      "title": "Use the final weights to predict",
+      "description": "The weights where the walk stopped are the fitted model. A new bar is run through them to give a prediction.",
+      "inExample": "The 14:35 bar combines its three feature values through the fitted weights and receives a 57 percent probability of closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Fitting a simple direction model",
+      "example": "Fitting a logistic model that turns a few MNQ 5-minute features into a probability that the close 6 bars later is higher."
+    },
+    {
+      "task": "Calibrating a volatility model",
+      "example": "Finding the coefficients of a volatility forecast by minimising its negative log-likelihood on past 1-minute returns."
+    },
+    {
+      "task": "Training small models on small data",
+      "example": "Fitting a tiny network head on a few thousand bars, where the whole dataset fits in memory and a full pass is cheap."
+    },
+    {
+      "task": "Fitting a smooth risk model",
+      "example": "Adjusting the coefficients of a risk estimate so its predicted daily variance matches the realised variance."
+    }
+  ],
+  "avoidWhen": [
+    "The dataset is very large or arrives as a live stream; every step needs a full pass, so stochastic gradient descent on small batches is much cheaper.",
+    "The score is jumpy or cannot be differentiated, such as a backtest profit; use a search method that needs only scores, like differential evolution."
+  ],
+  "example": {
+    "scenario": "A researcher fits a three-feature logistic model on 40,000 MNQ 5-minute bars to estimate the probability that the close 6 bars later is higher than the current close, using plain full-batch gradient descent.",
+    "input": {
+      "summary": "Standardised feature values for each bar, the labels, and the settings of the walk.",
+      "fields": [
+        { "name": "training bars", "value": "40,000", "meaning": "Five-minute MNQ bars, all used in every step." },
+        { "name": "relative strength index, 14 bars (standardised)", "value": "1 standard deviation below usual for the latest bar", "meaning": "A momentum reading rescaled so that 0 is typical; below usual is mildly oversold." },
+        { "name": "volume against its 20-bar average (standardised)", "value": "1 standard deviation above usual for the latest bar", "meaning": "Busier than usual by a modest amount." },
+        { "name": "6-bar return (standardised)", "value": "1 standard deviation below usual for the latest bar", "meaning": "Price has fallen over the last 30 minutes by more than is typical." },
+        { "name": "learning rate", "value": "one tenth", "meaning": "The share of each slope that is applied as a step." },
+        { "name": "starting weights", "value": "0, 0 and 0", "meaning": "Every bar begins at a 50 percent probability." }
+      ]
+    },
+    "output": {
+      "summary": "The fitted weights, the loss before and after, and a probability for the latest bar.",
+      "fields": [
+        { "name": "fitted weights, in hundredths", "value": "minus 15, plus 5, minus 8", "meaning": "How strongly each standardised feature pushes the probability up or down; for example the first is a push of minus 15 hundredths per standard deviation." },
+        { "name": "loss at the start, in thousandths", "value": "693", "meaning": "The loss of a coin flip." },
+        { "name": "loss at the end, in thousandths", "value": "689", "meaning": "A small improvement, typical for noisy 5-minute data." },
+        { "name": "rounds until the walk stopped", "value": "120", "meaning": "How many full passes were needed." },
+        { "name": "probability the close is higher 6 bars later", "value": "57 percent", "meaning": "The model's estimate for the latest bar, whose three readings all push the same way." }
+      ]
+    },
+    "reading": "A loss that falls from 693 to 689 thousandths means a faint lean, not a strong signal; 57 percent appears only because all three readings of the latest bar line up. Compare the end loss on bars the fit never saw. If it is no lower than the coin-flip loss there, the weights have only memorised the training period."
+  }
+}

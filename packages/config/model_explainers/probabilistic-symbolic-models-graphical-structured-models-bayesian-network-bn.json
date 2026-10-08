@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-graphical-structured-models-bayesian-network-bn",
+  "name": "Bayesian Network (BN)",
+  "analogy": "Think of it as a flowchart of cause and effect that also knows the odds at every arrow. You tell it what you can see, such as the session and the volatility, and it works out how likely the thing you cannot see is.",
+  "steps": [
+    {
+      "title": "Name the variables as boxes",
+      "description": "Each thing you care about becomes a box with a small number of possible states. Continuous readings are first cut into a few labelled levels so that every box has a short list of states.",
+      "inExample": "Five boxes are drawn: session, news flag, volatility level, trend state and breakout in the next 6 bars, each with two or three states."
+    },
+    {
+      "title": "Draw arrows for direct influence",
+      "description": "An arrow goes from one box to another only when the first directly affects the second. A missing arrow is a claim that two boxes do not influence each other once their parents are known, and that claim is the real content of the model.",
+      "inExample": "Session and news flag both point to volatility level; volatility level and trend state both point to breakout."
+    },
+    {
+      "title": "Fill each box's odds table by counting",
+      "description": "For each box, the model counts how often each of its states occurred for each combination of its parent states in the history. These small tables replace one enormous table over everything at once.",
+      "inExample": "In twelve months of 5-minute bars, when volatility was high and the trend was up, a breakout followed in 47 percent of cases."
+    },
+    {
+      "title": "Enter what you know right now",
+      "description": "The boxes you can observe are set to their current states. Anything unobserved is simply left open, and the model can still answer.",
+      "inExample": "The session is New York open, volatility is high and the trend is up; the news flag is left unknown because its feed is missing."
+    },
+    {
+      "title": "Let the evidence flow through the arrows",
+      "description": "The model updates its belief in every unobserved box, working through the tables along the arrows. For a small network this is exact arithmetic, not a guess. Once a box is observed, the boxes behind it add nothing further to the answer.",
+      "inExample": "Volatility level is observed, so the open news flag no longer changes the breakout answer; the model reads the high-volatility, up-trend entry of the breakout table directly."
+    },
+    {
+      "title": "Read the answer and the reason",
+      "description": "The result is a probability for the box you asked about. Because every number comes from a visible table, you can point to which evidence moved the answer.",
+      "inExample": "The probability of a breakout is 47 percent against a 31 percent everyday base rate; the table row for high volatility and an up-trend is where the lift comes from."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Combining a few discrete signals",
+      "example": "Turning session, volatility level and trend state of an MNQ 5-minute bar into one probability of a breakout over the next 6 bars."
+    },
+    {
+      "task": "Explaining a risk decision",
+      "example": "Showing a risk reviewer the exact probability chain that made a position-sizing rule cut exposure in a fast market."
+    },
+    {
+      "task": "Working with missing inputs",
+      "example": "Still producing an answer when the FinBERT news sentiment is unavailable for a bar, by leaving that box open."
+    },
+    {
+      "task": "Encoding desk knowledge as structure",
+      "example": "Drawing the rule that a scheduled news release raises volatility, which in turn raises breakout odds, and letting data fill in the numbers."
+    }
+  ],
+  "avoidWhen": [
+    "The inputs are many continuous values, such as 151 indicators, because cutting each into levels throws away detail and the tables grow quickly; a tree or neural model suits that better.",
+    "The relationships between variables are unknown and you want the model to discover them, because learning the arrows from noisy market data is unreliable."
+  ],
+  "example": {
+    "scenario": "At the New York open on an MNQ chart the 5-minute volatility is high and the trend is up. You want the odds that price breaks out of the prior 12-bar range in the next 6 bars.",
+    "input": {
+      "summary": "Three observed states and one open box, each already cut into labelled levels.",
+      "fields": [
+        { "name": "session", "value": "New York open", "meaning": "Which part of the trading day the bar belongs to, set from the clock." },
+        { "name": "volatility level", "value": "high", "meaning": "The average true range of 26 points sits in the top third of the last twelve months." },
+        { "name": "trend state", "value": "up", "meaning": "The close is above its 50-bar average and that average is rising." },
+        { "name": "news flag", "value": "unknown", "meaning": "Whether a scheduled release is near; the box is left open because the feed is missing." },
+        { "name": "everyday breakout rate", "value": "31 percent", "meaning": "How often a breakout followed in all bars, before any evidence is entered." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for the breakout box, with the evidence that moved it.",
+      "fields": [
+        { "name": "probability of a breakout in 6 bars", "value": "47 percent", "meaning": "The updated chance of a close beyond the prior 12-bar high or low within 30 minutes." },
+        { "name": "change from the everyday rate", "value": "plus 16 points", "meaning": "How far the evidence lifted the probability above the 31 percent base rate." },
+        { "name": "table row that produced it", "value": "volatility high, trend up", "meaning": "The row of the breakout table that was read; the session and the open news flag did not change it." }
+      ]
+    },
+    "reading": "47 percent is a clear lift over the everyday rate but still less than a coin flip, and it says nothing about direction. A fair use is to widen the entry zone for breakout setups while keeping stops tight, then check whether costs leave any margin."
+  }
+}

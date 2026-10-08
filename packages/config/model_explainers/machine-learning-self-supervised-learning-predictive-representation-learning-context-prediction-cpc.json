@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-predictive-representation-learning-context-prediction-cpc",
+  "name": "Contrastive Predictive Coding (CPC)",
+  "analogy": "Think of it as a line-up for the next move. After watching the market so far, the model is shown one real continuation hidden among many fake ones taken from other days, and it has to pick the real one. To pick well it must learn what actually carries forward in time.",
+  "steps": [
+    {
+      "title": "Cut the series into short windows",
+      "description": "The long run of bars is chopped into short consecutive windows, and each window is squeezed into a compact summary by an encoder. The summary keeps what matters about the window and drops fine detail.",
+      "inExample": "Five-minute MNQ bars are cut into windows of 5 bars each, and every window becomes a summary of 32 numbers."
+    },
+    {
+      "title": "Build a running context",
+      "description": "A recurrent network reads the window summaries in order and keeps a running memory of everything seen so far. This memory is called the context, and it is the thing the model is really learning to make useful.",
+      "inExample": "After reading the last 8 windows, covering 40 bars, the context is a vector of 64 numbers describing the session so far."
+    },
+    {
+      "title": "Assemble a line-up of candidates",
+      "description": "For a chosen number of steps ahead, the real next summary is placed among decoys. The decoys are summaries of windows taken from other times in the data, so they look like plausible market behaviour but do not follow this context.",
+      "inExample": "For the window 3 steps ahead, the line-up holds 1 real summary and 15 decoys from other parts of the training data."
+    },
+    {
+      "title": "Rank the candidates from the context",
+      "description": "The context is used to score every candidate. The training goal is for the real continuation to receive a higher score than every decoy. Getting this right needs features that stay stable over time, like the volatility level, not noise bar to bar.",
+      "inExample": "The model gives the real window a score share of 31 percent, ahead of the best decoy at 9 percent."
+    },
+    {
+      "title": "Adjust until the real one wins",
+      "description": "Whenever a decoy outranks the real continuation, the weights of the encoder and the recurrent network are changed. Repeated over many line-ups, the context becomes a summary that predicts the future structure of the series.",
+      "inExample": "Over thousands of line-ups the real window climbs from being picked 6 percent of the time, which is chance, to being picked first about a third of the time."
+    },
+    {
+      "title": "Freeze the context and read it with a simple model",
+      "description": "The pretraining is finished and the encoder is frozen. A small linear model is then fitted on the context vector to make an actual call, such as the probability that the close some bars ahead is higher.",
+      "inExample": "A linear model reads the 64-number context at the 14:35 bar and returns a 56 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning features from years of unlabeled bars",
+      "example": "Pretraining on all MNQ one-minute bars without labels, then using the context vector as the input to a direction model trained on far fewer labelled examples."
+    },
+    {
+      "task": "Finding slow structure that persists across minutes",
+      "example": "Capturing the volatility level and the time of day pattern in a context that stays informative 30 minutes ahead."
+    },
+    {
+      "task": "Giving a downstream model a memory of the session",
+      "example": "Feeding the context vector alongside the 35 base features so the model knows what the morning looked like."
+    },
+    {
+      "task": "Comparing a learned context against a plain baseline",
+      "example": "Fitting the same linear model on the raw features and on the context, to see whether the line-up training added anything."
+    }
+  ],
+  "avoidWhen": [
+    "You have only a few thousand bars; the line-up puzzle needs a lot of unlabeled data before the context becomes more than noise.",
+    "You need to know why the model leans a certain way; a context vector of 64 numbers is hard to read, and a tree model with named features is easier to explain.",
+    "The series has strong short-term jumps you must forecast exactly; this method keeps slowly changing structure and discards fast detail."
+  ],
+  "example": {
+    "scenario": "At 14:35 on an MNQ day, the model has read the previous 40 five-minute bars in 8 windows. It builds a line-up for the window 3 steps ahead and then, after pretraining, a linear model reads the context to give a direction probability.",
+    "input": {
+      "summary": "Eight window summaries, plus a line-up of 16 candidate future windows used during pretraining.",
+      "fields": [
+        { "name": "windows read so far", "value": "8 windows of 5 bars", "meaning": "Forty five-minute bars, about three and a half hours of trading, as input to the recurrent network." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, showing how active the market is." },
+        { "name": "steps ahead to predict", "value": "3 windows (15 bars)", "meaning": "How far into the future the real candidate sits." },
+        { "name": "candidates in the line-up", "value": "1 real and 15 decoys", "meaning": "Decoys are windows from other times in the training data." }
+      ]
+    },
+    "output": {
+      "summary": "A context vector, the line-up ranking used for pretraining, and the direction probability from a simple model on top.",
+      "fields": [
+        { "name": "context vector", "value": "64 numbers", "meaning": "The learned summary of the session so far; this is the product of the model." },
+        { "name": "score share of the real candidate", "value": "31 percent", "meaning": "How much of the total score the true continuation received in the line-up." },
+        { "name": "probability the close 6 bars later is higher", "value": "56 percent", "meaning": "What the linear model on the frozen context returns for the 14:35 bar." }
+      ]
+    },
+    "reading": "Picking the real window shows the context captures structure that persists, but neighbouring windows are easy to match from slow features such as volatility, so it does not by itself show direction. Treat 56 percent as a modest lean and judge it on the run page after costs, against the same linear model fitted on the raw features."
+  }
+}

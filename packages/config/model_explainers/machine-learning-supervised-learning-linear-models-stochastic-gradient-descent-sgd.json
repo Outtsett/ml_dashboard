@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-stochastic-gradient-descent-sgd",
+  "name": "Stochastic Gradient Descent (SGD)",
+  "analogy": "Think of it as a trader adjusting a checklist after every single bar. Look at one bar, see how wrong the checklist was, nudge each line a tiny bit in the direction that would have helped, then move to the next bar. After enough bars the checklist settles.",
+  "steps": [
+    {
+      "title": "Start with small weights",
+      "description": "Each feature starts with a weight of zero or a tiny random number, so the first forecasts are close to guesses. The model is a plain weighted sum, the same as a linear or logistic model.",
+      "inExample": "All 35 weights start at zero, so every bar begins with a 50 percent chance of closing higher."
+    },
+    {
+      "title": "Take one bar, or a small handful",
+      "description": "Instead of studying the whole history at once, the model looks at a single bar or a small batch, forecasts it and compares the forecast with what really happened.",
+      "inExample": "The first bar's forecast is 50 percent, and the bar closed higher 6 bars later, so the miss is 50 points of probability."
+    },
+    {
+      "title": "Nudge each weight a little",
+      "description": "The model asks which way each weight should move to shrink this miss and moves it a small step in that direction. The step size, called the learning rate, is deliberately small because one bar is a noisy teacher.",
+      "inExample": "Weights on features that were high in that bar, such as an oversold reading, are nudged up by a tiny amount."
+    },
+    {
+      "title": "Apply a gentle pull toward zero",
+      "description": "A small pull on each weight keeps it from growing too large, which guards against fitting the quirks of the training bars.",
+      "inExample": "Each update also shrinks every weight by a small fraction, so weights only stay large if bar after bar supports them."
+    },
+    {
+      "title": "Sweep through the data many times",
+      "description": "The bars are shuffled and the pass is repeated several times, with the step size gradually reduced. The noisy individual updates average out and the weights settle near good values. The model can also keep learning from new bars as they arrive.",
+      "inExample": "After 15 passes over 40,000 bars the weights stop moving much and the held-out loss stops improving."
+    },
+    {
+      "title": "Forecast with the settled weights",
+      "description": "A new bar is scored as feature times weight, added up and, for a yes-or-no outcome, turned into a probability.",
+      "inExample": "The 14:35 bar scores a 54 percent chance of closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Linear models on very large data",
+      "example": "Fitting a direction model on years of 1-minute MNQ bars where the full history is too large to solve in one step."
+    },
+    {
+      "task": "Models that keep learning as bars arrive",
+      "example": "Updating the weights bar by bar during a live session instead of retraining overnight."
+    },
+    {
+      "task": "A quick trainer for many experiments",
+      "example": "Trying dozens of feature sets in walk-forward folds where each fit must take seconds."
+    },
+    {
+      "task": "The training recipe behind other models",
+      "example": "The same nudging recipe is how neural networks learn, so understanding it explains many other models in this catalogue."
+    }
+  ],
+  "avoidWhen": [
+    "The data is small; a direct solution such as ordinary regression is exact and has no step size to get wrong.",
+    "You do not want to tune the step size and number of passes; poor settings can make the weights bounce around or stall.",
+    "The market changes regime and the model keeps learning every bar; it can forget older conditions too quickly, so a slow step size and a periodic check are needed."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A linear classifier trained by stochastic gradient descent on 40,000 earlier bars gives the probability that the close 6 bars (30 minutes) later will be higher.",
+    "input": {
+      "summary": "The bar's rescaled features, plus the training settings that shaped the weights.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "learning rate", "value": "one hundredth", "meaning": "How large each nudge to a weight is, as a share of the full correction the bar suggests." },
+        { "name": "passes over the training bars", "value": "15", "meaning": "How many times the shuffled history was swept through during training." }
+      ]
+    },
+    "output": {
+      "summary": "A probability from the settled weights and the call.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "54 percent", "meaning": "The weighted sum of the features converted to a probability." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push upward", "value": "relative strength index of 27", "meaning": "The feature that added the most to this bar's probability." }
+      ]
+    },
+    "reading": "54 percent is a very small lean. Because the weights came from noisy nudging, check that retraining with a different shuffle gives nearly the same answer; if it does not, the result is dominated by training noise. As always, judge it on held-out folds after costs."
+  }
+}

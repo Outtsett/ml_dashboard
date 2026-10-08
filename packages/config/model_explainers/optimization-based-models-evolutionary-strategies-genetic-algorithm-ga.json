@@ -1,0 +1,83 @@
+{
+  "specificationId": "optimization-based-models-evolutionary-strategies-genetic-algorithm-ga",
+  "name": "Genetic Algorithm (GA)",
+  "analogy": "Think of it as breeding racehorses. You let the fastest animals mate, mix their traits, occasionally allow a random mutation, and keep the champion of each generation. After many generations the stable is full of fast horses that no one designed by hand.",
+  "steps": [
+    {
+      "title": "Write each candidate as a string of genes",
+      "description": "Every candidate solution is encoded as a fixed row of values, like a chromosome. For a yes-or-no choice each position is a 1 or a 0, so one row describes a whole combination.",
+      "inExample": "There are 12 candidate indicators. A candidate is a row of 12 ones and zeros, where a 1 means that indicator is used."
+    },
+    {
+      "title": "Score every candidate",
+      "description": "Each candidate gets a fitness number from a test, for example a validation score with a small penalty for using many items. Fitter candidates will be more likely to become parents.",
+      "inExample": "Each row trains a quick classifier on its chosen indicators and gets a validation score, minus a small penalty per indicator used."
+    },
+    {
+      "title": "Pick parents by small tournaments",
+      "description": "To choose a parent, draw a few candidates at random and take the fittest of them. This favours good candidates without letting one dominate completely.",
+      "inExample": "Three random rows are drawn and the one with the best score becomes parent A; the same is repeated for parent B."
+    },
+    {
+      "title": "Cross the parents over",
+      "description": "Cut both parents at a point and join the first part of one to the second part of the other. Pieces that worked well in each parent can end up together in the child.",
+      "inExample": "Parent A uses indicators 1, 3, 6, 10 and 11; parent B uses 2, 3, 7, 10 and 12. Cutting after position 6 gives a child using 1, 3, 6, 7, 10 and 12."
+    },
+    {
+      "title": "Mutate a little",
+      "description": "Each gene has a small chance of flipping. Mutation brings in choices that no parent had and keeps the group from becoming identical too early.",
+      "inExample": "With a 2 percent flip chance per position, roughly one child in five, with 12 positions each, has at least one indicator switched on or off."
+    },
+    {
+      "title": "Keep the champion and repeat",
+      "description": "The best candidate or two is copied unchanged into the next generation so progress is never lost. The cycle repeats until the best score stops improving.",
+      "inExample": "After about 40 generations the best row has settled on a set of 5 indicators and stopped changing."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing a subset of indicators",
+      "example": "Selecting which of 12 candidate indicators to feed an MNQ direction model, rewarding validation score and penalising redundant ones."
+    },
+    {
+      "task": "Searching combinations of trading rules",
+      "example": "Trying combinations of entry filter, exit rule and time-of-day window, each with integer settings, against a backtest."
+    },
+    {
+      "task": "Evolving signal formulas",
+      "example": "Letting tree-shaped formulas built from open, high, low, close and volume compete, in the style of genetic programming."
+    },
+    {
+      "task": "Trading off several goals at once",
+      "example": "Keeping a family of strategy variants that balance return, maximum drawdown and turnover instead of one winner."
+    }
+  ],
+  "avoidWhen": [
+    "All the settings are smooth numbers and a slope is available; gradient descent is faster and more exact.",
+    "The fitness test is noisy and cheap to overfit; the search will find combinations that merely fit the noise, so a held-out test is essential or a simpler method is safer."
+  ],
+  "example": {
+    "scenario": "A researcher wants a small, non-redundant set of indicators for an MNQ 5-minute direction model, chosen from 12 candidates, and lets a genetic search do the choosing.",
+    "input": {
+      "summary": "The pool of candidates, the size of the population and the search settings.",
+      "fields": [
+        { "name": "candidate indicators", "value": "12", "meaning": "Including relative strength index, average true range, volume ratio and distance from the 50-bar average." },
+        { "name": "population size", "value": "30 rows", "meaning": "How many indicator combinations are alive in each generation." },
+        { "name": "tournament size", "value": "3", "meaning": "How many random candidates compete to become a parent." },
+        { "name": "mutation chance per position", "value": "2 percent", "meaning": "Chance that an indicator is switched on or off in a child." },
+        { "name": "penalty per indicator used", "value": "two tenths of a percentage point", "meaning": "Subtracted from the validation score so that smaller sets are favoured." },
+        { "name": "generations", "value": "40", "meaning": "How many rounds of selection, crossover and mutation are run." }
+      ]
+    },
+    "output": {
+      "summary": "The best indicator set found and its fitness.",
+      "fields": [
+        { "name": "chosen indicators", "value": "relative strength index, average true range, volume ratio, 50-bar distance, 6-bar return", "meaning": "The indicators switched on in the best row." },
+        { "name": "number of indicators used", "value": "5 of 12", "meaning": "Size of the winning set." },
+        { "name": "validation score", "value": "54 percent", "meaning": "Area under the receiver operating characteristic curve on validation folds, where 50 percent is no ranking skill." },
+        { "name": "fitness after penalty", "value": "53 percent", "meaning": "Validation score minus 5 indicators times two tenths of a point, which is one point." }
+      ]
+    },
+    "reading": "A validation score of 54 percent is a slight lean, not a strong signal. The set was chosen because it scored well on those folds, so measure it again on later data. If a rerun with a different random seed picks a very different set, the score surface is flat and the choice is mostly noise."
+  }
+}

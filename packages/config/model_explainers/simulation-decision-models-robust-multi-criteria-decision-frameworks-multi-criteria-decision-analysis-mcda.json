@@ -1,0 +1,82 @@
+{
+  "specificationId": "simulation-decision-models-robust-multi-criteria-decision-frameworks-multi-criteria-decision-analysis-mcda",
+  "name": "Multi-Criteria Decision Analysis (MCDA)",
+  "analogy": "Think of it as a scorecard for choosing between several candidates when no single number settles it. Each candidate is scored on several things you care about, the things are weighted by how much they matter to you, and the winner is the one closest to the perfect candidate and furthest from the worst.",
+  "steps": [
+    {
+      "title": "List the choices and what matters",
+      "description": "You write down the alternatives and the criteria that decide between them, and mark each criterion as higher is better or lower is better. The result is a table with one row per alternative and one column per criterion.",
+      "inExample": "Four index futures are the alternatives. The criteria are expected return and daily volume (higher is better), and volatility and trading cost (lower is better)."
+    },
+    {
+      "title": "Put every criterion on a common scale",
+      "description": "Return in percent, volume in contracts and cost in cents cannot be added directly. Each column is rescaled by its own overall size so that no criterion dominates only because of its units.",
+      "inExample": "Daily volume, which runs into the millions of contracts, and cost, which runs into the hundreds of cents, are each rescaled by the overall size of their own column so both sit on the same footing."
+    },
+    {
+      "title": "Apply your weights",
+      "description": "You state how much each criterion matters, as numbers that add to 100 percent. This makes the trade-off explicit and auditable instead of hidden in a judgment.",
+      "inExample": "Weights: expected return 30 percent, liquidity 30 percent, volatility 20 percent, cost 20 percent."
+    },
+    {
+      "title": "Mark the ideal and the worst candidate",
+      "description": "The model builds an imaginary best candidate that takes the best value in every column, and an imaginary worst that takes the worst value in every column. These two are the reference points.",
+      "inExample": "The ideal futures contract has the highest return and volume and the lowest volatility and cost seen across the four; the worst has the reverse."
+    },
+    {
+      "title": "Measure how far each is from both",
+      "description": "Each real alternative gets a distance to the ideal and a distance to the worst. A good candidate is close to the ideal and far from the worst.",
+      "inExample": "MNQ is best on return and second on volume. The micro Russell contract is near the worst on volume, volatility and cost."
+    },
+    {
+      "title": "Rank by closeness and test the weights",
+      "description": "A closeness score from 0 to 100 ranks the alternatives. Because the ranking can change when the weights change, a careful analysis repeats the ranking with different plausible weights and notes whether the winner holds.",
+      "inExample": "MNQ scores 78 and ES 76. Raising the cost weight from 20 to 30 percent, taking the 10 points from return, moves ES to 84 and first place, so the top two are close."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing which instrument to trade",
+      "example": "Ranking MNQ, ES, M2K and MYM on expected return, volatility, liquidity and cost before putting a strategy on one of them."
+    },
+    {
+      "task": "Choosing between candidate strategies",
+      "example": "Scoring strategies on net return, maximum drawdown, capacity and correlation to the existing book."
+    },
+    {
+      "task": "Choosing an execution venue or data vendor",
+      "example": "Ranking data vendors on coverage, latency, historical accuracy and price with weights written down."
+    },
+    {
+      "task": "Prioritising actions after a limit breach",
+      "example": "Ranking a hedge, a size cut and a full exit by cost and by how well each restores the limit."
+    }
+  ],
+  "avoidWhen": [
+    "The choice is a continuous amount, such as exactly how many contracts to hold; a constrained optimiser or a sizing rule handles that, while this model ranks a finite list.",
+    "You would invent the weights to justify a decision already made; the output is only as honest as the weights you state."
+  ],
+  "example": {
+    "scenario": "A researcher must choose which of four index futures contracts to run a new 5-minute strategy on and wants the choice to rest on stated weights.",
+    "input": {
+      "summary": "A table of four alternatives scored on four criteria, plus the weights. The figures are assumed estimates, not measured results.",
+      "fields": [
+        { "name": "weights", "value": "return 30, liquidity 30, volatility 20, cost 20 percent", "meaning": "How much each criterion matters in the decision." },
+        { "name": "MNQ", "value": "return 8, volatility 22, volume 1,100,000, cost 60 cents", "meaning": "Assumed yearly return in percent, yearly volatility in percent, daily contracts traded and round-trip cost per contract." },
+        { "name": "ES", "value": "return 5, volatility 16, volume 1,400,000, cost 50 cents", "meaning": "The same four criteria for the larger index contract." },
+        { "name": "MYM", "value": "return 4, volatility 15, volume 90,000, cost 110 cents", "meaning": "The same four criteria for the micro Dow contract." },
+        { "name": "M2K", "value": "return 5, volatility 24, volume 60,000, cost 140 cents", "meaning": "The same four criteria for the micro Russell contract." }
+      ]
+    },
+    "output": {
+      "summary": "A ranked list with a closeness score out of 100 for each alternative.",
+      "fields": [
+        { "name": "first place", "value": "MNQ, closeness 78", "meaning": "Closest to the ideal contract on the stated weights." },
+        { "name": "second place", "value": "ES, closeness 76", "meaning": "Nearly tied with first, ahead on volatility and cost." },
+        { "name": "third place", "value": "MYM, closeness 18", "meaning": "Low volatility but thin volume and higher cost." },
+        { "name": "fourth place", "value": "M2K, closeness 9", "meaning": "Highest volatility, thinnest volume and highest cost." }
+      ]
+    },
+    "reading": "MNQ and ES are close enough that the weights decide between them, so test a heavier cost weight before committing: at a 30 percent cost weight ES moves ahead. MYM and M2K are clearly behind on liquidity and cost under any reasonable weighting."
+  }
+}

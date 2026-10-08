@@ -1,0 +1,77 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-residual-learning-over-rules",
+  "name": "Residual Learning over Rules",
+  "analogy": "Think of it as a veteran trader's rulebook with a young analyst proofreading it. The rulebook makes the main call every time; the analyst never starts from scratch and only writes small margin notes, such as 'this rule overshoots when volume is thin'.",
+  "steps": [
+    {
+      "title": "Start from a rule that already makes a call",
+      "description": "A person or an earlier process supplies one or more trading rules, such as a momentum rule, and the rules' combined call is the baseline forecast. The model begins with this answer and does not throw it away.",
+      "inExample": "A momentum rule says the close is above its 20-bar average with a healthy momentum reading, so it forecasts a 6-bar gain of 20 points."
+    },
+    {
+      "title": "Measure where the rule is wrong",
+      "description": "On past data, the gap between what the rule predicted and what happened is the residual. The part of the market the rule fails to explain is exactly what is left over for the network to learn.",
+      "inExample": "On past bars with thin volume the rule over-forecast by about 12 points on average, so that gap is a pattern the network can learn."
+    },
+    {
+      "title": "Train a network to predict only the gap",
+      "description": "A neural network takes the same inputs and is trained to output the correction, not the forecast. Because it only has to learn the leftover, it can be small and it starts from a sensible place.",
+      "inExample": "The network learns that a thin-volume reading together with a high relative strength index usually means the rule's forecast should be cut."
+    },
+    {
+      "title": "Add the correction to the rule",
+      "description": "The final forecast is the rule's call plus the network's correction. If the network has nothing to add it outputs close to zero and the rule stands as it was.",
+      "inExample": "For the current bar the rule says plus 20 points and the network's correction is minus 12 points, so the final forecast is plus 8 points."
+    },
+    {
+      "title": "Keep the rules honest during training",
+      "description": "Training also keeps the rule part simple and consistent, with a mild penalty on corrections that grow large or on rules that become inconsistent. This keeps the model readable: you can always see the rule's call and the size of the adjustment.",
+      "inExample": "A penalty on large corrections keeps the network from overriding the momentum rule on bars where it has nothing specific to say."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Improving a strategy you already trust",
+      "example": "Taking a 5-minute momentum or mean-reversion rule on MNQ and learning when it tends to over- or under-shoot."
+    },
+    {
+      "task": "Seeing how much a network adds beyond a rule",
+      "example": "Reporting the size of the correction on every bar so you can check that the added value is large enough to cover costs."
+    },
+    {
+      "task": "Keeping a safe fallback",
+      "example": "Falling back to the pure rule when the network's correction is missing, so a failed model still leaves a working strategy."
+    },
+    {
+      "task": "Small-data situations",
+      "example": "Learning on a few months of 1-minute bars where a full network would overfit, because the rule already supplies most of the signal."
+    }
+  ],
+  "avoidWhen": [
+    "The base rule has no real predictive value; corrections cannot rescue a rule that is wrong in most conditions, so build a model from the features directly.",
+    "You have no rule at all; a gradient boosted tree or a neural network trained directly does the job without a starting rule.",
+    "The rule changes every few weeks as you retune it; the residual network would keep chasing a moving baseline."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 10:50 Eastern. A momentum rule is in use, and the model adds a learned correction to the rule's forecast of the move over the next 6 bars.",
+    "input": {
+      "summary": "The bar's features, read by both the momentum rule and the correction network.",
+      "fields": [
+        { "name": "close", "value": "19,500", "meaning": "The price at which the 10:50 five-minute MNQ bar closed." },
+        { "name": "20-bar moving average", "value": "19,462", "meaning": "The average close of the last 20 bars; the rule buys when price is above it." },
+        { "name": "relative strength index, 14 bars", "value": "63", "meaning": "A momentum reading from 0 to 100; the rule likes values between 50 and 70." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "30 percent below", "meaning": "How trading in this bar compared with the recent norm; below average means thin." }
+      ]
+    },
+    "output": {
+      "summary": "The rule's own forecast, the learned correction and the corrected forecast.",
+      "fields": [
+        { "name": "rule forecast of the 6-bar move", "value": "plus 20 points", "meaning": "What the momentum rule alone expects, worth 40 US dollars per contract." },
+        { "name": "learned correction", "value": "minus 12 points", "meaning": "How much the network cuts the rule's call because volume is thin." },
+        { "name": "final forecast of the 6-bar move", "value": "plus 8 points", "meaning": "The rule's call plus the correction, worth 16 US dollars per contract." }
+      ]
+    },
+    "reading": "The correction cut the rule's expected gain by more than half, which is the whole point of the model. An 8 point expectation is small next to costs and a 25 point average bar range, so check it against commission and slippage before treating it as a trade."
+  }
+}

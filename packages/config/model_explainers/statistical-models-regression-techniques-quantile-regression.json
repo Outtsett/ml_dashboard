@@ -1,0 +1,82 @@
+{
+  "specificationId": "statistical-models-regression-techniques-quantile-regression",
+  "name": "Quantile Regression",
+  "analogy": "Think of it as three forecasters on one desk: a pessimist who gives the level that price only falls below one time in ten, a realist who gives the middle, and an optimist who gives the level it only beats one time in ten. Together they draw a cone, not a single line.",
+  "steps": [
+    {
+      "title": "Choose which points of the distribution to forecast",
+      "description": "Instead of one average, you pick the cut points you care about, such as the level below which outcomes land one time in ten, the middle, and the level above which they land one time in ten.",
+      "inExample": "Three cut points are chosen: the 10th percentile, the median and the 90th percentile of the change over the next 6 bars."
+    },
+    {
+      "title": "Use a lopsided penalty for misses",
+      "description": "A miss is penalized unevenly. To aim at the 10th percentile, forecasting too high is punished nine times as hard as forecasting too low. Minimizing that lopsided penalty pushes the forecast to the right cut point automatically.",
+      "inExample": "For the 10th percentile model, a forecast that sits above the outcome costs nine times more than one below it, so the line is pushed down toward the low tail."
+    },
+    {
+      "title": "Fit one straight-line model per cut point",
+      "description": "Each cut point gets its own set of weights, found separately. No shape such as a bell curve is assumed for the outcomes, so skewed and heavy-tailed returns are handled as they are.",
+      "inExample": "Three separate weight sets are fitted from the same table of bars: one for the low tail, one for the middle and one for the high tail."
+    },
+    {
+      "title": "Compare the weights across cut points",
+      "description": "If a feature has a bigger weight for the tails than for the middle, that feature changes the spread of outcomes and not just their center. This is the information a single average forecast hides.",
+      "inExample": "The average true range has almost no weight for the median but a large one at the 10th and 90th percentiles, so it widens the cone without moving its center."
+    },
+    {
+      "title": "Check the cut points do not cross",
+      "description": "Because each line is fitted separately, nothing forces the low-tail forecast to stay below the high-tail forecast. After fitting, any bars where they cross are counted, and the lines are adjusted if they do.",
+      "inExample": "Across the training bars, the 10th percentile line sat below the 90th percentile line on every bar, so no repair was needed."
+    },
+    {
+      "title": "Forecast the cone for a new bar",
+      "description": "A new bar's features go through each line, producing a low, middle and high forecast. The gap between low and high is the model's spread for that bar.",
+      "inExample": "The 14:35 bar gets minus 63 points, plus 6 points and plus 76 points for the 10th percentile, median and 90th percentile."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Setting stops and targets that fit the conditions",
+      "example": "Placing a stop near the forecast 10th percentile and a target near the 90th percentile of the next 6 bars, so both widen on volatile bars and tighten on quiet ones."
+    },
+    {
+      "task": "Estimating downside risk for a bar",
+      "example": "Reading the forecast 5th percentile of the next-6-bar change in points as a bar-by-bar value at risk for one MNQ contract."
+    },
+    {
+      "task": "A forecast that outliers do not distort",
+      "example": "Using the median line as the forecast of the next-6-bar change, so a few news-spike bars do not drag it."
+    },
+    {
+      "task": "Sizing positions by the width of the cone",
+      "example": "Trading fewer contracts when the gap between the 10th and 90th percentile forecasts is wide, and more when it is narrow."
+    }
+  ],
+  "avoidWhen": [
+    "You only need one central forecast and the outcomes are well behaved; a plain linear regression is simpler and uses the data more efficiently.",
+    "You need the whole shape of the distribution, including how it looks in the far tail with few observations; the extreme cut points are fitted from very few bars and get noisy."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. Instead of one forecast of the change over the next 6 bars, the model returns the 10th percentile, the median and the 90th percentile.",
+    "input": {
+      "summary": "One row of four feature readings for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance below the 50-bar moving average", "value": "77 points", "meaning": "How far the close sits below its 50-bar average price." },
+        { "name": "change over the last 6 bars", "value": "minus 57 points", "meaning": "How much price fell over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "Three forecast cut points for the change over the next 6 bars, and the gap between the outer two.",
+      "fields": [
+        { "name": "10th percentile of the 6-bar change", "value": "minus 63 points", "meaning": "The model expects the change to land below this level about one time in ten." },
+        { "name": "median of the 6-bar change", "value": "plus 6 points", "meaning": "The model expects the change to land above this level half the time." },
+        { "name": "90th percentile of the 6-bar change", "value": "plus 76 points", "meaning": "The model expects the change to land above this level about one time in ten." },
+        { "name": "width of the cone", "value": "139 points", "meaning": "The 90th percentile minus the 10th percentile, the model's spread for this bar." }
+      ]
+    },
+    "reading": "The cone is slightly heavier on the upside, but the median is almost flat, so this is a volatility message more than a direction message. A stop near minus 63 points and a target near plus 76 points would be consistent with the cone; if the width is larger than usual for this time of day, trade smaller."
+  }
+}

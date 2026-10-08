@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-consistency-based-methods-mixmatch",
+  "name": "MixMatch",
+  "analogy": "Think of it as a trader who takes two readings of an unlabeled chart, averages them, and sharpens the result into a firm guess. He then blends that chart with a labelled one, like mixing two paint colours, and trains on the blend. Mixing keeps the boundaries between market states soft and avoids overconfidence.",
+  "steps": [
+    {
+      "title": "Disturb each unlabeled window a couple of times",
+      "description": "Each unlabeled window is copied twice, each copy with a small random change such as light noise or a slight change of scale. The same is done once to each labelled window.",
+      "inExample": "An unlabeled five-minute MNQ window gets two lightly disturbed copies, with 1 percent noise and a 2 percent change of scale."
+    },
+    {
+      "title": "Average the predictions into a guessed label",
+      "description": "The model predicts each disturbed copy. The predictions are averaged, which gives a steadier guess than any single one.",
+      "inExample": "Copy one gives trending 58 percent, ranging 28 percent, volatile 14 percent; copy two gives 46, 34 and 20 percent. The average is trending 52, ranging 31 and volatile 17 percent."
+    },
+    {
+      "title": "Sharpen the guess",
+      "description": "The averaged guess is made firmer by raising each probability to a power and rescaling, so the likely class gets stronger and the unlikely ones weaker. This pushes the model toward confident answers on unlabeled data.",
+      "inExample": "Squaring each probability and rescaling turns the average into trending 68 percent, ranging 24 percent, volatile 7 percent (rounded)."
+    },
+    {
+      "title": "Pool the windows and shuffle them",
+      "description": "The labelled windows with their true labels and the unlabeled windows with their sharpened guesses are put into one pool and shuffled.",
+      "inExample": "The pool holds 64 labelled and 64 unlabeled windows for one training step."
+    },
+    {
+      "title": "Blend pairs of windows and their labels",
+      "description": "Each window is mixed with another from the pool: the two inputs are blended in some proportion, and so are their labels. The proportion is drawn at random but is kept at or above one half so the original window still dominates.",
+      "inExample": "The unlabeled window is blended 80 percent with a labelled ranging window at 20 percent, so the target becomes trending 55 percent, ranging 39 percent, volatile 6 percent."
+    },
+    {
+      "title": "Train on the blends",
+      "description": "The model is trained on the mixed inputs. Labelled blends use the usual error, and unlabeled blends use a gentler squared error against the mixed guess. The blending smooths the boundaries between classes.",
+      "inExample": "The model's answer on the blended window is pulled toward the mixed target of trending 55 percent, ranging 39 percent, volatile 6 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime classification with few labels",
+      "example": "Labelling windows as trending, ranging or volatile when only 300 of 20,000 have labels."
+    },
+    {
+      "task": "Smooth boundaries between market states",
+      "example": "Training a classifier whose probabilities move gradually between ranging and trending, instead of jumping from one to the other."
+    },
+    {
+      "task": "Chart pattern recognition from limited labels",
+      "example": "Classifying candlestick pictures into pattern types with a few hundred labelled charts."
+    },
+    {
+      "task": "Reducing overconfidence",
+      "example": "Producing probabilities that sit closer to the real hit rate, which matters when a trade is only taken above a probability level."
+    }
+  ],
+  "avoidWhen": [
+    "Blending two windows makes no sense for the data, such as when a blend of two price patterns is not a realistic pattern at all; the model learns from images that never occur.",
+    "You need very simple, explainable training; the several moving parts of averaging, sharpening and blending make failures hard to diagnose.",
+    "You have plenty of labels; ordinary supervised training is simpler and avoids the risk of the model learning from its own guesses."
+  ],
+  "example": {
+    "scenario": "A research job trains a three-regime classifier on 300 labelled and 20,000 unlabeled five-minute MNQ windows. One unlabeled window is followed through averaging, sharpening and blending.",
+    "input": {
+      "summary": "One unlabeled 30-bar window, two disturbed copies, and one labelled window to blend with.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "disturbed copies", "value": "2", "meaning": "How many lightly changed versions of the unlabeled window are predicted and averaged." },
+        { "name": "labelled partner window", "value": "ranging", "meaning": "A window with a known label that the unlabeled window is blended with." },
+        { "name": "blend proportion", "value": "80 percent unlabeled", "meaning": "How much of the blend comes from the unlabeled window, drawn at random and kept above one half." }
+      ]
+    },
+    "output": {
+      "summary": "The guessed label before and after sharpening, and the mixed training target.",
+      "fields": [
+        { "name": "averaged guess", "value": "trending 52 percent, ranging 31 percent, volatile 17 percent", "meaning": "The mean of the model's predictions over the two disturbed copies." },
+        { "name": "sharpened guess", "value": "trending 68 percent, ranging 24 percent, volatile 7 percent", "meaning": "The averaged guess after the sharpening step, with the likely class made firmer; rounded, so the total is 99." },
+        { "name": "mixed training target", "value": "trending 55 percent, ranging 39 percent, volatile 6 percent", "meaning": "80 percent of the sharpened guess plus 20 percent of the labelled ranging window's label." }
+      ]
+    },
+    "reading": "The sharpened guess says the model leans trending, and the mixed target keeps that lean but softens it toward ranging because the window was blended with a ranging one. Judge the finished classifier on labelled out-of-sample windows and on whether a strategy behaves differently by regime in the walk-forward folds on the run page."
+  }
+}

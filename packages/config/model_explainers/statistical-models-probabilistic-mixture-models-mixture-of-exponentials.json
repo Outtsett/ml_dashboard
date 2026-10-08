@@ -1,0 +1,86 @@
+{
+  "specificationId": "statistical-models-probabilistic-mixture-models-mixture-of-exponentials",
+  "name": "Mixture of Exponentials",
+  "analogy": "Think of it as a doorbell log from two different shops sharing one wall: a busy bakery whose doorbell rings every few seconds and a quiet antique store whose doorbell rings every minute or so. Given only the mixed-up log of gaps between rings, the model works out how many shops there are, how fast each one rings, and which shop a given gap probably came from.",
+  "steps": [
+    {
+      "title": "Collect the waiting times",
+      "description": "The data is a list of positive durations, such as the time between consecutive trades or the time until an order fills. No labels say which market state each duration came from. The model has to infer that from the pattern of the durations alone.",
+      "inExample": "The data is the gaps in seconds between consecutive trades of 10 contracts or more on MNQ over 20,000 gaps, a mix of fast bursts and slow lulls."
+    },
+    {
+      "title": "Assume a few hidden market states",
+      "description": "The model supposes that each duration comes from one of a small number of hidden states, each with its own typical waiting time. Within a state the chance of the event happening in the next instant stays constant, which is why each state's durations pile up near short values and trail off smoothly.",
+      "inExample": "Two states are assumed: an active state and a quiet state."
+    },
+    {
+      "title": "Guess the states, then score every gap",
+      "description": "Starting from a rough guess of each state's typical wait and how often it occurs, the model scores each duration for how likely it is to have come from each state. A short gap scores high for the fast state, a long gap for the slow state, and none is assigned with certainty.",
+      "inExample": "With the fitted states below, a 3-second gap scores about 90 percent for the active state, while a 30-second gap scores about 98 percent for the quiet state."
+    },
+    {
+      "title": "Update each state using those scores",
+      "description": "Each state's typical wait is recalculated as an average of the durations, weighting each by how strongly it was assigned to that state. Each state's share is updated to match how much of the total assignment it received.",
+      "inExample": "After the first update the active state's average wait moves from a guess of 10 seconds toward 5 seconds, and its share toward 60 percent."
+    },
+    {
+      "title": "Repeat until nothing changes, from several starting points",
+      "description": "The score-and-update cycle repeats until the fit stops improving. Because the process can settle on a poor answer, it is repeated from several random starting guesses and the best result is kept. The labels first state and second state are arbitrary and can swap between runs.",
+      "inExample": "Ten random starts are tried and the best converges after 45 rounds on an average wait of 4 seconds for the active state and 45 seconds for the quiet state."
+    },
+    {
+      "title": "Use the fitted states",
+      "description": "The fitted model gives each state's typical wait and share. For a new waiting time it gives the probability of each state, and it can describe the full distribution of future waits, including the chance of an unusually long one.",
+      "inExample": "The fitted model has 60 percent active at 4 seconds and 40 percent quiet at 45 seconds, an overall average gap of about 20 seconds."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Separating busy from quiet trading",
+      "example": "Splitting the gaps between MNQ trades into a fast burst regime and a slow lull regime and watching which one the market is in."
+    },
+    {
+      "task": "Modeling limit-order fill times",
+      "example": "Estimating the time until a resting limit order fills as a fast-fill state near the touch mixed with a slow-fill state deeper in the book."
+    },
+    {
+      "task": "Spacing of large-order arrivals",
+      "example": "Characterizing the time between block trades as coming from calm and active liquidity conditions."
+    },
+    {
+      "task": "Detecting the current quiet spell",
+      "example": "Flagging that the last few gaps came from the quiet state, a cue to pause an execution algorithm that depends on fast fills."
+    },
+    {
+      "task": "Execution and message delays",
+      "example": "Modeling order-to-acknowledgment delay as a normal state mixed with a congested state."
+    }
+  ],
+  "avoidWhen": [
+    "The durations depend on a changing set of features, such as time of day; a duration model that takes features directly, such as Gamma regression, explains that dependence.",
+    "Waiting times are not memoryless, for example gaps that are rarely very short; mixtures of Gamma or Weibull shapes fit durations whose chance of ending changes over time."
+  ],
+  "example": {
+    "scenario": "A trader has fitted a two-state mixture to 20,000 gaps between MNQ trades of 10 contracts or more, and now sees a gap of 30 seconds. The question is which market state it came from and how long the next gap is likely to be.",
+    "input": {
+      "summary": "The fitted states and the newly observed gap.",
+      "fields": [
+        { "name": "active state: average wait", "value": "4 seconds", "meaning": "The typical gap between large trades during bursts of activity." },
+        { "name": "active state: share of gaps", "value": "60 percent", "meaning": "How often a gap comes from the active state." },
+        { "name": "quiet state: average wait", "value": "45 seconds", "meaning": "The typical gap during lulls." },
+        { "name": "quiet state: share of gaps", "value": "40 percent", "meaning": "How often a gap comes from the quiet state." },
+        { "name": "newly observed gap", "value": "30 seconds", "meaning": "The time since the previous large trade." }
+      ]
+    },
+    "output": {
+      "summary": "Which state the gap came from, and what the mixture says about future gaps.",
+      "fields": [
+        { "name": "probability the gap came from the quiet state", "value": "98 percent", "meaning": "A 30-second gap is far too long to be a burst-state gap." },
+        { "name": "probability the gap came from the active state", "value": "2 percent", "meaning": "What remains after the quiet state's share." },
+        { "name": "average gap across both states", "value": "about 20 seconds", "meaning": "Active average 4 seconds times 60 percent plus quiet average 45 seconds times 40 percent." },
+        { "name": "chance the next gap exceeds 60 seconds", "value": "about 11 percent", "meaning": "The share of the mixture that lies beyond one minute, almost entirely from the quiet state." }
+      ]
+    },
+    "reading": "A 30-second wait is a strong sign the market is in its quiet state, so an execution plan that assumes large trades every few seconds should slow down. The 20-second overall average is misleading by itself, since no real gap behaves like it: gaps are either near 4 seconds or near 45."
+  }
+}

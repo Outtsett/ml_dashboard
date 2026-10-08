@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-graph-based-methods-label-spreading",
+  "name": "Label Spreading",
+  "analogy": "Think of it as the same crowded trading floor, but the name tags on the well-known traders are written in pencil. Neighbors still copy the tags around them, yet a known trader whose neighbors all disagree can be talked out of their own tag, a little.",
+  "steps": [
+    {
+      "title": "Describe every bar as a row of numbers",
+      "description": "Each bar, labelled or not, becomes a row of scaled features such as recent return, volume against average and distance from a moving average. Scaling keeps any one feature from dominating the similarity between bars.",
+      "inExample": "1,500 five-minute MNQ bars are each described by 6 scaled features. 90 of them have a known outcome."
+    },
+    {
+      "title": "Link look-alike bars and balance the links",
+      "description": "Each bar is connected to its most similar bars, and the link strengths are then balanced so that bars in a crowded area do not shout over bars in a sparse area. This balancing is what separates it from Label Propagation.",
+      "inExample": "Each bar gets 10 links. After balancing, a bar in a crowded cluster and a bar in a quiet corner carry comparable weight."
+    },
+    {
+      "title": "Give the known bars a starting vote",
+      "description": "Bars with a known outcome start with a firm vote for up or for down. Bars without an outcome start with no vote. Unlike Label Propagation, these starting votes are remembered but not locked.",
+      "inExample": "The 90 known bars start with votes, 47 for up and 43 for down. The other 1,410 start with none."
+    },
+    {
+      "title": "Let every bar mix its own vote with its neighbors",
+      "description": "In each round, a bar's new opinion is mostly what its neighbors currently say, plus a smaller share of its own starting vote. A single dial sets how large that own share is; a larger dial keeps the known labels more stubborn.",
+      "inExample": "The dial keeps 20 percent of each bar's own starting vote and takes 80 percent from neighbors."
+    },
+    {
+      "title": "Repeat until the opinions stop moving",
+      "description": "The mixing is repeated until the opinions settle. Because the pull back toward the starting vote never disappears, the result is a compromise between what a bar was told and what its surroundings say.",
+      "inExample": "After about 30 rounds the opinions stop changing."
+    },
+    {
+      "title": "Read the final shares, including for known bars",
+      "description": "Every bar ends with a share of up and a share of down. A known bar whose neighborhood strongly disagrees can end on the other side, which flags a label worth rechecking.",
+      "inExample": "The 11:40 bar was labelled up, but 7 of its 10 neighbors lean down, so it ends at 46 percent up and flips to down."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Labelling bars when the known labels may be noisy",
+      "example": "Spreading outcome labels on MNQ 5-minute bars where a few labels came from a rough rule and some are probably wrong."
+    },
+    {
+      "task": "Auditing existing labels",
+      "example": "Listing the labelled bars whose final share points the other way, so a person can look at those bars on the chart."
+    },
+    {
+      "task": "Growing a training set for a later model",
+      "example": "Turning 90 reliable labels into a few thousand labelled bars before training a tree ensemble on the walk-forward folds."
+    },
+    {
+      "task": "Regime tagging from a few examples",
+      "example": "Marking some stretches as trending or ranging and letting similar stretches inherit the tag."
+    }
+  ],
+  "avoidWhen": [
+    "You must score each new bar the instant it closes; the web has to be rebuilt to include it, so a model that learns a reusable rule is a better fit.",
+    "Your known labels are exact, such as outcomes already measured; then the pencil-tag softness only throws away good information and Label Propagation is the cleaner choice."
+  ],
+  "example": {
+    "scenario": "A researcher has 1,500 five-minute MNQ bars, 90 with a known outcome: whether the close 6 bars (30 minutes) later was above or below that bar's close. One known bar at 11:40 looks suspicious, and the researcher wants to know whether its surroundings agree with its label.",
+    "input": {
+      "summary": "A table of 1,500 bars described by 6 scaled features, with labels on only 90 of them.",
+      "fields": [
+        { "name": "bars in the web", "value": "1,500", "meaning": "All five-minute bars in the sample, labelled and unlabelled together." },
+        { "name": "bars with a known outcome", "value": "90", "meaning": "Bars whose close 6 bars later is already known and given as a starting vote." },
+        { "name": "links per bar", "value": "10", "meaning": "How many look-alike bars each bar is connected to." },
+        { "name": "share of a bar's own vote kept", "value": "20 percent", "meaning": "How strongly a bar holds to its starting label instead of its neighbors' opinion." },
+        { "name": "original label of the 11:40 bar", "value": "closed higher", "meaning": "The label the 11:40 bar was given before spreading." },
+        { "name": "close of the 11:40 bar", "value": "19,512", "meaning": "The price at which the bar being checked closed." },
+        { "name": "neighbors that lean down", "value": "7 of 10", "meaning": "How many of the bar's ten look-alikes lean toward closed lower." }
+      ]
+    },
+    "output": {
+      "summary": "A final share of up and down for the 11:40 bar, and whether its label changed.",
+      "fields": [
+        { "name": "final share leaning up", "value": "46 percent", "meaning": "The settled share of the bar's neighborhood and its own vote that points to closed higher." },
+        { "name": "final label", "value": "down", "meaning": "The side with the larger share after spreading." },
+        { "name": "disagrees with original label", "value": "yes", "meaning": "The final label differs from the label the bar started with, so the label deserves a second look." }
+      ]
+    },
+    "reading": "A flip is a flag, not a correction. Open the 11:40 bar on the chart and check how its outcome was labelled; if many known bars flip in one area, the labelling rule itself may be the problem."
+  }
+}

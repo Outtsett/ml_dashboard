@@ -1,0 +1,123 @@
+{
+  "specificationId": "neural-network-architectures-specialized-modular-networks-siamese-network",
+  "name": "Siamese Network",
+  "analogy": "Think of it as a chart librarian with a trained eye for resemblance. Show it any stretch of bars and it files the stretch on a giant map so that look-alikes sit close together. To forecast, it walks to the current stretch's spot and reads what happened after the neighbours.",
+  "steps": [
+    {
+      "title": "Describe each window with scale-free numbers",
+      "description": "Every stretch of bars is turned into numbers that do not depend on the price level, such as candle body share, wick balance, recent return in standard units and volume in standard units. Absolute price is left out so that neighbours are alike in shape, not simply close in time.",
+      "inExample": "The latest 64 five-minute MNQ bars become a table of 64 rows by 5 shape numbers, with no raw price in it."
+    },
+    {
+      "title": "Run both windows through one shared encoder",
+      "description": "The same network, with exactly the same weights, reads two windows and turns each into a short list of numbers called an embedding. Using one set of weights means the map is one consistent function and not two loosely related ones.",
+      "inExample": "The encoder turns the current window into an embedding of 32 numbers; the same encoder does the same for every past window."
+    },
+    {
+      "title": "Learn from pairs: same outcome close, different outcome far",
+      "description": "During training, pairs of windows are labelled as similar if the same thing followed both, for example both touched the upper barrier first. The network is nudged to place similar pairs close together and different pairs apart, but only until a margin is cleared.",
+      "inExample": "Two past windows that both ended in a rise of 30 points before a fall of 30 points are pulled together; a window that fell first is pushed away."
+    },
+    {
+      "title": "Focus on the hard pairs",
+      "description": "Most random pairs are already easy and teach nothing. Training picks out the confusing ones: different-outcome windows that currently sit close, and same-outcome windows that sit far. Those carry nearly all of the useful learning.",
+      "inExample": "A sideways window that looked like a rally window but fell is picked as a hard negative and pushed away from the rally group."
+    },
+    {
+      "title": "Index every past window",
+      "description": "After training, each historical window is embedded once and stored in an index. Only windows strictly earlier than the query may be in it, otherwise the forecast would peek at the future.",
+      "inExample": "About 180,000 earlier five-minute windows are embedded and stored, all dated before today's bar."
+    },
+    {
+      "title": "Find the nearest analogues and read their outcomes",
+      "description": "The current window is embedded, the closest stored windows are retrieved, and the outcomes that followed each one are tallied. The forecast is the spread of those outcomes, which shows how uncertain the call is instead of hiding it in a single number.",
+      "inExample": "Of the 200 nearest windows, 118 saw price rise 30 points before falling 30 points, and 82 saw the opposite."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding historical look-alikes",
+      "example": "Pulling up the 200 past MNQ windows that most resemble the last 64 five-minute bars and charting what followed each."
+    },
+    {
+      "task": "Matching a hand-marked setup",
+      "example": "Marking five clean examples of an opening-range breakout and scanning the full history for windows that match their shape."
+    },
+    {
+      "task": "Data-driven regimes",
+      "example": "Grouping the embedding map into clusters to see which kinds of session recur, instead of imposing trending, ranging and volatile labels."
+    },
+    {
+      "task": "Spotting the unprecedented",
+      "example": "Standing down when the nearest past window is farther away than 99 percent of historical nearest-neighbour distances."
+    }
+  ],
+  "avoidWhen": [
+    "You need a single clean probability with a fast training loop; a boosted tree on a feature table gives that with far less machinery.",
+    "Your history is short; the forecast is only as good as the number of genuine past analogues in the index."
+  ],
+  "example": {
+    "scenario": "At 10:20 an MNQ trader wants to know what usually follows a window that looks like the last 64 five-minute bars. The trained encoder embeds the window, finds its 200 nearest past neighbours, and reports what happened after each of them.",
+    "input": {
+      "summary": "The most recent 64 five-minute bars as scale-free shape numbers, compared against an index of earlier windows.",
+      "fields": [
+        {
+          "name": "window length",
+          "value": "64 five-minute bars",
+          "meaning": "How many bars the encoder reads to describe the current situation."
+        },
+        {
+          "name": "average true range, 14 bars",
+          "value": "21 points",
+          "meaning": "The typical high-to-low travel of a recent bar."
+        },
+        {
+          "name": "return over the window, in standard units",
+          "value": "about one standard unit above its usual level",
+          "meaning": "How strong the recent rise is compared with its own usual variation."
+        },
+        {
+          "name": "volume against its 20-bar average",
+          "value": "40 percent above",
+          "meaning": "How busy trading has been compared with the recent norm."
+        },
+        {
+          "name": "index size",
+          "value": "180,000 earlier windows",
+          "meaning": "How many past windows can be searched, all dated before this bar."
+        },
+        {
+          "name": "neighbours retrieved",
+          "value": "200",
+          "meaning": "How many closest past windows are used for the readout."
+        }
+      ]
+    },
+    "output": {
+      "summary": "An embedding for the current window, the distance to its neighbours, and the outcome mix of those neighbours.",
+      "fields": [
+        {
+          "name": "embedding of the current window",
+          "value": "32 numbers",
+          "meaning": "The window's position on the learned similarity map."
+        },
+        {
+          "name": "median distance to the 200 neighbours",
+          "value": "about a third of the typical distance between unrelated windows",
+          "meaning": "How close the analogues are; smaller means closer look-alikes."
+        },
+        {
+          "name": "neighbours followed by a rise first",
+          "value": "118 of 200 (59 percent)",
+          "meaning": "How many analogues saw a 30-point rise before a 30-point fall."
+        },
+        {
+          "name": "neighbours followed by a fall first",
+          "value": "82 of 200 (41 percent)",
+          "meaning": "How many saw the opposite order."
+        }
+      ]
+    },
+    "reading": "The answer is a spread, not a prediction: 59 percent of analogues went up first. Check how close the neighbours really are, because distant neighbours are weak evidence. Then check that the lean survives trading costs before treating it as a signal."
+  }
+}

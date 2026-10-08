@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-pseudo-labeling",
+  "name": "Pseudo-Labeling",
+  "analogy": "Think of it as a junior analyst who studies a small stack of graded exam bars, then grades the ungraded pile himself. He trusts only the answers he feels sure about, adds those to his study stack, and studies again.",
+  "steps": [
+    {
+      "title": "Train on the labelled bars",
+      "description": "The model first learns from the bars with a known outcome, exactly as an ordinary supervised model would. This first version is weak because there are few labels.",
+      "inExample": "A neural network is trained on 300 five-minute MNQ bars with a known outcome 6 bars later."
+    },
+    {
+      "title": "Score the unlabelled bars",
+      "description": "The model is run over all the bars with no known outcome and gives each a probability. Nothing is checked at this point, because no answers exist for these bars.",
+      "inExample": "All 6,000 unlabelled bars get a probability of closing higher."
+    },
+    {
+      "title": "Keep only the confident answers",
+      "description": "Only bars where the model is clearly leaning one way are kept, using a confidence cut-off. The rest are left unlabelled. The cut-off protects the model from learning its own guesses where it was really unsure.",
+      "inExample": "A bar is kept if its probability is at least 62 percent or at most 38 percent. In round one, 410 bars pass."
+    },
+    {
+      "title": "Treat the kept answers as labels",
+      "description": "The model's own confident calls become pseudo-labels, meaning labels that are guesses, and are added to the training set. Often they count for less than real labels at first.",
+      "inExample": "The 410 bars are added with their predicted side, up or down, as the label, at half the weight of a real label."
+    },
+    {
+      "title": "Retrain and repeat",
+      "description": "The model is trained again on the real labels and the pseudo-labels together, then scores the remaining unlabelled bars again. Each round can add more bars, and the dividing line is refined as it does.",
+      "inExample": "Round two adds 360 bars and round three adds 380, so 1,150 bars carry pseudo-labels at the end."
+    },
+    {
+      "title": "Check on later bars and score new ones",
+      "description": "The final model is checked on real-labelled bars from a later period that never entered training. If the pseudo-labels have taught it noise, this check shows it. New bars are then scored as usual.",
+      "inExample": "The 14:30 bar is scored at 61 percent for closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Stretching a small labelled set",
+      "example": "Training a direction model on MNQ 5-minute bars when only 300 bars have clean outcome labels and thousands more have none."
+    },
+    {
+      "task": "A semi-supervised step on any probability model",
+      "example": "Wrapping an existing neural network or gradient boosting run in a pseudo-labelling loop without changing the model itself."
+    },
+    {
+      "task": "Chart-pattern recognition",
+      "example": "Classifying candlestick patterns from chart images when only a few hundred images were labelled by hand."
+    },
+    {
+      "task": "Surfacing hard-to-call bars",
+      "example": "Listing the bars that never pass the confidence cut-off, which are the ones the model cannot separate."
+    }
+  ],
+  "avoidWhen": [
+    "Price direction is close to a coin flip, so few answers are truly confident and the confident ones may simply be noise the model fits; the model then teaches itself its own errors.",
+    "Your first model is weak or poorly calibrated; its confident calls are then unreliable and the loop amplifies them. Use a Calibrated Classifier first, or choose a graph-based method."
+  ],
+  "example": {
+    "scenario": "A researcher has 6,300 five-minute MNQ bars, 300 with a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. After three rounds of pseudo-labelling, the model scores the 14:30 bar.",
+    "input": {
+      "summary": "Labelled and unlabelled bars, the confidence cut-offs, and the features of the bar to score.",
+      "fields": [
+        { "name": "labelled bars", "value": "300", "meaning": "Bars with a known outcome that start the process." },
+        { "name": "unlabelled bars", "value": "6,000", "meaning": "Bars with no outcome that supply the pseudo-labels." },
+        { "name": "confidence cut-offs", "value": "62 and 38 percent", "meaning": "A bar is kept only if its probability is at or above 62 or at or below 38 percent." },
+        { "name": "rounds", "value": "3", "meaning": "How many times the score-keep-retrain cycle runs." },
+        { "name": "price change over the last 6 bars", "value": "minus 68 points", "meaning": "How far price fell over the previous 30 minutes before the 14:30 bar." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above average", "meaning": "How heavy trading was compared with the recent norm; here more than double the usual." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for the 14:30 bar and how many pseudo-labels the final model rests on.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "61 percent", "meaning": "The final model's answer for the 14:30 bar." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "bars carrying pseudo-labels", "value": "1,150 of 6,000", "meaning": "How many unlabelled bars became training rows over the three rounds." }
+      ]
+    },
+    "reading": "61 percent is a lean, and it rests partly on guessed labels, so verify it on real-labelled bars from a later month before trusting it. If its accuracy there is no better than the model trained on 300 labels alone, the pseudo-labels added nothing."
+  }
+}

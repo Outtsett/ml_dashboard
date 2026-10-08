@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-branch-and-bound",
+  "name": "Branch and Bound",
+  "analogy": "Think of it as a buyer comparing every possible bundle of products against a budget, but crossing out whole families of bundles at once. Once you hold a bundle worth 225, any family whose best imaginable total is below 225 can be dropped without looking inside.",
+  "steps": [
+    {
+      "title": "Frame the choices as a tree",
+      "description": "Every yes-or-no decision becomes a fork. Following one path from the root to the bottom builds one complete combination, so the whole tree contains every possible answer.",
+      "inExample": "Five strategies, each either run or not run, form a tree with 32 complete combinations."
+    },
+    {
+      "title": "Find a first complete answer",
+      "description": "Go down one path to the bottom quickly to get some legal answer. This becomes the best-so-far value that every later branch must beat.",
+      "inExample": "Greedily taking the best value per margin dollar gives strategies B, A and D, using 26,000 US dollars of margin for a value of 200."
+    },
+    {
+      "title": "Split on one decision",
+      "description": "Take one undecided choice and split into two sub-problems, one where it is yes and one where it is no. Each sub-problem is the same problem with one fewer choice.",
+      "inExample": "The first split is on strategy B: one branch where B is run, one where it is not."
+    },
+    {
+      "title": "Bound each branch with a quick optimistic estimate",
+      "description": "For each branch, compute the best total it could possibly reach by relaxing a rule, for example allowing partial items. The estimate is always at least as good as the truth, never worse.",
+      "inExample": "The branch where B is not run can reach at most 210 even if strategies could be taken in fractions. The branch where B is run can reach at most 226."
+    },
+    {
+      "title": "Cut branches that cannot win",
+      "description": "If a branch's optimistic estimate is not above the best-so-far answer, the whole branch is thrown away unvisited. A better answer found later makes the cut sharper.",
+      "inExample": "Exploring the branch where B is run turns up a legal answer worth 225 (A, B and E). The branch where B is not run, ceiling 210, is dropped unvisited, and so is the branch where B runs but A does not, ceiling 216."
+    },
+    {
+      "title": "Stop when no branch is left",
+      "description": "When every branch has been explored or cut, the best-so-far answer is proven optimal. If stopped early, the gap between the best ceiling still open and the best answer gives a quality guarantee.",
+      "inExample": "All remaining branches are finished or cut after exploring only a part of the tree, proving that A, B and E with a value of 225 is the best legal choice."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing which strategies to fund",
+      "example": "Selecting which of five MNQ and ES strategies to run under a margin budget, with a proof that no other combination is better."
+    },
+    {
+      "task": "Choosing whole numbers of contracts",
+      "example": "Allocating whole contracts across instruments where fractional positions are impossible."
+    },
+    {
+      "task": "Choosing the best k instruments",
+      "example": "Picking exactly the best subset of at most 5 instruments to hold, rather than an approximation."
+    },
+    {
+      "task": "Ordering child orders exactly",
+      "example": "Finding the provably cheapest order of a small number of child orders across time slices."
+    }
+  ],
+  "avoidWhen": [
+    "The problem has hundreds of yes-or-no choices and loose bounds; the tree grows too large and a heuristic or metaheuristic gives a good answer much faster.",
+    "The choices are continuous numbers with a smooth score; gradient-based methods solve those directly without a tree."
+  ],
+  "example": {
+    "scenario": "A researcher has 30,000 US dollars of margin to split among five candidate strategies, each either fully on or fully off. Each has an estimated daily value in US dollars. The goal is the best legal combination, with proof.",
+    "input": {
+      "summary": "Five strategies with their margin needs and estimated daily values, and the margin budget.",
+      "fields": [
+        { "name": "strategy A", "value": "12,000 US dollars margin, 90 US dollars value", "meaning": "Margin required and estimated daily value." },
+        { "name": "strategy B", "value": "8,000 US dollars margin, 70 US dollars value", "meaning": "Margin required and estimated daily value." },
+        { "name": "strategy C", "value": "15,000 US dollars margin, 100 US dollars value", "meaning": "Margin required and estimated daily value." },
+        { "name": "strategy D", "value": "6,000 US dollars margin, 40 US dollars value", "meaning": "Margin required and estimated daily value." },
+        { "name": "strategy E", "value": "10,000 US dollars margin, 65 US dollars value", "meaning": "Margin required and estimated daily value." },
+        { "name": "margin budget", "value": "30,000 US dollars", "meaning": "The hard limit on total margin." }
+      ]
+    },
+    "output": {
+      "summary": "The best legal combination, its value and the proof that it is optimal.",
+      "fields": [
+        { "name": "best combination", "value": "strategies A, B and E", "meaning": "The set to run." },
+        { "name": "margin used", "value": "30,000 US dollars", "meaning": "Exactly the full budget." },
+        { "name": "estimated daily value", "value": "225 US dollars", "meaning": "Sum of the three values; an input estimate, not a measured result." },
+        { "name": "branches cut by their ceiling", "value": "2, with ceilings of 210 and 216", "meaning": "Neither could reach the 225 already in hand, so neither was opened." },
+        { "name": "optimality gap", "value": "0", "meaning": "Every other branch was proven unable to exceed 225." }
+      ]
+    },
+    "reading": "The proof is about arithmetic on the inputs, so it is only as good as the margin and value estimates. A gap of zero means no other legal combination of these five beats A, B and E. If time ran out first, a positive gap would say how far from the best the current answer could be."
+  }
+}

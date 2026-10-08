@@ -1,0 +1,84 @@
+{
+  "specificationId": "probabilistic-symbolic-models-generative-processes-mixtures-dirichlet-process",
+  "name": "Dirichlet Process",
+  "analogy": "Think of it as a restaurant with unlimited tables. Each new diner joins a table with probability in proportion to how many are already seated there, or occasionally opens a new table. Popular tables grow, rare ones stay small, and the number of tables is decided by the data instead of being fixed in advance.",
+  "steps": [
+    {
+      "title": "Describe each bar by a few numbers",
+      "description": "Turn each bar into a short row of features that say what kind of market it is in, such as return, range and volume. These rows are what get grouped into regimes.",
+      "inExample": "Each of the last 500 MNQ 5-minute bars is described by its return, its range in points against the average true range, and its volume against the 20-bar average."
+    },
+    {
+      "title": "Set how eager the process is to create new groups",
+      "description": "A single setting, the concentration, controls how readily a new group is started. A small value gives few groups; a larger value allows more.",
+      "inExample": "The concentration is 1, which for 500 bars favours a handful of regimes."
+    },
+    {
+      "title": "Assign each bar to a group or a new one",
+      "description": "For each bar, the chance of joining an existing group grows with the size of the group and with how well the bar fits its typical values. There is also a chance, set by the concentration, of starting a brand new group.",
+      "inExample": "Bar 312 has a range of 45 points and volume 110 percent above average. It is a good fit for the large-move group of 85 bars and a poor fit for the quiet group of 230 bars."
+    },
+    {
+      "title": "Re-estimate what each group looks like",
+      "description": "After assignments change, each group's typical values and spread are recomputed from the bars now in it. A new group starts from a broad prior guess and is sharpened as bars join.",
+      "inExample": "The large-move group's average range rises slightly now that bar 312 has joined it."
+    },
+    {
+      "title": "Sweep through all bars many times",
+      "description": "Steps three and four repeat over every bar, hundreds of times. Groups that lose their bars disappear, and groups that gain them settle. The process ends with a stable set of groups.",
+      "inExample": "After 300 sweeps the 500 bars are in four groups of 230, 155, 85 and 30 bars, which are 46, 31, 17 and 6 percent of the bars."
+    },
+    {
+      "title": "Score a new bar against the groups",
+      "description": "A new bar gets a probability for each existing group, and a probability of belonging to a completely new one. A high chance of a new group flags an unusual bar.",
+      "inExample": "The latest bar gets 62 percent for the large-move group, 21 percent for the trending group, 9 percent for the small group, 4 percent for the quiet group and 4 percent for a new group."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Discovering how many regimes there are",
+      "example": "Letting MNQ and ES bars sort themselves into quiet, trending and wild regimes without choosing the number of regimes beforehand."
+    },
+    {
+      "task": "Flagging unusual bars",
+      "example": "Treating a bar with a high chance of starting its own group as a candidate anomaly, such as a news spike."
+    },
+    {
+      "task": "Setting adaptive bands",
+      "example": "Using the spread of the current regime to size stops and targets, wider in a wild regime and tighter in a quiet one."
+    },
+    {
+      "task": "Providing a regime label to other models",
+      "example": "Feeding the most likely regime as a categorical input to a gradient-boosted direction classifier."
+    }
+  ],
+  "avoidWhen": [
+    "You already know there are exactly two or three regimes and want fast, simple fitting; a fixed-size mixture model or a hidden Markov model is cheaper and easier to explain.",
+    "Regime order and persistence matter, such as how long a regime tends to last; this model treats bars as unordered, so a hidden Markov model that models switching is the better fit."
+  ],
+  "example": {
+    "scenario": "A researcher groups the last 500 MNQ 5-minute bars into regimes without fixing how many, then scores the latest bar to see which regime it belongs to and whether it looks like something new.",
+    "input": {
+      "summary": "A window of bars described by three numbers each, the concentration setting and the latest bar's values.",
+      "fields": [
+        { "name": "bars in the window", "value": "500 five-minute bars", "meaning": "The history the regimes are learned from." },
+        { "name": "features per bar", "value": "return, range in points, volume ratio", "meaning": "The three numbers describing each bar." },
+        { "name": "concentration", "value": "1", "meaning": "How eagerly new groups are started." },
+        { "name": "latest bar range", "value": "45 points", "meaning": "About 80 percent above a typical average true range of 25 points." },
+        { "name": "latest bar volume", "value": "110 percent above average", "meaning": "Trading was heavy in the latest bar." },
+        { "name": "latest bar return", "value": "down about a fifth of a percent", "meaning": "Close versus open of the bar, roughly 35 points on a price near 19,500." }
+      ]
+    },
+    "output": {
+      "summary": "The regimes found, their sizes, and the latest bar's regime probabilities.",
+      "fields": [
+        { "name": "regimes found", "value": "4", "meaning": "Quiet, trending, large-move and a small unusual group." },
+        { "name": "regime sizes", "value": "230, 155, 85 and 30 bars", "meaning": "Which are 46, 31, 17 and 6 percent of the window." },
+        { "name": "latest bar probability, large-move regime", "value": "62 percent", "meaning": "The most likely regime for the latest bar." },
+        { "name": "latest bar probability, other regimes", "value": "trending 21, small 9, quiet 4 percent", "meaning": "The rest of the probability across existing regimes." },
+        { "name": "latest bar probability of a new regime", "value": "4 percent", "meaning": "A low value means the bar looks like something already seen." }
+      ]
+    },
+    "reading": "The large-move regime is the best guess at 62 percent, so widen stops and size down accordingly. A new-regime chance of 4 percent says the bar is ordinary for this window. The regimes are descriptive labels learned from past bars; check that they persist on later data before relying on them."
+  }
+}

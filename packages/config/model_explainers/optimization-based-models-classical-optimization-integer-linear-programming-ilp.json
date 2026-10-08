@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-classical-optimization-integer-linear-programming-ilp",
+  "name": "Integer Linear Programming (ILP)",
+  "analogy": "Think of it as packing a trading bag with whole contracts, where you cannot take half of one. First the solver pretends you can slice contracts into pieces and finds the best bag, then it checks the two whole-number bags on either side of any sliced item, discarding every branch that cannot beat the best real bag found so far.",
+  "steps": [
+    {
+      "title": "State the goal and the limits in plain lists",
+      "description": "You supply what each choice is worth, what each choice costs in a limited resource, and the limits. The goal and every limit must be simple straight-line sums, and the answers must be whole numbers.",
+      "inExample": "Choose whole contracts of MNQ and ES to maximise total expected edge, with a margin budget of 30,000 US dollars and at most 8 contracts of each."
+    },
+    {
+      "title": "Solve the easier version that allows fractions",
+      "description": "The solver first lets contracts be fractions and finds the best bag under that relaxed rule. This answer is never worse than any whole-number answer, so it acts as an upper bound.",
+      "inExample": "With slicing allowed, the best bag is 8 MNQ contracts and 1 and 3 tenths ES contracts, worth about 90 US dollars of expected edge."
+    },
+    {
+      "title": "Split on a fractional answer",
+      "description": "If any quantity came out as a fraction, the problem splits in two: one branch forces it down to the whole number below, the other forces it up to the whole number above.",
+      "inExample": "ES at 1 and 3 tenths splits into a branch with at most 1 ES contract and a branch with at least 2."
+    },
+    {
+      "title": "Solve each branch the same way",
+      "description": "Each branch is solved with fractions allowed again, and if a new fraction appears it is split again. This builds a tree of smaller and smaller problems.",
+      "inExample": "The at-most-1 branch gives 8 MNQ and 1 ES, worth 80, which is whole already. The at-least-2 branch gives 2 ES and 3 and a third MNQ, worth 84, which still has a fraction."
+    },
+    {
+      "title": "Discard branches that cannot win",
+      "description": "Whenever a branch's best possible value is no better than a whole-number answer already in hand, the whole branch is dropped without exploring it. This pruning is what keeps the search from growing out of control.",
+      "inExample": "The at-least-2 branch is split on MNQ into at most 3 and at least 4; the second fails the budget with 2 ES, so the winning candidate is 2 ES with 3 MNQ."
+    },
+    {
+      "title": "Return the best whole-number plan",
+      "description": "When no branch could still beat the best whole-number plan, that plan is proven the best possible and is returned with its value.",
+      "inExample": "The solver returns 3 MNQ contracts and 2 ES contracts, worth 82 US dollars of expected edge, using 29,400 US dollars of margin."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing whole-contract position sizes",
+      "example": "Picking how many contracts of MNQ, ES and other index futures to hold so total expected edge is highest within a margin limit."
+    },
+    {
+      "task": "Selecting which signals to act on",
+      "example": "From 12 simultaneous entry signals, taking only the best 5 that fit a cap on trades and a risk budget."
+    },
+    {
+      "task": "Rebalancing in minimum lots",
+      "example": "Moving a basket toward target weights when each instrument can only be traded in whole contracts."
+    },
+    {
+      "task": "Splitting an order into whole child orders",
+      "example": "Dividing a 40-contract MNQ order across 8 five-minute slices with a limit on contracts per slice."
+    }
+  ],
+  "avoidWhen": [
+    "Quantities can be fractional or the objective involves risk and correlation; a continuous quadratic programme is better suited, because this method only handles straight-line goals.",
+    "There are thousands of whole-number decisions with weak structure; the search can become far too slow, so a heuristic or a smarter formulation is needed."
+  ],
+  "example": {
+    "scenario": "A researcher has a 30,000 US dollar margin budget and two candidate index futures trades. Contracts must be whole, and the solver must pick how many of each so total expected edge is highest.",
+    "input": {
+      "summary": "Two instruments, each with an expected edge per contract, a margin cost per contract and a contract cap, plus the shared budget. The edge figures are illustrative.",
+      "fields": [
+        { "name": "MNQ expected edge per contract", "value": "6 US dollars", "meaning": "The illustrative average gain per Micro E-mini Nasdaq-100 contract implied by the signal." },
+        { "name": "MNQ margin per contract", "value": "1,800 US dollars", "meaning": "The margin tied up by holding one MNQ contract." },
+        { "name": "ES expected edge per contract", "value": "32 US dollars", "meaning": "The illustrative average gain per E-mini S&P 500 contract implied by the signal." },
+        { "name": "ES margin per contract", "value": "12,000 US dollars", "meaning": "The margin tied up by holding one ES contract." },
+        { "name": "margin budget", "value": "30,000 US dollars", "meaning": "The most margin that may be used in total." },
+        { "name": "maximum contracts of each", "value": "8", "meaning": "The cap on how many contracts of either instrument may be held." }
+      ]
+    },
+    "output": {
+      "summary": "The whole-number plan, its total value and the margin it uses.",
+      "fields": [
+        { "name": "MNQ contracts", "value": "3", "meaning": "The whole number of MNQ contracts to hold." },
+        { "name": "ES contracts", "value": "2", "meaning": "The whole number of ES contracts to hold." },
+        { "name": "total expected edge", "value": "82 US dollars", "meaning": "The sum of edge across the chosen contracts, 3 times 6 plus 2 times 32." },
+        { "name": "margin used", "value": "29,400 US dollars", "meaning": "3 times 1,800 plus 2 times 12,000, within the 30,000 budget." },
+        { "name": "proved best", "value": "yes", "meaning": "No other whole-number plan within the limits has a higher total." }
+      ]
+    },
+    "reading": "The plan is only as good as the edge figures fed in; the solver proves it is the best use of the budget, not that the edges are real. Treat it as the sizing step after a model produces scores, and re-run it whenever the scores or the margin change."
+  }
+}

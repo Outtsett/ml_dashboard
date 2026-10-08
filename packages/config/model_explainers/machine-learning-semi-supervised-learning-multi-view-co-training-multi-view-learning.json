@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-multi-view-co-training-multi-view-learning",
+  "name": "Multi-View Learning",
+  "analogy": "Think of it as an investment committee where each member studies a different kind of evidence: chart shape, technical indicators or news tone. On bars nobody has graded, the members are expected to reach the same call, and any disagreement is treated as a problem to be fixed.",
+  "steps": [
+    {
+      "title": "Define the views",
+      "description": "The information about each bar is divided into separate views, each a different kind of evidence about the same bar. Good views are each informative alone and look at the market in different ways.",
+      "inExample": "Three views for each five-minute MNQ bar: price shape, technical indicators, and news tone."
+    },
+    {
+      "title": "Learn a scoring rule for each view",
+      "description": "Each view gets its own scoring rule, trained on the bars that have a known outcome. This gives each view a basic competence before any agreement is demanded.",
+      "inExample": "With 250 labelled bars, each of the three views learns its own up-or-down score."
+    },
+    {
+      "title": "Demand agreement on the unlabelled bars",
+      "description": "For bars with no outcome, the model adds a penalty whenever the views disagree about a bar. Because the unlabelled pile is large, this pushes the views toward rules that agree on nearly all bars, not just on a few.",
+      "inExample": "A bar where the price view says 70 percent up and the news view says 35 percent up adds a large penalty. A bar where they say 56 and 54 adds almost none."
+    },
+    {
+      "title": "Train everything together",
+      "description": "The mistakes on labelled bars and the disagreement on unlabelled bars are minimized at the same time. The labelled bars keep the views honest while the unlabelled bars pull them into line.",
+      "inExample": "A single training run balances 250 labelled bars against 5,000 unlabelled ones."
+    },
+    {
+      "title": "Weight the views by how reliable they proved",
+      "description": "On later bars held out of training, the model checks how well each view does alone and gives the more reliable views a larger say in the combined answer.",
+      "inExample": "The price shape and indicator views each get 40 percent of the say, and the news view gets 20 percent."
+    },
+    {
+      "title": "Report the combined call and the agreement",
+      "description": "To score a new bar, each view gives a probability, the weighted average is the final probability, and how closely the views agree is reported alongside it.",
+      "inExample": "The 15:05 bar gets 58, 54 and 51 percent from the three views, and the weighted average is 55 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Joining price, indicator and news evidence",
+      "example": "Scoring MNQ 5-minute bars from price shape, a few of the 151 technical indicators and the news sentiment score together."
+    },
+    {
+      "task": "Making use of unlabelled history",
+      "example": "Training on a handful of clean outcome labels plus a year of unlabelled bars that supply the agreement signal."
+    },
+    {
+      "task": "A disagreement alarm",
+      "example": "Marking bars on which the views split widely and keeping the model out of those, since evidence that conflicts is a weak basis for a trade."
+    },
+    {
+      "task": "Cross-checking a model that leans on one data source",
+      "example": "Checking whether a strong indicator-based signal is also supported by volume and news, or stands alone."
+    }
+  ],
+  "avoidWhen": [
+    "The views are really the same information in different clothes, such as several moving averages of the same prices; agreement is then guaranteed and adds nothing.",
+    "A view is missing for many bars, such as news sentiment on overnight bars with no headlines; a single model that handles missing values, such as XGBoost, copes with that more simply."
+  ],
+  "example": {
+    "scenario": "A researcher has 5,250 five-minute MNQ bars, 250 with a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. The 15:05 bar has just closed, and all three views are asked about it.",
+    "input": {
+      "summary": "Features for the 15:05 bar, grouped into three views, scored by the three trained view rules.",
+      "fields": [
+        { "name": "labelled bars", "value": "250", "meaning": "Bars with a known outcome used to teach each view." },
+        { "name": "unlabelled bars", "value": "5,000", "meaning": "Bars with no outcome used to enforce agreement between the views." },
+        { "name": "price change over the last 6 bars (price view)", "value": "minus 43 points", "meaning": "How far price fell over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average (price view)", "value": "60 points below", "meaning": "How far the close sits below its recent average." },
+        { "name": "relative strength index, 14 bars (indicator view)", "value": "35", "meaning": "A momentum reading from 0 to 100; lower values mean recent weakness." },
+        { "name": "volume against its 20-bar average (indicator view)", "value": "20 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "news sentiment score (news view)", "value": "plus 5 on a scale from minus 100 to plus 100", "meaning": "A tone score for recent headlines, here close to neutral." }
+      ]
+    },
+    "output": {
+      "summary": "A probability from each view and the weighted combined probability.",
+      "fields": [
+        { "name": "price view probability of a higher close", "value": "58 percent", "meaning": "What the price-shape view says alone." },
+        { "name": "indicator view probability of a higher close", "value": "54 percent", "meaning": "What the technical indicator view says alone." },
+        { "name": "news view probability of a higher close", "value": "51 percent", "meaning": "What the news view says alone." },
+        { "name": "combined probability", "value": "55 percent", "meaning": "The weighted average using shares of 40, 40 and 20 percent." }
+      ]
+    },
+    "reading": "All three views lean up, so they agree on the side, but the news view is nearly neutral, and the combined 55 percent is a small lean. Check on later folds whether the net result after costs justifies acting on leans of this size."
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "specificationId": "neural-network-architectures-recurrent-sequential-models-recurrent-neural-network-rnn",
+  "name": "Recurrent Neural Network (RNN)",
+  "analogy": "Think of it as a trader reading a chart one bar at a time with a mental notepad. After each bar the trader rewrites the notepad using the new bar and what was already written. The call at the end is made from whatever is left on the notepad.",
+  "steps": [
+    {
+      "title": "Start with a blank notepad",
+      "description": "The network keeps a hidden state, a short list of numbers that acts as its memory of the story so far. At the start of a window it is set to neutral values.",
+      "inExample": "A 32-number hidden state is cleared before reading a 30-bar window of MNQ 5-minute bars."
+    },
+    {
+      "title": "Read the next bar",
+      "description": "At each step the network takes the newest bar's features, such as return, range, volume ratio and momentum. Bars are fed strictly in time order, which is also how a live feed delivers them.",
+      "inExample": "At bar 12 the network receives a bar with a 20-point range, volume 10 percent above average and a rise of 10 points."
+    },
+    {
+      "title": "Rewrite the notepad",
+      "description": "The new bar and the previous notepad are blended through learned weights and a bending rule to make the new notepad. The same weights are used at every step, so the network can handle windows of any length with a fixed number of settings.",
+      "inExample": "The notepad is rewritten to reflect a calm, slightly upward drift, with the earlier flat period faintly remembered."
+    },
+    {
+      "title": "Repeat for every bar",
+      "description": "The rewrite is repeated bar after bar until the window ends. Each notepad depends on all earlier bars, but information from far back fades, because it is squeezed through the same rewrite many times.",
+      "inExample": "After 30 rewrites, the opening burst from 25 bars ago has almost entirely faded from the notepad."
+    },
+    {
+      "title": "Answer from the final notepad",
+      "description": "The last notepad is passed to an output layer that produces the prediction, such as a direction probability or a range forecast.",
+      "inExample": "The output layer reads the final notepad and returns a 53 percent probability that the close 6 bars later is higher."
+    },
+    {
+      "title": "Learn by tracing errors back through time",
+      "description": "During training, the error at the end is traced backward through each step of the window and the shared weights are nudged. Because the signal weakens over many steps, plain versions of this model learn mainly from recent bars.",
+      "inExample": "The error on a training window mostly adjusts the weights that handle the final 10 bars, with little effect from earlier ones."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Short-window direction probability",
+      "example": "Predicting whether MNQ's close 30 minutes ahead is above the current close from the last 20 to 30 five-minute bars."
+    },
+    {
+      "task": "Forward range forecasting",
+      "example": "Predicting the next 6 bars' high-to-low range in points from the recent bar shapes, to set stop distances."
+    },
+    {
+      "task": "A simple regime summary",
+      "example": "Using the final hidden state as a compact description of the current market that gates a rule-based strategy on or off."
+    },
+    {
+      "task": "A teaching baseline for sequence models",
+      "example": "Training this plain model first on the same folds so the gated recurrent and attention models have something to beat."
+    }
+  ],
+  "avoidWhen": [
+    "The window is longer than a few dozen bars or older bars matter; the memory fades quickly, and a gated recurrent unit or long short-term memory model keeps old information far better.",
+    "You have a plain table of indicators with no order that matters; a tree model or feedforward network is faster and easier to validate."
+  ],
+  "example": {
+    "scenario": "At 10:15, a plain recurrent network with a 32-number hidden state reads the last 30 bars of MNQ at 5-minute spacing and returns the probability that the close 6 bars later is higher.",
+    "input": {
+      "summary": "A window of 30 bars, each reduced to scaled features.",
+      "fields": [
+        { "name": "window length", "value": "30 bars (150 minutes)", "meaning": "How many 5-minute bars are read in order." },
+        { "name": "last close", "value": "19,305", "meaning": "The closing price of the final bar, in index points." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "return over the last 6 bars", "value": "plus 23 points", "meaning": "Price edged up over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "10 percent above average", "meaning": "Trading is close to normal." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability read from the final hidden state.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "53 percent", "meaning": "The output layer's answer from the notepad left after bar 30." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "A 53 percent lean is barely above a coin flip and well inside what trading costs can erase. Use it as a baseline to beat, not a signal to trade; compare it with a model that ignores order, and check it on walk-forward folds."
+  }
+}

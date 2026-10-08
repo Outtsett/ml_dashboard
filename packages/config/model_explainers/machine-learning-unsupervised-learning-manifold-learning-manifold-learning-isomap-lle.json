@@ -1,0 +1,73 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-manifold-learning-manifold-learning-isomap-lle",
+  "name": "Manifold Learning (Isomap, LLE)",
+  "analogy": "Think of it as flattening a crumpled road map onto a table. The map looks messy when it is balled up, but if you only trust the roads between neighbouring towns, you can smooth it flat and still tell which towns are close and which are far.",
+  "steps": [
+    {
+      "title": "Link each bar to its nearest neighbours",
+      "description": "For every bar, the model finds the handful of bars whose feature values are most similar and draws a link to each. These links form a web that follows the shape of the data rather than cutting straight across empty space.",
+      "inExample": "Each of the 6,000 five-minute MNQ bars, described by 35 features, is linked to its 12 most similar bars."
+    },
+    {
+      "title": "Isomap: measure distance along the web",
+      "description": "Isomap measures how far apart two bars are by walking along the links, hop by hop, instead of in a straight line. Two bars that look close in a straight line but are connected only through a long detour count as far apart.",
+      "inExample": "A quiet opening bar and a quiet late-session bar look similar in a straight line, but the walk between them passes through several volatile bars, so they are counted as far apart."
+    },
+    {
+      "title": "LLE: describe each bar as a blend of its neighbours",
+      "description": "Locally Linear Embedding takes a different route. It works out the recipe that rebuilds each bar from a weighted mix of its own neighbours, and it keeps only these local recipes, never long distances.",
+      "inExample": "One bar is rebuilt as 40 percent of one neighbour, 35 percent of another and 25 percent of a third."
+    },
+    {
+      "title": "Find a flat layout that keeps those relationships",
+      "description": "The model then searches for a small set of coordinates, usually two or three, for every bar so that the preserved relationships still hold: the walking distances for Isomap, the neighbour recipes for LLE.",
+      "inExample": "It places all 6,000 bars on a flat two-coordinate map where walking distances and neighbour recipes are kept as closely as possible."
+    },
+    {
+      "title": "Read off the new coordinates",
+      "description": "Each bar now has a short coordinate that can be plotted, clustered, or fed to another model. Bars that sit near each other on the map were genuinely close along the data's curved shape.",
+      "inExample": "The 14:35 bar lands at map position 18 and minus 4, in a cluster of other sharp-selloff-then-bounce bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Revealing curved structure in market states",
+      "example": "Mapping 35 features of MNQ 5-minute bars to two coordinates to see whether trending, ranging and spike bars form separate curved bands."
+    },
+    {
+      "task": "Compressing features when straight-line methods fail",
+      "example": "Reducing the 151 technical indicators to a few coordinates when principal component analysis needs too many components to capture the curved relationships."
+    },
+    {
+      "task": "Exploring a regime picture before choosing a model",
+      "example": "Colouring the map by next-6-bar direction to see whether any region of market states leans consistently up or down."
+    }
+  ],
+  "avoidWhen": [
+    "You need to place a brand-new bar on the map as it arrives live; these methods are built around a fixed set of bars and handle new points awkwardly, so a model that learns a reusable mapping, such as an autoencoder, is better.",
+    "The data is noisy or has many gaps between bars; one noisy link can short-circuit the web and bend the whole layout, so a robust linear method is safer."
+  ],
+  "example": {
+    "scenario": "A researcher takes 6,000 recent five-minute bars of Micro E-mini Nasdaq-100 futures (MNQ), each described by 35 base features, and wants to see whether the bars sit on a few curved bands rather than in one cloud.",
+    "input": {
+      "summary": "A table of 6,000 bars by 35 standardised features, plus two settings: how many neighbours to link and how many coordinates to produce.",
+      "fields": [
+        { "name": "number of bars", "value": "6,000", "meaning": "The five-minute MNQ bars included in the map." },
+        { "name": "number of features per bar", "value": "35", "meaning": "The base features that describe each bar: returns, volatility, volume, price structure and momentum." },
+        { "name": "neighbours linked per bar", "value": "12", "meaning": "How many of the most similar bars each bar is connected to." },
+        { "name": "coordinates wanted", "value": "2", "meaning": "The size of the flat map each bar is placed on." },
+        { "name": "average true range of the 14:35 bar", "value": "23 points", "meaning": "One of the 35 features, the typical high-to-low travel of a recent bar." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "Another feature, how far price has fallen over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "Two map coordinates for every bar, and a measure of how faithfully the map keeps the original relationships.",
+      "fields": [
+        { "name": "map coordinates of the 14:35 bar", "value": "18 and minus 4", "meaning": "Where this bar sits on a flat map running from minus 50 to 50 in each direction; nearby bars behave similarly." },
+        { "name": "bands visible on the map", "value": "3", "meaning": "Curved groups of bars that the map separates, such as calm drift, steady trend and spike." },
+        { "name": "neighbours still shared after flattening", "value": "81 percent", "meaning": "The share of each bar's original 12 neighbours that are still near it on the map." }
+      ]
+    },
+    "reading": "81 percent shared neighbours says the flat map is a fair picture of the original space. Use it to look at the data and to colour bars by what happened next. Treat the bands as a hypothesis to test on separate walk-forward folds, not as a trading signal on their own."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-graph-based-methods-manifold-regularization",
+  "name": "Manifold Regularization",
+  "analogy": "Think of it as a trader who must draw one rule on the chart that fits the few bars he has marked, while also obeying a house rule: bars that look alike must get similar calls, even the thousands he has never marked.",
+  "steps": [
+    {
+      "title": "Describe all bars by the same features",
+      "description": "Every bar, marked or unmarked, is turned into a row of scaled features. The unmarked bars are not used for answers, only for showing the shape of the data: where bars cluster and where they thin out.",
+      "inExample": "3,000 five-minute MNQ bars are described by 8 scaled features. 150 have a known outcome."
+    },
+    {
+      "title": "Draw a similarity map over all bars",
+      "description": "Each bar is linked to the bars most like it, marked and unmarked alike. This map approximates the real shape of the data: bars that are linked belong to the same neighborhood and should be treated alike.",
+      "inExample": "Each of the 3,000 bars is linked to its 12 closest look-alikes."
+    },
+    {
+      "title": "Pick a flexible scoring rule",
+      "description": "The model is a smooth scoring rule that gives any bar a score between down and up. Unlike a label-spreading web, this is an actual rule, so it can score a bar it has never seen.",
+      "inExample": "The rule is a smooth curve-fitting model that turns the 8 features into a score between 0 and 100 percent for closing higher."
+    },
+    {
+      "title": "Penalize two kinds of badness at once",
+      "description": "Training minimizes a combined penalty. One part punishes wrong calls on the marked bars. The other part punishes any big difference in score between two linked bars, marked or not, which forces the scores to change smoothly across the map.",
+      "inExample": "A call that misses a marked bar costs points, and so does giving two near-identical bars scores of 40 and 70 percent."
+    },
+    {
+      "title": "Balance the pressures with two dials",
+      "description": "One dial sets how much the similarity map matters. Another sets how much the rule is kept simple. They are chosen by testing on later bars held back from training, in time order, as in walk-forward folds.",
+      "inExample": "The map dial is set to medium after trying several values on the next month of bars."
+    },
+    {
+      "title": "Keep the fitted rule and score new bars with it",
+      "description": "Once fitted, the rule is kept. A new bar is turned into features and scored directly, without rebuilding the map. This is the practical advantage over methods that only label the bars they were given.",
+      "inExample": "The 13:20 bar is scored directly and comes out at 55 percent for closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A direction classifier with few labels",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close when only a few hundred bars have clean outcome labels."
+    },
+    {
+      "task": "Exploiting a large unlabelled history",
+      "example": "Using months of unlabelled 1-minute bars to teach the classifier which bars belong to the same neighborhood."
+    },
+    {
+      "task": "Regime classification from a few tagged stretches",
+      "example": "Tagging 200 bars as trending or ranging and letting the map shape how the rule treats the rest."
+    },
+    {
+      "task": "Scoring live bars with a semi-supervised rule",
+      "example": "Applying the fitted rule to each new bar as it closes, which label-spreading methods cannot do without rebuilding."
+    }
+  ],
+  "avoidWhen": [
+    "Plenty of reliable labels already exist; the extra machinery of a similarity map adds tuning work for little gain over a plain gradient boosting model.",
+    "The features are noisy enough that look-alike bars have unrelated outcomes; the smoothness rule then pushes the model toward a flat, uninformative answer."
+  ],
+  "example": {
+    "scenario": "A researcher has 3,000 five-minute MNQ bars, 150 of which have a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. The fitted rule must now score the bar that has just closed at 13:20.",
+    "input": {
+      "summary": "A feature table of 3,000 bars with labels on 150, plus the single new bar to score.",
+      "fields": [
+        { "name": "bars used to build the map", "value": "3,000", "meaning": "All five-minute bars in the training period, labelled and unlabelled together." },
+        { "name": "bars with a known outcome", "value": "150", "meaning": "Bars whose close 6 bars later is known and which carry the supervised part of the penalty." },
+        { "name": "features per bar", "value": "8", "meaning": "The scaled numbers describing each bar." },
+        { "name": "links per bar in the map", "value": "12", "meaning": "How many look-alike bars each bar is tied to." },
+        { "name": "weight on the map", "value": "medium", "meaning": "How strongly the smoothness penalty counts against mistakes on marked bars." },
+        { "name": "close of the 13:20 bar", "value": "19,805", "meaning": "The price at which the bar to be scored closed." },
+        { "name": "price change over the last 6 bars", "value": "plus 36 points", "meaning": "How far price rose over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for the new bar, and the scores its closest look-alikes received.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "55 percent", "meaning": "The rule's smooth score for the 13:20 bar." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "scores of its nearest look-alikes", "value": "53 to 57 percent", "meaning": "The range of scores given to the bars the map ties most closely to the new bar, showing the smoothness at work." }
+      ]
+    },
+    "reading": "55 percent is a small lean. The look-alikes agreeing within a few points shows the rule is behaving smoothly there; judge it by the net result after costs on later folds, not by this one number."
+  }
+}

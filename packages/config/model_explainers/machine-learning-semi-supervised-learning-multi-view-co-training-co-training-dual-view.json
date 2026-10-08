@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-multi-view-co-training-co-training-dual-view",
+  "name": "Co-Training (Dual View)",
+  "analogy": "Think of it as two scouts looking at the same game, one watching only the chart shape and the other watching only volume and news. When one scout is very sure about a play nobody has graded, he teaches it to the other, and then they swap roles.",
+  "steps": [
+    {
+      "title": "Split the features into two separate views",
+      "description": "The features are divided into two groups that each tell a complete story on their own and look at the data differently. The method works best when the two views are not just copies of each other.",
+      "inExample": "View A holds price shape and momentum (5 features). View B holds volume and news tone (4 features)."
+    },
+    {
+      "title": "Train one classifier on each view",
+      "description": "Using only the bars with a known outcome, each view gets its own classifier. Neither classifier ever sees the other view's features.",
+      "inExample": "With 200 labelled bars, classifier A learns from price shape and classifier B learns from volume and news."
+    },
+    {
+      "title": "Let each classifier score the unlabelled bars",
+      "description": "Each classifier gives every unlabelled bar a probability. The bars where a classifier is the most confident are set aside as the ones it can teach.",
+      "inExample": "Out of 3,800 unlabelled bars, classifier A picks its 20 most confident and classifier B picks its 20 most confident."
+    },
+    {
+      "title": "Hand the confident bars to the other classifier",
+      "description": "The bars classifier A is sure about are added to classifier B's training set with A's call as the label, and the other way around. Each classifier therefore learns from cases the other view recognized.",
+      "inExample": "B receives A's 20 picks, with A's calls as labels, and A receives B's 20 picks the same way."
+    },
+    {
+      "title": "Retrain and repeat for several rounds",
+      "description": "Both classifiers are retrained on their enlarged sets and the exchange repeats. Only a few bars are passed each round so that a mistake cannot snowball.",
+      "inExample": "After 8 rounds each classifier has absorbed 160 new bars and the unlabelled pile is correspondingly smaller."
+    },
+    {
+      "title": "Combine the two views for the final call",
+      "description": "To score a new bar, each classifier looks at its own view and the two probabilities are combined, typically by averaging.",
+      "inExample": "For the 14:10 bar, classifier A says 59 percent up and classifier B says 55 percent up, which averages to 57 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Combining price data with news sentiment",
+      "example": "Pairing a price-shape view with a view built from the news sentiment score on MNQ bars, when only a few bars have clean outcome labels."
+    },
+    {
+      "task": "Growing a small labelled set",
+      "example": "Turning 200 labelled five-minute bars into several hundred labelled bars before a final model is trained."
+    },
+    {
+      "task": "Spotting bars where the views disagree",
+      "example": "Flagging bars where the price view says up with confidence and the volume view says down, as candidates for a closer look."
+    },
+    {
+      "task": "Chart images beside numeric features",
+      "example": "Using one view made of the numeric indicators and another made of a chart image of the last 60 bars."
+    }
+  ],
+  "avoidWhen": [
+    "All your features come from the same source, such as only price-derived indicators; the two views would be near copies and the classifiers would simply confirm each other's mistakes.",
+    "You have plenty of labelled bars; plain supervised training is simpler and avoids the risk of passing wrong labels between classifiers."
+  ],
+  "example": {
+    "scenario": "A researcher has 4,000 five-minute MNQ bars, 200 of which have a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. After training, the 14:10 bar is to be scored using both views.",
+    "input": {
+      "summary": "Labelled and unlabelled bars, with each bar's features split into a price view and a volume and news view.",
+      "fields": [
+        { "name": "labelled bars", "value": "200", "meaning": "Bars with a known 6-bar outcome that start both classifiers." },
+        { "name": "unlabelled bars", "value": "3,800", "meaning": "Bars with no outcome yet, available to be pseudo-labelled." },
+        { "name": "bars passed per view each round", "value": "20", "meaning": "How many confident bars each classifier hands to the other per round." },
+        { "name": "price change over the last 6 bars (view A)", "value": "minus 23 points", "meaning": "A price-shape feature: how far price fell over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average (view A)", "value": "49 points below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "volume against its 20-bar average (view B)", "value": "40 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "news sentiment score (view B)", "value": "plus 15 on a scale from minus 100 to plus 100", "meaning": "A tone score for recent headlines about the market; plus 100 is entirely positive, minus 100 entirely negative." }
+      ]
+    },
+    "output": {
+      "summary": "One probability from each view and the combined probability for the 14:10 bar.",
+      "fields": [
+        { "name": "view A probability of a higher close", "value": "59 percent", "meaning": "What the price-shape classifier says on its own." },
+        { "name": "view B probability of a higher close", "value": "55 percent", "meaning": "What the volume and news classifier says on its own." },
+        { "name": "combined probability", "value": "57 percent", "meaning": "The average of the two views." },
+        { "name": "views agree", "value": "yes", "meaning": "Both views lean the same side of 50 percent." }
+      ]
+    },
+    "reading": "Both views leaning up gives the 57 percent more credibility than either alone, but it is still a modest lean. When the views split, treat the bar as undecided instead of trusting the more confident one."
+  }
+}

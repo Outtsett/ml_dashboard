@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-successor-features-for-transfer",
+  "name": "Successor Features for Transfer",
+  "analogy": "Think of it as a trading journal that records, for each situation, how much profit, drawdown, cost and volatility you can expect to run into from here on. When your goals change, you only re-price those ingredients, rather than rewriting the journal.",
+  "steps": [
+    {
+      "title": "Choose the ingredients of reward",
+      "description": "Pick a few measurable quantities that any objective might care about. A reward is then a weighted mix of these ingredients, and different objectives are just different weights.",
+      "inExample": "Four ingredients are chosen: per-bar profit, drawdown exposure, holding cost and volatility exposure."
+    },
+    {
+      "title": "Learn what lies ahead in each ingredient",
+      "description": "For a given policy, the model learns, for every situation and action, how much of each ingredient the agent can expect to collect from then on. This is the successor feature vector.",
+      "inExample": "For a long entry at 10:15, the model expects 24 US dollars of profit, 10 of drawdown exposure, 3 of holding cost and 14 of volatility exposure over the trade."
+    },
+    {
+      "title": "Learn it from experience, bar by bar",
+      "description": "The expected-ahead quantities are learned with the same step-by-step updating used for ordinary value learning, but applied to the whole list of ingredients at once.",
+      "inExample": "Every real transition on 5-minute MNQ bars updates all four expected-ahead numbers together."
+    },
+    {
+      "title": "Price the ingredients with a weight vector",
+      "description": "An objective is a set of weights, one per ingredient. The value of an action is the expected-ahead ingredients multiplied by their weights and added up.",
+      "inExample": "With a weight of 1 on profit and 0 on the rest, the long entry is worth 24 US dollars; with a penalty on drawdown, it is worth less."
+    },
+    {
+      "title": "Switch objectives by changing the weights",
+      "description": "When the goal changes, nothing needs retraining. A new weight vector is dropped in, or fitted with a quick regression on a little data, and values update at once.",
+      "inExample": "Moving from raw return to a drawdown-averse goal sets the drawdown weight to minus 2, and the long entry's value falls from 24 to 4 US dollars."
+    },
+    {
+      "title": "Combine several known policies",
+      "description": "If several policies have their expected-ahead ingredients learned, the agent can, for a new weight vector, pick in each situation the action whose value is best across all of them. In theory this is at least as good as the best single policy it draws on, when the estimates are accurate.",
+      "inExample": "A trend policy and a range policy are both priced under the new drawdown-averse weights, and the agent follows whichever scores higher on each bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Changing risk preference without retraining",
+      "example": "Moving a trained MNQ policy from maximizing return to avoiding drawdown by changing the weights, then checking the result on walk-forward folds."
+    },
+    {
+      "task": "Re-pricing when costs change",
+      "example": "Updating the commission and slippage weight when the broker's fee changes, rather than starting the training again."
+    },
+    {
+      "task": "Sweeping many objectives",
+      "example": "Trying 30 different weightings of profit, drawdown and volatility against one set of learned ingredients."
+    },
+    {
+      "task": "Serving several desks",
+      "example": "Giving each desk its own risk weights over one shared library of expected-ahead ingredients."
+    },
+    {
+      "task": "Reusing learning on a new instrument's objective",
+      "example": "Reusing the ingredients learned on MNQ and fitting only new weights for an ES objective."
+    }
+  ],
+  "avoidWhen": [
+    "The new objective is not a mix of the chosen ingredients, such as a rule with hard stop conditions; the expected-ahead numbers cannot represent it and a fresh training run is needed.",
+    "Only one fixed objective will ever matter; ordinary value learning is simpler and has less to keep track of."
+  ],
+  "example": {
+    "scenario": "A policy was trained on MNQ 5-minute bars to maximize profit. At 10:15 you want to know what a long entry is worth under a new, drawdown-averse objective, without retraining.",
+    "input": {
+      "summary": "The state, the candidate action, the learned expected-ahead ingredients and two weight vectors.",
+      "fields": [
+        { "name": "close", "value": "19,973", "meaning": "The close of the 10:15 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "expected profit ahead", "value": "24 US dollars", "meaning": "How much profit the trade is expected to collect over its life under the trained policy." },
+        { "name": "expected drawdown exposure ahead", "value": "10 US dollars", "meaning": "How much adverse movement the trade is expected to endure." },
+        { "name": "old weights", "value": "profit 1, drawdown 0", "meaning": "The original objective: profit only." },
+        { "name": "new weights", "value": "profit 1, drawdown minus 2", "meaning": "The drawdown-averse objective, which charges two dollars for each dollar of drawdown exposure." }
+      ]
+    },
+    "output": {
+      "summary": "The value of the long entry under each objective and the resulting choice.",
+      "fields": [
+        { "name": "value under the old objective", "value": "24 US dollars", "meaning": "Expected profit only, with drawdown ignored." },
+        { "name": "value under the new objective", "value": "4 US dollars", "meaning": "Expected profit of 24 minus 2 times the 10 dollars of drawdown exposure." },
+        { "name": "decision under the new objective", "value": "enter at a reduced size of 1 contract", "meaning": "The value is still positive, so entering is favored, but it is thin, which supports a smaller size." }
+      ]
+    },
+    "reading": "The same learned ingredients answer both questions, which is the saving. The caution is that the expected-ahead numbers describe how the old policy behaves; a policy that trades differently under the new weights has not been learned, only valued, so confirm the result on held-out folds with costs."
+  }
+}

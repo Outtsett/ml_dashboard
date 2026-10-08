@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-regularization-theoretical-entropy-minimization",
+  "name": "Entropy Minimization",
+  "analogy": "Think of it as a coach who grades the model on the bars with answers, and on the ungraded bars simply says: stop shrugging. Every ungraded bar where the model answers could be either side costs it a point, which pushes its dividing line into the empty gaps between clusters of bars instead of through the middle of a crowd.",
+  "steps": [
+    {
+      "title": "Train as usual on the labelled bars",
+      "description": "The model starts like any classifier: it is scored on how wrong it is on the bars with a known outcome, and it adjusts to reduce that error.",
+      "inExample": "250 five-minute MNQ bars with a known 6-bar outcome train a small neural network, the same as any supervised run."
+    },
+    {
+      "title": "Have the model score the unlabelled bars",
+      "description": "At every training step the model also gives a probability to a large batch of bars with no outcome. These answers are not checked against anything, because the outcome is unknown.",
+      "inExample": "5,000 unlabelled bars are scored in each pass, and some come out near 50 percent while others come out near 80 or 20 percent."
+    },
+    {
+      "title": "Measure how undecided each answer is",
+      "description": "Each answer gets an indecision score. A probability near 50 percent is maximally undecided, while one near 0 or 100 percent is decisive. This score is what entropy measures, in plain terms.",
+      "inExample": "An answer of 52 percent scores nearly the maximum indecision. An answer of 85 percent scores much lower."
+    },
+    {
+      "title": "Add an indecision penalty to the training goal",
+      "description": "The model is penalized for indecision on the unlabelled bars, with a dial that sets how heavy the penalty is. The model can only reduce the penalty by moving its dividing line so that fewer bars sit near it.",
+      "inExample": "The penalty is weighted at 30 percent of the labelled error, so wrong calls on known bars still matter most."
+    },
+    {
+      "title": "Update, repeat and check on later bars",
+      "description": "The model repeats the two-part training for many passes. It is checked on labelled bars from a later period, held out of training, because too heavy a penalty can make the model confidently wrong.",
+      "inExample": "Training stops after 40 passes, when the score on the held-out later month stops improving."
+    },
+    {
+      "title": "Score new bars with the sharpened model",
+      "description": "The finished model gives probabilities for new bars. They tend to be more decisive than those of a model trained on the labelled bars alone, so they need a calibration check before being treated as true probabilities.",
+      "inExample": "The 10:50 bar is scored at 60 percent for closing higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sharpening a classifier that has few labels",
+      "example": "Training a direction classifier on MNQ 5-minute bars with only a few hundred outcome labels, using months of unlabelled bars to place its dividing line."
+    },
+    {
+      "task": "Adding a semi-supervised term to a neural network",
+      "example": "Dropping the indecision penalty into an existing neural network training run without changing its structure."
+    },
+    {
+      "task": "Chart-image classification",
+      "example": "Teaching a pattern classifier on a small set of labelled chart images and a large pile of unlabelled ones."
+    },
+    {
+      "task": "Finding bars that stay undecided",
+      "example": "Listing bars that still score near 50 percent after training, since they sit in the crowded middle where no pattern separates up from down."
+    }
+  ],
+  "avoidWhen": [
+    "The up and down bars overlap heavily, as price direction usually does; the assumption that a clean gap exists between them is then false, and the penalty teaches the model false confidence.",
+    "You will size trades from the probability itself; the model's sharpened outputs are not true probabilities, so a Calibrated Classifier step is needed on top."
+  ],
+  "example": {
+    "scenario": "A researcher has 5,250 five-minute MNQ bars, 250 with a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. A small neural network is trained with the indecision penalty and then scores the 10:50 bar.",
+    "input": {
+      "summary": "Labelled bars for the usual error, unlabelled bars for the indecision penalty, and one new bar to score.",
+      "fields": [
+        { "name": "labelled bars", "value": "250", "meaning": "Bars with a known outcome that drive the ordinary error." },
+        { "name": "unlabelled bars", "value": "5,000", "meaning": "Bars with no outcome that drive the indecision penalty." },
+        { "name": "weight of the indecision penalty", "value": "30 percent", "meaning": "How heavily indecision on unlabelled bars counts, as a share of the weight on error for labelled bars." },
+        { "name": "close of the 10:50 bar", "value": "19,319", "meaning": "The price at which the bar to be scored closed." },
+        { "name": "price change over the last 6 bars", "value": "minus 68 points", "meaning": "How far price fell over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "29", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for the bar and its indecision score.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "60 percent", "meaning": "The sharpened model's answer for the 10:50 bar." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "indecision score", "value": "97 percent of the maximum", "meaning": "On a scale where 0 percent is a certain answer and 100 percent is a coin flip, a value near the top means the answer is only mildly decisive." }
+      ]
+    },
+    "reading": "60 percent with a high indecision score is still a hesitant lean. Because the method rewards confidence, compare its probabilities to what actually happened on later folds before trusting any of them."
+  }
+}

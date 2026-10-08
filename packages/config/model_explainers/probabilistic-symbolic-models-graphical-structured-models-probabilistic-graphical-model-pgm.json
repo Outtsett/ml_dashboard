@@ -1,0 +1,76 @@
+{
+  "specificationId": "probabilistic-symbolic-models-graphical-structured-models-probabilistic-graphical-model-pgm",
+  "name": "Probabilistic Graphical Model (PGM)",
+  "analogy": "Think of it as a room of traders who each hold a private opinion about the market and keep glancing at their neighbours. Nobody is in charge; opinions pass back and forth along the links until the room settles on a shared picture.",
+  "steps": [
+    {
+      "title": "List the quantities and who is linked",
+      "description": "Each unknown, such as a market's regime, becomes a node. A link joins two nodes only when they directly depend on each other. With undirected links, the dependence runs both ways and no node is the cause of another.",
+      "inExample": "Two nodes are drawn, the MNQ regime and the ES regime, and they are linked because the two index futures move together."
+    },
+    {
+      "title": "Score how well neighbours agree",
+      "description": "Each link gets a table of compatibility scores for every pair of states. Pairs that fit together score high; clashing pairs score low. These scores replace a full probability table, and they are either set from domain knowledge or fitted by asking each node to predict itself from its neighbours.",
+      "inExample": "Both markets fast scores 5, one fast and one calm scores 1, both calm scores 4."
+    },
+    {
+      "title": "Attach what each node sees",
+      "description": "Each node also gets its own evidence, such as the feature readings for that instrument, which pulls it toward some states before the neighbours are consulted.",
+      "inExample": "On its own features MNQ looks fast with 70 percent odds, while ES looks fast with only 55 percent."
+    },
+    {
+      "title": "Pass messages between neighbours",
+      "description": "Every node tells each neighbour what it currently believes, and each node then updates its own belief using what it hears. Messages go round repeatedly until the beliefs stop changing. On a graph with loops this gives a good approximate answer; on a graph without loops it is exact.",
+      "inExample": "MNQ tells ES it is probably fast, which lifts ES; ES's lift is passed back to MNQ in turn."
+    },
+    {
+      "title": "Read the settled beliefs",
+      "description": "When the messages stop changing, each node holds a probability for each of its states, taking all links into account at once.",
+      "inExample": "After two rounds the MNQ regime is 76 percent fast and the ES regime is 71 percent fast."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Linked regimes across instruments",
+      "example": "Estimating whether MNQ and ES are both in a fast regime, without claiming that one market causes the other."
+    },
+    {
+      "task": "Labelling every bar in a session",
+      "example": "Tagging each 5-minute bar as calm, trending or fast, with neighbouring bars nudging each other toward consistent labels."
+    },
+    {
+      "task": "Agreeing across timeframes",
+      "example": "Making a 1-minute signal and a 5-minute signal pull toward the same answer instead of contradicting each other."
+    },
+    {
+      "task": "Fusing imperfect readings",
+      "example": "Merging several noisy indicators of the same hidden volatility state into one probability."
+    }
+  ],
+  "avoidWhen": [
+    "The relationships have a clear cause-and-effect direction you want to state, because a Bayesian network says that directly and its tables are easier to read.",
+    "You only need a prediction from a flat table of features; a tree-based model is simpler and usually stronger for that job."
+  ],
+  "example": {
+    "scenario": "During the New York session you track whether MNQ and ES are each in a calm or a fast regime. Their own readings are a little uncertain, but the two markets usually agree.",
+    "input": {
+      "summary": "Each market's own evidence plus the strength of the link between them.",
+      "fields": [
+        { "name": "MNQ own evidence of a fast regime", "value": "70 percent", "meaning": "How fast MNQ looks from its own 5-minute features alone, such as average true range of 24 points." },
+        { "name": "ES own evidence of a fast regime", "value": "55 percent", "meaning": "How fast ES looks from its own features alone, with average true range of 6 points." },
+        { "name": "link: both fast", "value": "score 5", "meaning": "The compatibility score for the two markets both being in a fast regime." },
+        { "name": "link: one fast, one calm", "value": "score 1", "meaning": "The compatibility score for the two markets disagreeing." },
+        { "name": "link: both calm", "value": "score 4", "meaning": "The compatibility score for the two markets both being calm." }
+      ]
+    },
+    "output": {
+      "summary": "A settled probability of a fast regime for each market after the neighbours have weighed in.",
+      "fields": [
+        { "name": "MNQ chance of a fast regime", "value": "76 percent", "meaning": "MNQ's belief after hearing from ES, higher than its own 70 percent." },
+        { "name": "ES chance of a fast regime", "value": "71 percent", "meaning": "ES's belief after hearing from MNQ, higher than its own 55 percent." },
+        { "name": "message rounds needed to settle", "value": "2 rounds", "meaning": "With only two nodes and no loop, one exchange each way gives the exact answer and a second round confirms that nothing changes." }
+      ]
+    },
+    "reading": "ES moved a long way up because MNQ was surer, which is the point of the links. Treat this as a shared regime estimate to scale risk, and remember that it only reflects the compatibility scores you or the data supplied."
+  }
+}

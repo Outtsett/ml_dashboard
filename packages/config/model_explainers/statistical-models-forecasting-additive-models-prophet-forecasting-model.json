@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-forecasting-additive-models-prophet-forecasting-model",
+  "name": "Prophet Forecasting Model",
+  "analogy": "Think of it as a floor manager's forecast built from separate layers: the slowly shifting base level of activity, the daily rhythm that repeats every session, the weekly rhythm, and a short list of known event days. Each layer is drawn on its own transparent sheet, and the forecast is all the sheets stacked together.",
+  "steps": [
+    {
+      "title": "Lay out the history against the clock",
+      "description": "The model takes one series with timestamps, such as trading volume per 5-minute bar. It does not care about the order of the previous bar; it treats the series as a curve over clock time and fits that curve to the whole history at once. Missing bars and odd spikes do little harm.",
+      "inExample": "Three months of MNQ volume per 5-minute bar during regular trading hours, about 4,900 bars with a few gaps around holidays, are laid out against date and time of day."
+    },
+    {
+      "title": "Fit the slow trend with allowed bends",
+      "description": "The base level is drawn as a line that is allowed to change its slope at a number of candidate points. A strong preference for staying straight means most candidate bends stay switched off, so only real shifts in level show up as bends.",
+      "inExample": "The trend sits near 6,000 contracts per bar and shows one bend three weeks ago, when the slope turned gently upward."
+    },
+    {
+      "title": "Fit the repeating daily and weekly waves",
+      "description": "The rhythm inside a day and inside a week is drawn as a smooth wave, built from a handful of simple repeating shapes added together. A flexible wave can capture a sharp morning spike and a midday lull, and the weekly wave captures quieter Fridays and Sunday-evening starts.",
+      "inExample": "The daily wave adds about 4,800 contracts at the 09:35 New York open and subtracts about 2,900 at midday; the weekly wave subtracts about 400 on Wednesdays."
+    },
+    {
+      "title": "Add the effect of known event days",
+      "description": "A short list of dates, such as economic releases or contract rollover days, is given to the model. Each gets its own bump up or down, estimated from earlier occurrences, so those days are explained instead of being mistaken for trend changes.",
+      "inExample": "The list marks inflation-report mornings and quarterly contract rollover weeks; tomorrow is not one of them, so this layer adds zero."
+    },
+    {
+      "title": "Stack the layers into a forecast",
+      "description": "To forecast a future timestamp, the model extends the trend forward, reads the daily and weekly waves at that time, adds any event effect, and sums them. The result is the expected value at that exact moment.",
+      "inExample": "For tomorrow, Wednesday at 09:35: trend 6,000, plus daily wave 4,800, plus weekly effect minus 400, plus events 0, gives 10,400 contracts."
+    },
+    {
+      "title": "Add an uncertainty band",
+      "description": "The band combines the ordinary scatter of bars around the curve with the chance that the trend bends again in the future, as it has in the past. The farther out the forecast, the wider the band becomes.",
+      "inExample": "The band around 10,400 runs from 8,100 to 12,700 contracts."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting intraday volume or liquidity",
+      "example": "Predicting how many MNQ contracts will trade in each 5-minute bar tomorrow so an order can be spread in proportion to expected volume."
+    },
+    {
+      "task": "Forecasting the daily rhythm of volatility",
+      "example": "Projecting the average true range for each time of day, so stop distances can be set wider at the open and tighter at midday."
+    },
+    {
+      "task": "Telling a level shift from an ordinary cycle",
+      "example": "Reading the fitted trend to see whether volume genuinely stepped up three weeks ago or merely followed its normal weekly pattern."
+    },
+    {
+      "task": "Planning around scheduled news and rollovers",
+      "example": "Estimating how much volume jumps on rollover week and inflation-report mornings, so those days are handled separately in backtests."
+    }
+  ],
+  "avoidWhen": [
+    "You want to predict the direction of the next bar; price direction has almost no repeating calendar pattern, so a classifier on features such as momentum is the better tool.",
+    "The series reacts to the immediately preceding bars, as volatility does in bursts; a model that reads recent history, such as a volatility-clustering model or gradient boosting on lagged features, captures that, which a clock-based curve does not."
+  ],
+  "example": {
+    "scenario": "Using three months of MNQ volume per 5-minute bar, the model forecasts volume for the 09:35 New York bar on tomorrow, a Wednesday with no scheduled news and no contract rollover.",
+    "input": {
+      "summary": "The history of volume per bar with its timestamps, the event dates, and the timestamp to forecast.",
+      "fields": [
+        { "name": "history length", "value": "about 4,900 five-minute bars", "meaning": "Roughly three months of regular trading hours volume." },
+        { "name": "fitted base level (trend)", "value": "6,000 contracts per bar", "meaning": "The slow-moving level of activity before the daily and weekly rhythm is added." },
+        { "name": "latest trend bend", "value": "3 weeks ago, gentle rise", "meaning": "The one place where the trend's slope changed." },
+        { "name": "daily wave at 09:35", "value": "plus 4,800 contracts", "meaning": "How much busier the market opens than the base level." },
+        { "name": "weekly effect for Wednesday", "value": "minus 400 contracts", "meaning": "How much quieter Wednesdays run than the average day." },
+        { "name": "event dates in the list", "value": "inflation reports and rollover weeks", "meaning": "Known days that get their own effect; tomorrow is not one." }
+      ]
+    },
+    "output": {
+      "summary": "A volume forecast for the timestamp, split into its layers, with an uncertainty band.",
+      "fields": [
+        { "name": "forecast volume at 09:35", "value": "10,400 contracts", "meaning": "Trend 6,000 plus daily wave 4,800 plus weekly effect minus 400 plus event effect 0." },
+        { "name": "lower end of the band", "value": "8,100 contracts", "meaning": "The value the forecast should stay above about nine times in ten." },
+        { "name": "upper end of the band", "value": "12,700 contracts", "meaning": "The value the forecast should stay below about nine times in ten." },
+        { "name": "event effect", "value": "0 contracts", "meaning": "No scheduled event falls on this date." }
+      ]
+    },
+    "reading": "Use the forecast as a pacing guide: if a large order should be about 5 percent of volume, plan on around 520 contracts in that bar. If actual volume repeatedly lands outside the band, look at the trend layer first, since a new bend means the level has shifted."
+  }
+}

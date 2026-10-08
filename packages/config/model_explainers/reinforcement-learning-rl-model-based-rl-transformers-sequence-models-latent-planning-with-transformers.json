@@ -1,0 +1,78 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-latent-planning-with-transformers",
+  "name": "Latent Planning with Transformers",
+  "analogy": "Think of it as a chess player who does not picture every piece, only a short mental sketch of each position. The sketches are written down in order, and the player searches through possible continuations of the sketches, looking back at any earlier sketch whenever it helps.",
+  "steps": [
+    {
+      "title": "Compress each bar into a short sketch",
+      "description": "An encoder turns each observation into a small token, a short list of numbers that keeps what matters about the bar and drops the rest. Working with small tokens keeps the later steps affordable over a long history.",
+      "inExample": "Each of the last 120 five-minute MNQ bars, with its prices, volume and indicators, is compressed into a token of 32 numbers."
+    },
+    {
+      "title": "Read the sketches in order with attention",
+      "description": "A transformer reads the line of sketches and actions. Each position looks back at whichever earlier sketches are most relevant, and a mask stops it from seeing anything later.",
+      "inExample": "The sketch for the latest bar draws most on the opening-range sketch and the last two pullbacks, and ignores the flat midday stretch."
+    },
+    {
+      "title": "Learn how sketches follow one another",
+      "description": "The transformer learns to predict the next sketch given the history and a chosen action, and to predict the reward that goes with it. Together these form the model's imagination, working entirely in sketch space.",
+      "inExample": "Given long as the action, the model predicts the next sketch and a reward of plus 6 US dollars."
+    },
+    {
+      "title": "Search through possible futures",
+      "description": "Planning is a search over action series. A beam search keeps a handful of the best partial series at every step, extends each with the next action, and scores the results with the reward predictor.",
+      "inExample": "At each of 8 steps the search keeps the 5 best partial plans out of the 3 positions short, flat and long tried at that step."
+    },
+    {
+      "title": "Choose the best sequence and act on its first move",
+      "description": "The highest scoring complete plan wins, and only its first action is carried out. After the real next bar arrives, the history is extended and the search starts again.",
+      "inExample": "The best 8-bar plan starts long, so one contract is bought, and the search is rerun after the next bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Planning with a long memory",
+      "example": "Choosing positions for the next 40 minutes on ES five-minute bars while attending to the whole session so far, where a plain recurrent memory would have forgotten the morning."
+    },
+    {
+      "task": "Fast search over many candidate plans",
+      "example": "Comparing hundreds of execution schedules for a larger order, using cheap sketches rather than full bars."
+    },
+    {
+      "task": "A readable list of market states",
+      "example": "Forcing the sketches into a fixed set of 16 codes, so each bar can be labelled with an understandable regime code."
+    },
+    {
+      "task": "Carrying learning from one instrument to another",
+      "example": "Reusing the encoder and transformer learned on MNQ to start a model for a thinner instrument."
+    }
+  ],
+  "avoidWhen": [
+    "History is short; both the encoder and the transformer need a lot of data, and with a few thousand bars a simpler model is more reliable.",
+    "The sketches are poor; planning is only as good as what the encoder keeps, and an encoder that drops a key detail gives plans that look good and fail."
+  ],
+  "example": {
+    "scenario": "At the 12:35 bar on MNQ, the model holds 120 bars of compressed history, is flat, and must plan the next 8 bars with beam search.",
+    "input": {
+      "summary": "The sketches of the recent bars, the current position and the search settings.",
+      "fields": [
+        { "name": "close", "value": "19,640", "meaning": "The latest five-minute bar's close." },
+        { "name": "history length", "value": "120 five-minute bars", "meaning": "The number of sketches the transformer reads." },
+        { "name": "sketch size", "value": "32 numbers per bar", "meaning": "How compact each compressed bar is." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "plans kept at each step", "value": "5", "meaning": "The beam width, how many partial plans survive each round." },
+        { "name": "bars planned ahead", "value": "8 bars (40 minutes)", "meaning": "The length of each candidate plan." }
+      ]
+    },
+    "output": {
+      "summary": "The best plan, its predicted reward and the market state the model believes it is in.",
+      "fields": [
+        { "name": "best plan", "value": "long, long, long, long, long, flat, flat, flat", "meaning": "The highest scoring 8-bar series of positions; only the first action is taken." },
+        { "name": "predicted reward of the plan", "value": "29 US dollars", "meaning": "The imagined total gain after costs along the plan." },
+        { "name": "action to take now", "value": "buy 1 contract", "meaning": "The first move of the best plan." },
+        { "name": "state code", "value": "code 7", "meaning": "The label of the nearest learned market state, if sketches are forced into a fixed set of codes." }
+      ]
+    },
+    "reading": "The predicted reward is the model's imagination and is useful only for ranking plans. Check what code 7 usually looks like in the training bars, and be wary if the current bar sits far from every code, which means the sketch is outside what the model has seen."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-latent-variable-models-masked-autoencoder-for-distribution-learning",
+  "name": "Masked Autoencoder for Distribution Learning",
+  "analogy": "Think of it as a trader studying charts with part of each chart covered by sticky notes. Shown only the visible bars, they must redraw what is hidden underneath. After thousands of covered charts they learn what market shapes normally look like, well enough to fill in blanks or sketch a new chart.",
+  "steps": [
+    {
+      "title": "Cut the input into pieces",
+      "description": "The input is split into equal-sized, non-overlapping pieces. For a price chart this means short runs of consecutive bars, each treated as one piece with its position in the window remembered.",
+      "inExample": "A window of 60 five-minute MNQ bars is cut into 12 pieces of 5 bars each."
+    },
+    {
+      "title": "Hide most of the pieces",
+      "description": "During training a large random share of the pieces, often about three quarters, is covered up and removed from the input. The model is never told in advance which pieces will be hidden, so it cannot memorise one fixed pattern.",
+      "inExample": "In a training pass, 9 of the 12 pieces are hidden, leaving only 3 visible pieces covering 15 bars."
+    },
+    {
+      "title": "Encode only what is visible",
+      "description": "A neural network reads just the visible pieces and compresses them into a compact internal summary. Because it skips the hidden pieces, this step is cheap, and the summary has to carry the shape of the whole window.",
+      "inExample": "The 15 visible bars are compressed into a short summary describing a quiet drift lower with shrinking volume."
+    },
+    {
+      "title": "Rebuild the hidden pieces",
+      "description": "A second, lighter network receives the summary plus empty placeholders for every hidden piece. It fills each placeholder with its best guess of the missing bars. Only the hidden pieces are scored against the truth, since copying visible ones would teach nothing.",
+      "inExample": "The decoder fills the 9 hidden pieces with 45 reconstructed bars, and only those 45 are compared with what really printed."
+    },
+    {
+      "title": "Repeat over many windows",
+      "description": "The cover, encode, rebuild and compare cycle repeats over a very large number of windows. Reconstruction error shrinks as the model absorbs which shapes, ranges and volume patterns tend to go together, which is how it learns the spread of realistic windows.",
+      "inExample": "After several hundred thousand training windows, rebuilt bars on held-out windows sit within a few points of the real ones, which is the quantity to check."
+    },
+    {
+      "title": "Generate or fill in new windows",
+      "description": "To make something new, the model starts from a mostly blank window and unmasks it in rounds: it fills in some pieces, treats them as visible, then fills in more. To repair a gap, only the gap is hidden and the model fills just that. Each completed window is one draw from what it learned.",
+      "inExample": "To repair the dropped feed, 11 of the 12 pieces stay visible and the model rebuilds the 1 hidden piece. For generation it would start from 3 visible pieces and unmask in three rounds."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Filling gaps in bar data",
+      "example": "Estimating the missing bars of a 5-minute MNQ series where a data feed dropped 20 minutes, using the bars on either side."
+    },
+    {
+      "task": "Learning a compact picture of a market window",
+      "example": "Using the encoder's summary of each 60-bar window as input to a separate regime classifier instead of 35 hand-built features."
+    },
+    {
+      "task": "Making extra training windows",
+      "example": "Generating synthetic 5-minute MNQ windows to widen a small training set for a downstream model, then checking they resemble real ones."
+    },
+    {
+      "task": "Flagging unusual windows",
+      "example": "Marking windows that the model rebuilds poorly, such as a sudden spike around a news release, as unlike what it has seen."
+    }
+  ],
+  "avoidWhen": [
+    "You need a direct up or down probability for the next bar; this model learns what windows look like, so a classifier trained on the target is the more direct choice.",
+    "You have only a few thousand bars; masked reconstruction needs a lot of windows before the summary becomes meaningful, and gradient boosting on engineered features is steadier on small tables."
+  ],
+  "example": {
+    "scenario": "A research run wants to fill a 25-minute hole in MNQ 5-minute data. The model was trained on 12 months of 60-bar windows. One window has the 5 bars in its middle missing; those bars form one of the 12 pieces and are handed to the model as the single hidden piece.",
+    "input": {
+      "summary": "A 60-bar window of 5-minute MNQ bars with one piece of 5 bars hidden, plus how the pieces are laid out in time.",
+      "fields": [
+        { "name": "window length in 5-minute bars", "value": "60", "meaning": "How many consecutive bars the model sees at once." },
+        { "name": "pieces hidden", "value": "1 of 12, holding 5 bars", "meaning": "The consecutive bars in the middle that are covered and must be rebuilt." },
+        { "name": "close just before the gap", "value": "19,142", "meaning": "The last known price before the missing run." },
+        { "name": "close just after the gap", "value": "19,131", "meaning": "The first known price after the missing run." },
+        { "name": "average true range of visible bars", "value": "21 points", "meaning": "How far a typical bar moves from high to low in the visible part, which sets the expected size of the missing bars." },
+        { "name": "average volume of visible bars", "value": "3,400 contracts", "meaning": "Typical trading activity around the gap." }
+      ]
+    },
+    "output": {
+      "summary": "A rebuilt run of 5 bars with open, high, low, close and volume for each.",
+      "fields": [
+        { "name": "rebuilt closes", "value": "19,140, 19,137, 19,134, 19,136, 19,132", "meaning": "The model's best guess of each hidden bar's close, drifting from the pre-gap price toward the post-gap price." },
+        { "name": "rebuilt average range", "value": "20 points", "meaning": "The typical high-to-low size of the rebuilt bars, close to the 21-point range of the visible bars." },
+        { "name": "rebuilt average volume", "value": "3,100 contracts", "meaning": "Estimated activity per hidden bar." },
+        { "name": "reconstruction error on check bars", "value": "3 points average absolute", "meaning": "When extra known bars were hidden as a test, this is how far the rebuilt closes landed from the real ones." }
+      ]
+    },
+    "reading": "The rebuilt bars are a plausible fill, not a recovery of what really printed, so use them to keep a series continuous for modelling and never as trade evidence. The test error of 3 points against a 21-point range tells you how much trust the fill deserves; if it approaches the range itself, leave the gap empty."
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-supervised-learning-tree-based-models-extra-trees-regressor",
+  "name": "Extra Trees Regressor",
+  "analogy": "Think of it as polling two hundred analysts who each draw their chart lines at random spots instead of hunting for the perfect level. Any one of them is sloppy, but because their sloppiness points in different directions, the average of all their forecasts is steadier than a single careful analyst.",
+  "steps": [
+    {
+      "title": "Give every tree the full training set",
+      "description": "Unlike a random forest, each tree usually sees all the training bars rather than a resampled copy. The variety between trees comes from random choices in how they split, not from which bars they see.",
+      "inExample": "Each of 200 trees is grown on all 40,000 training bars."
+    },
+    {
+      "title": "Pick a few features at random at each question",
+      "description": "At every point where a tree must ask a question, it only considers a random handful of the features. This stops every tree from asking about the same strongest feature first.",
+      "inExample": "At the first question one tree sees only volume ratio, hour of day and distance from the 50-bar average."
+    },
+    {
+      "title": "Choose the cut point at random too",
+      "description": "For each candidate feature the cut point is drawn at random between that feature's lowest and highest value in the group being split, instead of being searched for. This is the model's defining move and it makes growing a tree much faster.",
+      "inExample": "For volume ratio the random cut lands at 40 percent above normal; for hour of day at 11 o'clock; for distance from average at one tenth of a percent below."
+    },
+    {
+      "title": "Keep the best of the random questions",
+      "description": "Among the few random questions, the one that makes the outcomes on both sides most alike is used. So the split is partly luck but still sensible, and the tree still learns useful structure.",
+      "inExample": "Of the three random cuts, the volume cut at 40 percent above normal separates forward returns best and is used."
+    },
+    {
+      "title": "Grow each tree out to small leaves",
+      "description": "The splitting continues down each branch until leaves are small. Single trees fit the training bars loosely and noisily, which is acceptable because the next steps average the noise away.",
+      "inExample": "Each tree ends with leaves of at least 5 bars, giving several thousand leaves per tree."
+    },
+    {
+      "title": "Repeat for every tree with fresh randomness",
+      "description": "Each tree makes its own random choices, so the trees end up different from one another. The more different they are, the more their mistakes cancel when averaged.",
+      "inExample": "All 200 trees are grown independently, so they can be built in parallel across the processor cores."
+    },
+    {
+      "title": "Average all the trees' answers",
+      "description": "A new bar is dropped down every tree, each tree returns the average outcome of its leaf, and the final prediction is the plain average of those numbers. The spread between trees also shows how unsure the model is.",
+      "inExample": "The 200 trees return forward 6-bar changes from minus 14 to plus 19 points, averaging plus 4 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting a forward return",
+      "example": "Predicting how many points MNQ will move over the next 6 five-minute bars from the 35 base features, as a baseline to compare against."
+    },
+    {
+      "task": "Forecasting forward volatility for sizing",
+      "example": "Predicting the next 30 minutes' realized range so position size can shrink when a quiet period is expected."
+    },
+    {
+      "task": "Refitting often on a rolling window",
+      "example": "Retraining every walk-forward fold on the latest 12 months, where its fast tree growth keeps the cost low."
+    },
+    {
+      "task": "Adding variety to a stack of models",
+      "example": "Blending it with a boosted model, because its random splits make errors that differ from the boosted model's."
+    }
+  ],
+  "avoidWhen": [
+    "Most of your features are noise; random cut points waste splits on useless features more than a model that searches for the best cut, so a boosted model or a feature screen first is better.",
+    "You need a model that can be read as rules; two hundred randomized trees cannot be inspected, so a single pruned tree is the better choice."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at midday. The Extra Trees Regressor, with 200 trees trained on a year of bars, is asked how many points the close will change over the next 6 bars (30 minutes).",
+    "input": {
+      "summary": "One row of features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,402", "meaning": "The price at which the 5-minute bar closed." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance from the 50-bar average", "value": "just over a tenth of a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "hour of the trading day", "value": "11", "meaning": "The clock hour of the bar, since behaviour differs between the open, midday and the close." },
+        { "name": "return over the last 6 bars", "value": "down about a fifth of a percent", "meaning": "How much price changed over the previous 30 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "The averaged forecast of the next 6-bar change, with the disagreement between trees.",
+      "fields": [
+        { "name": "predicted change over the next 6 bars", "value": "plus 4 points", "meaning": "The plain average of the 200 trees' answers." },
+        { "name": "lowest tree answer", "value": "minus 14 points", "meaning": "The most bearish single tree for this bar." },
+        { "name": "highest tree answer", "value": "plus 19 points", "meaning": "The most bullish single tree for this bar." },
+        { "name": "share of trees above zero", "value": "58 percent", "meaning": "How many of the 200 trees expect the price to rise." }
+      ]
+    },
+    "reading": "Plus 4 points is worth about 8 US dollars per contract before costs, and the trees range from minus 14 to plus 19, so it is a small lean inside a wide spread. Treat it as a weak signal that must beat commission and slippage on out-of-sample folds, not as a call."
+  }
+}

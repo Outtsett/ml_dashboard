@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-masked-modeling-masked-graph-modeling",
+  "name": "Masked Graph Modeling",
+  "analogy": "Think of it as a seating chart of a futures desk with a few name cards covered. Each trader sits beside the markets they usually move with, so you guess the covered trader's mood from the neighbours still in view, and you get better at guessing the more you learn about who sits next to whom.",
+  "steps": [
+    {
+      "title": "Turn the market into a graph",
+      "description": "Each instrument becomes a point, and a line joins two points when their recent price moves are alike. Every point carries a short row of numbers describing it, such as its recent return, its volatility and its volume.",
+      "inExample": "Eight futures become eight points. A line joins two of them when their 60-bar return correlation is above 50 percent, which gives 13 lines. Each point carries a 1-hour return, a 20-bar volatility and a volume ratio."
+    },
+    {
+      "title": "Hide part of the graph",
+      "description": "A random share of the points have their numbers replaced by a blank marker, and sometimes a share of the lines is removed as well. Usually 15 to 50 percent is hidden. No outside label is needed, because the hidden pieces are the answer key.",
+      "inExample": "The S&P 500 contract and the crude oil contract have their numbers blanked, and 2 of the 13 lines are removed from the picture."
+    },
+    {
+      "title": "Pass messages along the lines",
+      "description": "Each point repeatedly collects summaries from the points it is still joined to and blends them with its own, so information travels along the lines. After a few rounds each point holds a short summary describing itself and its neighbourhood.",
+      "inExample": "After 3 rounds the blanked S&P 500 contract holds a summary built mostly from the Nasdaq, Dow and Russell contracts it is still joined to."
+    },
+    {
+      "title": "Guess the hidden pieces",
+      "description": "A small decoder reads each point's summary and guesses the blanked numbers. For each removed line it also guesses how likely it is that the line was really there.",
+      "inExample": "The decoder guesses the S&P 500 contract's 1-hour return as plus 12 basis points, and says the removed Nasdaq to S&P 500 line existed with a probability of 93 percent."
+    },
+    {
+      "title": "Score the guesses and adjust",
+      "description": "The guesses are compared with the true hidden values. The size of the misses, on the numbers and on the lines, is the only teaching signal. The weights are nudged to shrink the misses, and this repeats over thousands of different graph snapshots with different pieces hidden each time.",
+      "inExample": "The true S&P 500 return was plus 10 basis points, so the miss is only 2 basis points and the adjustment is gentle."
+    },
+    {
+      "title": "Keep the summaries, drop the decoder",
+      "description": "After training the decoder is set aside. The point summaries are the useful product, because they describe each instrument in the context of the instruments around it. They can feed a separate model that makes the actual trading call.",
+      "inExample": "The eight summaries are saved and handed to a direction model for MNQ as extra features describing how the other markets look right now."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Describing each market in the context of its neighbours",
+      "example": "Producing a summary for MNQ that reflects how ES, the Dow and the Russell contracts are moving, to hand to a direction model as extra features."
+    },
+    {
+      "task": "Spotting a market that stops behaving like its neighbours",
+      "example": "Flagging an hour when the model cannot rebuild the crude oil contract's numbers from the markets joined to it, which suggests an oil specific shock."
+    },
+    {
+      "task": "Pretraining before a supervised graph model",
+      "example": "Training on years of unlabeled correlation graphs first, then fine-tuning on the few hundred graph snapshots where a regime label exists."
+    },
+    {
+      "task": "Guessing which relationships will appear or fade",
+      "example": "Estimating whether the line between the Nasdaq contract and the gold contract is likely to return next week after it was removed."
+    }
+  ],
+  "avoidWhen": [
+    "You trade one instrument from its own bar series; there is no graph to hide parts of, and a sequence model reads the order of the bars directly.",
+    "You have only a handful of instruments; with three or four points, hiding one leaves too little context to learn anything useful.",
+    "You need a direct buy or sell probability; this model only produces summaries and needs a separate model on top of them."
+  ],
+  "example": {
+    "scenario": "At 14:35 a research job builds a graph of eight futures from the last 60 five-minute bars. It hides the numbers of the S&P 500 contract and the crude oil contract, plus two lines, and asks the model to rebuild them.",
+    "input": {
+      "summary": "A graph of 8 points and 13 lines, with three numbers per point, and two points and two lines hidden.",
+      "fields": [
+        { "name": "points in the graph", "value": "8", "meaning": "Eight index and commodity futures roots, each one a point." },
+        { "name": "lines in the graph", "value": "13 (11 visible)", "meaning": "Pairs whose 60-bar return correlation is above 50 percent; two were removed for the exercise." },
+        { "name": "Nasdaq contract 1-hour return", "value": "plus 15 basis points", "meaning": "How far the Nasdaq contract has moved over the last hour, in basis points, where one basis point is a hundredth of a percent. Visible to the model." },
+        { "name": "Nasdaq contract average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent five-minute bar, a measure of how much it is moving." },
+        { "name": "hidden points", "value": "S&P 500 and crude oil", "meaning": "These two points have their numbers replaced by the blank marker." },
+        { "name": "share of the graph hidden", "value": "25 percent of points", "meaning": "Two of eight points are hidden, inside the usual 15 to 50 percent range." }
+      ]
+    },
+    "output": {
+      "summary": "Guessed numbers for each hidden point, a probability for each hidden line, and a summary vector for every point.",
+      "fields": [
+        { "name": "guessed S&P 500 contract 1-hour return", "value": "plus 12 basis points", "meaning": "The model's rebuild of the hidden number; the true value was plus 10 basis points." },
+        { "name": "guessed crude oil contract 1-hour return", "value": "minus 5 basis points", "meaning": "A rebuild from fewer, weaker neighbours; the true value was plus 22 basis points, a much larger miss." },
+        { "name": "probability the Nasdaq to S&P 500 line exists", "value": "93 percent", "meaning": "How strongly the model believes these two are joined, given everything it can see." },
+        { "name": "summary vector per point", "value": "16 numbers each", "meaning": "The reusable description of each market in the context of its neighbours." }
+      ]
+    },
+    "reading": "The S&P 500 rebuild is close because its neighbours are strongly joined, while the crude oil rebuild is far off because it has few strong neighbours. A large miss on one market is a sign it is moving on its own news. The summary vectors, not the guesses, are what you pass on to a direction model, and whether they help is measured on the run page."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "optimization-based-models-classical-optimization-mixed-integer-programming-mip",
+  "name": "Mixed-Integer Programming (MIP)",
+  "analogy": "Think of it as a trader deciding which desks to open, how many contracts each desk carries, and how much cash to keep in reserve. Opening a desk is a yes-or-no decision with a fixed cost, contracts are whole counts, and cash is any amount, and all three choices are made together under one budget.",
+  "steps": [
+    {
+      "title": "Sort the choices into yes-or-no, whole and smooth",
+      "description": "Each decision is classed by its kind. Switches are yes-or-no, contract counts are whole numbers, and quantities like reserve cash can be any value. The goal and the limits must still be straight-line sums.",
+      "inExample": "Whether to trade each of three instruments is a switch, the number of contracts is a whole count, and unused margin is a smooth reserve."
+    },
+    {
+      "title": "Tie switches to quantities",
+      "description": "A linking rule says a quantity can be above zero only if its switch is on. This lets the model charge a fixed cost for opening an instrument and force a minimum size once it is open.",
+      "inExample": "MNQ contracts may be above zero only if the MNQ switch is on, and turning any switch on costs 15 US dollars."
+    },
+    {
+      "title": "Solve the version that allows fractions",
+      "description": "The solver first lets switches and counts be fractions and finds the best plan. This is an upper bound on what any real plan can score.",
+      "inExample": "With fractions allowed, the best plan takes 1 ES contract, all 8 M2K contracts and under half an MNQ contract, worth about 49 US dollars, more than any whole-number plan can reach."
+    },
+    {
+      "title": "Branch only on the switches and counts that came out fractional",
+      "description": "Where a switch or a count is a fraction, the problem splits into a branch forcing it down and one forcing it up. Smooth quantities are never branched, since they can already take any value.",
+      "inExample": "The fractional MNQ count splits into one branch with no MNQ contracts and one with at least 1, and each branch is solved again."
+    },
+    {
+      "title": "Prune branches that cannot beat the best real plan",
+      "description": "Any branch whose best possible value falls below a real plan already found is dropped. Tighter bounds mean more branches are dropped early and the search stays small.",
+      "inExample": "Once a real plan worth 44 US dollars is found, every branch with ES switched on is bounded at about 36 US dollars, because one ES contract uses 12,000 of the 20,000 margin and pays the full fixed cost, so all of them are dropped."
+    },
+    {
+      "title": "Return the best complete plan",
+      "description": "When no branch can win, the best plan found is proven best and returned: which switches are on, how many whole contracts, and the smooth amounts.",
+      "inExample": "The solver returns MNQ on with 7 contracts, M2K on with 8 contracts, ES off, and 200 US dollars of margin left in reserve."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Deciding what to trade and how much, together",
+      "example": "From 12 candidate signals, choosing which instruments to trade and the whole-contract size of each under a margin limit."
+    },
+    {
+      "task": "Handling fixed costs",
+      "example": "Skipping an instrument whose edge is smaller than the fixed cost of entering it, instead of trading one contract of everything."
+    },
+    {
+      "task": "Enforcing minimum trade sizes",
+      "example": "Making sure any M2K position is at least 2 contracts, or none at all."
+    },
+    {
+      "task": "Choosing strategies and funding them",
+      "example": "Picking which of 6 strategies to run live this month and allocating continuous capital among the chosen ones."
+    }
+  ],
+  "avoidWhen": [
+    "Everything can be a smooth quantity; plain linear or quadratic programming solves faster and exactly, so skip the yes-or-no machinery.",
+    "Risk through correlation is the heart of the problem; the standard form is linear, so a quadratic-with-integers solver or a heuristic is needed."
+  ],
+  "example": {
+    "scenario": "A researcher has 20,000 US dollars of margin and three candidate index futures trades. Opening any instrument costs a fixed 15 US dollars, contracts are whole numbers, and the solver picks both the instruments and the sizes.",
+    "input": {
+      "summary": "Three instruments with an edge and margin per contract, plus a fixed cost for opening each and a margin budget. The edges are illustrative.",
+      "fields": [
+        { "name": "MNQ edge and margin per contract", "value": "6 and 1,800 US dollars", "meaning": "Expected edge and margin for one Micro E-mini Nasdaq-100 contract." },
+        { "name": "ES edge and margin per contract", "value": "32 and 12,000 US dollars", "meaning": "Expected edge and margin for one E-mini S&P 500 contract." },
+        { "name": "M2K edge and margin per contract", "value": "4 and 900 US dollars", "meaning": "Expected edge and margin for one Micro E-mini Russell 2000 contract." },
+        { "name": "fixed cost to open an instrument", "value": "15 US dollars", "meaning": "Charged once for each instrument traded, however many contracts." },
+        { "name": "margin budget", "value": "20,000 US dollars", "meaning": "The most margin that can be used." },
+        { "name": "maximum contracts per instrument", "value": "8", "meaning": "The cap on contracts of any one instrument." }
+      ]
+    },
+    "output": {
+      "summary": "Which instruments to trade, how many contracts, and the value of the plan.",
+      "fields": [
+        { "name": "instruments switched on", "value": "MNQ and M2K", "meaning": "ES stays off because its edge does not justify the margin it uses." },
+        { "name": "contracts", "value": "7 MNQ and 8 M2K", "meaning": "The whole-number sizes of the two open positions." },
+        { "name": "net value", "value": "44 US dollars", "meaning": "Edge of 42 plus 32, less two fixed costs of 15 US dollars each." },
+        { "name": "margin left in reserve", "value": "200 US dollars", "meaning": "20,000 less 12,600 and 7,200; kept as the smooth reserve." }
+      ]
+    },
+    "reading": "The net value is the plan's value inside the model's own assumptions, not a forecast of profit. The useful part is the structure: ES was dropped because of the fixed cost and its margin weight. Re-run the solve when the signals or margin change."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-augmentation-based-methods-denoising-autoencoder",
+  "name": "Denoising Autoencoder",
+  "analogy": "Think of it as a restorer who practises on deliberately damaged paintings. A clean chart-pattern is smudged on purpose, the restorer must repaint the original, and over thousands of tries learns what a normal picture is supposed to look like. A canvas that cannot be restored to anything normal stands out.",
+  "steps": [
+    {
+      "title": "Take a clean window of market features",
+      "description": "Each training example is a short stretch of bars described by a set of numbers, such as returns, range and volume measures, all rescaled so no single number dominates. The clean version is kept aside as the answer key.",
+      "inExample": "A window of 30 five-minute MNQ bars, each described by 6 rescaled features, gives 180 clean numbers."
+    },
+    {
+      "title": "Damage it on purpose",
+      "description": "A copy of the window is corrupted: some numbers are blanked out, or small random noise is added, or both. The strength of the damage is a setting. Too little and the task is trivial; too much and nothing can be recovered.",
+      "inExample": "20 percent of the 180 numbers are blanked and a small amount of random noise is added to the rest."
+    },
+    {
+      "title": "Squeeze the damaged window into a short code",
+      "description": "The encoder reads the damaged window and compresses it into a much shorter list of numbers, the code. Because the code is short, the network cannot memorise; it has to keep only the structure that matters.",
+      "inExample": "The 180 damaged numbers are compressed to a code of 16 numbers."
+    },
+    {
+      "title": "Rebuild the clean window from the code",
+      "description": "The decoder expands the code back into a full window. The network is rewarded when the rebuilt window matches the original clean one, not the damaged one it was shown.",
+      "inExample": "The decoder outputs 180 numbers; the average gap from the original clean window is about 9 percent of a typical feature's spread."
+    },
+    {
+      "title": "Repeat on many windows until repairs are good",
+      "description": "Steps one to four repeat over a long history of windows. The network adjusts so that typical market structure is repaired well. It learns what normal windows share, such as how range and volume usually move together.",
+      "inExample": "After training on about 400,000 windows, typical windows are rebuilt with an average gap near 9 percent of a feature's spread."
+    },
+    {
+      "title": "Use the code, or the repair error, afterwards",
+      "description": "On new data, the short code serves as a cleaned-up summary to feed another model. The rebuild error is also useful: a window the network cannot repair well is unusual compared with what it has seen.",
+      "inExample": "Today's window rebuilds with an error of 18 percent, twice the typical 9 percent, so it is flagged as unusual."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compact, noise-resistant features",
+      "example": "Turning 30 bars of 6 features into a code of 16 numbers to feed a tree model or classifier."
+    },
+    {
+      "task": "Flagging unusual windows",
+      "example": "Raising a warning when a window's rebuild error is above its 99th percentile, as around a surprise economic release."
+    },
+    {
+      "task": "Cleaning noisy inputs",
+      "example": "Filling in a few missing or glitched volume readings in a window using the structure learned from normal data."
+    },
+    {
+      "task": "Pretraining without labels",
+      "example": "Learning a representation of years of unlabelled MNQ and ES bars before any direction labels are applied."
+    }
+  ],
+  "avoidWhen": [
+    "You need a direct buy-or-sell probability; a model trained on direction labels answers that question directly, and the code only helps indirectly.",
+    "Your features are mostly random noise to begin with; the network will faithfully learn to repair noise and the code will carry nothing useful."
+  ],
+  "example": {
+    "scenario": "A researcher wants to know whether the current MNQ window is ordinary or unusual. A denoising autoencoder trained on a year of 5-minute windows is shown the latest 30 bars, and returns a short code and how well it could repair the window.",
+    "input": {
+      "summary": "One window of 30 five-minute bars described by 6 rescaled features, optionally with some values blanked.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "The number of bars in the window being summarised." },
+        { "name": "features per bar", "value": "6", "meaning": "Return, range, body share, wick balance, volume and trade count, all rescaled." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The recent typical bar travel, which is high for a calm morning." },
+        { "name": "volume against its 20-bar average", "value": "160 percent above", "meaning": "A heavy-volume window, unusual for this time of day." },
+        { "name": "share of numbers blanked at test time", "value": "0 percent", "meaning": "At scoring time the window is given clean, with no damage added." }
+      ]
+    },
+    "output": {
+      "summary": "A short code for the window and the error of the rebuilt window against the original.",
+      "fields": [
+        { "name": "code", "value": "16 numbers", "meaning": "The compressed summary of the window that other models can use as input." },
+        { "name": "rebuild error", "value": "18 percent", "meaning": "The average gap between the rebuilt and the original window, as a share of a typical feature's spread." },
+        { "name": "typical rebuild error in training", "value": "9 percent", "meaning": "The average gap for ordinary windows, used as the comparison." },
+        { "name": "percentile of this error", "value": "99th", "meaning": "Where today's error ranks among all training windows; higher means more unusual." }
+      ]
+    },
+    "reading": "An error twice the typical one, in the top 1 percent, says this window is unlike most of what the model has seen. That is a reason to look at the chart and reduce size, not a forecast of direction. If you use the 16-number code downstream, test it against the raw features to see that it adds something."
+  }
+}

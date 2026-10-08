@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-latent-generative-self-supervised-gans",
+  "name": "Self-Supervised GANs",
+  "analogy": "Think of it as a forger and an inspector who also train themselves on side exercises. The forger invents fake stretches of price bars. The inspector tries to tell fake from real, and in between must also solve self-set puzzles about real bars, such as which way a chart was altered. The puzzles keep the inspector sharp, so the forger has to get better.",
+  "steps": [
+    {
+      "title": "The forger starts from random noise",
+      "description": "The generator takes a list of random numbers and turns it into a made-up stretch of bars. At first the output looks like scribbles. Different random inputs give different fake stretches, which is what makes the model useful for creating many examples.",
+      "inExample": "A list of 64 random numbers is turned into 48 fake five-minute bars with open, high, low, close and volume."
+    },
+    {
+      "title": "The inspector judges real and fake",
+      "description": "The discriminator is shown a mix of real windows from history and fake ones from the forger. For each it gives a score from 0 to 100 percent for how real it looks. It is rewarded for telling them apart.",
+      "inExample": "Early on, the inspector scores real windows near 90 percent and fakes near 10 percent."
+    },
+    {
+      "title": "Give the inspector a self-set puzzle",
+      "description": "The inspector also solves a puzzle that needs no labels: guessing which alteration was applied to a window, or matching two altered copies of the same window. Solving it forces the inspector to learn real structure about bars, not just surface tricks.",
+      "inExample": "Each real window is stretched in time by one of four known amounts and the inspector must name which one."
+    },
+    {
+      "title": "The forger learns from the inspector's scores",
+      "description": "The forger is adjusted so that the inspector gives its fakes higher scores. Each time the inspector gets better at spotting fakes, the forger gets better at fooling it. The two improve in alternation.",
+      "inExample": "Over training the inspector's score on fakes rises from 10 percent toward 50 percent, meaning it can no longer tell them apart."
+    },
+    {
+      "title": "Balance the two goals",
+      "description": "The inspector's training combines the real-versus-fake task and the puzzle task, with a setting for how much weight the puzzle gets. Too little and training is unstable; too much and the fake-detecting skill suffers.",
+      "inExample": "The puzzle is given a quarter of the weight of the real-versus-fake task."
+    },
+    {
+      "title": "Use the fakes or the inspector",
+      "description": "After training, the forger can generate as many fake windows as wanted. The inspector's internal description of a window is a learned summary that can be used for other tasks, and a window the inspector finds very unreal can be flagged.",
+      "inExample": "The forger produces 1,000 fake sessions for stress testing, and the inspector gives today's real window a realism score of 52 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating extra price paths for stress tests",
+      "example": "Creating thousands of synthetic MNQ sessions to see how a rule behaves on paths it never saw, always alongside tests on real data."
+    },
+    {
+      "task": "Augmenting thin data",
+      "example": "Adding synthetic examples of rare events, such as sharp reversals, to a classifier's training set."
+    },
+    {
+      "task": "Learning window descriptions",
+      "example": "Using the inspector's internal summary of a window as a feature for a downstream model."
+    },
+    {
+      "task": "Flagging unrealistic windows",
+      "example": "Treating a very low realism score on a real window as a sign of unusual market behaviour."
+    }
+  ],
+  "avoidWhen": [
+    "You need trustworthy evidence about a strategy; results on synthetic paths are only as realistic as the forger, so they cannot replace walk-forward tests on real history.",
+    "You need a stable, easy-to-train model; adversarial training can oscillate or collapse to repeating a few fake patterns."
+  ],
+  "example": {
+    "scenario": "A researcher trains a self-supervised GAN on a year of MNQ 5-minute windows. They then ask the forger for one new fake window of 48 bars, and ask the inspector to score both that generated window and a real one from today.",
+    "input": {
+      "summary": "Random numbers for the forger, plus a window of real bars for the inspector.",
+      "fields": [
+        { "name": "random input", "value": "64 random numbers", "meaning": "The starting noise from which the forger invents a stretch of bars." },
+        { "name": "real window length", "value": "48 five-minute bars", "meaning": "How many bars each real or fake window contains." },
+        { "name": "bar values", "value": "open, high, low, close, volume", "meaning": "What each generated bar contains, rescaled before generation." },
+        { "name": "average true range of the training data", "value": "24 points", "meaning": "The typical bar travel the forger is trying to imitate." },
+        { "name": "weight on the puzzle task", "value": "25 percent", "meaning": "How much the inspector's side puzzle counts relative to real-versus-fake." }
+      ]
+    },
+    "output": {
+      "summary": "A generated window, a realism score for each window, and a description from the inspector.",
+      "fields": [
+        { "name": "generated window", "value": "48 five-minute bars", "meaning": "A new made-up stretch of bars, each with open, high, low, close and volume." },
+        { "name": "average range of generated bars", "value": "22 points", "meaning": "How large the fake bars are, to compare with the real 24 points." },
+        { "name": "inspector realism score for the generated window", "value": "46 percent", "meaning": "How real the generated window looks; 50 percent means it cannot be told from real." },
+        { "name": "inspector realism score for the real window", "value": "52 percent", "meaning": "The score for today's real window, for comparison." }
+      ]
+    },
+    "reading": "Scores near 50 percent for both mean the inspector cannot separate fake from real, which is the goal but not proof of realism: the fakes may still miss features such as volatility clustering or fat tails. Check these against real data before using synthetic windows for anything beyond a stress test."
+  }
+}

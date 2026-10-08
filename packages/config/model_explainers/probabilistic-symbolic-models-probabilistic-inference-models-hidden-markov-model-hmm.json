@@ -1,0 +1,83 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-inference-models-hidden-markov-model-hmm",
+  "name": "Hidden Markov Model (HMM)",
+  "analogy": "Think of it as a weather forecaster who never sees the weather, only what people wear. The market's regime is the hidden weather; the bars are the clothing. From the clothing seen so far, the forecaster keeps an updated bet on what the weather must be.",
+  "steps": [
+    {
+      "title": "Define a few hidden regimes",
+      "description": "You choose a small number of hidden states the market might be in. They are never observed directly; they are only inferred from how the bars behave.",
+      "inExample": "Three regimes are chosen for MNQ 5-minute bars: calm, trending and stormy."
+    },
+    {
+      "title": "Give each regime its own look",
+      "description": "Each regime has its own typical bar behaviour, such as the usual range and the usual direction. This is how a bar gives away which regime produced it.",
+      "inExample": "Calm bars have ranges near 10 points, trending bars show a steady direction, and stormy bars have ranges near 35 points with heavy volume."
+    },
+    {
+      "title": "Set how regimes persist and switch",
+      "description": "A transition table gives the chance of moving from each regime to each other one on the next bar. Markets tend to stay in a regime for a while, so the chance of staying is large.",
+      "inExample": "A stormy bar stays stormy 93 percent of the time, calm becomes stormy 4 percent of the time, and trending becomes stormy 5 percent of the time."
+    },
+    {
+      "title": "Learn the numbers by guess and re-estimate",
+      "description": "The model starts with rough values, works out how likely each regime was at every past bar, then re-estimates the looks and the transition table from those likelihoods. It repeats until the values settle.",
+      "inExample": "After the model settles, the stormy regime's usual range is about 35 points and its stay chance is 93 percent."
+    },
+    {
+      "title": "Update the belief one bar at a time",
+      "description": "As each new bar arrives, the belief is first carried forward through the transition table, then reweighted by how well the bar fits each regime. This forward pass uses only past bars, so it can run live.",
+      "inExample": "Belief before the bar is calm 70, trending 20, stormy 10 percent. A 38-point bar on more than double the normal volume arrives and fits stormy best."
+    },
+    {
+      "title": "Read the regime belief and the switch risk",
+      "description": "The output is the probability of each regime for the bar just seen. Multiplying by the transition table also gives the odds of each regime on the next bar.",
+      "inExample": "The updated belief is calm 24, trending 21, stormy 55 percent, which implies about a 53 percent chance of stormy on the following bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Live regime filter",
+      "example": "Running the forward pass on each new MNQ 5-minute bar to keep a current belief about calm, trending or stormy conditions for gating signals."
+    },
+    {
+      "task": "Labelling history",
+      "example": "Tagging a year of bars with their most likely regime so backtest results can be split by regime."
+    },
+    {
+      "task": "Capturing volatility clustering",
+      "example": "Modelling that fast markets tend to stay fast, which a model treating every bar independently would miss."
+    },
+    {
+      "task": "Estimating the risk of a switch",
+      "example": "Reading the transition table and current belief to see how likely the market is to leave the stormy regime within a few bars."
+    }
+  ],
+  "avoidWhen": [
+    "The regimes you imagine are not really distinct, in which case the labels are unstable from one refit to the next; check that they are stable across walk-forward folds first.",
+    "You need to predict direction directly from many features; a supervised model is made for that, while this model only describes the hidden state."
+  ],
+  "example": {
+    "scenario": "An HMM with calm, trending and stormy regimes was fit on a year of MNQ 5-minute bars. At 09:35 a large bar arrives and you want an updated regime belief.",
+    "input": {
+      "summary": "The belief before the bar, the learned stay chances, and the features of the new bar.",
+      "fields": [
+        { "name": "belief before the bar: calm", "value": "70 percent", "meaning": "How likely the calm regime was after the previous bar." },
+        { "name": "belief before the bar: trending", "value": "20 percent", "meaning": "How likely the trending regime was after the previous bar." },
+        { "name": "belief before the bar: stormy", "value": "10 percent", "meaning": "How likely the stormy regime was after the previous bar." },
+        { "name": "range of the new bar", "value": "38 points", "meaning": "The distance from the bar's low to its high; one point is worth 2 US dollars per contract." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "chance a stormy bar stays stormy", "value": "93 percent", "meaning": "The learned persistence of the stormy regime from one 5-minute bar to the next." }
+      ]
+    },
+    "output": {
+      "summary": "A new belief over the three regimes and the odds for the next bar.",
+      "fields": [
+        { "name": "belief after the bar: calm", "value": "24 percent", "meaning": "How likely the calm regime is now that the large bar has been seen." },
+        { "name": "belief after the bar: trending", "value": "21 percent", "meaning": "How likely the trending regime is now." },
+        { "name": "belief after the bar: stormy", "value": "55 percent", "meaning": "How likely the stormy regime is now, up from 10 percent." },
+        { "name": "chance of stormy on the next bar", "value": "53 percent", "meaning": "The current belief carried one step through the transition table." }
+      ]
+    },
+    "reading": "One big bar moved the belief from 10 to 55 percent stormy, but not to certainty, because a single spike can also be a one-off. A cautious rule would widen stops and cut size while the stormy belief stays above half, and re-check after the next bar."
+  }
+}

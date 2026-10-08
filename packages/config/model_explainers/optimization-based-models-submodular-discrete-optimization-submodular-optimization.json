@@ -1,0 +1,82 @@
+{
+  "specificationId": "optimization-based-models-submodular-discrete-optimization-submodular-optimization",
+  "name": "Submodular Optimization",
+  "analogy": "Think of it as hiring analysts to cover the whole market. The first hire adds a lot of new coverage, but a second analyst who follows the same stocks adds little, while one covering a different asset class adds a lot. Each hire is worth less the more is already covered, so you pick whoever adds the most new coverage.",
+  "steps": [
+    {
+      "title": "Define what counts as coverage",
+      "description": "Decide what the selected set should achieve together, such as covering different market behaviours or carrying different information. The key property is diminishing returns: an item adds less if its job is already done.",
+      "inExample": "Seven futures are scored on how much new market behaviour each adds to a basket: stock indices, gold, 10-year note futures, crude oil and others."
+    },
+    {
+      "title": "Start with an empty set",
+      "description": "No items have been chosen and the total coverage is zero. A limit on the number of items to pick is fixed in advance.",
+      "inExample": "Nothing chosen yet, a limit of 3 picks, coverage 0."
+    },
+    {
+      "title": "Measure each item's marginal gain",
+      "description": "For every item not yet chosen, compute how much coverage it would add on top of what is already chosen. In the first round this is simply its standalone value.",
+      "inExample": "In round one, NQ adds 40, ES adds 38, YM adds 30, RTY adds 28, gold adds 25, 10-year notes add 22 and crude oil adds 18."
+    },
+    {
+      "title": "Add the item with the largest gain",
+      "description": "Take the single best addition and keep it. The gains of the remaining items are then re-measured, and items that overlap with the chosen one drop sharply.",
+      "inExample": "NQ is chosen. In round two ES drops from 38 to 5 because it moves with NQ, while gold stays at 25."
+    },
+    {
+      "title": "Skip re-checking items that cannot win",
+      "description": "Because gains can only shrink as the set grows, an old gain is an upper limit on a new one. Items whose old gain is already below the best fresh gain need not be re-measured. This lazy shortcut saves many computations.",
+      "inExample": "Round two re-measures the items with the largest old gains first: ES falls to 5, YM to 6 and RTY to 14, while gold stays at 25. Gold's 25 is above the old gains of 22 for notes and 18 for crude oil, so those two are never re-measured and gold is chosen."
+    },
+    {
+      "title": "Stop at the limit",
+      "description": "Repeat until the limit is reached. For this kind of problem the greedy result is guaranteed to reach at least about 63 percent of the best coverage any set of that size could achieve.",
+      "inExample": "Round three adds 10-year notes for a gain of 20, ending with NQ, gold and 10-year notes for a total coverage of 85."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing a diverse basket",
+      "example": "Selecting 3 of 7 futures so the basket covers as many distinct market behaviours as possible instead of three versions of the same equity move."
+    },
+    {
+      "task": "Choosing non-redundant features",
+      "example": "Picking features for an MNQ direction model that carry different information, penalising features that move together."
+    },
+    {
+      "task": "Choosing representative history",
+      "example": "Selecting a handful of historical episodes for validation that span trending, choppy and crash conditions instead of one repeated regime."
+    },
+    {
+      "task": "Choosing a diverse set of models or data feeds",
+      "example": "Picking which news feeds or ensemble members to keep when each extra one mostly repeats the others."
+    }
+  ],
+  "avoidWhen": [
+    "Items work better in combination than alone, so their value grows rather than shrinks; the diminishing-returns guarantee does not apply and an evolutionary or exact search is more suitable.",
+    "You need the single provably best set rather than a near-best one; use branch and bound, which spends more computation to certify optimality."
+  ],
+  "example": {
+    "scenario": "A researcher wants a basket of 3 futures from 7 candidates that covers as many distinct market behaviours as possible, instead of holding three near-copies of the same index.",
+    "input": {
+      "summary": "Seven candidate futures, a limit of three, and a coverage score for each item given what is already chosen.",
+      "fields": [
+        { "name": "candidates", "value": "NQ, ES, YM, RTY, gold, 10-year note, crude oil", "meaning": "Futures contracts considered for the basket." },
+        { "name": "limit", "value": "3 items", "meaning": "Size of the basket." },
+        { "name": "round one gains", "value": "NQ 40, ES 38, YM 30, RTY 28, gold 25, 10-year note 22, crude oil 18", "meaning": "Coverage points each adds alone." },
+        { "name": "round two gains after NQ", "value": "gold 25, 10-year note 22, crude oil 16, RTY 14, YM 6, ES 5", "meaning": "Equity indices overlap with NQ so they add little." },
+        { "name": "round three gains after NQ and gold", "value": "10-year note 20, crude oil 12, RTY 12, YM 5, ES 4", "meaning": "Gains keep shrinking; crude oil also loses value because it overlaps with gold." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen basket and the coverage added at each step.",
+      "fields": [
+        { "name": "chosen items in order", "value": "NQ, gold, 10-year note", "meaning": "The order in which the greedy rule added them." },
+        { "name": "coverage added at each pick", "value": "40, then 25, then 20", "meaning": "Shrinking gains show diminishing returns." },
+        { "name": "total coverage", "value": "85", "meaning": "Sum of the three gains." },
+        { "name": "guarantee", "value": "at least 63 percent of the best possible", "meaning": "The best 3-item set can therefore score at most about 135; 85 is at least 63 percent of that." }
+      ]
+    },
+    "reading": "The basket mixes an equity index, a metal and a rates contract because the equity near-copies add almost nothing once NQ is in. The coverage scores are inputs a researcher defines, so the result depends on how coverage is measured; check it against correlations of actual returns."
+  }
+}

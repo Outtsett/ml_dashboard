@@ -1,0 +1,81 @@
+{
+  "specificationId": "simulation-decision-models-game-theory-strategic-reasoning-game-theoretic-models-nash-zero-sum",
+  "name": "Game Theoretic Models (Nash, Zero-Sum)",
+  "analogy": "Think of it as a poker player working out how often to bluff. When the other side is also thinking, there is no single best move, only a best mix of moves that cannot be exploited, and the model computes that mix from a table of what each pairing of choices pays.",
+  "steps": [
+    {
+      "title": "Define the players and their choices",
+      "description": "You list who is in the game and the handful of actions each player can take. In a trading setting the choices might be how tightly to quote, or whether to reveal or hide order size.",
+      "inExample": "The market maker can quote tight (1 tick from the middle) or wide (3 ticks). The opposing trader can hit the quote aggressively or stay passive."
+    },
+    {
+      "title": "Fill in the payoff table",
+      "description": "Every pairing of choices gets a payoff, estimated from historical fills or from a simulated counterparty. In a zero-sum game one side's gain is exactly the other's loss, so one table describes both.",
+      "inExample": "Payoffs to the market maker per 100 fills: tight against aggressive loses 40 US dollars, tight against passive earns 120, wide against aggressive earns 30, wide against passive earns 10."
+    },
+    {
+      "title": "Look for a move that is always best",
+      "description": "If one action beats the others whatever the opponent does, the answer is that action and the game is done. When no such action exists, neither side can afford to be predictable and the answer is a mix of actions.",
+      "inExample": "Tight is best if the opponent is passive; wide is best if the opponent is aggressive. Neither is always best, so a mix is needed."
+    },
+    {
+      "title": "Solve for the unexploitable mix",
+      "description": "The model finds the probabilities that make the opponent indifferent between their choices, and does the same from the opponent's side. In a two-player zero-sum game this is solved exactly with a standard optimisation method, and both sides arrive at the same guaranteed value.",
+      "inExample": "The market maker quotes tight 11 percent of the time and wide 89 percent. The opponent is aggressive 61 percent of the time and passive 39 percent."
+    },
+    {
+      "title": "Read off the value of the game",
+      "description": "At the unexploitable mix the expected payoff is the same whatever the opponent does. This is the guaranteed amount, a baseline to compare any other quoting rule against.",
+      "inExample": "The game is worth about 22 US dollars per 100 fills to the market maker, whichever way the opponent leans."
+    },
+    {
+      "title": "Re-solve when the payoffs change",
+      "description": "Payoff estimates are refreshed from current market conditions and the game is solved again. The new mix is the updated decision. If the payoffs were estimated badly, the guarantee is only as good as those estimates.",
+      "inExample": "If volatility rises and the aggressive-against-tight payoff falls to a loss of 60, the solver returns a new mix with less weight on tight."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing between quoting styles against a rival",
+      "example": "Deciding how often a market maker in MNQ should quote tight versus wide when a competing quoter reacts to what it sees."
+    },
+    {
+      "task": "Deciding whether to reveal order size",
+      "example": "Treating showing or hiding a 30-contract order as a choice against counterparties who trade on the information it leaks."
+    },
+    {
+      "task": "Splitting profit among strategies that share a book",
+      "example": "Using a fair-division method from cooperative game theory to attribute profit and loss among a trend signal, a mean-reversion signal and a news signal."
+    },
+    {
+      "task": "Thinking about crowding and fading edge",
+      "example": "Asking how a strategy's average payoff falls as more capital copies it on the same 5-minute breakout."
+    }
+  ],
+  "avoidWhen": [
+    "The other side is not reacting to you, such as predicting the next bar of an index; a forecasting model fits better because there is no opponent to reason about.",
+    "You cannot estimate the payoffs from real fills; the answer is exact for the table but misleading if the table is a guess."
+  ],
+  "example": {
+    "scenario": "A market maker in MNQ wants a quoting rule that cannot be exploited by an opposing trader who is deciding how aggressively to trade against the quotes. The payoffs come from five thousand historical bars of fills.",
+    "input": {
+      "summary": "A two-by-two payoff table for the market maker, in US dollars per 100 fills.",
+      "fields": [
+        { "name": "tight quote against aggressive opponent", "value": "minus 40 US dollars", "meaning": "The market maker is picked off by informed flow while quoting close to the middle." },
+        { "name": "tight quote against passive opponent", "value": "plus 120 US dollars", "meaning": "The market maker collects many small spreads with little adverse selection." },
+        { "name": "wide quote against aggressive opponent", "value": "plus 30 US dollars", "meaning": "Fewer fills, but each earns a wider spread." },
+        { "name": "wide quote against passive opponent", "value": "plus 10 US dollars", "meaning": "Few fills and little to gain from them." },
+        { "name": "payoff estimation window", "value": "5,000 bars", "meaning": "How much history was used to estimate the four payoffs." }
+      ]
+    },
+    "output": {
+      "summary": "The unexploitable mix for each side and the value of the game.",
+      "fields": [
+        { "name": "market maker mix", "value": "tight 11 percent, wide 89 percent", "meaning": "How often to choose each quoting style so the opponent cannot gain by adapting." },
+        { "name": "opponent mix", "value": "aggressive 61 percent, passive 39 percent", "meaning": "The mix that holds the market maker to the game value." },
+        { "name": "game value", "value": "22 US dollars per 100 fills", "meaning": "The market maker's guaranteed expected payoff when both sides play their mixes." }
+      ]
+    },
+    "reading": "The market maker should quote wide most of the time and tight only occasionally, picking at random so its pattern is not learnable. Treat 22 dollars per 100 fills as the floor to beat; if the payoff table is stale, re-estimate it before trusting the mix."
+  }
+}

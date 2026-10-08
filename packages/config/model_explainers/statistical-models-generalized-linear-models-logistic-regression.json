@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-logistic-regression",
+  "name": "Logistic Regression",
+  "analogy": "Think of it as a checklist where each item adds or subtracts points, and a dial converts the total score into a percentage chance. A breakout well above the old high adds points, weak volume subtracts points, and the dial turns a small positive total into about a 57 percent chance.",
+  "steps": [
+    {
+      "title": "Define the yes-or-no question",
+      "description": "Every training bar or trade gets a label of one or zero for a clear yes-or-no question. The label is read from what happened after the decision, while the features describe only what was known before it. The model learns from how often the answer was yes under different conditions.",
+      "inExample": "The question is: after a long breakout entry, does price reach a target 2 times the stop distance before it hits the stop? Of 1,500 past breakouts, 38 percent said yes."
+    },
+    {
+      "title": "Give every feature a weight",
+      "description": "Each feature gets a weight that says how strongly it pushes the odds of yes up or down. A positive weight raises the chance and a negative weight lowers it. Weights start at zero and are adjusted during training.",
+      "inExample": "Breakout distance, volume, average true range and momentum each get a weight; at first all are zero and every breakout reads as 50 percent."
+    },
+    {
+      "title": "Add the weighted features into one score",
+      "description": "For each bar the model multiplies every feature by its weight and adds the results, plus a baseline term. The sum is a score on a scale of log odds, where zero means a fifty-fifty chance.",
+      "inExample": "For today's breakout the baseline term is negative, because only 38 percent of breakouts succeed, and the feature contributions more than make up for it, leaving a small positive score."
+    },
+    {
+      "title": "Squash the score into a probability",
+      "description": "An S-shaped curve converts any score, however extreme, into a number between zero and one. Large positive scores approach 100 percent, large negative scores approach zero, and the middle of the curve is steep and sensitive.",
+      "inExample": "The small positive score passes through the S-shaped curve and becomes 57 percent."
+    },
+    {
+      "title": "Adjust weights until the probabilities are as honest as possible",
+      "description": "Training nudges the weights so that the probabilities the model quotes match what actually happened as closely as possible, punishing a confident wrong answer far more than a cautious one. The problem has a single best answer, so training does not get stuck.",
+      "inExample": "About 7 rounds of adjustment bring the weights to their best values on 1,500 breakouts, with a mild penalty keeping them modest."
+    },
+    {
+      "title": "Read the probability and the weights",
+      "description": "For a new bar the model gives the probability of yes, and the weights are directly readable: each one tells by what factor a one-unit rise in that feature multiplies the odds of yes, holding the others fixed.",
+      "inExample": "The new breakout gets a 57 percent chance, which is odds of about 4 to 3 in favor."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Filtering trades by chance of reaching the target",
+      "example": "Scoring each breakout entry on MNQ and taking only those with at least a 50 percent chance of reaching a 2-to-1 target before the stop."
+    },
+    {
+      "task": "Predicting next-bar direction as a baseline",
+      "example": "Using 35 base features on 5-minute bars to estimate the chance the next bar closes higher, as the benchmark every larger model must beat."
+    },
+    {
+      "task": "Judging breakout follow-through",
+      "example": "Estimating whether a break of the 20-bar high continues or falls back into the range."
+    },
+    {
+      "task": "Explaining which features push the odds",
+      "example": "Reading the weights to see that heavy volume raises the odds of follow-through by about 30 percent per unit, before passing the signal to a bigger model."
+    }
+  ],
+  "avoidWhen": [
+    "The signal depends on combinations of features, such as high volume mattering only near a prior high; gradient boosting finds such interactions, while a single weighted sum cannot.",
+    "There are more than two outcomes, such as down, flat and up; a multinomial model gives one consistent probability per outcome."
+  ],
+  "example": {
+    "scenario": "At 10:05 MNQ breaks above its 20-bar high on a 5-minute chart. A trader would stop out 24 points below entry and aim for 48 points above. The model, trained on 1,500 past breakouts, is asked the chance that the target is reached first.",
+    "input": {
+      "summary": "Features describing the breakout bar, and the trade plan that defines the question.",
+      "fields": [
+        { "name": "close", "value": "19,520", "meaning": "The price at which the breakout bar closed." },
+        { "name": "distance above the 20-bar high", "value": "4 points", "meaning": "How far the close finished above the old high." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "relative strength index, 14 bars", "value": "63", "meaning": "A momentum reading from 0 to 100; above 50 means buying dominated recently." },
+        { "name": "stop and target distances", "value": "24 points and 48 points", "meaning": "The plan: risk 24 points to make 48, a 2-to-1 reward." }
+      ]
+    },
+    "output": {
+      "summary": "A score and the probability that the target is reached first.",
+      "fields": [
+        { "name": "score on the log-odds scale", "value": "small and positive", "meaning": "The weighted sum of the features, where zero would mean even odds." },
+        { "name": "probability of reaching the target first", "value": "57 percent", "meaning": "The score after passing through the S-shaped curve." },
+        { "name": "odds", "value": "about 4 to 3 in favor", "meaning": "The same chance written as odds in favor of reaching the target." },
+        { "name": "biggest contributor", "value": "volume against its 20-bar average", "meaning": "The feature that added the most to the score." }
+      ]
+    },
+    "reading": "With a 2-to-1 plan the trade breaks even before costs at about a 33 percent chance, and a 57 percent estimate sits well above that. Before acting, check that the model's quoted 57 percent matched the real hit rate for similar breakouts on later bars, since costs of about 2 US dollars per contract and slippage take a share of the edge."
+  }
+}

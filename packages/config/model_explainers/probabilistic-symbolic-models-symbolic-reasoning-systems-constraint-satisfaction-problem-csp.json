@@ -1,0 +1,83 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-constraint-satisfaction-problem-csp",
+  "name": "Constraint Satisfaction Problem (CSP)",
+  "analogy": "Think of it as seating guests at a wedding with a list of who cannot sit together. There is no score to maximize; the job is to find any seating that breaks no rule, or to say honestly that none exists.",
+  "steps": [
+    {
+      "title": "List what can be chosen",
+      "description": "Each decision to be made is a variable. Every variable gets a domain, the short list of values it may take.",
+      "inExample": "The variables are the number of MNQ contracts, from 4 to 10, and the number of ES contracts, from 1 to 4."
+    },
+    {
+      "title": "Write down the rules that must hold",
+      "description": "Each constraint says which combinations of values are allowed. A constraint is a hard rule, not a preference, and every one must be satisfied.",
+      "inExample": "Margin use must stay at or below 40,000 US dollars, and total exposure must stay at or below 25 MNQ-equivalent contracts, counting one ES as 10 MNQ."
+    },
+    {
+      "title": "Prune values that cannot work",
+      "description": "Before any search, the solver removes values that no partner value could ever make legal. Each removal can make others impossible, so pruning cascades through the problem.",
+      "inExample": "ES at 3 or 4 contracts would be 30 or 40 MNQ-equivalents, over the cap of 25, so both values are struck out."
+    },
+    {
+      "title": "Pick a variable and try a value",
+      "description": "The solver chooses the most tightly constrained variable and tries one of its values, ordering the choices so the least damaging ones go first. This is depth-first search.",
+      "inExample": "It tries ES at 2 contracts first, and then MNQ starting from its largest remaining value, 10."
+    },
+    {
+      "title": "Back up when a rule breaks",
+      "description": "If a choice breaks a constraint, the solver undoes the most recent choice and tries the next one. It never carries on from a broken state.",
+      "inExample": "MNQ at 10 with ES at 2 totals 30 MNQ-equivalents, over 25, so it steps down value by value until MNQ at 5 passes."
+    },
+    {
+      "title": "Return a solution or a clear no",
+      "description": "The search is complete: it either returns an assignment that satisfies every rule or proves none exists. That certainty is what a learned model cannot offer.",
+      "inExample": "The solver returns ES 2 and MNQ 5, using 36,500 US dollars of margin and 25 MNQ-equivalents."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sizing several positions under shared limits",
+      "example": "Finding contract counts for MNQ and ES that fit one margin limit and one exposure cap at the same time."
+    },
+    {
+      "task": "Checking a proposed rebalance",
+      "example": "Confirming that a planned set of trades fits available cash, margin and lot sizes before anything is sent."
+    },
+    {
+      "task": "Scheduling child orders",
+      "example": "Spreading a 40-contract order across minutes so no minute exceeds a participation limit and no venue rule is broken."
+    },
+    {
+      "task": "Compliance checks",
+      "example": "Testing a proposed trade against every hard risk policy rule and naming the first rule it breaks."
+    }
+  ],
+  "avoidWhen": [
+    "You want the best answer by some score, such as the highest expected profit, because a constraint solver finds any legal answer; an optimizer finds the best among them.",
+    "The inputs are uncertain forecasts rather than hard limits, which is the territory of probabilistic models."
+  ],
+  "example": {
+    "scenario": "A strategy wants at least 4 MNQ contracts and at least 1 ES contract, but the account has a margin limit and an exposure cap that apply to both together.",
+    "input": {
+      "summary": "The choices open to the solver and the hard rules, using assumed illustrative margin figures.",
+      "fields": [
+        { "name": "MNQ contracts allowed", "value": "4 to 10", "meaning": "The domain of the first variable." },
+        { "name": "ES contracts allowed", "value": "1 to 4", "meaning": "The domain of the second variable." },
+        { "name": "margin per MNQ contract", "value": "2,100 US dollars", "meaning": "An assumed margin figure for illustration; real margin comes from the broker." },
+        { "name": "margin per ES contract", "value": "13,000 US dollars", "meaning": "An assumed margin figure for illustration." },
+        { "name": "margin limit", "value": "40,000 US dollars", "meaning": "The most margin the account may use in total." },
+        { "name": "exposure cap", "value": "25 MNQ-equivalents", "meaning": "Total exposure, counting one ES contract as 10 MNQ contracts." }
+      ]
+    },
+    "output": {
+      "summary": "A legal assignment and the resources it uses.",
+      "fields": [
+        { "name": "ES contracts", "value": "2", "meaning": "The number of ES contracts in the solution found." },
+        { "name": "MNQ contracts", "value": "5", "meaning": "The number of MNQ contracts in the solution found." },
+        { "name": "margin used", "value": "36,500 US dollars", "meaning": "Five times 2,100 plus two times 13,000, under the 40,000 limit." },
+        { "name": "exposure used", "value": "25 MNQ-equivalents", "meaning": "Five plus twenty, exactly at the cap." }
+      ]
+    },
+    "reading": "The answer is a legal sizing, not necessarily the best one: the solver found the first valid assignment in its order of trying. If you want the highest expected profit among legal sizes, hand the same constraints to an optimizer and compare."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-self-training-classifier",
+  "name": "Self-Training Classifier",
+  "analogy": "Think of it as a new hire on a trading desk who has been told the market regime on only a handful of days. He labels the remaining days himself, one careful batch at a time, accepting only the days he is nearly sure about and learning from each batch before the next.",
+  "steps": [
+    {
+      "title": "Choose any classifier that reports its confidence",
+      "description": "Self-training is a wrapper placed around an ordinary classifier. The only requirement is that the classifier can say how sure it is, as a probability, because the process depends on that confidence.",
+      "inExample": "A random forest is chosen to label stretches of MNQ 5-minute bars as trending up, trending down or ranging."
+    },
+    {
+      "title": "Train it on the labelled examples",
+      "description": "The classifier is fitted to the small set of examples with a known answer. This first version is the teacher for everything that follows.",
+      "inExample": "400 stretches of 30 bars each have a hand-checked regime. The forest learns from these."
+    },
+    {
+      "title": "Predict the unlabelled examples",
+      "description": "The classifier gives each unlabelled example a predicted class and a confidence in it. Many of these will be weak guesses.",
+      "inExample": "8,000 unlabelled stretches each get a predicted regime and a confidence."
+    },
+    {
+      "title": "Accept only the examples above the threshold",
+      "description": "Examples whose confidence clears a set threshold are accepted with the predicted class as their label. Everything below the threshold stays unlabelled for now.",
+      "inExample": "The threshold is 70 percent. In the first round, 900 stretches clear it and receive a regime label."
+    },
+    {
+      "title": "Retrain on the enlarged set and repeat",
+      "description": "The classifier is fitted again on the real labels plus the accepted ones, then predicts the remaining unlabelled examples once more. The loop gives later rounds a stronger teacher than the first.",
+      "inExample": "Each retrain brings in a smaller batch of newly confident stretches than the round before."
+    },
+    {
+      "title": "Stop when nothing qualifies or the round limit is reached",
+      "description": "The loop ends when no unlabelled example clears the threshold or when a maximum number of rounds is hit. The last classifier is the finished model and is then scored on later, held-out examples.",
+      "inExample": "After 5 rounds no new stretch clears 70 percent. The final forest labels a new stretch as trending up at 78 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime labelling with few tagged examples",
+      "example": "Tagging a few hundred stretches of MNQ bars as trending or ranging by hand and letting the process label thousands more."
+    },
+    {
+      "task": "Turning any classifier semi-supervised",
+      "example": "Wrapping a tree ensemble or logistic model already in the pipeline, with no change to the model itself."
+    },
+    {
+      "task": "Building a bigger training set for a deeper model",
+      "example": "Generating labels from a cheap forest to train a neural network that needs far more rows."
+    },
+    {
+      "task": "Candlestick pattern classification",
+      "example": "Labelling many unlabelled windows as double top, head-and-shoulders or no pattern after a small hand-labelled start."
+    }
+  ],
+  "avoidWhen": [
+    "The first classifier is barely better than chance; its confident labels are then mostly wrong and each round reinforces them. Gather cleaner labels or use a graph-based method first.",
+    "You need an independent second opinion; a single classifier teaching itself repeats its own blind spots, so Co-Training or Tri-Training, which use several classifiers, are safer."
+  ],
+  "example": {
+    "scenario": "A researcher has 8,400 stretches of 30 five-minute MNQ bars. 400 have a hand-checked regime: trending up, trending down or ranging. The finished self-trained forest labels the stretch ending at 13:45.",
+    "input": {
+      "summary": "A stretch of 30 bars described by four summary numbers, plus the settings of the training loop.",
+      "fields": [
+        { "name": "labelled stretches", "value": "400", "meaning": "Stretches with a hand-checked regime that start the loop." },
+        { "name": "unlabelled stretches", "value": "8,000", "meaning": "Stretches with no regime label." },
+        { "name": "acceptance threshold", "value": "70 percent", "meaning": "An unlabelled stretch is accepted only when the confidence in its predicted regime reaches this level." },
+        { "name": "average directional index, 14 bars", "value": "31", "meaning": "A trend-strength reading; above 25 is commonly read as trending." },
+        { "name": "price change over the 30 bars", "value": "plus 120 points", "meaning": "How far price rose across the stretch." },
+        { "name": "range width in average true ranges", "value": "6 average true ranges", "meaning": "How wide the stretch's high-to-low range was, counted in units of the typical bar's travel." },
+        { "name": "share of bars that closed up", "value": "67 percent", "meaning": "Two thirds of the stretch's bars closed above their open." }
+      ]
+    },
+    "output": {
+      "summary": "A regime label for the stretch with a probability for each regime.",
+      "fields": [
+        { "name": "regime label", "value": "trending up", "meaning": "The regime with the highest probability." },
+        { "name": "probability of trending up", "value": "78 percent", "meaning": "The classifier's confidence in the chosen regime." },
+        { "name": "probability of ranging", "value": "17 percent", "meaning": "The classifier's confidence that the stretch was sideways." },
+        { "name": "probability of trending down", "value": "5 percent", "meaning": "The classifier's confidence that the stretch was a down trend." }
+      ]
+    },
+    "reading": "78 percent for trending up clears the 70 percent threshold, so this stretch would have been accepted as a label during the loop. Use the label as a regime tag for strategy choice, and check on later months that the tag is stable and not an artifact of the loop."
+  }
+}

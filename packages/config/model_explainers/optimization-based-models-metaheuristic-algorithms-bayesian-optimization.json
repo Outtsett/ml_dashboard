@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-bayesian-optimization",
+  "name": "Bayesian Optimization",
+  "analogy": "Think of it as a geologist with money for only 20 drill holes. After each hole he updates a map of where oil probably is and how unsure he still is about each area, then drills where a good find looks most likely or where he knows least. Each hole is chosen using everything learned so far.",
+  "steps": [
+    {
+      "title": "Run a few starting trials",
+      "description": "Try a small spread of settings first so there is something to learn from. Each trial is a full, expensive run of the real thing.",
+      "inExample": "5 neural network training runs with different window length, hidden size and dropout, each taking about 25 minutes."
+    },
+    {
+      "title": "Fit a map of the score",
+      "description": "Fit a cheap statistical model to all the trials so far. For any untried setting it predicts the likely score and how unsure it is. Unsure regions are those far from every trial.",
+      "inExample": "The map predicts a validation loss of 691 thousandths for a window of 90 bars, a hidden size of 96 and a dropout of 30 percent, give or take 1 thousandth."
+    },
+    {
+      "title": "Score where to try next",
+      "description": "A scoring rule combines the prediction and the doubt: settings predicted to be good score well, and so do settings in unexplored areas. Scoring thousands of untried settings takes seconds because only the map is consulted.",
+      "inExample": "Thousands of untried settings are scored by the map; the one above has the highest chance of beating the best trial so far."
+    },
+    {
+      "title": "Run the one real trial",
+      "description": "Run the real expensive trial at the chosen setting and record the actual score. Because real scores are noisy, the map allows for some wiggle in each trial.",
+      "inExample": "Training at the chosen setting takes 25 minutes and gives a validation loss of 690 thousandths."
+    },
+    {
+      "title": "Update the map and repeat",
+      "description": "Add the new result, refit the map, choose the next setting, and run it. Each round uses everything learned so far, so trials are spent where they teach the most.",
+      "inExample": "Over 15 more rounds the map sharpens around a window near 90 bars and a dropout near 30 percent."
+    },
+    {
+      "title": "Report the best trial",
+      "description": "When the trial budget is used up, the setting with the best real score is returned.",
+      "inExample": "After 20 trials the best setting has a validation loss of 690 thousandths, against 692 for the best of the 5 starting trials."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Tuning expensive neural networks",
+      "example": "Choosing window length, hidden size and dropout of a long short-term memory network on MNQ 5-minute bars when each training run takes 25 minutes."
+    },
+    {
+      "task": "Choosing window lengths and feature groups",
+      "example": "Treating the lookback window and which indicator families to include as part of the search along with the numeric settings."
+    },
+    {
+      "task": "Tuning under a slow backtest",
+      "example": "Setting strategy parameters when every score needs a full tick-level simulation with realistic slippage."
+    },
+    {
+      "task": "Tuning an execution schedule",
+      "example": "Searching the shape of an order slicing schedule where each trial replays a market simulation."
+    }
+  ],
+  "avoidWhen": [
+    "Trials are cheap, taking seconds, so thousands can be run; random search or an evolutionary method covers the space just as well without the map-fitting overhead.",
+    "There are dozens of settings to tune at once; the map becomes unreliable in high dimensions and needs far more trials than the budget allows."
+  ],
+  "example": {
+    "scenario": "A researcher tunes a long short-term memory network that predicts the direction of MNQ 5-minute bars. Each training run takes about 25 minutes, so only 20 runs are affordable. The tuner picks which settings to try.",
+    "input": {
+      "summary": "The three settings with their allowed ranges, the trial budget and the best of the starting trials.",
+      "fields": [
+        { "name": "window length range", "value": "20 to 240 bars", "meaning": "How many past 5-minute bars the network reads for each prediction." },
+        { "name": "hidden size range", "value": "32 to 256 units", "meaning": "Width of the network's memory layer." },
+        { "name": "dropout range", "value": "0 to 50 percent", "meaning": "Share of connections randomly switched off during training to limit memorising." },
+        { "name": "time per trial", "value": "25 minutes", "meaning": "Cost of one real training and validation run." },
+        { "name": "trial budget", "value": "20 trials", "meaning": "About 8 hours 20 minutes in total." },
+        { "name": "best starting trial", "value": "60-bar window, 64 units, dropout 20 percent, loss 692 thousandths", "meaning": "The reference to beat after the 5 starting trials." }
+      ]
+    },
+    "output": {
+      "summary": "The best setting found and the trail of improvement across trials.",
+      "fields": [
+        { "name": "best window length", "value": "90 bars", "meaning": "Window of the best trial, which is 7 and a half hours of 5-minute bars." },
+        { "name": "best hidden size", "value": "96 units", "meaning": "Hidden size of the best trial." },
+        { "name": "best dropout", "value": "30 percent", "meaning": "Dropout of the best trial." },
+        { "name": "best validation loss, in thousandths", "value": "690", "meaning": "Held-out loss of the best trial; a coin flip scores 693." },
+        { "name": "improvement over the best starting trial", "value": "2 thousandths", "meaning": "Difference between 692 and 690." }
+      ]
+    },
+    "reading": "An improvement of 2 thousandths in loss is small and sits within normal trial-to-trial noise, so rerun the best setting with several random seeds before believing it. Then test it on later folds the tuner never saw. The method shows where to look; it does not prove the setting is better."
+  }
+}

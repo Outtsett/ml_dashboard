@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-masked-modeling-masked-language-modeling-bert-style",
+  "name": "Masked Language Modeling (BERT-style)",
+  "analogy": "Think of it as a fill-in-the-blank exercise on a stack of financial headlines. You cover a word, read the words on both sides of the gap, and guess it. After millions of blanks you understand how headlines are put together, and that understanding is what you keep.",
+  "steps": [
+    {
+      "title": "Split the text into word pieces",
+      "description": "The text is cut into small pieces, whole common words or fragments of rare ones, and each piece is turned into a number. Special markers show where a sentence starts and where one ends.",
+      "inExample": "The headline Fed signals further rate cuts as inflation cools becomes eight pieces plus a start marker and an end marker, ten in all."
+    },
+    {
+      "title": "Cover about one piece in seven",
+      "description": "About 15 percent of the pieces are chosen. Most of those are replaced with a blank marker, some with a random wrong word, and some left alone so the model cannot rely on the blank marker as a hint.",
+      "inExample": "The word further is replaced by the blank marker, and nothing else in this short headline is chosen."
+    },
+    {
+      "title": "Read the whole sentence in both directions at once",
+      "description": "Every piece looks at every other piece through attention, so the model uses the words before and after the gap together. Many layers repeat this, each one refining what every piece means in this particular sentence.",
+      "inExample": "The blank attends strongly to rate cuts on its right and to signals on its left, and a little to inflation cools."
+    },
+    {
+      "title": "Guess the covered pieces",
+      "description": "At each covered position the model produces a probability for every word it knows. A good model puts most of the probability on words that fit the surrounding meaning.",
+      "inExample": "For the blank it gives 41 percent to further, 22 percent to more, 11 percent to additional and the rest to many other words."
+    },
+    {
+      "title": "Score the guesses and adjust",
+      "description": "The probability given to the true word is the score. Low probability on the true word means a large correction to the weights. Over a huge amount of unlabeled text the model learns grammar, topic and tone without anyone labelling anything.",
+      "inExample": "The true word was further and it received 41 percent, a moderate score, so the weights receive a moderate adjustment."
+    },
+    {
+      "title": "Reuse the encoder with a small head",
+      "description": "After pretraining, the guessing layer is removed. A small new layer is attached on top of the summary of the whole sentence and trained on a modest set of labelled examples, for example positive, neutral or negative news.",
+      "inExample": "A three-way sentiment head is added and trained on a few thousand labelled headlines, which is how a financial sentiment model of the FinBERT family is built."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Scoring the tone of financial news",
+      "example": "Turning each headline about MNQ into a positive, neutral or negative score that becomes one of the sentiment columns beside the price features."
+    },
+    {
+      "task": "Turning text into numbers for another model",
+      "example": "Producing a 768-number summary of each overnight headline to join onto the next day's first 5-minute bar."
+    },
+    {
+      "task": "Pulling names and events out of text",
+      "example": "Marking which companies, central banks or data releases a headline is about, so news can be tied to the right instrument."
+    },
+    {
+      "task": "Judging whether two pieces of text mean the same thing",
+      "example": "Grouping several wire stories about the same rate decision so one event is not counted five times."
+    }
+  ],
+  "avoidWhen": [
+    "Your input is a table of prices and indicators rather than text; a tree model or a sequence model reads that directly, and a language model adds nothing.",
+    "You need to generate long text; this family reads and labels text well but is not built to write it.",
+    "You have no labelled news at all and no pretrained model to start from; training from scratch needs far more text than most trading projects hold."
+  ],
+  "example": {
+    "scenario": "A research job reads the headline Fed signals further rate cuts as inflation cools. One word is hidden for the practice puzzle, then the finished encoder summarises the full headline for a sentiment head.",
+    "input": {
+      "summary": "One short headline with one word covered by the blank marker.",
+      "fields": [
+        { "name": "headline", "value": "Fed signals [blank] rate cuts as inflation cools", "meaning": "The sentence as the model sees it, with the covered word shown as the blank marker." },
+        { "name": "word pieces", "value": "10 including markers", "meaning": "How many pieces the sentence is cut into: eight words plus a start marker and an end marker." },
+        { "name": "share of pieces covered", "value": "1 of 8 words", "meaning": "A short headline covers one word; long texts cover about 15 percent." },
+        { "name": "publication time", "value": "14:30", "meaning": "When the headline appeared, used later to join it to the right five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "Word probabilities for the blank, plus a summary of the headline for later use.",
+      "fields": [
+        { "name": "probability the blank is further", "value": "41 percent", "meaning": "The model's belief that the covered word is the true one." },
+        { "name": "probability the blank is more", "value": "22 percent", "meaning": "The second most likely fit given the words around the gap." },
+        { "name": "headline summary", "value": "768 numbers", "meaning": "The reusable description of the whole sentence, taken from the start marker position." },
+        { "name": "sentiment from the attached head", "value": "positive 64 percent, neutral 27 percent, negative 9 percent", "meaning": "What the small head produces after being trained on labelled headlines." }
+      ]
+    },
+    "reading": "The word probabilities only show that the encoder understands the sentence; they are not a trading signal. The useful product is the headline summary and the sentiment head built on it. Join the sentiment to the bar that follows 14:30 and let the run page show whether it adds anything to the price features after costs."
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-trust-region-policy-optimization-trpo",
+  "name": "Trust Region Policy Optimization (TRPO)",
+  "analogy": "Think of it as a risk manager who lets a trader change strategy, but only inside a fixed budget of change per review. The trader proposes the best new approach, and if it would shift behaviour more than the budget allows, the manager shrinks the change until it fits.",
+  "steps": [
+    {
+      "title": "Collect a batch with the current policy",
+      "description": "The current policy trades through a stretch of data while everything is recorded: situations, choices, how likely each choice was, and the reward that followed.",
+      "inExample": "The policy trades 4,096 five-minute MNQ bars, logging each choice and its reward."
+    },
+    {
+      "title": "Judge each action against what was expected",
+      "description": "Every action is compared with what a typical action would have earned in that situation. Better than usual gets a positive score, worse gets a negative one.",
+      "inExample": "A short taken after a failed breakout scores plus 9 dollars better than expected; a long into a falling market scores minus 7."
+    },
+    {
+      "title": "Set a budget for how much behaviour may change",
+      "description": "The model fixes a small limit on how different the new policy's choices may be from the old policy's, averaged over the situations in the batch. This limit is the trust region that gives the method its name.",
+      "inExample": "The budget is set small, so no situation's chances may shift by more than a few percentage points on average."
+    },
+    {
+      "title": "Find the best direction of change within the budget",
+      "description": "Instead of a plain step, the model uses information about how sensitive the policy's choices are to each setting, so that it moves farthest in directions that change behaviour least. It solves this with an efficient iterative method rather than a heavy calculation.",
+      "inExample": "The model finds a direction that raises the chance of fading failed breakouts and lowers the chance of buying into falling bars, while changing overall behaviour only slightly."
+    },
+    {
+      "title": "Shrink the step until it is truly safe",
+      "description": "The proposed step is tried. If the real change in behaviour exceeds the budget, or the policy does not actually improve, the step is halved and tried again until both checks pass.",
+      "inExample": "The first step overshoots the budget, the half step passes both checks, and that half step is accepted."
+    },
+    {
+      "title": "Repeat with new data",
+      "description": "The accepted policy collects the next batch and the process repeats. Because every step is bounded, performance tends to improve steadily instead of lurching.",
+      "inExample": "Over 200 rounds the average session result rises gradually with no sudden collapse."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Cautious updates to a policy that matters",
+      "example": "Refining a policy already trading well in paper trials, where one bad update would erase weeks of good behaviour."
+    },
+    {
+      "task": "A stable reference for research",
+      "example": "Testing whether a new reward that punishes drawdown makes learning steady, using a method with built-in guard rails."
+    },
+    {
+      "task": "Fine-tuning rather than rebuilding",
+      "example": "Adapting a policy trained on 2023 MNQ data to 2024 data with only small changes to its habits."
+    },
+    {
+      "task": "Judging whether a newer method is worth it",
+      "example": "Running it beside the simpler clipped method on the same walk-forward folds to see if its extra care changes results."
+    }
+  ],
+  "avoidWhen": [
+    "Training speed matters; each update needs extra computation and trial steps, and the simpler clipped method usually gets similar stability faster.",
+    "The policy is a very large network or the setup is short on time; the added machinery is awkward to run at scale and rarely repays itself."
+  ],
+  "example": {
+    "scenario": "A policy for MNQ five-minute bars has just collected 4,096 bars. TRPO is about to decide how much to change the policy after this batch.",
+    "input": {
+      "summary": "The batch of recorded choices with their scores, and the change budget.",
+      "fields": [
+        { "name": "bars in the batch", "value": "4,096", "meaning": "How many five-minute bars the policy just traded." },
+        { "name": "average reward per bar", "value": "minus 1 US dollar", "meaning": "How the current policy did on average, after costs." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "Typical bar movement in the batch." },
+        { "name": "change budget", "value": "1 percent", "meaning": "The cap on the average difference between old and new choice chances; smaller means more cautious." },
+        { "name": "first proposed step", "value": "full step", "meaning": "The size of change the model would like to make before checking the budget." }
+      ]
+    },
+    "output": {
+      "summary": "The step that was finally accepted and its effect on the policy.",
+      "fields": [
+        { "name": "step size accepted", "value": "half of the proposed step", "meaning": "The full step broke the budget, so it was halved once." },
+        { "name": "actual change in behaviour", "value": "80 percent of the budget", "meaning": "The measured average difference between the old and new choice chances, inside the budget." },
+        { "name": "chance of going long in a falling market", "value": "from 33 percent to 30 percent", "meaning": "An example of the small shift made in one situation." }
+      ]
+    },
+    "reading": "The output is a slightly better policy and a record that it stayed within budget. If the step is halved many times in a row, the batch is probably too noisy; collect more bars per round before drawing any conclusion about the policy."
+  }
+}

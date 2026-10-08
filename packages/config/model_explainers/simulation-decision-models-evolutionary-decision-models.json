@@ -1,0 +1,85 @@
+{
+  "specificationId": "simulation-decision-models-evolutionary-decision-models",
+  "name": "Evolutionary Decision Models",
+  "analogy": "Think of it as breeding racehorses, except the horses are trading rules. You start with a field of random rules, race them all over past bars, keep the fastest, cross them with each other, add a few random mutations, and repeat for many generations.",
+  "steps": [
+    {
+      "title": "Create a random starting population",
+      "description": "The model builds a few hundred candidate rules at random. Each candidate is either a list of settings, such as moving-average lengths and a stop distance, or a small tree of indicator comparisons joined by and and or.",
+      "inExample": "200 rules are created. Each is three settings: a fast average length, a slow average length and a stop distance in points."
+    },
+    {
+      "title": "Race every rule over the training bars",
+      "description": "Each rule is run through a trading simulation on the training window. Its fitness is any score you choose, such as net profit after costs. No slope or gradient is needed, only a score at the end.",
+      "inExample": "Each rule trades 8,000 five-minute MNQ bars with costs of 2 US dollars per round trip, and is scored by net profit."
+    },
+    {
+      "title": "Choose parents, favouring the fit",
+      "description": "Better-scoring rules are more likely to be picked as parents, usually through small tournaments, but weaker rules still get an occasional chance so variety is not lost. The single best rule is often copied through untouched.",
+      "inExample": "Parents are chosen in tournaments of 4 rules, and the single best rule is carried forward unchanged."
+    },
+    {
+      "title": "Cross and mutate",
+      "description": "Two parents swap pieces to make a child, so a child can combine the fast average of one with the stop of another. A small fraction of children then get a random nudge to a setting, which lets the search escape a rut.",
+      "inExample": "A child takes the fast average of 12 bars from one parent and the stop of 30 points from another, then a mutation changes the slow average from 50 to 48."
+    },
+    {
+      "title": "Repeat for many generations",
+      "description": "The new generation replaces the old, is scored again, and the cycle repeats. The best score usually climbs and then flattens. The model also watches a separate validation window to see when a rule is memorising the training bars.",
+      "inExample": "After 100 generations the training score has levelled off, while the validation score peaked at generation 62 and then slipped."
+    },
+    {
+      "title": "Keep the best rule from the validation peak",
+      "description": "The rule that scored best on the validation window is kept and applied to bars the search never saw, exactly as it was run during scoring. The output is the rule itself plus its score history.",
+      "inExample": "The generation 62 rule is kept: fast average 12 bars, slow average 48 bars, stop 30 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Discovering entry and exit rules",
+      "example": "Letting genetic search combine indicators from the 151-indicator library into if-then rules for MNQ 5-minute bars."
+    },
+    {
+      "task": "Tuning settings against a metric with no slope",
+      "example": "Choosing moving-average lengths and a stop distance to maximise profit factor, a score a gradient method cannot follow."
+    },
+    {
+      "task": "Showing the return versus drawdown trade-off",
+      "example": "Evolving a set of rules that each balance net profit against maximum drawdown, so a risk manager can pick a point on the frontier."
+    },
+    {
+      "task": "Selecting a subset of indicators",
+      "example": "Evolving which of 151 indicators to feed a downstream model, treating each indicator as on or off."
+    }
+  ],
+  "avoidWhen": [
+    "The objective is smooth and a gradient method can follow it; boosting or a neural network reaches a solution faster and with less risk of memorising noise.",
+    "You have little history; with a few hundred bars, a population of rules will find some rule that looks excellent by luck alone."
+  ],
+  "example": {
+    "scenario": "A researcher evolves a long-short rule for MNQ 5-minute bars. The search uses 8,000 bars for scoring and a separate 2,000 bars to decide when to stop, with a population of 200 rules.",
+    "input": {
+      "summary": "The search settings and the data windows used by the evolution.",
+      "fields": [
+        { "name": "population size", "value": "200 rules", "meaning": "How many candidate rules exist in each generation." },
+        { "name": "generations", "value": "100", "meaning": "The maximum number of breed-and-score cycles." },
+        { "name": "training window", "value": "8,000 five-minute bars", "meaning": "The bars on which every rule is scored for selection." },
+        { "name": "validation window", "value": "2,000 five-minute bars", "meaning": "Later bars used only to choose when to stop and which generation to keep." },
+        { "name": "mutation rate", "value": "2 percent", "meaning": "The share of settings that receive a random change in each child." },
+        { "name": "round-trip cost", "value": "2 US dollars per contract", "meaning": "The commission and slippage charged on each completed trade in the scoring." }
+      ]
+    },
+    "output": {
+      "summary": "The kept rule and how it scored on each window.",
+      "fields": [
+        { "name": "fast average length", "value": "12 bars", "meaning": "The shorter moving average in the evolved rule." },
+        { "name": "slow average length", "value": "48 bars", "meaning": "The longer moving average in the evolved rule." },
+        { "name": "stop distance", "value": "30 points", "meaning": "The loss, equal to 60 US dollars per contract, at which the rule exits." },
+        { "name": "training net profit", "value": "4,100 US dollars", "meaning": "The rule's simulated profit after costs on the training window." },
+        { "name": "validation net profit", "value": "600 US dollars", "meaning": "The same rule's profit on the later window used to pick the generation." },
+        { "name": "kept generation", "value": "62", "meaning": "The generation whose rule scored best on the validation window." }
+      ]
+    },
+    "reading": "The gap between 4,100 and 600 dollars shows how much of the training score came from fitting the past. Judge the rule only on bars neither window touched, and compare it with simply holding long over the same bars."
+  }
+}

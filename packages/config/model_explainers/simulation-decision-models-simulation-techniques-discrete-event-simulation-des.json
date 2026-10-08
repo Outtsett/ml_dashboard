@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-simulation-techniques-discrete-event-simulation-des",
+  "name": "Discrete Event Simulation (DES)",
+  "analogy": "Think of it as a to-do list ordered by time. Nothing happens between items, so the clock simply jumps to the next one, does it, and adds any new items it creates. An order book works the same way: nothing moves until the next order arrives, cancels or trades.",
+  "steps": [
+    {
+      "title": "Set up the book and the event sources",
+      "description": "You start with the state of the system, such as an order book with some resting orders, and describe what kinds of events can happen and how often: new orders, cancellations and trades.",
+      "inExample": "The MNQ book starts with a best bid of 19,500 holding 38 contracts. Market sell orders arrive about once every 2 seconds with an average size of 3 contracts."
+    },
+    {
+      "title": "Fill the event queue",
+      "description": "A queue holds every scheduled future event with its time. The first arrival of each kind of event is drawn at random and placed in the queue, sorted by time.",
+      "inExample": "The first sell order is scheduled at 1,400 milliseconds, the first cancellation at 900 milliseconds."
+    },
+    {
+      "title": "Jump to the earliest event",
+      "description": "The simulation takes the earliest event off the queue and sets the clock to its time. Idle gaps cost nothing, because the clock never ticks through them.",
+      "inExample": "The clock jumps from zero to 900 milliseconds, then to 1,400 milliseconds, skipping every millisecond in between."
+    },
+    {
+      "title": "Handle it and schedule what follows",
+      "description": "Each event type has a handler that changes the book and may create new future events. A trade removes resting orders in price and arrival order; an arrival schedules the next arrival.",
+      "inExample": "The sell of 3 contracts at 1,400 milliseconds consumes the first 3 contracts of the bid queue and schedules the next sell."
+    },
+    {
+      "title": "Include your own order as one of the participants",
+      "description": "The strategy or execution algorithm under test is placed inside the book like any other trader. It gets exact queue position and partial fills, which a bar-level model cannot represent.",
+      "inExample": "A buy of 10 contracts is placed at 19,500 and joins the back of the queue behind 38 contracts."
+    },
+    {
+      "title": "Run to the end and repeat",
+      "description": "The loop continues until the queue is empty or the time budget ends. The run is one random realisation, so it is repeated many times to see the range of results.",
+      "inExample": "The simulation runs for 2 minutes of market time and is repeated 1,000 times."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Testing an execution algorithm",
+      "example": "Measuring how a passive 10-contract MNQ buy fares against simulated order flow, including how long it waits for a fill."
+    },
+    {
+      "task": "Market making at the order book level",
+      "example": "Modelling a quote's place in the queue and the risk of being filled just before the price moves against it."
+    },
+    {
+      "task": "Latency sensitivity",
+      "example": "Seeing how a strategy degrades when its orders take 5 milliseconds longer to reach the book."
+    },
+    {
+      "task": "Checking a rebuilt order book",
+      "example": "Confirming that a book reconstructed from raw exchange messages reproduces known behaviour such as spread and queue length."
+    }
+  ],
+  "avoidWhen": [
+    "Your strategy trades on 5-minute bars and holds for hours; bar-level backtesting is enough, and an order-by-order model adds complexity without changing the answer.",
+    "You do not have data to fit the arrival and cancellation rates; invented rates produce a polished but meaningless simulation."
+  ],
+  "example": {
+    "scenario": "An execution researcher wants to know how likely a passive limit buy of 10 MNQ contracts at the best bid of 19,500 is to fill completely within two minutes, and how long that takes.",
+    "input": {
+      "summary": "The starting book, the order flow rates and the order being tested.",
+      "fields": [
+        { "name": "best bid", "value": "19,500", "meaning": "The price at which the test order rests." },
+        { "name": "contracts ahead in the queue", "value": "38", "meaning": "Orders already resting at the best bid before ours." },
+        { "name": "test order size", "value": "10 contracts", "meaning": "The size of the passive buy being tested." },
+        { "name": "sell order arrival rate", "value": "1 every 2 seconds", "meaning": "How often a market sell order arrives." },
+        { "name": "average sell size", "value": "3 contracts", "meaning": "The typical amount each market sell removes from the bid." },
+        { "name": "time limit", "value": "2 minutes", "meaning": "How long the test order is allowed to wait." }
+      ]
+    },
+    "output": {
+      "summary": "Results over 1,000 simulated two-minute runs.",
+      "fields": [
+        { "name": "chance of a full fill", "value": "87 percent", "meaning": "The share of runs in which all 10 contracts filled within two minutes." },
+        { "name": "median time to complete", "value": "41 seconds", "meaning": "How long the typical successful run took to finish filling." },
+        { "name": "average fill price", "value": "19,500", "meaning": "The price paid, since a resting bid fills at its own price." },
+        { "name": "price moved away first", "value": "13 percent", "meaning": "The share of runs in which the price rose out of reach before the fill finished." }
+      ]
+    },
+    "reading": "Waiting passively buys the best price but fails in about one run in eight, and those are the runs where the price was running away. Compare this with crossing the spread at once, which costs a tick or more but fills every time."
+  }
+}

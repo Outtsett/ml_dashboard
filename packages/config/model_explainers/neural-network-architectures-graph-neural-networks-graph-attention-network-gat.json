@@ -1,0 +1,81 @@
+{
+  "specificationId": "neural-network-architectures-graph-neural-networks-graph-attention-network-gat",
+  "name": "Graph Attention Network (GAT)",
+  "analogy": "Think of it as a trader at a desk with several screens who listens to colleagues covering related markets. For each decision the trader decides how much weight to give each colleague, listening closely to the one whose market is relevant right now and tuning out the rest.",
+  "steps": [
+    {
+      "title": "Draw the market as a network",
+      "description": "Each instrument becomes a point, called a node, carrying its own features. A line, called an edge, joins instruments that are related, for instance those whose returns have moved together recently.",
+      "inExample": "Five index futures are nodes, and edges join pairs whose 5-minute returns agreed more than 50 percent of the time over the past day."
+    },
+    {
+      "title": "Describe every node",
+      "description": "Each node gets a row of numbers about itself, such as recent returns, range, volume ratio and momentum. These are the facts each node knows before it has heard from any neighbor.",
+      "inExample": "The MNQ node carries its last 6-bar return, average true range, relative strength index and volume ratio."
+    },
+    {
+      "title": "Score how much each neighbor matters",
+      "description": "For a given node, the network looks at each connected neighbor and computes a relevance score from the two nodes' features together. These scores are then turned into shares that add up to one hundred percent, so the node knows whom to listen to.",
+      "inExample": "MNQ has four neighbors. The scores give 55 percent to ES, 20 percent to a second index future, 15 percent to a third and 10 percent to a fourth."
+    },
+    {
+      "title": "Blend the neighbors by those shares",
+      "description": "The node builds a new description of itself by taking a weighted average of its neighbors' features, using the shares as weights, and adding its own. Neighbors that matter more shape the result more.",
+      "inExample": "MNQ's updated description leans mostly on ES, whose returns and volume are most informative right now."
+    },
+    {
+      "title": "Use several listening styles at once",
+      "description": "The same process is repeated by multiple independent heads, each free to focus on different neighbors or different features. Their results are joined, giving a richer picture than a single viewpoint.",
+      "inExample": "One head focuses on return agreement and another on volume surges, and their summaries are joined into one description of 16 numbers."
+    },
+    {
+      "title": "Read out the answer and the attention shares",
+      "description": "A final layer turns each node's updated description into an output, such as a direction probability. The attention shares can be read back to see which neighbors drove the call.",
+      "inExample": "The MNQ node outputs a 57 percent probability of a higher close 6 bars later, and the shares show ES as the main influence."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Using related markets to predict one market",
+      "example": "Predicting MNQ's next 30 minutes using what ES, the other equity index futures and a volatility measure are doing, weighted by current relevance."
+    },
+    {
+      "task": "Seeing which relationships matter now",
+      "example": "Reading the attention shares to learn whether MNQ is following ES or a rate-sensitive market this week."
+    },
+    {
+      "task": "Spotting broken relationships",
+      "example": "Raising a flag when a pair that normally moves together decouples and the learned attention suddenly shifts."
+    },
+    {
+      "task": "Cross-instrument regime labeling",
+      "example": "Labeling each bar as risk-on or risk-off using the joint state of several markets rather than one chart."
+    }
+  ],
+  "avoidWhen": [
+    "You trade a single instrument with no related series in the data; a graph has nothing to connect, so a tree model or sequence model on that one series is simpler and just as informative.",
+    "The relationships are fixed and well known; a plain correlation table or hand-built spread is cheaper and easier to explain than a learned attention network."
+  ],
+  "example": {
+    "scenario": "At the 11:30 bar, a Graph Attention Network built on five US index futures is asked for the probability that MNQ's close 6 bars (30 minutes) later will be higher.",
+    "input": {
+      "summary": "Five nodes with features, joined by edges where recent agreement between returns is high.",
+      "fields": [
+        { "name": "MNQ return over the last 6 bars", "value": "plus 36 points", "meaning": "Recent 30-minute change in the node being predicted." },
+        { "name": "ES return over the last 6 bars", "value": "plus 15 points", "meaning": "Recent 30-minute change in the closest neighbor." },
+        { "name": "MNQ average true range, 14 bars", "value": "25 points", "meaning": "How much MNQ has been moving per bar." },
+        { "name": "edge correlation between MNQ and ES", "value": "93 percent", "meaning": "The recent agreement of the two returns; 100 percent would be perfect agreement." },
+        { "name": "number of connected neighbors", "value": "4", "meaning": "How many other nodes feed the MNQ node." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability for MNQ and the shares of attention it paid.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "57 percent", "meaning": "The network's answer for the MNQ node after blending neighbors." },
+        { "name": "attention share on ES", "value": "55 percent", "meaning": "How much of the neighbor blend came from ES." },
+        { "name": "attention share on the other three neighbors together", "value": "45 percent", "meaning": "The remaining share spread across the other three neighbors." }
+      ]
+    },
+    "reading": "A 57 percent lean is modest, and the high ES share says the call is mostly ES-driven. Because ES and MNQ move together closely, check that the model adds information beyond simply copying ES's recent move, and test after costs."
+  }
+}

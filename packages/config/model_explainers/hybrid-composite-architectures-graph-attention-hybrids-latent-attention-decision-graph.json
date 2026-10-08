@@ -1,0 +1,88 @@
+{
+  "specificationId": "hybrid-composite-architectures-graph-attention-hybrids-latent-attention-decision-graph",
+  "name": "Latent Attention Decision Graph",
+  "analogy": "Think of it as a head trader who skims a long chart, jots a handful of key observations, lets those notes confer with each other, and then walks a flowchart of yes or no questions to reach a decision. Because the flowchart is visible, you can see which branches carried the call.",
+  "steps": [
+    {
+      "title": "Encode every bar in the window",
+      "description": "Each bar in the long window is turned into a vector that describes it, with a marker for its position in time. This gives the model something to read from, one vector per bar.",
+      "inExample": "A window of 128 five-minute MNQ bars becomes 128 vectors of 32 numbers each."
+    },
+    {
+      "title": "Summarise the window into a few notes",
+      "description": "A small, fixed number of learned note slots each look across the whole window and pull in what is relevant to them. The long window is squeezed into just a few notes, which keeps cost low even for long windows.",
+      "inExample": "8 note slots each read all 128 bars, and one slot ends up focused on the recent high-volume selloff."
+    },
+    {
+      "title": "Let the notes confer",
+      "description": "The notes look at each other and share information, with the strength of each link learned from how relevant the notes are to one another. A few rounds of this lets the notes combine into a joint picture.",
+      "inExample": "The selloff note and a volatility note strengthen their link over two rounds."
+    },
+    {
+      "title": "Pool the notes into one summary",
+      "description": "The conferred notes are averaged into a single summary vector. This is what the decision part will use to choose its path.",
+      "inExample": "The 8 notes are averaged into a summary of 32 numbers."
+    },
+    {
+      "title": "Route through a flowchart of soft questions",
+      "description": "The summary enters a flowchart whose branches are soft gates: at each branch, the model gives a share of weight to each exit instead of choosing one. Several routes can lead to the same box, so branches can be reused. A temperature setting controls how sharp the routing is.",
+      "inExample": "At the first branch, 71 percent of the weight goes to the high-volatility path and 29 percent to the quiet one."
+    },
+    {
+      "title": "Blend the answers at the end boxes",
+      "description": "Each end box holds an action leaning, such as favouring up or down. The final output is the average of the end boxes, weighted by how much weight reached each. The path carrying most weight can be reported as the reason.",
+      "inExample": "The boxes blend into a 45 percent probability of up, mostly through the high-volatility, trend-down route."
+    },
+    {
+      "title": "Train with a cooling temperature",
+      "description": "Training starts with a warm, soft temperature so every route gets some weight and learning signals flow, then cools it so routes sharpen and become readable. A small penalty stops all the weight collapsing onto one end box.",
+      "inExample": "By the end of training on the 14:35 bar, the busiest end box holds 58 percent of the weight rather than nearly all of it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls that come with a readable path",
+      "example": "Predicting whether MNQ's close 6 bars later is higher, and reporting that the call came from the high-volatility downtrend route."
+    },
+    {
+      "task": "Regime-aware decisions",
+      "example": "Having separate end boxes specialise in trending, ranging and volatile conditions on 5-minute bars."
+    },
+    {
+      "task": "Session-specific behaviour",
+      "example": "Letting one model route differently for the Tokyo, London and New York sessions."
+    },
+    {
+      "task": "Conviction for sizing",
+      "example": "Using the share of weight on the busiest end box as a confidence figure for position size."
+    }
+  ],
+  "avoidWhen": [
+    "You need the quickest, most robust baseline; a boosted tree model on engineered features is simpler to train and check than a model with attention and a routing graph.",
+    "Training data is small; the routing can collapse onto a single path or fit noise, so a simpler model with fewer moving parts is safer."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, the model reads the last 128 bars, forms 8 notes, routes the summary through its decision graph and returns a probability of up for the close 6 bars ahead.",
+    "input": {
+      "summary": "A window of 128 normalised bars plus the session of the day.",
+      "fields": [
+        { "name": "bars in the window", "value": "128", "meaning": "Over ten hours of 5-minute bars read by the model." },
+        { "name": "close of the latest bar", "value": "19,512", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "average true range, 14 bars", "value": "33 points", "meaning": "Typical high-to-low travel of a recent bar, high for MNQ today." },
+        { "name": "volume against its 20-bar average", "value": "100 percent above", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "return over the last 12 bars", "value": "minus 60 hundredths of a percent", "meaning": "How much price fell over the previous hour." },
+        { "name": "session", "value": "New York afternoon", "meaning": "A label that lets the routing behave differently by time of day." }
+      ]
+    },
+    "output": {
+      "summary": "A probability of up, plus the weights on the end boxes and the path that carried the most weight.",
+      "fields": [
+        { "name": "probability of up", "value": "45 percent", "meaning": "Chance that the close 6 bars later is higher than the current close." },
+        { "name": "weight on the busiest end box", "value": "58 percent", "meaning": "Share of routing weight reaching the end box for high-volatility downtrend." },
+        { "name": "dominant path", "value": "high volatility, then trend down", "meaning": "The sequence of branches that carried the most weight." },
+        { "name": "weight on the next box", "value": "22 percent", "meaning": "Share going to the second most-used box, a quiet-range outcome." }
+      ]
+    },
+    "reading": "A 45 percent probability with 58 percent of the weight on one named path is a mild lean toward down with a clear reason. A busiest-box weight near 100 percent would suggest collapse onto one route. Verify with walk-forward folds and costs before using the lean for any trade."
+  }
+}

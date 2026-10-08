@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-adversarial-adversarial-autoencoder",
+  "name": "Adversarial Autoencoder (AAE)",
+  "analogy": "Think of it as a trader who squeezes every 60-bar chart window into a short note of eight numbers, then redraws the chart from that note alone. A strict editor checks that the notes all look like they came from the same standard template, so any note you invent in that style redraws into a believable chart.",
+  "steps": [
+    {
+      "title": "Squeeze the window into a short code",
+      "description": "The encoder reads a whole window of data and boils it down to a small list of numbers, called the code. The code has to keep whatever is needed to rebuild the window, such as its direction, its range and its volume pattern.",
+      "inExample": "A 60-bar window of 5-minute MNQ bars ending at 19,240 becomes a code of 8 numbers."
+    },
+    {
+      "title": "Rebuild the window from the code",
+      "description": "The decoder takes only the code and tries to redraw the original window. The gap between the redrawn window and the real one is the rebuilding error, and training pushes it down so the code keeps what matters.",
+      "inExample": "The decoder redraws the 60 bars from the 8 numbers and misses the real closes by 3 points on average."
+    },
+    {
+      "title": "Show the editor real and invented codes",
+      "description": "A separate network, the discriminator, is shown two piles of codes: codes the encoder produced from real windows, and codes drawn at random from a chosen template shape such as a bell curve. It learns to tell the two piles apart.",
+      "inExample": "The discriminator is handed the code for the 14:35 window and a random bell-curve code, and has to say which came from a real window."
+    },
+    {
+      "title": "Make the encoder fool the editor",
+      "description": "The encoder is trained to produce codes that the discriminator cannot tell from the template codes. Over many rounds the cloud of real-window codes takes on the template shape, with no gaps in it.",
+      "inExample": "After training, the discriminator is right only 52 percent of the time on this window's code, close to a coin flip, so the code sits inside the template cloud."
+    },
+    {
+      "title": "Alternate the two jobs",
+      "description": "Training takes turns between the rebuilding job and the fooling job, so the code stays both useful for rebuilding and shaped like the template. A weight decides how much each job counts.",
+      "inExample": "Each round first lowers the rebuilding error on a batch of 256 windows, then updates the editor game on the same batch."
+    },
+    {
+      "title": "Invent new windows from the template",
+      "description": "To generate, you skip the encoder. Draw a fresh code from the template shape and give it to the decoder, which redraws a window that never happened but looks like the real ones.",
+      "inExample": "Eight random numbers are drawn, passed to the decoder, and a new 60-bar window comes out starting from the same price."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compressing a chart window into a short fingerprint",
+      "example": "Turning every 60-bar window of 5-minute MNQ bars into 8 numbers that can be used as input features for a direction model or sorted into clusters."
+    },
+    {
+      "task": "Generating extra synthetic windows",
+      "example": "Producing a few thousand invented 60-bar windows in the style of high-volatility mornings to give a model more examples of rare days."
+    },
+    {
+      "task": "Flagging windows that look unusual",
+      "example": "Marking any window the decoder rebuilds badly, such as a news-spike bar in a window of ordinary bars, as worth a human look."
+    },
+    {
+      "task": "Using a few labelled windows to help sort many unlabelled ones",
+      "example": "Feeding in a handful of windows labelled trend or range and letting the shared code help label the rest, which is the semi-supervised use named in the specification."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a plain compressed fingerprint and nothing is generated; an ordinary autoencoder or principal component analysis is simpler and trains without the extra adversarial game.",
+    "Training stability matters more than flexibility of the template shape; a variational autoencoder trains more smoothly because it has no opponent network to balance."
+  ],
+  "example": {
+    "scenario": "A 60-bar window of 5-minute MNQ bars ends at the 14:35 bar. The model was trained on a year of such windows with a bell-curve template for the 8-number code. It is asked to compress this window, rebuild it, and say whether it is typical.",
+    "input": {
+      "summary": "One 60-bar window, described by its summary values, plus the size of the code the model was built with.",
+      "fields": [
+        { "name": "window length", "value": "60 bars of 5 minutes", "meaning": "How many bars the encoder reads, covering the last 5 hours of trading." },
+        { "name": "closing price of the last bar", "value": "19,240", "meaning": "The close of the 14:35 bar, where the window ends." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "return over the whole window", "value": "minus 1 percent", "meaning": "How far price fell from the first close in the window to the last." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading was in the final bars compared with the recent norm." },
+        { "name": "code size", "value": "8 numbers", "meaning": "How many numbers the encoder is allowed to use to describe the whole window." }
+      ]
+    },
+    "output": {
+      "summary": "The 8-number code, a rebuilt window, and a measure of how ordinary the code looks.",
+      "fields": [
+        { "name": "code, first three numbers", "value": "4, minus 11, 1", "meaning": "The first three of the 8 numbers that stand for this window, counted in tenths; on their own they have no readable meaning." },
+        { "name": "average rebuilding error of the closes", "value": "3 points", "meaning": "How far the redrawn closes sit from the real closes on average." },
+        { "name": "discriminator score for the code", "value": "48 percent", "meaning": "How likely the editor thinks the code came from the template; near 50 percent means it cannot tell, so the code looks ordinary." },
+        { "name": "synthetic window from a random code", "value": "60 bars, ending at 19,206", "meaning": "A newly invented window made by decoding a random template code, starting from the same opening price." }
+      ]
+    },
+    "reading": "A rebuilding error of 3 points against an average true range of 25 points means the code kept the shape well. A score near 50 percent says the window is ordinary. If the error were several times larger, treat the window as unusual and check it before trusting any model that uses the code."
+  }
+}

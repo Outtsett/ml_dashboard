@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-patch-level-contrastive-learning-e-g-dino",
+  "name": "Patch-level Contrastive Learning (e.g., DINO)",
+  "analogy": "Think of it as a student shown only a few bars of a chart, who must say what kind of session it is. A teacher who sees the whole session gives the answer, and the student learns to name the session from a fragment. Over time the student learns what each piece of a session implies about the whole.",
+  "steps": [
+    {
+      "title": "Cut each window into patches",
+      "description": "A long window of bars is divided into short, non-overlapping patches, the way an image is divided into tiles. Each patch is embedded as a unit, and a transformer then lets patches look at one another.",
+      "inExample": "A 96-bar MNQ window is cut into 12 patches of 8 five-minute bars."
+    },
+    {
+      "title": "Make big views and small views",
+      "description": "From each window the method builds a few large views covering most of the session, and several small views covering only a part. Altering tricks such as noise or masking can be added on top.",
+      "inExample": "Each window yields 2 large views of 80 bars and 6 small views of 24 bars."
+    },
+    {
+      "title": "Teacher reads the large views, student reads everything",
+      "description": "The teacher network sees only the large views. The student network sees both large and small views. The teacher is a slow-moving average of the student, so it changes gradually and is not directly trained.",
+      "inExample": "The teacher reads the 2 large views; the student reads all 8 views."
+    },
+    {
+      "title": "Turn each output into a distribution over prototype types",
+      "description": "Each network's output is converted into a probability spread over a fixed number of learned categories, which can be thought of as session types that the model invents for itself. A temperature controls how sharp the spread is.",
+      "inExample": "Each view is scored against 64 learned session types and the scores become a spread of probabilities."
+    },
+    {
+      "title": "Make the student agree with the teacher",
+      "description": "The student is adjusted so that its spread, from a small view, matches the teacher's spread from a large view of the same window. No other windows are used as wrong answers. A centring step on the teacher's outputs prevents all windows from collapsing into one type.",
+      "inExample": "A student that sees only 24 bars learns to put its probability on the same session type as the teacher who sees 80 bars."
+    },
+    {
+      "title": "Read the patch attention afterwards",
+      "description": "The transformer's attention shows which patches it relied on. Patches the teacher attends to when naming a session are the ones that carry the most information about it.",
+      "inExample": "For today's window, attention concentrates on the opening patch and the two most recent patches."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining on long sessions without labels",
+      "example": "Learning from years of MNQ sessions cut into patches, before fine-tuning a direction model."
+    },
+    {
+      "task": "Naming recurring session types",
+      "example": "Using the 64 learned types as data-driven regime labels, such as trending drift or tight rotation."
+    },
+    {
+      "task": "Seeing which part of a session matters",
+      "example": "Reading the attention to check whether the opening patch drives the model's description of the day."
+    },
+    {
+      "task": "Predicting the whole from a part",
+      "example": "Describing a partly finished session from just its first 24 bars to support an early read."
+    }
+  ],
+  "avoidWhen": [
+    "Your windows are short, because patches of a few bars carry too little to compare; a simpler summary of the window works better.",
+    "You need an interpretable rule that a person can check; the learned types are invented by the model and need to be inspected before they are trusted."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains DINO-style on 96-bar MNQ windows cut into 12 patches. Midway through a session, the student sees only the first 24 bars and the researcher asks what session type it assigns and how confident it is.",
+    "input": {
+      "summary": "One window cut into patches, with a small view of the first 24 bars given to the student.",
+      "fields": [
+        { "name": "full window length", "value": "96 five-minute bars", "meaning": "A full session window that the teacher sees in large views." },
+        { "name": "patches per full window", "value": "12 patches of 8 bars", "meaning": "How the window is cut for the transformer." },
+        { "name": "small view given to the student", "value": "first 24 bars", "meaning": "The partial session available early in the day." },
+        { "name": "learned session types", "value": "64", "meaning": "The number of categories the model invents for itself." },
+        { "name": "average true range, 14 bars", "value": "30 points", "meaning": "The recent typical bar travel." }
+      ]
+    },
+    "output": {
+      "summary": "A spread of probability over learned session types and a description of the window.",
+      "fields": [
+        { "name": "most likely session type", "value": "type 17", "meaning": "The learned category with the highest probability for this partial window." },
+        { "name": "probability on type 17", "value": "41 percent", "meaning": "How much of the student's probability sits on that category." },
+        { "name": "second most likely type", "value": "type 5 at 22 percent", "meaning": "The runner-up category, showing the call is not certain." },
+        { "name": "window description", "value": "192 numbers", "meaning": "The reusable summary of the window for later models." }
+      ]
+    },
+    "reading": "A 41 percent top type with a visible runner-up is a soft call, which is appropriate with only a quarter of the session seen. Look at what other windows share type 17 before giving it a meaning. A type is only useful if sessions in it behave differently afterwards, which has to be tested on walk-forward folds."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-probabilistic-inference-sampling-markov-chain-monte-carlo-mcmc",
+  "name": "Markov Chain Monte Carlo (MCMC)",
+  "analogy": "Think of it as a hiker wandering a foggy mountain range who can only compare the height of where they stand with where they might step. Over thousands of steps the hiker spends the most time on the high ground, and the map of where they spent their time is the answer.",
+  "steps": [
+    {
+      "title": "Write down the model and what you believe beforehand",
+      "description": "You choose a model of how returns behave, with unknown settings such as the typical size of a 5-minute move. You also state a prior belief about each setting. Together with the data these define how plausible each possible setting is.",
+      "inExample": "The model says 5-minute MNQ price changes are bell-shaped with an unknown typical size. The prior says that size is somewhere between 10 and 40 points."
+    },
+    {
+      "title": "Pick a starting setting",
+      "description": "The walk begins from any reasonable value, such as a rough estimate from the data. Where it starts should not matter in the end, but it does affect the first part of the walk.",
+      "inExample": "The chain starts at a typical move of 16 points per 5-minute bar."
+    },
+    {
+      "title": "Propose a small random move",
+      "description": "From the current setting the model suggests a nearby setting, a random nudge up or down. The size of the nudge is tuned so that neither tiny nor huge steps dominate.",
+      "inExample": "From 16 points the proposal is 18 points, using steps of about 2 points."
+    },
+    {
+      "title": "Accept or reject by comparing plausibility",
+      "description": "The model compares how well each setting explains the data and agrees with the prior. A better setting is always accepted. A worse one is accepted only some of the time, in proportion to how much worse it is. A rejected move means staying put and counting the current setting again.",
+      "inExample": "18 points explains the 2,000 price changes better than 16, so it is accepted. A later proposal of 30 points explains them much worse and, on this draw, is rejected."
+    },
+    {
+      "title": "Repeat many thousands of times, discard the warm-up",
+      "description": "The propose-and-compare step runs for a long chain. The early steps reflect the arbitrary start and are thrown away. What remains visits each setting in proportion to how plausible it is.",
+      "inExample": "20,000 steps are run, the first 2,000 are discarded as burn-in, and 18,000 samples are kept."
+    },
+    {
+      "title": "Summarise the samples",
+      "description": "Any question about the setting is answered by looking at the kept samples: their average, the range that holds most of them, or the predictions made by each sample. Neighbouring samples are correlated, so the number of truly independent samples is smaller than the chain length.",
+      "inExample": "The 18,000 samples cluster around 22 points, and the number of independent-equivalent samples is about 1,400."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Uncertainty about volatility",
+      "example": "Getting a range for MNQ's 5-minute volatility rather than one estimate, so position sizing can allow for not knowing it exactly."
+    },
+    {
+      "task": "Fitting regime models",
+      "example": "Estimating the chance of switching between a calm and a turbulent regime, with a range around that chance."
+    },
+    {
+      "task": "Comparing competing return models",
+      "example": "Checking which of two volatility models explains a year of 5-minute returns better, after allowing for each model's flexibility."
+    },
+    {
+      "task": "Honest risk intervals",
+      "example": "Producing a range for expected shortfall that reflects not knowing the model's settings, not only the noise in the data."
+    }
+  ],
+  "avoidWhen": [
+    "A single best estimate is enough and speed matters, because a chain takes thousands of evaluations of the model; ordinary maximum likelihood is far faster.",
+    "The model has hundreds of unknown settings and no good way to compute its slope; sampling can crawl, and a variational or neural method may be more practical."
+  ],
+  "example": {
+    "scenario": "A researcher wants the typical size of an MNQ 5-minute price change, with a range, using the last 2,000 bars of trading.",
+    "input": {
+      "summary": "The data, the starting guess and the chain settings.",
+      "fields": [
+        { "name": "observed price changes", "value": "2,000 five-minute changes", "meaning": "The point changes between consecutive MNQ 5-minute closes." },
+        { "name": "starting typical move", "value": "16 points", "meaning": "The value from which the chain begins." },
+        { "name": "prior belief", "value": "10 to 40 points", "meaning": "The range in which the typical move is believed to lie before seeing the data." },
+        { "name": "chain length", "value": "20,000 steps", "meaning": "How many propose-and-compare steps are run." },
+        { "name": "burn-in", "value": "2,000 steps", "meaning": "The early steps discarded because they depend on the starting point." },
+        { "name": "proposal step size", "value": "about 2 points", "meaning": "How far a proposal typically moves from the current value." }
+      ]
+    },
+    "output": {
+      "summary": "A summary of the 18,000 kept samples.",
+      "fields": [
+        { "name": "average typical move after seeing the data", "value": "22 points", "meaning": "The average of the kept samples, the best single summary of the 5-minute move size." },
+        { "name": "90 percent credible range", "value": "21 to 23 points", "meaning": "The range that holds 90 percent of the kept samples." },
+        { "name": "acceptance rate", "value": "31 percent", "meaning": "The share of proposals accepted; a mid-range value suggests the step size is reasonable." },
+        { "name": "effective sample size", "value": "about 1,400", "meaning": "How many independent draws the correlated 18,000 samples are worth." }
+      ]
+    },
+    "reading": "Read the range, not just the average: the typical 5-minute move is most likely between 21 and 23 points. About 31 percent of proposals were accepted, which suggests the step size was reasonable, and the effective sample size of about 1,400 shows how much the neighbouring samples overlap. Use the upper end of the range when sizing for caution."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-probit-regression",
+  "name": "Probit Regression",
+  "analogy": "Think of it as a hidden pressure gauge behind each bar. The indicators estimate the gauge's reading, a bell-shaped amount of random jostle is added, and the bar goes up whenever the jostled reading ends above zero. The further above zero the gauge sits, the more likely the bar goes up.",
+  "steps": [
+    {
+      "title": "Define a yes-or-no outcome",
+      "description": "You choose a question with two answers and label every training bar with the answer that followed, so the model can learn what separates the two groups.",
+      "inExample": "The question is whether the close 6 bars later is above this bar's close; each training bar is labelled yes or no."
+    },
+    {
+      "title": "Imagine a hidden gauge behind each bar",
+      "description": "The model assumes an unseen quantity sits behind each outcome. If it ends above zero the answer is yes, otherwise no. The gauge itself is never observed, only the answer.",
+      "inExample": "A hidden pressure behind each bar decides whether the close 30 minutes later ends above or below it."
+    },
+    {
+      "title": "Estimate the gauge from the features",
+      "description": "Each feature is multiplied by a weight and the results are added to estimate the gauge's average reading. Features that raise the reading make yes more likely, features that lower it make no more likely.",
+      "inExample": "Oversold readings lift the estimated gauge from zero to slightly above zero, about 15 hundredths of a bell-curve unit."
+    },
+    {
+      "title": "Add the bell-shaped jostle",
+      "description": "Real outcomes are not fully set by the features, so a random amount following the standard bell curve is added to the reading. This is where the model differs from logistic regression, which uses a slightly different curve.",
+      "inExample": "With an average reading slightly above zero and standard bell-shaped jostle, the reading ends above zero about 56 percent of the time."
+    },
+    {
+      "title": "Fit the weights to the real outcomes",
+      "description": "The weights are adjusted until the probabilities given to what really happened are as high as possible across the training bars. A small penalty can keep the weights modest when features overlap.",
+      "inExample": "Training raises the weight on the oversold readings until the training probabilities best match how often bars really rose."
+    },
+    {
+      "title": "Read off a probability for a new bar",
+      "description": "A new bar's features give an average gauge reading, and the area of the bell curve above zero, measured from that reading, is the probability of yes.",
+      "inExample": "The 14:35 bar has an average gauge reading slightly above zero, which gives a 56 percent chance of an up close."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Probability of an up move",
+      "example": "Estimating the chance that MNQ's close 30 minutes after a 5-minute bar will be above that bar's close."
+    },
+    {
+      "task": "A second opinion beside logistic regression",
+      "example": "Fitting both on the same walk-forward folds to see whether the choice of curve changes anything; usually it changes little."
+    },
+    {
+      "task": "Volatile or calm classification",
+      "example": "Labelling the next hour as volatile or calm from range and volume features."
+    },
+    {
+      "task": "Ordered-level extensions",
+      "example": "Grading a market as low, medium or high volatility when the noise is better described by the bell curve."
+    }
+  ],
+  "avoidWhen": [
+    "You want weights you can describe as changes in odds; logistic regression explains its weights that way, while this model's weights are in bell-curve units that are harder to explain.",
+    "The boundary needs combined conditions or curves; a tree-based model is better.",
+    "Rare extreme events matter; the bell curve has thin tails and can understate how often extremes happen."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A fitted probit model gives the probability that the close 6 bars (30 minutes) later will be above this close.",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "An average gauge reading, the probability it implies and the call.",
+      "fields": [
+        { "name": "average hidden gauge reading", "value": "slightly above zero, about 15 hundredths", "meaning": "The weighted sum of the features, in standard bell-curve units; zero would mean a coin flip." },
+        { "name": "probability the close is higher 6 bars later", "value": "56 percent", "meaning": "The share of the bell curve that lies above zero when centred on the gauge reading." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "56 percent is a small lean over a coin flip. Treat it as you would a logistic probability: choose a cut-off, trade only the stronger calls, and verify on held-out folds that the net result survives commission and slippage."
+  }
+}

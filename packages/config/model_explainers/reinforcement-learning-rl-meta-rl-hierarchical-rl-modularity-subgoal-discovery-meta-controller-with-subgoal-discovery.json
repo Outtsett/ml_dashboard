@@ -1,0 +1,82 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-meta-controller-with-subgoal-discovery",
+  "name": "Meta-Controller with Subgoal Discovery",
+  "analogy": "Think of it as a head trader and a junior who executes. Nobody gives the head trader a list of milestones; he reviews months of tape and spots the moments that keep mattering, such as the open settling or the gap filling. Then he picks one milestone at a time and sends the junior to reach it.",
+  "steps": [
+    {
+      "title": "Explore and record experience",
+      "description": "First the agent acts, mostly exploring, and stores what it sees and what happened next in a buffer. This is the raw experience from which milestones will be mined.",
+      "inExample": "The buffer collects 200,000 five-minute MNQ bars with the positions tried and rewards paid."
+    },
+    {
+      "title": "Find the recurring turning points",
+      "description": "The market states in the buffer are arranged into a map of which state tends to follow which. States that many paths pass through, or that come just before big reward changes, stand out as natural milestones.",
+      "inExample": "Three standouts emerge: the average true range crossing above 30 points, the price closing an overnight gap and a return to the volume-weighted average price."
+    },
+    {
+      "title": "Keep the strongest candidates as subgoals",
+      "description": "A fixed number of the strongest candidates are kept as the subgoal list. Any that later prove useless will be pruned.",
+      "inExample": "The 12 strongest candidates become the subgoal list."
+    },
+    {
+      "title": "Train the controller to reach each subgoal",
+      "description": "A lower-level controller learns how to act to reach a given subgoal, and is rewarded when it gets there. It acts bar by bar.",
+      "inExample": "The controller learns which positions tend to bring the price back to the volume-weighted average price."
+    },
+    {
+      "title": "Train the meta-controller to choose among subgoals",
+      "description": "A higher-level meta-controller learns which subgoal is worth pursuing from the current state, rewarded by the market reward collected while the subgoal is being pursued.",
+      "inExample": "From the 11:30 state the meta-controller values the return to the volume-weighted average price at about 3 points."
+    },
+    {
+      "title": "Re-mine and prune on a schedule",
+      "description": "Every so often the mining step is repeated on newer experience, and subgoals that the meta-controller almost never chooses are dropped. The list stays current.",
+      "inExample": "After 1,000 more episodes a subgoal chosen less than 2 percent of the time is removed from the list."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding useful intermediate market conditions without writing them by hand",
+      "example": "Letting the system propose milestones such as the volatility crossing a threshold rather than requiring a trader to list every one."
+    },
+    {
+      "task": "Locating regime transition points",
+      "example": "Using the states that many price paths pass through as candidate markers of a change from quiet to active trading."
+    },
+    {
+      "task": "Cutting manual feature engineering for multi-bar trades",
+      "example": "Breaking a trade lasting 30 bars into reach-the-gap-close then reach-the-average-price steps discovered from data."
+    },
+    {
+      "task": "Checking whether goals carry across instruments",
+      "example": "Comparing the subgoal lists mined from MNQ and ES to see whether the same waypoints show up."
+    }
+  ],
+  "avoidWhen": [
+    "You already know the waypoints that matter for a rule-based plan; writing them down is simpler and fully auditable.",
+    "Only a short exploration buffer is available; the mined subgoals will be noise, and mining from two separate windows gives lists that disagree."
+  ],
+  "example": {
+    "scenario": "At 11:30 an MNQ session is in a quiet drift. The agent has already mined 12 subgoals from 200,000 bars of experience. The meta-controller now picks one and the controller acts toward it.",
+    "input": {
+      "summary": "The current market state and the mined list of subgoals.",
+      "fields": [
+        { "name": "experience buffer", "value": "200,000 five-minute bars", "meaning": "The stored experience from which the subgoals were mined." },
+        { "name": "subgoals kept", "value": "12", "meaning": "How many candidate milestones are on the list." },
+        { "name": "close", "value": "19,289", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "volume-weighted average price", "value": "19,301", "meaning": "The day's average price weighted by volume, rounded to the nearest point; one of the milestones." },
+        { "name": "average true range, 14 bars", "value": "18 points", "meaning": "The typical high-to-low travel of a recent bar, here quiet." },
+        { "name": "bars since the open", "value": "114", "meaning": "How far into the session the market is." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen subgoal and the controller's position for this bar.",
+      "fields": [
+        { "name": "chosen subgoal", "value": "return to the volume-weighted average price", "meaning": "The milestone the meta-controller selected as most valuable." },
+        { "name": "value of the chosen subgoal", "value": "about 3 points", "meaning": "The reward the meta-controller expects while pursuing it." },
+        { "name": "controller position", "value": "long 1 contract", "meaning": "The action the controller takes toward the subgoal, since price is about 12 points below the average." }
+      ]
+    },
+    "reading": "The subgoal is a readable label, so you can check it against the chart; if the chosen milestones look arbitrary the mining was probably noise. Compare the stack against one flat agent with no subgoals, and judge the position after trading costs."
+  }
+}

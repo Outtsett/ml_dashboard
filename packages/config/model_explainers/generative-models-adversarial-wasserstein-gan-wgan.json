@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-adversarial-wasserstein-gan-wgan",
+  "name": "Wasserstein Generative Adversarial Network (WGAN)",
+  "analogy": "Think of it as a counterfeiter and a judge, but the judge no longer says real or fake. The judge gives every price history a score, and the counterfeiter's goal is to close the gap between the average score of real histories and the average score of fakes. A shrinking gap tells you the fakes are getting closer.",
+  "steps": [
+    {
+      "title": "Replace the inspector with a scoring critic",
+      "description": "Instead of a yes-or-no inspector, the critic gives each sample a plain score, higher for samples that look more real. The score is not a probability, which gives smoother feedback when the fakes are still poor.",
+      "inExample": "The critic scores a real 20-bar run of MNQ returns 18 and a fake one minus 6."
+    },
+    {
+      "title": "Keep the critic from scoring wildly",
+      "description": "The critic is held to a limit so its score cannot change too fast when a sample changes a little. The first version clipped the critic's weights; the improved version penalizes the critic whenever its scores change too steeply between a real and a fake sample.",
+      "inExample": "A penalty is added whenever a blend halfway between a real run and a fake run is scored with too steep a slope."
+    },
+    {
+      "title": "Train the critic more often",
+      "description": "The critic is updated several times for each generator update, so it can measure the gap between real and fake accurately before the generator reacts. A reliable gap measure is what makes the training steady.",
+      "inExample": "The critic is updated 5 times, then the generator once."
+    },
+    {
+      "title": "Measure the gap between real and fake",
+      "description": "The gap is the average critic score on real samples minus the average on generated ones. This number is a distance between the two collections, and it is useful to watch while training.",
+      "inExample": "The gap falls from 32 early on to 8 after many rounds."
+    },
+    {
+      "title": "Push the generator to shrink the gap",
+      "description": "The generator is adjusted so its samples receive higher critic scores. Because the gap measure stays informative even when the fakes are poor, the generator keeps getting useful direction and is less likely to get stuck repeating one sample.",
+      "inExample": "The generator changes its output so fake runs score closer to the real average of 18."
+    },
+    {
+      "title": "Draw new samples",
+      "description": "Once trained, the critic is no longer needed. Random numbers go through the generator to produce new samples with variety that is usually better than with a plain GAN.",
+      "inExample": "A new list of 100 random numbers produces a fresh 20-bar run of 5-minute returns."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Stable synthetic return series",
+      "example": "Generating many 20-bar runs of 5-minute MNQ returns for stress tests when a plain GAN keeps repeating the same few shapes."
+    },
+    {
+      "task": "A readable training progress number",
+      "example": "Watching the critic gap fall during training to decide when the generator has stopped improving, instead of guessing from pictures."
+    },
+    {
+      "task": "Capturing varied market behaviour",
+      "example": "Getting synthetic runs that include quiet stretches, trends and spikes in rough proportion to the real data."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a one-step forecast; a model trained on the target directly will be more accurate than any generator.",
+    "You need to check the quality of the fakes against known market facts such as volatility clustering; the gap number alone does not prove those hold, so test them separately."
+  ],
+  "example": {
+    "scenario": "A researcher trains a WGAN on 20-bar runs of 5-minute MNQ percentage returns and wants new runs to stress-test a stop rule. They also record the critic's average scores to see how close the fakes are.",
+    "input": {
+      "summary": "Random numbers for the generator plus the critic scores recorded on real and generated batches.",
+      "fields": [
+        { "name": "random numbers", "value": "100 values from a bell-shaped distribution", "meaning": "The only source of variety in each generated run." },
+        { "name": "run length", "value": "20 bars of 5 minutes", "meaning": "How many returns each generated run contains." },
+        { "name": "starting price", "value": "19,350", "meaning": "The price at which returns are applied to draw the run as prices." },
+        { "name": "critic updates per generator update", "value": "5", "meaning": "How often the critic trains before the generator is updated." },
+        { "name": "average critic score on real runs", "value": "18", "meaning": "The average score the critic gave to a batch of real runs." }
+      ]
+    },
+    "output": {
+      "summary": "One generated run and the critic's view of how close it is to real runs.",
+      "fields": [
+        { "name": "final close of the generated run", "value": "19,372", "meaning": "Where the run ends, 22 points above the start." },
+        { "name": "largest single-bar move", "value": "19 points", "meaning": "The biggest move in any bar of the generated run." },
+        { "name": "average critic score on generated runs", "value": "10", "meaning": "The average score the critic gives a batch of generated runs." },
+        { "name": "critic gap", "value": "8", "meaning": "Real score minus generated score; it was 32 earlier in training, so a smaller number means the fakes are closer." }
+      ]
+    },
+    "reading": "A gap that keeps falling during training means the generated runs are getting closer to real ones, but it does not mean they are good enough. Compare spreads of moves and volatility clustering with real history before using the runs as scenarios."
+  }
+}

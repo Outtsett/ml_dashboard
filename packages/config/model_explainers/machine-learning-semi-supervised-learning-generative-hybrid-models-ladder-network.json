@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-generative-hybrid-models-ladder-network",
+  "name": "Ladder Network",
+  "analogy": "Think of it as restoring a smudged price chart on a ladder. You climb up one side, simplifying the chart rung by rung, then climb down the other side, rebuilding it. At each rung you compare what you rebuilt with the clean version of that rung. The top of the ladder doubles as the classifier.",
+  "steps": [
+    {
+      "title": "Run a clean pass and a noisy pass",
+      "description": "Each row of inputs goes through the network twice. One pass is clean. In the other, random noise is added at every layer. The clean pass gives the reference values, and the noisy pass is the one the network must learn to repair.",
+      "inExample": "A row of 35 base features for one MNQ five-minute bar goes through a clean pass and a noisy pass with noise equal to 10 percent of each feature's spread."
+    },
+    {
+      "title": "Climb up the encoder",
+      "description": "On the way up, each layer turns the previous one into a more abstract description. The first layers hold the raw features, and the top layers hold broad ideas, such as how bullish the bar looks overall.",
+      "inExample": "The 35 features are reduced to 32 numbers, then 16, then 2 at the top, one for each class: close higher or close lower."
+    },
+    {
+      "title": "Read the class at the top",
+      "description": "The top layer of the noisy pass gives the class probabilities. On the windows with labels, these are compared with the truth in the usual way. This is the classification job.",
+      "inExample": "The top layer gives the probability that the close 6 bars later is higher as 56 percent, and lower as 44 percent."
+    },
+    {
+      "title": "Climb down the decoder, joining each rung",
+      "description": "A decoder works from the top back down. At every rung it combines what it carries from above with the noisy value from the same rung of the encoder through a lateral link. Each rung therefore gets both the broad idea and the local detail when making its guess.",
+      "inExample": "At the 16-number rung, the decoder merges the broad estimate from the top with the noisy 16 numbers from the encoder, and outputs a cleaned 16 numbers."
+    },
+    {
+      "title": "Compare each rebuilt rung with the clean pass",
+      "description": "At every rung, the rebuilt values are compared with the clean values from the first pass. These denoising errors do not need labels, so they apply to every row, labelled or not, which is how the unlabeled data teaches the network.",
+      "inExample": "The denoising error is 21 percent of the clean values' spread at the 35-feature rung, 12 percent at the 32-number rung and 5 percent at the 16-number rung, each weighted by a layer weight."
+    },
+    {
+      "title": "Add the errors and adjust everything together",
+      "description": "The classification error on labelled rows and the denoising errors on all rows are added, and the whole network is adjusted at once. At prediction time, only the clean pass is used.",
+      "inExample": "With 400 labelled and 50,000 unlabeled bars, the denoising errors from the unlabeled bars shape the layers that the labelled bars then classify from."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Classification with very few labels",
+      "example": "Predicting the direction of the close 6 bars ahead from only 400 labelled bars plus a large pool of unlabeled ones."
+    },
+    {
+      "task": "Cleaning noisy features",
+      "example": "Learning to recover a feature row after noise is added, which makes the classifier less sensitive to measurement error."
+    },
+    {
+      "task": "Regime classification",
+      "example": "Using the same network to call trending, ranging or volatile bars from the 35 base features."
+    },
+    {
+      "task": "Inspecting what each layer keeps",
+      "example": "Reading the denoising error per layer to see at which level the information in the features is lost."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labels; a simple network or a gradient boosted tree on the same features is easier to train and to read.",
+    "The data is a raw sequence in which the order matters; this design works on a fixed row of numbers, so a sequence model is a better fit.",
+    "You need a quick experiment; the two passes, the decoder and the per-layer weights make this one of the fussier models to tune."
+  ],
+  "example": {
+    "scenario": "A research job trains a Ladder Network on 400 labelled and 50,000 unlabeled five-minute MNQ bars using the 35 base features. For the 14:35 bar it returns a direction probability and the denoising error at each rung.",
+    "input": {
+      "summary": "One row of 35 standardised base features for the bar that closed at 14:35.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "noise level in the noisy pass", "value": "10 percent of each feature's spread", "meaning": "How much random noise is added to every layer in the noisy pass during training." },
+        { "name": "labelled bars", "value": "400 of 50,400", "meaning": "The small share of bars that carry a direction label." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability from the clean pass and the denoising error at each rung.",
+      "fields": [
+        { "name": "probability the close 6 bars later is higher", "value": "56 percent", "meaning": "The top of the clean pass; the call the model makes at prediction time." },
+        { "name": "denoising error at the 35-feature rung", "value": "21 percent of the spread", "meaning": "How far the rebuilt 35 features were from the clean ones; lower is better." },
+        { "name": "denoising error at the 32-number rung", "value": "12 percent of the spread", "meaning": "The same measure for the first hidden rung of the ladder." },
+        { "name": "denoising error at the 16-number rung", "value": "5 percent of the spread", "meaning": "The same measure near the top, where the description is the most abstract." }
+      ]
+    },
+    "reading": "A 56 percent lean is modest and has to be judged on out-of-sample folds after costs. In this illustration the denoising errors fall toward the top; a rung whose error stays high is where information is being lost. Compare the model with the same network trained on the 400 labelled bars alone on the run page, to see whether the unlabeled bars helped."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-regression-techniques-multivariate-regression",
+  "name": "Multivariate Regression",
+  "analogy": "Think of it as a weather desk issuing a high, a low and a closing forecast from the same readings, and also keeping a note of how the three forecasts tend to miss together. A day that surprises on the high usually surprises on the close as well.",
+  "steps": [
+    {
+      "title": "Lay out one table with several answers per row",
+      "description": "Every training row holds the same feature readings, but instead of a single outcome it has a small set of related outcomes that were all measured on the same bar.",
+      "inExample": "Each 5-minute MNQ bar holds its four feature readings, beside three outcomes from the next bar: how far its high, its low and its close sit from this bar's close, in points."
+    },
+    {
+      "title": "Fit a set of weights for each outcome",
+      "description": "For each outcome it finds the best straight-line weights, exactly as an ordinary regression would. When every outcome uses the same features, these weights come out the same as three separate regressions would give.",
+      "inExample": "Three weight sets are found: one for the next high, one for the next low and one for the next close."
+    },
+    {
+      "title": "Collect the misses side by side",
+      "description": "For every row it records the miss on each outcome. Laying the misses next to each other is what makes the next step possible; separate regressions would have thrown this away.",
+      "inExample": "A bar whose next high came in 6 points above forecast also tended to have its next close 3 points above forecast."
+    },
+    {
+      "title": "Measure how the misses move together",
+      "description": "It builds a small table of how strongly each pair of outcomes' misses rise and fall together. A high number means the outcomes are tied to the same hidden driver and should not be treated as independent.",
+      "inExample": "The misses on the next high and the next close move together with a closeness of 62 percent on a scale from minus 100 to plus 100 percent; the high and the low are much less tied."
+    },
+    {
+      "title": "Test features across all outcomes at once",
+      "description": "A feature can be tested for whether it matters to the whole set of outcomes together, accounting for their closeness, instead of running three separate tests that could each be fooled by chance.",
+      "inExample": "Volume against its average is found to matter for the size of the next bar's high and low together, while the distance from the 50-bar average matters mostly for the close."
+    },
+    {
+      "title": "Forecast every outcome for a new bar together",
+      "description": "A new bar's features are put through each outcome's weights to give a full set of forecasts. The table of how misses move together then tells you how uncertain the set is as a whole.",
+      "inExample": "The 14:35 bar gets a forecast of plus 10 points for the next high, minus 8 for the next low and plus 1 for the next close."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasting a bar's high, low and close together",
+      "example": "Predicting how far the next 5-minute MNQ bar will stretch above and below the current close, to place stop and target orders."
+    },
+    {
+      "task": "Forecasting several horizons at once",
+      "example": "Predicting the change in price after 1, 6 and 12 bars from one set of features, so the three forecasts stay consistent with each other."
+    },
+    {
+      "task": "Forecasting related instruments together",
+      "example": "Predicting next-bar returns for MNQ and ES from shared features while keeping a record of how their surprises line up."
+    },
+    {
+      "task": "Estimating combined risk from the leftover misses",
+      "example": "Using the table of how misses move together as a rough measure of how much two positions' errors would pile up."
+    }
+  ],
+  "avoidWhen": [
+    "The outcomes are unrelated, or you only care about one of them; the joint structure then adds nothing and a plain linear regression is simpler to read.",
+    "The relationships bend or depend on the market regime; a straight-line fit per outcome averages the regimes together and a tree-based or regime-aware model is a better choice."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model is asked how far the next bar's high, low and close will sit from this close, all from the same four feature readings.",
+    "input": {
+      "summary": "One row of four feature readings for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "distance below the 50-bar moving average", "value": "77 points", "meaning": "How far the close sits below its average price of the last 50 bars." },
+        { "name": "change over the last 6 bars", "value": "minus 57 points", "meaning": "How much price fell over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." }
+      ]
+    },
+    "output": {
+      "summary": "Three linked forecasts for the next bar, plus how closely their misses tend to move together.",
+      "fields": [
+        { "name": "forecast next-bar high above this close", "value": "plus 10 points", "meaning": "How far the next bar's highest price is expected to reach above the current close." },
+        { "name": "forecast next-bar low below this close", "value": "minus 8 points", "meaning": "How far the next bar's lowest price is expected to fall below the current close." },
+        { "name": "forecast next-bar close above this close", "value": "plus 1 point", "meaning": "How far the next bar's closing price is expected to sit from the current close." },
+        { "name": "forecast next-bar range", "value": "18 points", "meaning": "The forecast high minus the forecast low, the expected travel of the next bar." },
+        { "name": "closeness of the misses on high and close", "value": "62 percent", "meaning": "How strongly the surprises on the high and the close rise and fall together, on a scale where 100 percent is perfectly in step." }
+      ]
+    },
+    "reading": "Use the three forecasts as a set: a range of 18 points with a close near the middle describes a quiet next bar. Because the high and close surprises move together, a stop and a target placed from these forecasts will tend to be wrong in the same direction, so do not count them as two separate safeguards."
+  }
+}

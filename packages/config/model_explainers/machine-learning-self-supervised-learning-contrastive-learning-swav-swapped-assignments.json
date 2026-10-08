@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-swav-swapped-assignments",
+  "name": "SwAV (Swapped Assignments)",
+  "analogy": "Think of it as two scouts looking at differently disguised copies of one chart, each sorting it into one of 32 filing drawers. They then swap answers: scout one must predict the drawer scout two chose, and the other way round. Drawers have to be used evenly, so no single drawer can hold everything.",
+  "steps": [
+    {
+      "title": "Make several altered views of each window",
+      "description": "A window of bars is copied a few times and each copy is changed in ways that should not alter its meaning, such as noise, small rescaling, hidden bars or a shorter crop. The copies come from the same window.",
+      "inExample": "A 48-bar MNQ window gets view A with noise and view B with 15 percent of bars masked."
+    },
+    {
+      "title": "Describe each view as a short vector",
+      "description": "A network reads each view and a small head shrinks it to a short vector scaled to unit length. This vector is the view's position on the model's internal map.",
+      "inExample": "Each view becomes a vector of 128 numbers."
+    },
+    {
+      "title": "Hold a set of prototypes",
+      "description": "The model keeps a fixed number of learned prototype vectors, one per drawer. Comparing a view's vector with each prototype tells how close the view is to each drawer. These prototypes are learned along with the network.",
+      "inExample": "32 prototypes are held, each a 128-number vector, and every view is scored against all 32."
+    },
+    {
+      "title": "Assign each view to drawers, evenly",
+      "description": "Within a batch the scores are turned into a soft assignment of each view across the drawers, with a rule that spreads the batch roughly evenly across drawers. This even-use rule stops the trivial answer of putting every window in the same drawer.",
+      "inExample": "View A of today's window puts 71 percent on drawer 7 and the rest on neighbouring drawers."
+    },
+    {
+      "title": "Swap and predict",
+      "description": "The assignment computed for view A is used as the answer key for view B, and the assignment from view B is used as the key for view A. Each view must predict the other's drawer, so both must capture what the window is, not how it was disguised.",
+      "inExample": "View B is trained to put its probability on drawer 7, the drawer view A chose, and vice versa."
+    },
+    {
+      "title": "Use the drawers and the vectors afterwards",
+      "description": "After training, the drawers give data-driven market states, and the encoder's vector for a window can feed other models. Each drawer is a recurring kind of window that can be inspected on the chart.",
+      "inExample": "Drawer 7 turns out to contain quiet upward-drifting mornings with below-average volume."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Discovering recurring market states",
+      "example": "Sorting years of MNQ 5-minute windows into 32 drawers and studying what each drawer looks like."
+    },
+    {
+      "task": "Regime labels without labels",
+      "example": "Using the drawer number as a regime feature for a downstream model, alongside the 151 indicators."
+    },
+    {
+      "task": "Pretraining without negatives",
+      "example": "Learning window descriptions without needing a huge batch of wrong examples."
+    },
+    {
+      "task": "Spotting windows that fit no drawer",
+      "example": "Flagging windows whose probability is spread thinly across drawers as unlike anything seen before."
+    }
+  ],
+  "avoidWhen": [
+    "You already know the regimes you care about and have labels for them; a supervised classifier gives you those exact classes.",
+    "Real market states are very uneven in frequency; forcing windows to spread evenly across drawers can split a common state or merge rare ones."
+  ],
+  "example": {
+    "scenario": "A researcher trains SwAV on two years of unlabelled MNQ 5-minute windows with 32 drawers. They then take the current morning window and read which drawer it falls in and how confident the assignment is.",
+    "input": {
+      "summary": "One window of bars with altered views, scored against 32 learned prototypes.",
+      "fields": [
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "number of drawers", "value": "32", "meaning": "How many recurring window types the model sorts into." },
+        { "name": "vector length", "value": "128 numbers", "meaning": "The size of the window description compared with each prototype." },
+        { "name": "average true range, 14 bars", "value": "18 points", "meaning": "The recent typical bar travel, low for this time of day." },
+        { "name": "volume against its 20-bar average", "value": "20 percent below", "meaning": "Trading is quieter than usual." }
+      ]
+    },
+    "output": {
+      "summary": "A drawer assignment with probabilities, and a description of the window.",
+      "fields": [
+        { "name": "most likely drawer", "value": "drawer 7", "meaning": "The recurring window type the model assigns to this window." },
+        { "name": "probability on drawer 7", "value": "71 percent", "meaning": "How much of the assignment sits on that drawer." },
+        { "name": "second most likely drawer", "value": "drawer 21 at 12 percent", "meaning": "The runner-up, showing how clearly the window belongs to one type." },
+        { "name": "window description", "value": "128 numbers", "meaning": "The vector available to other models." }
+      ]
+    },
+    "reading": "A 71 percent assignment means the window sits clearly in drawer 7. The drawer has no meaning until you look at its members and at what followed them. Use it as a regime feature only if returns differ between drawers on data not used to learn them, across walk-forward folds."
+  }
+}

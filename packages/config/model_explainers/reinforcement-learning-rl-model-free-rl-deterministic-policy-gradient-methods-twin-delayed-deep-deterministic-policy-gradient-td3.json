@@ -1,0 +1,89 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-twin-delayed-deep-deterministic-policy-gradient-td3",
+  "name": "Twin Delayed Deep Deterministic Policy Gradient (TD3)",
+  "analogy": "Think of it as the position-sizing dial and coach of the earlier method, with three safety habits added. Two independent coaches grade every size and the stricter grade counts, the dial is only adjusted after the coaches have settled, and graded sizes are blurred slightly so no lucky sharp spike gets rewarded.",
+  "steps": [
+    {
+      "title": "Act with an exact size plus practice noise",
+      "description": "The actor outputs one position size for the state, and a little random noise is added while collecting experience so that nearby sizes are tried.",
+      "inExample": "In an oversold state the actor outputs plus 28 percent of maximum, and noise of plus 5 percent makes the traded size 33 percent."
+    },
+    {
+      "title": "Store the experience in a replay memory",
+      "description": "Each state, action, reward and next state is saved. Training draws random batches from this memory, so old steps are reused many times.",
+      "inExample": "The step is saved among 250,000 stored steps."
+    },
+    {
+      "title": "Blur the next action before grading it",
+      "description": "To build the training target, the slow copy of the actor proposes the next action, and a small clipped amount of noise is added to it. This stops the critic from learning to love a single narrow spike of value.",
+      "inExample": "The slow actor proposes plus 25 percent for the next state, and clipped noise nudges it to plus 29 percent before grading."
+    },
+    {
+      "title": "Let two critics grade, and take the lower grade",
+      "description": "Two critics, started separately, each grade the blurred next action. The lower grade is used to build the target, which counters the tendency of critics to be too optimistic.",
+      "inExample": "The critics grade the next step 4 and 3 US dollars, so 3 is used in the target."
+    },
+    {
+      "title": "Update both critics every step",
+      "description": "Each critic is pulled toward the same target built from the reward and the lower grade. Both learn on every step so they stay close to the real values.",
+      "inExample": "With a reward of 4 and a discounted next value of 3, both critics are pulled toward about 7 for the step."
+    },
+    {
+      "title": "Update the actor only every second step",
+      "description": "The actor is adjusted less often than the critics, and only in the direction one critic says raises the score. Waiting lets the critics settle first, so the actor is not chasing a moving target.",
+      "inExample": "The actor is updated after the second critic update and its size for this state moves from 28 to 30 percent."
+    },
+    {
+      "title": "Slowly blend the copies",
+      "description": "The slow copies of the actor and both critics are moved a small fraction of the way toward the current networks, and only when the actor is updated.",
+      "inExample": "Each slow copy moves half of one percent of the way toward its current network."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Stable continuous position sizing",
+      "example": "Training a size output on Micro E-mini Nasdaq-100 futures (MNQ) 5-minute bars, where a method prone to collapse into always long would be unusable."
+    },
+    {
+      "task": "Sizing legs of a spread together",
+      "example": "Outputting one size per leg of a two-contract spread so both are decided at once."
+    },
+    {
+      "task": "A safer upgrade from deep deterministic policy gradient",
+      "example": "Swapping it in for the earlier method when training curves are erratic, since the extra cost is modest."
+    },
+    {
+      "task": "Spotting unreliable value estimates",
+      "example": "Watching the gap between the two critics and distrusting states where it is large."
+    }
+  ],
+  "avoidWhen": [
+    "The action is a small set of choices; a discrete method such as a deep Q-network is simpler than a method built for continuous sizes.",
+    "You want a stochastic agent that keeps exploring forever; soft actor-critic keeps its choices spread out by design, whereas this method relies on added noise."
+  ],
+  "example": {
+    "scenario": "A twin-critic agent sizes positions on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars within a 4-contract maximum. At 15:05 it is flat and must output a size.",
+    "input": {
+      "summary": "The state the actor reads and the settings that shape the safety habits.",
+      "fields": [
+        { "name": "close", "value": "19,276", "meaning": "The price at which the 15:05 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "30", "meaning": "A momentum reading; the market is at the edge of oversold." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "maximum position", "value": "4 contracts", "meaning": "The size that an action of 100 percent corresponds to." },
+        { "name": "actor updates per critic update", "value": "1 for every 2", "meaning": "The delay that lets the critics settle before the actor moves." }
+      ]
+    },
+    "output": {
+      "summary": "The size chosen and the two critic grades behind it.",
+      "fields": [
+        { "name": "actor output", "value": "plus 28 percent", "meaning": "The exact position size as a share of the maximum." },
+        { "name": "contracts at deployment", "value": "1", "meaning": "28 percent of 4 contracts is a little over 1, rounded to a whole contract." },
+        { "name": "first critic grade", "value": "4 US dollars", "meaning": "One critic's estimate of the value of this state and size." },
+        { "name": "second critic grade", "value": "3 US dollars", "meaning": "The other critic's estimate; the gap shows how much the critics disagree." },
+        { "name": "grade used for learning", "value": "3 US dollars", "meaning": "The lower of the two, so the estimate leans cautious." }
+      ]
+    },
+    "reading": "Deploy the exact actor output without noise, rounded to whole contracts. A one-dollar gap between the critics is small here; a gap that grows large in some states means the value estimate is shaky there and a smaller size or no trade is sensible. Validate the trained agent on held-out folds after costs."
+  }
+}

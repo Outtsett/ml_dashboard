@@ -1,0 +1,83 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-fuzzy-logic-model",
+  "name": "Fuzzy Logic Model",
+  "analogy": "Think of it as a dimmer switch instead of an on-off switch. A relative strength index of 68 is not simply overbought or not; it is partly neutral and mostly high, and the output glides smoothly as the reading moves instead of jumping at a hard threshold.",
+  "steps": [
+    {
+      "title": "Define the word categories",
+      "description": "For each input you choose a few everyday labels, such as neutral and high. Each label is a smooth shape over the input's range that says how well a given reading fits that label.",
+      "inExample": "For the relative strength index the labels are neutral, fully true up to 55 and fading to zero at 75, and high, rising from zero at 55 to full at 75."
+    },
+    {
+      "title": "Turn each number into degrees of fit",
+      "description": "A measured reading is looked up against every label and gets a degree between zero and 100 percent for each. Neighbouring labels overlap, so a reading near a boundary belongs partly to both.",
+      "inExample": "A relative strength index of 68 is 35 percent neutral and 65 percent high; a moving average convergence divergence histogram of plus 4 points is 80 percent rising."
+    },
+    {
+      "title": "Write the rules in words",
+      "description": "Rules are phrased in the same labels, such as if the reading is high and momentum is rising then the signal is bullish. Each rule says which output label it supports.",
+      "inExample": "Rule one: high and rising gives bullish. Rule two: neutral and rising gives mildly bullish."
+    },
+    {
+      "title": "Score each rule with the weakest link",
+      "description": "For an and rule, the rule's strength is the smallest degree among its conditions; for an or rule, the largest. A rule is therefore only as strong as its weakest condition.",
+      "inExample": "Rule one gets the smaller of 65 and 80 percent, which is 65 percent. Rule two gets the smaller of 35 and 80 percent, which is 35 percent."
+    },
+    {
+      "title": "Blend the rule outputs into one shape",
+      "description": "Each rule cuts its output label down to its strength, and all the cut shapes are overlaid into one combined shape. A stronger rule contributes more of its label.",
+      "inExample": "The bullish label is cut at 65 percent of its height and the mildly bullish label at 35 percent, then the two are overlaid."
+    },
+    {
+      "title": "Collapse the shape into one number",
+      "description": "Defuzzification turns the combined shape back into a single number, usually the balance point of the shape. The result changes smoothly as the inputs change.",
+      "inExample": "The balance point lands at about plus 54 on a scale running from minus 100 to plus 100."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A smooth signal from several indicators",
+      "example": "Blending the relative strength index, momentum and volatility of MNQ 5-minute bars into one score that moves gradually instead of flipping at thresholds."
+    },
+    {
+      "task": "Stop distances that scale with volatility",
+      "example": "Widening stops smoothly as volatility moves from calm to fast rather than jumping between fixed bands."
+    },
+    {
+      "task": "A single risk score",
+      "example": "Combining drawdown proximity, correlation between MNQ and ES, and volatility into one score that sets position size."
+    },
+    {
+      "task": "Blending across a session change",
+      "example": "Shifting strategy settings gradually as the market moves from the overnight session to the New York open."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labelled history and want the data to decide the thresholds; a learned model fits them, while a fuzzy model uses the labels you wrote by hand.",
+    "The rule base would grow very large, since every added input multiplies the number of rule combinations to maintain."
+  ],
+  "example": {
+    "scenario": "On an MNQ 5-minute chart you want a smooth bullish-or-bearish score from momentum readings, without a hard cutoff at an overbought level of 70.",
+    "input": {
+      "summary": "Two raw readings from the latest bar and the labels they are compared with.",
+      "fields": [
+        { "name": "relative strength index, 14 bars", "value": "68", "meaning": "A momentum reading from 0 to 100; 70 is the usual hard overbought line." },
+        { "name": "moving average convergence divergence histogram", "value": "plus 4 points", "meaning": "How far the fast momentum line is above the slow one; positive and growing means momentum is rising." },
+        { "name": "label: high relative strength", "value": "rises from 55 to 75", "meaning": "The range over which a reading increasingly counts as high; neutral fades out over the same range." },
+        { "name": "label: momentum rising", "value": "rises from 0 to plus 5 points", "meaning": "The range over which a histogram reading increasingly counts as rising." },
+        { "name": "output label: mildly bullish", "value": "from 0 to plus 60, peak at plus 30", "meaning": "A triangle on the score scale that runs from minus 100 to plus 100." },
+        { "name": "output label: bullish", "value": "from plus 40 to plus 100, peak at plus 70", "meaning": "A second triangle on the same score scale." }
+      ]
+    },
+    "output": {
+      "summary": "Degrees of fit, rule strengths and the single defuzzified score.",
+      "fields": [
+        { "name": "relative strength index is high", "value": "65 percent", "meaning": "How much the reading of 68 fits the high label." },
+        { "name": "momentum is rising", "value": "80 percent", "meaning": "How much the histogram of plus 4 points fits the rising label." },
+        { "name": "bullish rule strength", "value": "65 percent", "meaning": "The weaker of 65 and 80 percent, because both conditions must hold." },
+        { "name": "final signal score", "value": "about plus 54 of 100", "meaning": "The balance point of the blended output shape on a scale from minus 100 to plus 100." }
+      ]
+    },
+    "reading": "A reading of 68 still scores clearly bullish instead of being treated as nothing by a hard 70 line, and a reading of 72 would shift the score by a small amount, not flip it. Treat plus 54 as a graded input to sizing and test the labels on held-out bars before trusting the shapes you drew."
+  }
+}

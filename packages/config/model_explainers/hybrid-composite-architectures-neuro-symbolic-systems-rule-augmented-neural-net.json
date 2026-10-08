@@ -1,0 +1,78 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-rule-augmented-neural-net",
+  "name": "Rule-Augmented Neural Net",
+  "analogy": "Think of it as a trading algorithm with a compliance officer standing next to it. The algorithm proposes a trade from what it has learned, and the compliance officer applies the house rules: halve the size when the market is wild, no new trades near the close, and the final order is whatever survives that check.",
+  "steps": [
+    {
+      "title": "The network makes its own proposal",
+      "description": "An ordinary neural network reads the bars and indicators and produces a first prediction, such as the chance of an up move. At this point it knows nothing of the house rules.",
+      "inExample": "From the last 40 five-minute MNQ bars it proposes a 59 percent chance that the close 6 bars later is higher."
+    },
+    {
+      "title": "Express the house rules in a machine-readable form",
+      "description": "Rules are written as simple checks: a threshold rule such as a volatility ceiling, a logical rule, or a probabilistic one. Each is turned into a test that can look at the features or at the proposal.",
+      "inExample": "Rule one: halve the size when the 5-minute average true range is above 35 points. Rule two: no new entries within 15 minutes of the 16:00 Eastern close."
+    },
+    {
+      "title": "Check each rule against the current bar",
+      "description": "Every rule reports whether and how strongly it applies right now. Because they are computed smoothly, a rule can partly apply, and because they are computed the same way each time, a reviewer can read exactly which ones fired.",
+      "inExample": "At 11:05 the average true range is 38 points, so rule one applies fully; the session close is five hours away, so rule two does not apply."
+    },
+    {
+      "title": "Let the rules reshape the output",
+      "description": "The rules act on the proposal. They can block it outright, cut its size, nudge its probability, or be combined by a gating layer that learns how far to trust them. The result is a final decision that cannot ignore the house rules.",
+      "inExample": "Rule one halves the intended size from 2 contracts to 1; rule two leaves it alone. The direction stays long at 59 percent."
+    },
+    {
+      "title": "Teach the network the rules during training",
+      "description": "In training, the rules also add a penalty to the loss whenever the network's proposals would break them. Over time the network proposes trades that already respect the rules, so the rule layer rarely has to step in.",
+      "inExample": "Training proposals that bought at full size when volatility was high were penalised, so the network now learns smaller proposals in high-volatility bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Enforcing risk limits on a learned strategy",
+      "example": "Capping position size when volatility is high or blocking entries in the final minutes of the session while keeping a learned direction signal."
+    },
+    {
+      "task": "Embedding a trader's playbook in a model",
+      "example": "Requiring that long entries on MNQ only happen when price is above its 50-bar moving average, and letting the network learn the timing."
+    },
+    {
+      "task": "Reducing rule-breaking trades in a backtest",
+      "example": "Comparing walk-forward folds with and without the rule layer to count how many trades the rules removed and what they cost or saved."
+    },
+    {
+      "task": "A readable log of why an order was changed",
+      "example": "Recording that a 2 contract order became 1 contract because the volatility rule fired, for later review."
+    }
+  ],
+  "avoidWhen": [
+    "The rules are unproven guesses; rules that are not tested can reduce good trades as easily as bad ones, so measure them separately first.",
+    "All you need is a set of hard limits that never involve learning; implement those in the order-handling code and keep the model clean.",
+    "You want the model to find the structure on its own and then explain it; learn first with a flexible model and write rules from what it finds."
+  ],
+  "example": {
+    "scenario": "At 11:05 Eastern a 5-minute MNQ bar closes during a volatile spell. The network proposes a long of 2 contracts, and the house rules decide the final order.",
+    "input": {
+      "summary": "The bar's features and the network's raw proposal, which the rules inspect.",
+      "fields": [
+        { "name": "close", "value": "20,310", "meaning": "The price at which the 11:05 five-minute MNQ bar closed." },
+        { "name": "average true range, 14 bars", "value": "38 points", "meaning": "The typical high-to-low travel of a recent bar, high compared with a usual 15 to 30." },
+        { "name": "time to the 16:00 Eastern close", "value": "4 hours 55 minutes", "meaning": "How long until the session ends; the end-of-session rule watches this." },
+        { "name": "network probability of a higher close in 6 bars", "value": "59 percent", "meaning": "The network's own proposal before any rule is applied." },
+        { "name": "proposed size", "value": "2 contracts", "meaning": "The size the network would trade if no rule intervened." }
+      ]
+    },
+    "output": {
+      "summary": "Which rules fired and the final order.",
+      "fields": [
+        { "name": "volatility rule", "value": "fired", "meaning": "The average true range of 38 points is above the 35 point ceiling, so the size is halved." },
+        { "name": "end-of-session rule", "value": "not fired", "meaning": "There are almost five hours left, so entries are allowed." },
+        { "name": "final order", "value": "buy 1 contract", "meaning": "The long is kept at 59 percent but halved from 2 contracts to 1." },
+        { "name": "risk per contract at a stop of 1 average true range", "value": "76 US dollars", "meaning": "A stop 38 points below entry at 2 US dollars per point." }
+      ]
+    },
+    "reading": "The rules did not change the direction, only the size, which is what a risk rule should do. Count how often the volatility rule fires: if it blocks half the day's trades, check whether the ceiling is set too low."
+  }
+}

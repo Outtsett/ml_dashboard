@@ -1,0 +1,84 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-multinomial-logistic-regression",
+  "name": "Multinomial Logistic Regression",
+  "analogy": "Think of it as a panel of judges, one per outcome, each holding up a score card for how well the current bar fits their outcome. A final step turns the score cards into shares of one hundred percent, so the probabilities always add up and a high score for one outcome automatically takes share from the others.",
+  "steps": [
+    {
+      "title": "Split the future into several unordered outcomes",
+      "description": "The target is turned into three or more labels that exclude each other, and each training bar gets exactly one. The model learns how often each label followed each kind of situation.",
+      "inExample": "Over the next 6 bars (30 minutes), the move is labeled down if below minus 8 points, up if above plus 8 points, and flat otherwise."
+    },
+    {
+      "title": "Pick one outcome as the reference",
+      "description": "Only differences between outcomes matter, so one outcome is held as the reference with a score fixed at zero. Every other outcome's score is measured relative to it. This avoids the model having more freedom than the data can pin down.",
+      "inExample": "Flat is chosen as the reference, so only the down score and the up score have to be learned."
+    },
+    {
+      "title": "Give each outcome its own weights and score",
+      "description": "Each non-reference outcome has its own set of weights, one per feature. For a bar the model adds up the weighted features separately for each outcome. A positive score means this outcome looks more likely than the reference; a negative score means less.",
+      "inExample": "For the 10:45 bar, both the down score and the up score are positive relative to flat, and the up score is the larger of the two."
+    },
+    {
+      "title": "Turn the scores into shares of one hundred percent",
+      "description": "Each score is converted into a positive strength by exponentiating it, so the reference outcome always has a strength of 100 and a positive score gives more than 100. Each strength is then divided by the sum of all the strengths. This turns them into probabilities that add up to exactly one hundred percent.",
+      "inExample": "The three relative strengths are 129 for down, 100 for flat and 188 for up, which add to 417, giving 31 percent down, 24 percent flat and 45 percent up."
+    },
+    {
+      "title": "Fit all weights together",
+      "description": "Training adjusts the weights of every outcome at the same moment to make the quoted probabilities match what happened as closely as possible. A confident wrong answer is punished heavily. This is better than fitting separate yes-or-no models, which can add up to more or less than one hundred percent.",
+      "inExample": "All the weights for down and up are fitted together on 20,000 past bars, with a mild penalty keeping them from growing too large."
+    },
+    {
+      "title": "Return the full probability list",
+      "description": "For a new bar the model returns one probability per outcome. The most likely outcome can be taken as a single call, but the whole list is more useful, since it shows how decisive the lean is.",
+      "inExample": "The result for the new bar is down 31 percent, flat 24 percent, up 45 percent, so up is the most likely call."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Three-way direction instead of two-way",
+      "example": "Predicting down, flat or up for the next 6 bars so that quiet, sideways periods are not forced into a false up or down call."
+    },
+    {
+      "task": "Bucketing the next return",
+      "example": "Sorting the next 30-minute MNQ return into five quantile buckets for a coarse signal about direction and size."
+    },
+    {
+      "task": "Labeling the market regime",
+      "example": "Assigning each bar to trending up, trending down, ranging or high-volatility from 35 base features and a hand-labeled history."
+    },
+    {
+      "task": "Classifying order-flow patterns",
+      "example": "Telling absorption, continuation and exhaustion apart in a bar from volume at the bid, volume at the ask and the close position."
+    }
+  ],
+  "avoidWhen": [
+    "The outcomes have a natural order, such as large down, small down and small up; an ordinal model uses that order and needs far fewer weights.",
+    "The right call depends on combinations of features; gradient boosting or a neural network captures interactions that separate weighted sums cannot."
+  ],
+  "example": {
+    "scenario": "At 10:45 on an MNQ 5-minute chart a trader wants the odds of a down move, a flat period or an up move over the next 30 minutes, where flat means the close 6 bars later is within 8 points of now.",
+    "input": {
+      "summary": "One row of features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,380", "meaning": "The price at which the 10:45 bar closed." },
+        { "name": "move over the last 6 bars", "value": "minus 43 points", "meaning": "How far price has fallen over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "39", "meaning": "A momentum reading from 0 to 100; below 50 means selling has dominated." },
+        { "name": "average true range, 14 bars", "value": "19 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "20 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "close position within the bar", "value": "35 percent of the way up", "meaning": "Where the close sat between the bar's low (0 percent) and high (100 percent)." }
+      ]
+    },
+    "output": {
+      "summary": "One probability for each of the three outcomes, adding to one hundred percent.",
+      "fields": [
+        { "name": "relative strength of down", "value": "129 against flat at 100", "meaning": "How much more the bar resembles past down cases than flat ones." },
+        { "name": "relative strength of up", "value": "188 against flat at 100", "meaning": "How much more the bar resembles past up cases than flat ones." },
+        { "name": "probability of down", "value": "31 percent", "meaning": "The share of the total assigned to a move below minus 8 points." },
+        { "name": "probability of flat", "value": "24 percent", "meaning": "The share assigned to a move between minus 8 and plus 8 points." },
+        { "name": "probability of up", "value": "45 percent", "meaning": "The share assigned to a move above plus 8 points." }
+      ]
+    },
+    "reading": "Up leads by 14 points of probability over down, but one chance in four is flat, where a directional trade only pays costs. Weigh the up and down shares by their typical move sizes, not by the probabilities alone, and check on later bars that each quoted share matched how often that outcome occurred."
+  }
+}

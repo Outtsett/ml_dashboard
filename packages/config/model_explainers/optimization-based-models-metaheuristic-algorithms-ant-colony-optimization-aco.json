@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-ant-colony-optimization-aco",
+  "name": "Ant Colony Optimization (ACO)",
+  "analogy": "Think of it as a crowd of couriers finding the fastest route through a city. Each leaves a faint chalk mark on the roads it used, stronger if its trip was short. The next couriers prefer marked roads, the chalk slowly fades, and the busiest short route ends up clearly marked.",
+  "steps": [
+    {
+      "title": "Describe the problem as a path of choices",
+      "description": "Lay the problem out as a series of choices, such as the order in which to visit items. Every possible next choice from every position gets a trail strength, set equal at the start.",
+      "inExample": "Five pre-trade checks must be run in some order. Every check-follows-check pair starts with the same trail strength."
+    },
+    {
+      "title": "Send out ants to build whole solutions",
+      "description": "Each ant builds a complete solution one choice at a time. At each choice it picks randomly, favouring options with a stronger trail and options that look good by a simple rule of thumb.",
+      "inExample": "20 ants each build a full order of the 5 checks, leaning toward cheap checks that reject often."
+    },
+    {
+      "title": "Score every ant's solution",
+      "description": "Each finished solution is scored with the real objective, which here is lower cost. Because the cost of a later check depends on whether earlier ones passed, the order matters.",
+      "inExample": "An ant that runs the news check first averages about 18 milliseconds per order; an ant that runs spread, volume, volatility, risk limit and then news averages about 12."
+    },
+    {
+      "title": "Lay trail in proportion to quality",
+      "description": "Each ant adds trail to the choices it used, more for better solutions. Good routes become more attractive to later ants.",
+      "inExample": "The ants with the cheapest orders add the most trail to the pairs spread-then-volume and volume-then-volatility."
+    },
+    {
+      "title": "Let the old trail fade",
+      "description": "A fixed share of all trail evaporates each round. This stops the colony from locking onto an early good-enough route and keeps some exploration alive.",
+      "inExample": "10 percent of every trail strength disappears after each of the 50 rounds."
+    },
+    {
+      "title": "Read the strongest route",
+      "description": "After the final round the route with the best score, or the one with the strongest trail, is reported as the answer.",
+      "inExample": "The strongest route is spread, volume, volatility, risk limit, then news, with an expected cost of about 12 milliseconds per order."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Ordering a chain of checks",
+      "example": "Deciding the order of five pre-trade filters so that cheap, often-rejecting ones run first and the expensive news check runs last."
+    },
+    {
+      "task": "Sequencing orders across venues",
+      "example": "Choosing the order in which to send child orders to venues so expected slippage and fees are lowest."
+    },
+    {
+      "task": "Sequencing a rebalance",
+      "example": "Ordering position changes across several futures so that the impact of one trade on the next is smallest."
+    },
+    {
+      "task": "Building an ordered chain of rules",
+      "example": "Constructing a sequence of conditional entry rules where each rule's position changes how many false signals get filtered."
+    }
+  ],
+  "avoidWhen": [
+    "The problem has only a handful of items; just try every order. Five checks have only 120 orderings.",
+    "The choices are continuous numbers rather than a path or order, such as stop distance; particle swarm or differential evolution suits that better."
+  ],
+  "example": {
+    "scenario": "A live trading system runs five checks before sending an MNQ order, and an order is dropped as soon as one check fails. Each check has a cost in time and a chance of rejecting. The colony searches for the cheapest order of checks.",
+    "input": {
+      "summary": "Five checks with their time cost and rejection chance, plus the colony settings.",
+      "fields": [
+        { "name": "spread check", "value": "2 milliseconds, rejects 30 percent", "meaning": "Cost and rejection chance of the spread check." },
+        { "name": "volume check", "value": "3 milliseconds, rejects 20 percent", "meaning": "Cost and rejection chance of the volume check." },
+        { "name": "volatility check", "value": "4 milliseconds, rejects 25 percent", "meaning": "Cost and rejection chance of the volatility check." },
+        { "name": "risk limit check", "value": "1 millisecond, rejects 5 percent", "meaning": "Cost and rejection chance of the risk limit check." },
+        { "name": "news check", "value": "12 milliseconds, rejects 10 percent", "meaning": "Cost and rejection chance of the news check." },
+        { "name": "ants and rounds", "value": "20 ants, 50 rounds", "meaning": "Size of the colony and how long it searches." },
+        { "name": "evaporation", "value": "10 percent per round", "meaning": "Share of trail that fades each round." }
+      ]
+    },
+    "output": {
+      "summary": "The best order found and what it saves against running the news check first.",
+      "fields": [
+        { "name": "best order", "value": "spread, volume, volatility, risk limit, news", "meaning": "The order with the lowest expected cost per order." },
+        { "name": "expected cost of best order", "value": "about 12 milliseconds", "meaning": "Average time spent per order, counting that failed orders stop early." },
+        { "name": "expected cost with news first", "value": "about 18 milliseconds", "meaning": "The same checks run in the order news, spread, volume, volatility, risk limit." },
+        { "name": "routes built by the colony", "value": "1,000 (20 ants over 50 rounds)", "meaning": "Only 120 distinct orders exist, so the colony revisits good orders many times." }
+      ]
+    },
+    "reading": "The best order saves about 6 milliseconds per order against the news-first order. With only five checks the same answer is found by trying all 120 orders, so this is a demonstration of the mechanism; the colony pays off when the sequence has dozens of items."
+  }
+}

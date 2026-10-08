@@ -1,0 +1,82 @@
+{
+  "specificationId": "generative-models-autoregressive-autoregressive-model-pixelrnn-pixelcnn",
+  "name": "Autoregressive Models (PixelRNN and PixelCNN)",
+  "analogy": "Think of it as drawing a chart one candle at a time from left to right, where before each candle you look only at the candles already drawn and say how likely each possible next candle is. You pick one, draw it, and move on to the next position.",
+  "steps": [
+    {
+      "title": "Put the data in a fixed order",
+      "description": "Everything is laid out in a single order, such as pixels row by row from the top-left corner. The model will only ever use items earlier in the order to say something about the next one.",
+      "inExample": "A series of 5-minute MNQ bar returns is laid out from oldest to newest, each return rounded into one of 32 size buckets."
+    },
+    {
+      "title": "Hide the future",
+      "description": "The network is built so that it cannot see anything later than the position it is predicting. PixelCNN does this by blocking part of each convolution filter, and PixelRNN by letting its memory flow only from earlier positions to later ones.",
+      "inExample": "When predicting bar 9, the model can read bars 1 to 8 and nothing after."
+    },
+    {
+      "title": "Read the past to describe the next value",
+      "description": "PixelRNN carries a running memory forward as it reads. PixelCNN looks at a window of recent items with its masked filters, which lets it train in parallel and much faster.",
+      "inExample": "The model reads the 8 earlier returns and notes a small rise, a flat bar and a sharp drop in the last three."
+    },
+    {
+      "title": "Give a probability for every possible next value",
+      "description": "The output is not one guess. It is a full list of probabilities across all the allowed values, which makes the model an exact scorer of how likely any whole sequence is.",
+      "inExample": "The model assigns probabilities across the 32 buckets for bar 9, with the most weight on small moves."
+    },
+    {
+      "title": "Train by maximizing the chance of the real data",
+      "description": "During training, the model is shown real sequences and rewarded for giving the true next value a high probability. Repeated over many sequences, it learns what usually follows what.",
+      "inExample": "Across a year of 5-minute bars, each real next bucket is the answer the model is trained to rank highly."
+    },
+    {
+      "title": "Generate by drawing one value at a time",
+      "description": "To create new data, the model draws the next value from its probabilities, adds it to the sequence, and repeats. It is slow because each value waits for the one before it.",
+      "inExample": "A drawn bucket for bar 9 is added to the sequence, then the model draws bar 10, and so on for 12 new bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Scoring how typical a sequence is",
+      "example": "Giving a recent run of 5-minute MNQ returns an exact likelihood, so a very unlikely stretch can be flagged as unusual market behaviour."
+    },
+    {
+      "task": "Next-step probability tables",
+      "example": "Producing the full probability list for the next 5-minute return bucket rather than a single up or down call."
+    },
+    {
+      "task": "Generating synthetic sequences",
+      "example": "Sampling long runs of return buckets one at a time to build scenarios with realistic step-by-step dependence."
+    },
+    {
+      "task": "Chart-image modelling",
+      "example": "Treating a candlestick chart picture as pixels in a fixed order to measure how well a pattern is captured, which is the original use of the model."
+    }
+  ],
+  "avoidWhen": [
+    "You need many samples quickly; generating one value at a time is slow, and a generative adversarial network or a diffusion model with fewer steps produces samples faster.",
+    "The pattern depends on a long history beyond what the model reads; a transformer reads far-apart positions directly, while these models fade with distance."
+  ],
+  "example": {
+    "scenario": "A researcher turns MNQ 5-minute returns into 32 size buckets and trains a PixelCNN-style model on a year of bars. After 8 bars they ask for the model's probability list for bar 9.",
+    "input": {
+      "summary": "The eight bucketed returns so far and the setting for the next draw.",
+      "fields": [
+        { "name": "bars read so far", "value": "8", "meaning": "How many earlier 5-minute returns the model reads before predicting bar 9." },
+        { "name": "bucket of bar 8", "value": "bucket 9 of 32 (sharp drop)", "meaning": "The size bucket of the most recent return; low numbers are drops and high numbers are rises." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, used to set the size of each bucket." },
+        { "name": "bucket width", "value": "3 points", "meaning": "How much movement is covered by each bucket." },
+        { "name": "closing price of bar 8", "value": "19,305", "meaning": "The close at the end of the known part of the sequence." }
+      ]
+    },
+    "output": {
+      "summary": "A probability list for bar 9, a most likely bucket, and a drawn value.",
+      "fields": [
+        { "name": "most likely bucket", "value": "bucket 16 (flat), 14 percent", "meaning": "The single bucket with the most probability, a bar that barely moves." },
+        { "name": "probability the next return is up", "value": "52 percent", "meaning": "The total probability of all buckets that mean a rise." },
+        { "name": "drawn bucket", "value": "bucket 18 (rise of about 6 points)", "meaning": "The value picked at random according to the probabilities, to extend the sequence." },
+        { "name": "typicality of the sequence", "value": "average log probability about minus 3 per bar", "meaning": "A score of how likely the model finds the whole 8-bar sequence; much lower values mean an unusual stretch." }
+      ]
+    },
+    "reading": "A 52 percent chance of a rise is close to a coin flip, so the useful information is the shape of the full list, such as how wide it is, not a call. Use the typicality number to flag unusual stretches and check any claim of edge on held-out data."
+  }
+}

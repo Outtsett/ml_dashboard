@@ -1,0 +1,77 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-vanilla-policy-gradient",
+  "name": "Vanilla Policy Gradient",
+  "analogy": "Think of it as a trading desk that reviews a whole batch of days at once, not a single day. For each decision the desk asks: was this outcome better or worse than what a day like this usually brings? Choices that beat the norm are repeated more, and choices that fell short are repeated less.",
+  "steps": [
+    {
+      "title": "Play several full episodes",
+      "description": "The current policy plays a number of complete episodes, not just one, recording every situation, choice and reward. More episodes per update means the learning signal is less noisy.",
+      "inExample": "The policy trades 16 full sessions of 78 five-minute MNQ bars each, 1,248 decisions in all."
+    },
+    {
+      "title": "Total up the outcome from each decision onward",
+      "description": "For every decision, the model adds up the reward from that point to the end of its episode, with distant reward counted a little less.",
+      "inExample": "A long entered at bar 30 of session 4 was followed by a total of plus 38 US dollars to the end of that session."
+    },
+    {
+      "title": "Teach a second network what is normal",
+      "description": "A separate network learns to predict the usual outcome from each situation. It is trained by comparing its guess with the real totals, and it is used only as a yardstick, never to build targets from its own guesses.",
+      "inExample": "For the situation at bar 30 of session 4, the second network expects a total of plus 10 dollars."
+    },
+    {
+      "title": "Score each decision as better or worse than normal",
+      "description": "The yardstick is subtracted from the real outcome. The result, called the advantage, is positive when the decision beat the norm and negative when it did not.",
+      "inExample": "Plus 38 minus 10 gives an advantage of plus 28 for that long entry."
+    },
+    {
+      "title": "Average the nudges across the batch and update once",
+      "description": "Every decision nudges the policy in proportion to its advantage, and the nudges from all episodes are averaged into one update. The batch is then thrown away because it came from the old policy.",
+      "inExample": "The 1,248 nudges are averaged into one update, and the 16 sessions are discarded."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A steadier step up from the single-episode method",
+      "example": "Training an MNQ position policy when learning from one session at a time jumps around too much to see any trend."
+    },
+    {
+      "task": "Strategies organised in sessions",
+      "example": "Treating each trading day as an episode and averaging 16 days into every update."
+    },
+    {
+      "task": "Seeing what a good yardstick is worth",
+      "example": "Comparing the learning curve with and without the second network to measure how much noise it removes."
+    },
+    {
+      "task": "A starting point before methods that learn as they go",
+      "example": "Getting a rough policy that a later method, which learns bar by bar, can begin from."
+    }
+  ],
+  "avoidWhen": [
+    "You need to learn efficiently from limited data; every batch is used once and thrown away, so a method that reuses its data or a stored buffer of experience is more economical.",
+    "Episodes are very long; the totals stay noisy even with a yardstick, and a method that learns from partial episodes will be steadier."
+  ],
+  "example": {
+    "scenario": "A policy has played 16 full MNQ sessions of 78 five-minute bars. The model turns that batch into one update to the policy.",
+    "input": {
+      "summary": "The recorded batch of sessions, the totals from each decision onward, and the yardstick's guesses.",
+      "fields": [
+        { "name": "sessions in the batch", "value": "16", "meaning": "How many full trading days were played before this update." },
+        { "name": "decisions in the batch", "value": "1,248", "meaning": "Sixteen sessions of 78 bars each." },
+        { "name": "average session result", "value": "plus 3 US dollars", "meaning": "The batch's mean net result after costs." },
+        { "name": "action at bar 30 of session 4", "value": "go long near 19,300", "meaning": "One example decision taken after a pullback." },
+        { "name": "total reward from that decision onward", "value": "plus 38 US dollars", "meaning": "What actually happened afterwards." },
+        { "name": "usual outcome expected by the second network", "value": "plus 10 US dollars", "meaning": "The yardstick for a situation like that one." }
+      ]
+    },
+    "output": {
+      "summary": "The advantage given to the example decision and the resulting change to the policy.",
+      "fields": [
+        { "name": "advantage of the example decision", "value": "plus 28 US dollars", "meaning": "How much better than normal the long entry turned out." },
+        { "name": "chance of long in that situation", "value": "from 41 percent to 43 percent", "meaning": "A small rise caused by the positive advantage." },
+        { "name": "average advantage across the batch", "value": "about zero", "meaning": "The yardstick centres the scores, so about half the decisions are pushed up and half are pushed down." }
+      ]
+    },
+    "reading": "One update changes the policy only a little. The thing to watch is the average session result across many updates, and whether the second network's guesses are getting closer to the real totals; if they are not, the advantages are mostly noise."
+  }
+}

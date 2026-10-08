@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-imagination-augmented-agents-i2a",
+  "name": "Imagination-Augmented Agents (I2A)",
+  "analogy": "Think of it as a trader who sketches a few quick what-if price paths before deciding, then treats those sketches as one more input on the screen, next to the chart and the indicators, and has learned how much weight to give them.",
+  "steps": [
+    {
+      "title": "Read the market the ordinary way",
+      "description": "A normal model-free part of the agent encodes the current state into features. This part could act alone, and it is the safety net if the imagination turns out to be unhelpful.",
+      "inExample": "The agent encodes the latest 5-minute MNQ bar and the 30 bars before it into a compact summary of price, volume and volatility."
+    },
+    {
+      "title": "Learn a small model of the next bars",
+      "description": "A separate environment model is trained on real transitions to predict the next state and reward, given the state and an action. It does not have to be perfect, because its output is only ever used as a hint.",
+      "inExample": "The model predicts the next bar's return and range from the current features and a candidate action."
+    },
+    {
+      "title": "Imagine several short futures",
+      "description": "From the current state, the model is run forward several times, once for each possible first action, using a cheap rollout policy to fill in the later steps. Each run is a short imagined path.",
+      "inExample": "Three imagined 4-bar paths are produced from the 11:00 bar: one that starts with a buy, one with a hold and one with a sell."
+    },
+    {
+      "title": "Summarize each imagined path",
+      "description": "A small recurrent encoder reads each imagined path and turns it into a short summary, so the agent does not have to read every imagined bar one by one.",
+      "inExample": "Each 4-bar path becomes a short summary, and the buy path's summary notes a small upward drift with a wider range."
+    },
+    {
+      "title": "Combine the summaries with the normal view",
+      "description": "The summaries of all paths are joined with the model-free features and fed into the final policy and value heads. The agent learns how much to rely on the imagined paths.",
+      "inExample": "The joined input carries the current-bar summary plus the three path summaries."
+    },
+    {
+      "title": "Train the policy against real reward",
+      "description": "The path encoder and the policy are trained together on real reward, with the environment model fit on real transitions alongside. If the imagined paths keep disagreeing with reality, the learned weighting lets the agent ignore them.",
+      "inExample": "In one training fold, imagined paths prove unreliable around news bars, so the policy learns to lean on them less for those bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sizing a position with several scenarios in view",
+      "example": "Feeding three imagined 4-bar MNQ paths into the sizing decision so that a wide-range scenario reduces the number of contracts."
+    },
+    {
+      "task": "Handling scheduled events",
+      "example": "Imagining different continuations around an inflation release so the agent does not enter just before a likely jump."
+    },
+    {
+      "task": "Using an imperfect predictor safely",
+      "example": "Adding a next-bar forecaster as a hint for the agent without trusting it as the final word."
+    },
+    {
+      "task": "Choosing execution timing",
+      "example": "Deciding whether to enter now or wait one bar by imagining short paths of the immediate price action."
+    },
+    {
+      "task": "Judging how useful the environment model is",
+      "example": "Comparing results with the imagined paths switched on and off, as a gauge of whether the environment model is helping."
+    }
+  ],
+  "avoidWhen": [
+    "You need a simple, fast and easily audited decision; the extra imagined paths add cost and moving parts a gradient boosting model on known features does not have.",
+    "The training history is short; there is too little data to fit the environment model, the path encoder and the policy together."
+  ],
+  "example": {
+    "scenario": "At 11:00 on an MNQ session the agent is flat and weighs a long entry. It imagines three short futures, one per candidate action, before choosing.",
+    "input": {
+      "summary": "The current state plus three imagined 4-bar paths produced by the environment model.",
+      "fields": [
+        { "name": "close", "value": "20,019", "meaning": "The close of the 11:00 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "20 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "imagined path if buying, 4 bars", "value": "plus 8 points, range 31", "meaning": "The model's imagined net move and total range over four bars after a buy." },
+        { "name": "imagined path if holding, 4 bars", "value": "plus 3 points, range 22", "meaning": "The imagined net move and range if the agent stays flat." },
+        { "name": "imagined path if selling, 4 bars", "value": "minus 5 points, range 29", "meaning": "The imagined net move and range after a sell." }
+      ]
+    },
+    "output": {
+      "summary": "The policy's action probabilities and its estimate of how good the situation is.",
+      "fields": [
+        { "name": "action probabilities", "value": "buy 52 percent, hold 36 percent, sell 12 percent", "meaning": "How likely the agent is to choose each action after reading the ordinary view and the imagined summaries." },
+        { "name": "chosen action", "value": "buy 1 contract", "meaning": "The action with the highest probability." },
+        { "name": "estimated value of the situation", "value": "plus 12 US dollars", "meaning": "The value estimate from the same heads, the agent's own guess of the net result from here, informed by the imagined paths." }
+      ]
+    },
+    "reading": "The imagined paths nudge the agent toward the buy but do not decide alone. To see whether the imagination earns its keep, rerun the same walk-forward folds with the imagined inputs removed and compare the net results after costs; if nothing changes, the environment model is not adding anything."
+  }
+}

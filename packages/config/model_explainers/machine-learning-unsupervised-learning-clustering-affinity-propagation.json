@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-affinity-propagation",
+  "name": "Affinity Propagation",
+  "analogy": "Think of it as a class electing representatives by passing notes. Every trading day tells every other day how well it would speak for it, and the days with the strongest backing become the representatives. Nobody decides in advance how many representatives there will be.",
+  "steps": [
+    {
+      "title": "Measure how alike every pair of items is",
+      "description": "The model builds a table with a similarity for every pair of items, such as two trading days. More alike means a higher number. This table is the only thing the method sees, so any sensible notion of similarity can be used.",
+      "inExample": "For 250 trading days, each described by four features, it builds a 250-by-250 table where days with similar volatility, trend, volume and range score high."
+    },
+    {
+      "title": "Set how keen each item is to represent others",
+      "description": "Each item gets a preference number saying how willing it is to be a representative. Higher preferences give more clusters and lower ones give fewer. A common default is the middle of all the similarities.",
+      "inExample": "The preference is set to the median similarity, which tends to give a moderate number of groups."
+    },
+    {
+      "title": "Each item tells others how suitable a candidate is",
+      "description": "Every item sends each possible representative a message saying how well that candidate would represent it, compared with the best alternative. This is called responsibility.",
+      "inExample": "A high-volume trending day tells another trending day it would be a very good representative, but tells a quiet day it would be a poor one."
+    },
+    {
+      "title": "Candidates tell items how well supported they are",
+      "description": "Every possible representative replies with how appropriate it is for the item to pick it, based on how many other items already back that candidate. This is called availability.",
+      "inExample": "A trending day backed by 40 similar days replies with a strong message, while a one-off outlier day replies weakly."
+    },
+    {
+      "title": "Repeat the note passing, gently",
+      "description": "The two kinds of messages are updated back and forth many times. Each update is blended with the previous one, called damping, so the process settles instead of swinging wildly.",
+      "inExample": "With damping at one half, the messages settle after about 90 rounds."
+    },
+    {
+      "title": "Items with the strongest backing become exemplars",
+      "description": "Items whose combined messages show they are best represented by themselves are chosen as exemplars. These are real, existing items, not averages, so each cluster has an actual member as its centre.",
+      "inExample": "Six days are chosen as exemplars, one of them 17 June 2026."
+    },
+    {
+      "title": "Assign every item to its best exemplar",
+      "description": "Each item joins the cluster of the exemplar it has the strongest combined message with. The number of clusters is simply however many exemplars survived.",
+      "inExample": "Today's day is assigned to the cluster whose exemplar is 17 June 2026, one of six clusters, holding 41 days."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Grouping trading days by character",
+      "example": "Finding natural types of MNQ days, such as quiet drift, trend, wide chop and news spike, without choosing the count in advance."
+    },
+    {
+      "task": "Picking representative examples",
+      "example": "Using each cluster's exemplar day as a real chart to show what that type of day looks like."
+    },
+    {
+      "task": "Clustering with a custom notion of similarity",
+      "example": "Grouping daily price shapes by how well their paths line up, using a shape similarity rather than a plain distance."
+    },
+    {
+      "task": "Choosing a sample for a replay test",
+      "example": "Selecting one day from each cluster so a strategy is tested across every kind of day."
+    }
+  ],
+  "avoidWhen": [
+    "You have tens of thousands of items; the similarity table grows with the square of the number of items, so use K-means or a density-based method.",
+    "You need to control the exact number of clusters; the count comes out of the preference setting and the data, so K-means is more direct."
+  ],
+  "example": {
+    "scenario": "A researcher groups 250 MNQ trading days into types, then asks which type today belongs to. Each day is described by four features computed from its 5-minute bars.",
+    "input": {
+      "summary": "One row per trading day with four features, plus the preference setting.",
+      "fields": [
+        { "name": "daily range", "value": "212 points", "meaning": "Today's high minus low, a measure of how far the market travelled." },
+        { "name": "close position within the range", "value": "82 percent of the way up", "meaning": "Where the close sat between the low (0 percent) and the high (100 percent); 82 percent means it closed near the top." },
+        { "name": "total volume", "value": "15 percent above its 20-day average", "meaning": "How active the day was compared with recent days." },
+        { "name": "overnight gap", "value": "plus a fifth of a percent", "meaning": "How far the open sat above the previous close." },
+        { "name": "days in the table", "value": "250", "meaning": "The number of trading days that were clustered." },
+        { "name": "preference", "value": "median similarity", "meaning": "How willing each day is to become a representative." }
+      ]
+    },
+    "output": {
+      "summary": "A cluster for today, with its representative day and size.",
+      "fields": [
+        { "name": "cluster number", "value": "3 of 6", "meaning": "The group today was assigned to; the number of groups was found by the method." },
+        { "name": "exemplar day", "value": "17 June 2026", "meaning": "The real day that best represents the cluster, a useful chart to look at." },
+        { "name": "days in the cluster", "value": "41", "meaning": "How many of the 250 days share this type." },
+        { "name": "total clusters found", "value": "6", "meaning": "How many types of day the method found." }
+      ]
+    },
+    "reading": "Today looks like the 41 days around 17 June 2026: a strong close near the highs on above-normal volume. Open that exemplar day's chart to see the type, then check how strategies behaved on the other days in the cluster before treating the type as meaningful."
+  }
+}

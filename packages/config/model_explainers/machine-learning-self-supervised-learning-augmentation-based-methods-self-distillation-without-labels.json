@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-augmentation-based-methods-self-distillation-without-labels",
+  "name": "Self-Distillation Without Labels",
+  "analogy": "Think of it as a junior analyst and a calm senior version of themselves. The junior sees a slightly distorted copy of a chart, the senior sees a different distorted copy, and the junior must describe the chart the way the senior would. The senior is simply a slow-moving average of the junior's past selves, so the two keep each other steady.",
+  "steps": [
+    {
+      "title": "Make two altered copies of each window",
+      "description": "Each unlabelled window of bars is copied twice, and each copy is changed a little in a way that should not change its meaning: a touch of noise, a small rescaling, a few bars masked. The model is going to be asked to see through these changes.",
+      "inExample": "One 48-bar MNQ window becomes view A with small noise added and view B with 15 percent of its bars masked."
+    },
+    {
+      "title": "Send one copy to the student and one to the teacher",
+      "description": "Two networks with the same shape read the copies. The student is the one being trained. The teacher is not trained directly; its weights are a slow-moving average of the student's weights over time.",
+      "inExample": "The student reads view A and the teacher reads view B, each producing a summary of 64 numbers."
+    },
+    {
+      "title": "Compare their summaries",
+      "description": "Both networks output a normalised summary vector. The gap between the student's summary of one copy and the teacher's summary of the other copy is measured. A small gap means the model sees the same underlying window through both distortions.",
+      "inExample": "The two summaries point in nearly the same direction, with a similarity of 81 percent at the start of training."
+    },
+    {
+      "title": "Update only the student",
+      "description": "The student is adjusted to make its summary closer to the teacher's. No label and no price direction is involved at all. The teacher receives no gradient; it is the fixed target for this step.",
+      "inExample": "The student's weights move a small step so that its view-A summary lines up better with the teacher's view-B summary."
+    },
+    {
+      "title": "Let the teacher drift toward the student",
+      "description": "After each update the teacher's weights move a tiny fraction of the way toward the student's. Because the teacher changes slowly, it gives a stable target and discourages the trivial cheat of making every summary identical.",
+      "inExample": "Each step the teacher takes about 1 percent of the student's weights, so it trails the student by roughly a hundred updates."
+    },
+    {
+      "title": "Keep the student's summaries for later use",
+      "description": "After many repetitions, the student's summary of a window is a general-purpose description. It can be fed to a classifier or a forecaster trained on a small set of labels, or used to cluster market states.",
+      "inExample": "The final 64-number summary of a window gets a similarity of 93 percent with the summary of its own distorted copy, and 12 percent with an unrelated window."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining before a labelled task",
+      "example": "Learning summaries from years of unlabelled MNQ bars, then training a small direction classifier on a few months of labels."
+    },
+    {
+      "task": "Clustering market states",
+      "example": "Grouping windows by their summaries to discover recurring sessions, such as grinding trends and choppy rotations."
+    },
+    {
+      "task": "Finding odd windows",
+      "example": "Flagging windows whose summary sits far from every cluster as unlike recent history."
+    },
+    {
+      "task": "Combining price with news",
+      "example": "Producing summaries for price windows and for FinBERT news sentiment scores, so both can feed one downstream model."
+    }
+  ],
+  "avoidWhen": [
+    "You already have plenty of reliable labels for the exact task; training on the labels directly is simpler and usually better.",
+    "You cannot name distortions that leave the meaning of a window unchanged; if the changes alter what the window means, the model learns the wrong thing."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains on a year of unlabelled 5-minute MNQ windows. Afterwards, they feed today's window to the student and read its summary, then check how stable that summary is under distortion.",
+    "input": {
+      "summary": "A window of 48 five-minute bars described by rescaled features, plus two distorted copies used during training.",
+      "fields": [
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "features per bar", "value": "8", "meaning": "Return, range, body share, wick balance, volume and similar measures, all rescaled." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The recent typical bar travel." },
+        { "name": "distortion in view A", "value": "small noise", "meaning": "A little random noise added to every feature." },
+        { "name": "distortion in view B", "value": "15 percent of bars masked", "meaning": "Some bars hidden so the model must infer them from the rest." },
+        { "name": "teacher update rate", "value": "1 percent per step", "meaning": "How far the teacher moves toward the student after each update." }
+      ]
+    },
+    "output": {
+      "summary": "A summary vector for the window and similarity checks that show whether the summary is stable and informative.",
+      "fields": [
+        { "name": "summary vector", "value": "64 numbers", "meaning": "The learned description of the window that other models can use." },
+        { "name": "similarity between the two distorted copies", "value": "93 percent", "meaning": "How alike the summaries of the two copies are; 100 percent would be identical." },
+        { "name": "similarity to an unrelated window", "value": "12 percent", "meaning": "How alike the summary is to that of a different window, which should be low." }
+      ]
+    },
+    "reading": "A high similarity between copies and a low similarity to other windows says the summary is stable and still distinguishes windows. It does not say the summary predicts direction. The next step is to train a small direction model on the summaries over walk-forward folds and check that it beats the same model on raw features after costs."
+  }
+}

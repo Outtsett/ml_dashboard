@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-muzero",
+  "name": "MuZero",
+  "analogy": "Think of it as a chess player who has never been told the rules of the market but has built a private mental board. The board does not need to look like the real market; it only has to predict the three things that matter: what each move pays, how good the position is, and which move to try next. He searches that mental board before every move.",
+  "steps": [
+    {
+      "title": "Encode the recent bars into a private state",
+      "description": "A network turns the recent bars into a hidden state. Nothing forces this state to resemble prices or charts; it only has to be useful for the next steps.",
+      "inExample": "The last 32 five-minute MNQ bars become a hidden state of 64 numbers."
+    },
+    {
+      "title": "Learn how the private state moves",
+      "description": "A second network takes a hidden state and a position and predicts the next hidden state and the reward that move would pay. It never predicts the next bar's price.",
+      "inExample": "From the current state, going long is predicted to pay 2 ticks, a half point, and lead to a new hidden state."
+    },
+    {
+      "title": "Predict a preference and a value for any state",
+      "description": "A third network looks at any hidden state and gives a first-guess preference for each position and an estimate of how much reward the state is worth.",
+      "inExample": "Its first guess for the current state is long 40 percent, flat 30 percent and short 30 percent, with a value of about 3 ticks."
+    },
+    {
+      "title": "Search the private board",
+      "description": "A tree search tries sequences of positions inside the hidden space, using the step rule to move forward and the preference to decide which branches deserve more attention. Many short runs are made, each updating the branch statistics.",
+      "inExample": "50 simulations each follow a path 5 bars deep, favouring branches that look rewarding."
+    },
+    {
+      "title": "Read the decision from the visit counts",
+      "description": "After the search the number of times each first move was visited becomes the decision. The more a move was found worth exploring, the more strongly it is favoured.",
+      "inExample": "Of the 50 simulations, long was visited 28 times, flat 12 times and short 10 times."
+    },
+    {
+      "title": "Train all three networks from the search",
+      "description": "The three networks are trained together: the reward predictions toward the rewards that actually arrived, the value toward the realised return, and the preference toward the visit counts. The search makes the networks better, and better networks make the search better.",
+      "inExample": "The preference for this state is nudged toward 56 percent long, the visit share found by the search."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Looking ahead several bars when no market simulator exists",
+      "example": "Choosing a position on 5-minute MNQ bars by searching 5 bars deep in a learned hidden space instead of writing rules for how the market responds."
+    },
+    {
+      "task": "Choosing among a small set of trade structures",
+      "example": "Picking between long, flat and short, or between three order sizes, where the number of choices is small enough to search."
+    },
+    {
+      "task": "Getting more from a short history",
+      "example": "Re-running the search on old trajectories with the improved networks so the same bars teach more."
+    },
+    {
+      "task": "A confidence signal beyond the action",
+      "example": "Reading the search's visit counts: an even spread means the search could not tell the options apart."
+    }
+  ],
+  "avoidWhen": [
+    "You need a fast answer on every 1-minute bar; running dozens of simulations per decision is slow compared with a trained policy that answers in one pass.",
+    "You want results you can audit simply; the hidden state is abstract and cannot be read as prices, so a method with an explicit cost model is easier to inspect."
+  ],
+  "example": {
+    "scenario": "At 12:20 on MNQ, a trained MuZero model encodes the last 32 five-minute bars and runs 50 search simulations, each 5 bars deep, then reports the position it favours.",
+    "input": {
+      "summary": "A window of recent bars and the search settings.",
+      "fields": [
+        { "name": "observation window", "value": "32 five-minute bars", "meaning": "The recent bars that are encoded into the hidden state." },
+        { "name": "close", "value": "19,343", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "simulations per decision", "value": "50", "meaning": "How many search runs are made before choosing." },
+        { "name": "search depth", "value": "5 bars", "meaning": "How far each simulation looks ahead in the hidden space." },
+        { "name": "discount for future reward", "value": "97 percent per bar", "meaning": "How much a reward one bar later counts compared with the reward before it." }
+      ]
+    },
+    "output": {
+      "summary": "Visit counts for each first move, a value estimate and the chosen position.",
+      "fields": [
+        { "name": "visits to long", "value": "28 of 50", "meaning": "How often the search explored going long first." },
+        { "name": "visits to flat", "value": "12 of 50", "meaning": "How often the search explored staying out first." },
+        { "name": "visits to short", "value": "10 of 50", "meaning": "How often the search explored going short first." },
+        { "name": "value estimate", "value": "4 ticks", "meaning": "The reward, in quarter-point ticks, that the search expects to collect from this state." },
+        { "name": "chosen position", "value": "long", "meaning": "The first move with the most visits." }
+      ]
+    },
+    "reading": "A visit share of 56 percent for long is a mild preference; a near-even split would mean the search found nothing to separate the moves. Check the value estimate against the return the model later realised, since the value is partly built from its own earlier guesses."
+  }
+}

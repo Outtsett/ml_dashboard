@@ -1,0 +1,82 @@
+{
+  "specificationId": "optimization-based-models-metaheuristic-algorithms-greedy-algorithms",
+  "name": "Greedy Algorithms",
+  "analogy": "Think of it as packing a small bag for a trip by always adding whichever remaining item is most useful right now, and never unpacking anything. It is fast and usually good, but it can miss a combination that only works if you skip the obvious first pick.",
+  "steps": [
+    {
+      "title": "Define the ranking rule",
+      "description": "Decide how to judge the next best choice. The whole quality of a greedy method depends on this rule, so it is the one design decision that matters.",
+      "inExample": "The rule is the gain in validation score that a candidate feature adds on top of the features already chosen."
+    },
+    {
+      "title": "Start from nothing",
+      "description": "Begin with an empty selection and a fixed limit on how many items to pick, or a stopping rule.",
+      "inExample": "No features chosen yet; up to 3 may be picked from 6 candidates; the baseline score is 50 percent, meaning no ranking skill."
+    },
+    {
+      "title": "Try each remaining item once",
+      "description": "For every item not yet chosen, work out what adding it would gain. This is done one round at a time with only the current selection in place.",
+      "inExample": "In round one, each of 6 features is tested alone and the relative strength index lifts the score to 53 percent, the best of the six."
+    },
+    {
+      "title": "Lock in the best item",
+      "description": "Add the item with the biggest gain and never reconsider it. This is what makes the method fast, and also what makes it blind to combinations.",
+      "inExample": "The relative strength index is locked in and cannot be removed later, even if two other features would have worked better as a pair."
+    },
+    {
+      "title": "Repeat with the updated selection",
+      "description": "Gains are re-measured given what is already chosen, so an item that overlaps with a chosen one now looks less useful.",
+      "inExample": "In round two the volume ratio lifts the score to 54 percent, while a feature similar to the relative strength index adds almost nothing."
+    },
+    {
+      "title": "Stop at the limit or when gains vanish",
+      "description": "Stop when the limit is reached or when the best remaining gain is too small to matter. The chosen list is the answer.",
+      "inExample": "Round three adds the average true range for a score of 55 percent, and the limit of 3 features is reached."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Choosing a few features",
+      "example": "Adding features one at a time to an MNQ direction model, keeping each only if it lifts the validation score."
+    },
+    {
+      "task": "Filling a budget quickly",
+      "example": "Filling a margin budget by repeatedly taking the setup with the best expected score per margin dollar when the decision must be made in milliseconds."
+    },
+    {
+      "task": "Splitting an order across venues",
+      "example": "Sending each slice of a parent order to the venue with the lowest marginal cost at that moment."
+    },
+    {
+      "task": "Building a starting solution for a search",
+      "example": "Producing a quick first candidate that a metaheuristic or exact solver then improves."
+    }
+  ],
+  "avoidWhen": [
+    "Items only work as a pair and are useless alone; greedy picks one at a time, misses the pair, and an exact or evolutionary search is better.",
+    "You need a proof of the best answer; use branch and bound, since greedy gives no guarantee unless the problem has a special structure."
+  ],
+  "example": {
+    "scenario": "A researcher wants the best three of six candidate features for an MNQ 5-minute direction model and adds them one at a time, always taking the one that lifts the validation score most.",
+    "input": {
+      "summary": "Six candidate features, a limit of three, and a way to score any chosen set.",
+      "fields": [
+        { "name": "candidate features", "value": "6", "meaning": "Relative strength index, volume ratio, average true range, 50-bar distance, 6-bar return and time of day." },
+        { "name": "limit", "value": "3 features", "meaning": "How many may be chosen." },
+        { "name": "baseline score", "value": "50 percent", "meaning": "Area under the receiver operating characteristic curve with no features; 50 percent means no skill." },
+        { "name": "scoring method", "value": "validation folds", "meaning": "Each set is scored on walk-forward folds that were not used to fit it." },
+        { "name": "minimum useful gain", "value": "1 point", "meaning": "Selection stops when no remaining feature adds at least this much." }
+      ]
+    },
+    "output": {
+      "summary": "The chosen features in order and the score after each addition.",
+      "fields": [
+        { "name": "first choice", "value": "relative strength index, score 53 percent", "meaning": "Best single feature, a gain of 3 points." },
+        { "name": "second choice", "value": "volume ratio, score 54 percent", "meaning": "Added a gain of 1 point." },
+        { "name": "third choice", "value": "average true range, score 55 percent", "meaning": "Added a gain of 1 point." },
+        { "name": "final score", "value": "55 percent", "meaning": "Validation score of the three-feature set." }
+      ]
+    },
+    "reading": "The gains of 3, 1 and 1 points show diminishing returns. Greedy does not guarantee the best three; a pair that works only together may have been missed. The set was picked because it scored well on these folds, so check it against a random-subset baseline on later folds."
+  }
+}

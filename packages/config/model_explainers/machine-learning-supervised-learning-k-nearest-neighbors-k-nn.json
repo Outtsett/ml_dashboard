@@ -1,0 +1,85 @@
+{
+  "specificationId": "machine-learning-supervised-learning-k-nearest-neighbors-k-nn",
+  "name": "K-Nearest Neighbors (k-NN)",
+  "analogy": "Think of it as a trader flipping through a scrapbook of old charts to find the 25 that look most like today, then checking what happened next in each. There is no rulebook, only the scrapbook and the vote of the closest look-alikes.",
+  "steps": [
+    {
+      "title": "Store the history as the model",
+      "description": "Nothing is fitted. The model simply keeps every past bar as a row of numbers describing it, together with what happened afterwards. Those stored rows are the whole model.",
+      "inExample": "60,000 earlier 5-minute MNQ bars are stored, each with its features and a note on whether the close 6 bars later was higher."
+    },
+    {
+      "title": "Put every feature on the same scale",
+      "description": "Distance only makes sense if no single feature shouts louder than the rest. Each feature is rescaled using only past bars, so a price-sized number cannot swamp a small ratio.",
+      "inExample": "The relative strength index, the volume ratio, the 6-bar return and the distance from the 50-bar average are each rescaled to typical units around zero."
+    },
+    {
+      "title": "Describe the new bar the same way",
+      "description": "The bar you want a call on is turned into the same rescaled row of numbers, so it can be compared directly with every stored bar.",
+      "inExample": "The 14:35 bar becomes a row with an oversold relative strength index of 27, volume 80 percent above normal and a 6-bar return down about a third of a percent."
+    },
+    {
+      "title": "Measure how far it is from every stored bar",
+      "description": "For each stored bar the model works out a straight-line distance between its row and the new bar's row. Small distance means a similar-looking situation.",
+      "inExample": "Distances are computed to all 60,000 stored bars; the closest is under half a rescaled unit away and the farthest is more than 6."
+    },
+    {
+      "title": "Keep the closest few",
+      "description": "Only the k nearest bars count; k is a setting you choose and test on later data. A small k reacts to noise, a large k blurs everything toward the average.",
+      "inExample": "With k set to 25, the 25 stored bars closest to the 14:35 bar are kept."
+    },
+    {
+      "title": "Let the neighbours vote",
+      "description": "Each neighbour votes for what followed it. The share of votes is the answer, and nearer neighbours can be given a louder vote. A neighbourhood where every bar is far away is a warning that the situation is unusual.",
+      "inExample": "14 of the 25 neighbours were followed by a higher close 6 bars later, so the vote is 56 percent up."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding look-alike situations",
+      "example": "Pulling the 25 earlier MNQ bars that looked most like the current oversold, heavy-volume bar and reading what happened next in each."
+    },
+    {
+      "task": "A simple, explainable baseline",
+      "example": "Giving a heavier model something to measure itself against on the same walk-forward folds, with every call traceable to real past bars."
+    },
+    {
+      "task": "Labelling the market regime",
+      "example": "Naming the current bar's regime by the regimes of the bars it most resembles."
+    },
+    {
+      "task": "Flagging unusual bars",
+      "example": "When even the closest stored bars are far away, treating the situation as unfamiliar and cutting position size."
+    }
+  ],
+  "avoidWhen": [
+    "You have many features, such as all 151 indicators; with so many dimensions every bar is roughly equally far from every other and the neighbours stop meaning anything.",
+    "The market is in a place it has never been, such as a price far outside the stored history; there are no real look-alikes to learn from.",
+    "You need answers instantly across a very large history; every call searches the whole store unless an index is built."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model looks through 60,000 earlier bars for the 25 most similar ones and reports how many were followed by a higher close 6 bars (30 minutes) later.",
+    "input": {
+      "summary": "The new bar's rescaled features, plus the settings of the search.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed; shown for context, not used in the distance." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "number of neighbours", "value": "25", "meaning": "How many look-alike bars are allowed to vote." },
+        { "name": "stored bars searched", "value": "60,000", "meaning": "The size of the earlier history the neighbours are drawn from." }
+      ]
+    },
+    "output": {
+      "summary": "A vote share, the side it favours and how far away the neighbours were.",
+      "fields": [
+        { "name": "neighbours followed by a higher close", "value": "14 of 25", "meaning": "How many of the look-alike bars were followed by a close above their own close 6 bars later." },
+        { "name": "vote share for up", "value": "56 percent", "meaning": "The share of neighbours that went up, which is the model's probability." },
+        { "name": "call", "value": "up", "meaning": "The side holding the majority of the votes." },
+        { "name": "average distance to the neighbours", "value": "under one rescaled unit", "meaning": "How similar the look-alikes really are; a small number means close matches." }
+      ]
+    },
+    "reading": "14 of 25 is a thin majority; one or two neighbours changing sides would move it to 52 or 60 percent. Treat it as a mild lean, check that the average distance is small, and judge it on later folds after costs rather than on how convincing the look-alikes feel."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-latent-imagination-policy-network",
+  "name": "Latent Imagination Policy Network",
+  "analogy": "Think of it as a trader who studies a finished market simulator in his head for weeks, rehearsing short sequences of decisions. By the time he sits at the desk he has the habit in his fingers, so he acts at once instead of running a fresh calculation on every bar.",
+  "steps": [
+    {
+      "title": "Start from a finished market model",
+      "description": "A compact model of how the market's hidden state moves from bar to bar already exists and is kept fixed or changed only slowly. This piece does not build the model; it only learns to act inside it.",
+      "inExample": "A frozen model of MNQ's behaviour on 5-minute bars provides 32-number hidden states and a reward guess for each action."
+    },
+    {
+      "title": "Pick real starting points",
+      "description": "A batch of real, already observed hidden states is chosen as launch pads. Each imagined sequence begins from a state that really happened.",
+      "inExample": "A batch of 512 hidden states from the past year is chosen as imagination starting points."
+    },
+    {
+      "title": "Let the actor imagine a short run",
+      "description": "From each launch pad the actor picks a position, the model moves the hidden state one bar forward and predicts the reward, and this repeats for a fixed number of steps. The whole run happens in the hidden space.",
+      "inExample": "Each of the 512 runs is 12 bars long, so the actor's choices produce 6,144 imagined steps."
+    },
+    {
+      "title": "Add up the reward with a value estimate beyond the horizon",
+      "description": "The reward along each run is added up, and a critic estimates how much more reward would follow after the last imagined step. This avoids needing very long imagined runs.",
+      "inExample": "A typical run collects about 2 points of reward over its 12 bars, and the critic adds its guess of what comes after."
+    },
+    {
+      "title": "Improve the actor and the critic",
+      "description": "The critic is adjusted to match the added-up returns, and the actor is adjusted to make those returns larger, with a small bonus for keeping its choices varied. The improvement signal flows back through the imagined steps.",
+      "inExample": "The actor shifts its choices a little toward positions that earned more across the 512 runs."
+    },
+    {
+      "title": "Act in one forward pass",
+      "description": "On a real bar the current hidden state is encoded and the actor gives its preference at once, with no search. The speed of this single pass is the point of the design.",
+      "inExample": "For the 10:15 bar the actor answers in one pass with long 40 percent, flat 33 percent and short 27 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A fast position-sizing policy for frequent decisions",
+      "example": "Producing a position for every 1-minute MNQ bar with one fast pass and no planning loop."
+    },
+    {
+      "task": "Quickly retraining the policy against a fixed market model",
+      "example": "Retraining only the actor and critic after a change in cost assumptions, without refitting the model of the market."
+    },
+    {
+      "task": "Portfolio rehearsals",
+      "example": "Imagining joint runs over MNQ and ES to train one shared sizing policy."
+    },
+    {
+      "task": "Comparing candidate action sequences",
+      "example": "Looking at imagined outcomes of staying long versus going flat from the same starting state before changing a rule."
+    }
+  ],
+  "avoidWhen": [
+    "You want each decision to be checked by an explicit search with the costs written out; a planning method that searches on every bar is easier to audit.",
+    "The market model is not yet accurate; the actor will learn to exploit its mistakes, so fix the model first."
+  ],
+  "example": {
+    "scenario": "A frozen latent model of MNQ exists. The actor and critic have trained entirely on imagined 12-bar runs. At 10:15 the current bar is encoded and the actor is asked what to do.",
+    "input": {
+      "summary": "The encoded state of the newest bar and the imagination settings used during training.",
+      "fields": [
+        { "name": "hidden state size", "value": "32 numbers", "meaning": "The compact description of the current market from the frozen model." },
+        { "name": "close", "value": "19,078", "meaning": "The price at which the newest five-minute bar closed, rounded to the nearest point." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "imagination horizon", "value": "12 bars", "meaning": "How many bars each imagined run lasted during training." },
+        { "name": "starting states per batch", "value": "512", "meaning": "How many real states were used to launch imagined runs each time." },
+        { "name": "discount for future reward", "value": "97 percent per bar", "meaning": "How much a reward one bar later counts compared with the reward before it." }
+      ]
+    },
+    "output": {
+      "summary": "One forward pass gives a position preference and a value estimate.",
+      "fields": [
+        { "name": "share long", "value": "40 percent", "meaning": "The actor's preference for holding a long position." },
+        { "name": "share flat", "value": "33 percent", "meaning": "The actor's preference for staying out." },
+        { "name": "share short", "value": "27 percent", "meaning": "The actor's preference for holding a short position." },
+        { "name": "probability the close is higher", "value": "60 percent", "meaning": "The long share divided by the long and short shares combined." },
+        { "name": "value estimate", "value": "2 points", "meaning": "The reward the critic expects from this state under the actor's behaviour." }
+      ]
+    },
+    "reading": "Compare the imagined return with what the actor earns on real bars after costs: a big gap means it learned the model's flaws. The 60 percent lean is only a starting signal and must be tested on bars the model never saw."
+  }
+}

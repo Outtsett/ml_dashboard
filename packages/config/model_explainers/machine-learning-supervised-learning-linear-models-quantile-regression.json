@@ -1,0 +1,85 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-quantile-regression",
+  "name": "Quantile Regression",
+  "analogy": "Think of it as drawing not one forecast line but a band of lines on the chart: a floor that the outcome falls below only one time in ten, a middle line, and a ceiling that it exceeds only one time in ten. The band widens when the market is wild and narrows when it is quiet.",
+  "steps": [
+    {
+      "title": "Choose which points of the distribution to forecast",
+      "description": "Instead of forecasting the average outcome, you pick one or more positions along the range of possible outcomes, such as the level that 10 percent of outcomes fall below, the middle, and the level that 90 percent fall below.",
+      "inExample": "Three lines are fitted for the 6-bar move in MNQ: the 10th percentile, the 50th percentile and the 90th percentile."
+    },
+    {
+      "title": "Give each line its own weighted sum",
+      "description": "Each line is a separate weighted sum of the features, with its own weights. Because the weights are separate, a feature can widen the band without moving its middle, which is how the band can breathe with volatility.",
+      "inExample": "The average true range gets a large negative weight on the 10th percentile line and a large positive weight on the 90th, so wider markets stretch the band."
+    },
+    {
+      "title": "Score misses with a lopsided penalty",
+      "description": "For the floor line, an outcome that lands below it is penalised heavily and one that lands above it only lightly, and the reverse holds for the ceiling. This lopsided penalty is what makes each line settle where the stated share of outcomes falls beneath it.",
+      "inExample": "For the 10th percentile line, a miss on the low side is penalised nine times as heavily as the same-sized miss on the high side."
+    },
+    {
+      "title": "Fit each line by minimising its penalty",
+      "description": "The weights of each line are found by minimising its own total lopsided penalty across the training bars. Large outliers affect the lines less than they affect an average-based model, because the penalty grows with the size of the miss, not its square.",
+      "inExample": "Three sets of weights are found on 40,000 training bars; a single 400-point bar has little effect on them."
+    },
+    {
+      "title": "Check that the band holds on later data",
+      "description": "The lines are tested on bars after the training period by counting how often real outcomes fell below each line. A well-set 10th percentile line should be beaten about 10 percent of the time.",
+      "inExample": "On the next fold the floor line has outcomes below it 11 percent of the time and the ceiling line has outcomes above it 9 percent of the time."
+    },
+    {
+      "title": "Forecast a band for a new bar",
+      "description": "A new bar is run through all the lines, giving a floor, a middle and a ceiling. The gaps between them describe how wide the plausible outcomes are.",
+      "inExample": "The 14:35 bar gives a floor of minus 62 points, a middle of plus 2 points and a ceiling of plus 68 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A forecast range for position sizing",
+      "example": "Using the gap between the 10th and 90th percentile lines to size an MNQ position so a bad but plausible outcome stays inside a loss limit."
+    },
+    {
+      "task": "Value-at-risk style estimates",
+      "example": "Estimating the loss that a 30-minute holding period exceeds only one time in ten, in points and in US dollars per contract."
+    },
+    {
+      "task": "Setting stops and targets from the distribution",
+      "example": "Placing a target near the 75th percentile line and a stop near the 25th, so both are anchored to what is plausible now."
+    },
+    {
+      "task": "Spotting a change in market width",
+      "example": "Watching the band widen before the average true range has moved, as a warning to reduce size."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a single best guess of direction; a classification model gives a cleaner probability.",
+    "Your extreme lines depend on rare events you have few examples of; the 1st or 99th percentile lines will be noisy with limited data.",
+    "Lines can cross each other because they are fitted separately; if that happens the band is unusable and needs fixing before use."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. Three quantile lines forecast the change in the close 6 bars (30 minutes) later, in points: a floor at the 10th percentile, a middle at the 50th and a ceiling at the 90th.",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "percentiles requested", "value": "10th, 50th, 90th", "meaning": "The positions along the range of outcomes that the three lines forecast." }
+      ]
+    },
+    "output": {
+      "summary": "A floor, a middle and a ceiling for the 30-minute move, and the width between them.",
+      "fields": [
+        { "name": "10th percentile of the move", "value": "minus 62 points", "meaning": "The level the model expects the move to fall below one time in ten." },
+        { "name": "median of the move", "value": "plus 2 points", "meaning": "The level the model expects the move to land above half the time." },
+        { "name": "90th percentile of the move", "value": "plus 68 points", "meaning": "The level the model expects the move to exceed one time in ten." },
+        { "name": "width of the band", "value": "130 points", "meaning": "The gap between the 10th and 90th lines, where about 80 percent of outcomes are expected to fall." },
+        { "name": "loss at the 10th percentile per contract", "value": "124 US dollars", "meaning": "62 points times 2 US dollars per MNQ point, for a long position held 30 minutes." }
+      ]
+    },
+    "reading": "The middle line is nearly flat, so there is no strong direction, and the band is wide and roughly even on both sides. Use the width for sizing: if a 124 US dollar loss at the floor is more than you will risk per trade, take fewer contracts. Check on held-out bars that the floor is breached about one time in ten."
+  }
+}

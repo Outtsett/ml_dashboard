@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-rainbow-dqn",
+  "name": "Rainbow DQN",
+  "analogy": "Think of it as one trading desk that adopted six good habits at once: a second opinion on every pick, separating how good the market is from how good each action is, studying the biggest mistakes first, looking several bars ahead, forecasting the whole spread of outcomes instead of one average, and learned experimenting.",
+  "steps": [
+    {
+      "title": "Split the state into two judgements",
+      "description": "The network first judges how good the situation is on its own, then separately how much better or worse each action is than average. This lets it learn the value of a state even when the choice of action barely matters.",
+      "inExample": "For a quiet lunchtime bar it judges the situation as mildly poor, and the three actions differ only a little."
+    },
+    {
+      "title": "Forecast a spread of outcomes for each action",
+      "description": "Instead of one expected reward, the network gives a probability for each of 51 possible reward levels, per action. This shows skew and fat tails that one average hides.",
+      "inExample": "For a buy, the network assigns probability to outcomes from minus 40 to plus 60 US dollars, with a long left tail."
+    },
+    {
+      "title": "Explore with learned noise",
+      "description": "The last layers carry learned noise rather than a random-action coin flip, so exploration is larger in unfamiliar states and shrinks as the agent learns them.",
+      "inExample": "A fresh noise draw slightly reshapes the three forecasts before the choice is made."
+    },
+    {
+      "title": "Pick the action with the best average",
+      "description": "The average of each forecast spread is computed, and the action with the highest average is chosen. The spreads remain available for other uses such as filtering out entries with a heavy loss tail.",
+      "inExample": "Averages are buy plus 3, hold 0 and sell minus 1 US dollars, so buy has the best average."
+    },
+    {
+      "title": "Learn from the most surprising steps first",
+      "description": "Past steps are stored with a priority equal to how wrong the network was on them. Training samples high-priority steps more often, so the model spends effort where it learns the most.",
+      "inExample": "A step where a stop-out cost 38 US dollars against an expected gain gets a high priority and is replayed often."
+    },
+    {
+      "title": "Look several bars ahead and avoid overoptimism",
+      "description": "The learning target is built from several real rewards in a row plus an estimate beyond them. The action to bootstrap from is chosen by the current network but scored by a slow copy, which prevents inflated values.",
+      "inExample": "The target uses three real bars of reward, then a slow-copy estimate for the rest."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Screening entries by tail risk",
+      "example": "Blocking buys on Micro E-mini Nasdaq-100 futures (MNQ) when the forecast spread puts more than 5 percent of its weight below minus 30 US dollars, even if the average is positive."
+    },
+    {
+      "task": "Sizing by the spread, not just the average",
+      "example": "Using a narrow forecast spread to justify a larger size and a wide one to cut it."
+    },
+    {
+      "task": "A robust value estimate",
+      "example": "Training a discrete-action agent whose values are less distorted by a few lucky or unlucky episodes."
+    },
+    {
+      "task": "Noticing a change in behaviour",
+      "example": "Comparing forecast spreads with the outcomes that actually occur to flag a regime where the model no longer fits."
+    }
+  ],
+  "avoidWhen": [
+    "You need a simple, quickly debugged baseline; six ingredients at once are hard to untangle if something goes wrong, so start with a plain deep Q-network.",
+    "The action is a continuous size; use an actor-critic method for continuous output, since this method chooses among a fixed list of actions."
+  ],
+  "example": {
+    "scenario": "A Rainbow agent chooses among buy, hold and sell one contract of Micro E-mini Nasdaq-100 futures (MNQ) on 5-minute bars at 11:35. It has a forecast spread for each action, and a rule vetoes entries with a heavy loss tail.",
+    "input": {
+      "summary": "The state read by the network.",
+      "fields": [
+        { "name": "close", "value": "19,590", "meaning": "The price at which the 11:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "35", "meaning": "A momentum reading from 0 to 100; leaning weak." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "40 hundredths of a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "reward levels in each forecast", "value": "51", "meaning": "The number of possible reward amounts the network gives a probability for." }
+      ]
+    },
+    "output": {
+      "summary": "For each action, the average and the range of the forecast reward, and the action chosen after the tail check.",
+      "fields": [
+        { "name": "average reward for buy", "value": "plus 3 US dollars", "meaning": "The mean of the forecast spread for buying." },
+        { "name": "bad-case reward for buy", "value": "minus 31 US dollars", "meaning": "The reward level below which the worst 5 percent of forecast outcomes fall." },
+        { "name": "average reward for hold", "value": "0 US dollars", "meaning": "The mean of the forecast spread for staying flat." },
+        { "name": "average reward for sell", "value": "minus 1 US dollar", "meaning": "The mean of the forecast spread for selling short." },
+        { "name": "action chosen", "value": "hold", "meaning": "Buy has the best average but its bad case is worse than the minus 30 limit, so the tail rule overrides it." }
+      ]
+    },
+    "reading": "This shows why a spread is more useful than an average: buy looks best on average yet breaches a tail limit, so the desk stays out. The limit is a choice you set, not something the model decides. As with any agent, confirm the behaviour on held-out folds after costs."
+  }
+}

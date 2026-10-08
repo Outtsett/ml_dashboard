@@ -1,0 +1,88 @@
+{
+  "specificationId": "statistical-models-time-series-models-time-series-garch",
+  "name": "Time Series - GARCH",
+  "analogy": "Think of it as a weather vane for volatility. After a big bar the vane swings toward stormy and stays there for a while; after quiet bars it settles toward calm. It never forecasts the direction of price, only how much price is likely to move.",
+  "steps": [
+    {
+      "title": "Turn prices into returns and strip out the average",
+      "description": "The series is changed into bar-by-bar returns, and the average return is removed, leaving the surprises. The model then studies only how large those surprises are, whatever their sign.",
+      "inExample": "The MNQ 5-minute closes become bar-by-bar changes; the last bar's surprise is minus 22 points."
+    },
+    {
+      "title": "Start from the long-run level of volatility",
+      "description": "Volatility is assumed to be pulled back toward a long-run normal level. That level is the anchor, so forecasts never wander off forever in either direction.",
+      "inExample": "The long-run bar volatility fitted to the history is 13 points per 5-minute bar."
+    },
+    {
+      "title": "Add the latest shock",
+      "description": "The size of the most recent surprise, squared, is added with a small weight. A large recent move pushes the next volatility forecast up, and the weight says how fast the model reacts to news.",
+      "inExample": "The 22-point drop carries a small reaction weight of 8 percent, adding a modest lift to the forecast."
+    },
+    {
+      "title": "Add the previous volatility forecast",
+      "description": "A large share of the last forecast is carried over, so volatility has memory. A high share means storms last long; the reaction weight and the carried share together give the persistence.",
+      "inExample": "The previous forecast of 15 points is carried with a weight of 89 percent; the total persistence of 97 percent means storms fade slowly."
+    },
+    {
+      "title": "Fit all the weights from the history",
+      "description": "The long-run level, the reaction weight and the carried share are chosen so that the volatility path they trace makes the observed returns most plausible. This is done once on training bars, then rolled forward.",
+      "inExample": "Fitting on 12 months of 5-minute bars gives the long-run level of 13 points, the 8 percent reaction weight and the 89 percent carried share."
+    },
+    {
+      "title": "Forecast volatility forward",
+      "description": "The next bar's volatility is the blend of the long-run level, the latest shock and the carried forecast. Further out, the forecast drifts back toward the long-run level at the speed set by the persistence.",
+      "inExample": "The next-bar volatility comes out at 16 points, and the average over the next 12 bars eases to about 15 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sizing positions to current volatility",
+      "example": "Trading fewer MNQ contracts when the forecast volatility is high so the dollar risk per trade stays roughly constant."
+    },
+    {
+      "task": "Setting stop and target distances",
+      "example": "Placing stops at a set multiple of forecast volatility instead of a fixed 30 points, so they widen in storms and tighten in calm."
+    },
+    {
+      "task": "Estimating tail risk",
+      "example": "Turning the volatility forecast into a value at risk figure for the next 30 minutes."
+    },
+    {
+      "task": "Flagging volatility regimes",
+      "example": "Watching the forecast volatility path as a calm-versus-stormy indicator to switch between strategies."
+    },
+    {
+      "task": "Cleaning returns for another model",
+      "example": "Dividing each return by its forecast volatility so a directional model sees steadier inputs."
+    }
+  ],
+  "avoidWhen": [
+    "You need the direction of price; this model forecasts only the size of moves, and a directional model is needed for the sign.",
+    "Bars arrive with huge gaps or the series is very short; the fit needs thousands of bars to pin the three weights down, and a simple rolling measure of range may serve better."
+  ],
+  "example": {
+    "scenario": "After the 14:35 five-minute MNQ bar closes, the model forecasts how volatile the next bar and the next hour will be, and a trader converts that into a position size.",
+    "input": {
+      "summary": "The latest surprise, the previous volatility forecast and the fitted weights.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "latest surprise", "value": "minus 22 points", "meaning": "How much the last bar moved after removing the average change." },
+        { "name": "previous bar volatility forecast", "value": "15 points", "meaning": "The model's forecast of the typical move for the bar that just closed." },
+        { "name": "long-run bar volatility", "value": "13 points", "meaning": "The normal level volatility is pulled back toward." },
+        { "name": "persistence", "value": "97 percent", "meaning": "The fitted share of volatility that carries from one bar to the next; closer to 100 percent means slow fading." },
+        { "name": "risk budget per trade", "value": "200 US dollars", "meaning": "The most the trader is willing to lose on a typical 30-minute trade." }
+      ]
+    },
+    "output": {
+      "summary": "A volatility forecast for the next bar and the next hour, and the size it implies.",
+      "fields": [
+        { "name": "forecast volatility, next bar", "value": "16 points", "meaning": "Expected typical size of the next bar's move." },
+        { "name": "average forecast volatility, next 12 bars", "value": "15 points", "meaning": "The forecast eases toward the long-run level as the shock fades." },
+        { "name": "forecast 6-bar move size", "value": "about 40 points", "meaning": "The one-bar volatility scaled up to six bars, which grows with the square root of the number of bars." },
+        { "name": "risk per contract over 6 bars", "value": "about 80 US dollars", "meaning": "That 40-point move times 2 US dollars per MNQ point." },
+        { "name": "suggested size", "value": "2 contracts", "meaning": "The 200 US dollar budget divided by about 80 US dollars per contract, rounded down." }
+      ]
+    },
+    "reading": "Volatility is a little above its long-run level after the bar's drop, so size is trimmed to 2 contracts; if volatility returned to normal, 3 would fit. This only controls risk size, and says nothing about whether the trade is a good idea."
+  }
+}

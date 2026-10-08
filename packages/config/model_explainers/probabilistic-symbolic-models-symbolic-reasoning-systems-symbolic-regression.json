@@ -1,0 +1,84 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-symbolic-regression",
+  "name": "Symbolic Regression",
+  "analogy": "Think of it as breeding formulas the way a farmer breeds crops. Hundreds of random recipes are tried, the ones that fit the data best are crossed with each other, and after many generations a short recipe you can read is left standing.",
+  "steps": [
+    {
+      "title": "Choose the building blocks",
+      "description": "You supply the pieces a formula may use: the input features, some constants, and operations such as add, multiply, divide and a squashing function. The model never goes outside this kit.",
+      "inExample": "The kit holds momentum, average true range and volume ratio as inputs, plus add, subtract, multiply, divide and the hyperbolic tangent."
+    },
+    {
+      "title": "Create a random population of formulas",
+      "description": "Each formula is built as a tree of operations with features and constants at the leaves. The first generation is mostly nonsense, which is expected.",
+      "inExample": "A population of 2,000 random formulas is built, such as momentum times a constant, or volume ratio divided by average true range."
+    },
+    {
+      "title": "Score every formula against the target",
+      "description": "Each formula is run on the training bars and its predictions are compared with what happened. A small penalty is added for length, so a short formula beats a long one with the same accuracy.",
+      "inExample": "Each formula predicts the 6-bar-ahead change in points; formulas with large errors or very long trees score poorly."
+    },
+    {
+      "title": "Keep the better formulas",
+      "description": "Better-scoring formulas are more likely to be chosen as parents. Weak ones mostly disappear, which is what pushes the population toward formulas that fit.",
+      "inExample": "The best 200 of the 2,000 formulas get most of the parenting slots in the next generation."
+    },
+    {
+      "title": "Cross and mutate",
+      "description": "Two parents swap randomly chosen branches to make a child that mixes both. Occasionally a branch, operation or constant is replaced at random to introduce something new.",
+      "inExample": "One parent's momentum branch is swapped with another parent's volatility denominator, and a constant of nine in a third is nudged to eleven."
+    },
+    {
+      "title": "Repeat for many generations, then pick one",
+      "description": "Scoring, selection, crossing and mutation repeat. At the end you are left with a short list of formulas trading off accuracy against length, and you choose one by checking it on bars it was not evolved on.",
+      "inExample": "After 80 generations the chosen formula has ten building blocks: eleven times a squashed momentum term, divided by one plus a twentieth of average true range."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding a readable formula for a signal",
+      "example": "Searching for a short expression that links momentum, volatility and volume features on 5-minute bars of Micro E-mini Nasdaq-100 futures (MNQ) to the move over the next 30 minutes."
+    },
+    {
+      "task": "Replacing a black box with a formula",
+      "example": "Fitting a formula to the predictions of a trained gradient boosting model so a simplified version can be inspected line by line."
+    },
+    {
+      "task": "Discovering feature interactions",
+      "example": "Finding that a ratio of volume to volatility matters more than either alone, something a straight-line fit would never express."
+    },
+    {
+      "task": "One formula per market regime",
+      "example": "Evolving a separate short formula for trending and ranging regimes and comparing what each one emphasises."
+    }
+  ],
+  "avoidWhen": [
+    "You want the strongest predictive accuracy and do not need to read the result; gradient boosting or a neural network usually fits complex patterns better than a short formula.",
+    "The data is small or very noisy, because the search will happily evolve a formula that memorises noise; a simpler regularised model is safer."
+  ],
+  "example": {
+    "scenario": "Symbolic regression is run on a year of 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars to find a formula for the price change over the next 6 bars, then applied to one new bar.",
+    "input": {
+      "summary": "The training table the search evolves against, and the feature values of the one new bar being scored.",
+      "fields": [
+        { "name": "training bars", "value": "21,500", "meaning": "How many five-minute bars the formulas were scored on." },
+        { "name": "target", "value": "price change over the next 6 bars, in points", "meaning": "The quantity every formula tries to predict." },
+        { "name": "population size", "value": "2,000 formulas", "meaning": "How many candidate formulas exist in each generation." },
+        { "name": "generations", "value": "80", "meaning": "How many rounds of selection, crossing and mutation were run." },
+        { "name": "momentum over 6 bars", "value": "down about a third of a percent", "meaning": "Feature value for the new bar, read in percent: price has fallen about a third of a percent over the last 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "Feature value for the new bar: the recent typical bar range." }
+      ]
+    },
+    "output": {
+      "summary": "A short formula written in words, its size, its scores, and its prediction for the new bar.",
+      "fields": [
+        { "name": "chosen formula", "value": "eleven times the hyperbolic tangent of momentum in percent, divided by one plus one twentieth of average true range", "meaning": "The readable expression the search settled on; it gives a forecast in points." },
+        { "name": "formula size", "value": "10 building blocks", "meaning": "The count of operations, features and constants in the formula tree." },
+        { "name": "average error on training bars", "value": "12 points", "meaning": "How far off the formula is on average on the bars it was evolved on." },
+        { "name": "average error on later bars", "value": "13 points", "meaning": "The same error on held-back bars, which shows whether the formula holds up." },
+        { "name": "prediction for the new bar", "value": "minus 2 points", "meaning": "The formula's forecast of the price change over the next 6 bars, about 4 US dollars per contract against a long position." }
+      ]
+    },
+    "reading": "A prediction of about 2 points against a 22-point typical bar range is a faint lean, not a signal. The value of the result is the formula itself: read which features it uses and whether the shape makes market sense, then test it on later walk-forward folds with costs before trusting it."
+  }
+}

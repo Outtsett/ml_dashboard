@@ -1,0 +1,77 @@
+{
+  "specificationId": "neural-network-architectures-convolutional-networks-densenet-densely-connected-cnn",
+  "name": "DenseNet (Densely Connected CNN)",
+  "analogy": "Think of it as a research desk where every analyst, as they join, is handed all the notes written by everyone before them and adds just one small page of their own. Nothing written earlier is lost on the way to the final report, so early observations stay available to the very end.",
+  "steps": [
+    {
+      "title": "Turn the chart into feature maps",
+      "description": "An opening convolution scans the chart image or bar grid with small filters and produces the first set of feature maps, which are pictures of where simple shapes such as wicks and edges were found.",
+      "inExample": "A 128 by 128 pixel chart of 64 five-minute MNQ bars becomes 24 feature maps showing where edges and wicks sit."
+    },
+    {
+      "title": "Hand every layer everything before it",
+      "description": "Inside a dense block, each layer receives the feature maps of all earlier layers stuck together, and produces only a small number of new maps, set by the growth rate. Because the earlier maps are kept as they are, nothing is overwritten.",
+      "inExample": "With a growth rate of 12, the fourth layer in the block sees the 24 starting maps plus 3 layers of 12 new maps each, 60 in all, and adds 12 more."
+    },
+    {
+      "title": "Squeeze before each expansion",
+      "description": "Narrow 1-by-1 filters inside each layer squeeze the stacked maps down before the larger scan, which keeps the number of calculations and settings small even though the connections are dense.",
+      "inExample": "The 60 maps are squeezed to 48 before the 3-by-3 filters produce the 12 new maps."
+    },
+    {
+      "title": "Shrink between blocks",
+      "description": "Between dense blocks a transition layer compresses the number of maps and halves the picture size. The model then repeats with another dense block that sees a wider area per filter.",
+      "inExample": "After the first block of 8 layers the 120 maps are compressed to 60 and the picture goes from 64 by 64 to 32 by 32."
+    },
+    {
+      "title": "Pool everything and classify",
+      "description": "After the last block, each map is averaged to one number and a classifying layer turns those numbers into probabilities. Because every layer feeds directly into later ones, learning signals reach early layers easily, which helps training.",
+      "inExample": "The final 180 averaged numbers give regime probabilities: trending up 52 percent, ranging 35 percent, trending down 13 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Classifying chart images with few parameters",
+      "example": "Labelling an hour of MNQ 1-minute candles as trending up, ranging or trending down, using a compact network."
+    },
+    {
+      "task": "Reusing low-level detail through the whole network",
+      "example": "Keeping fine wick and gap detail available at the final decision, where it can matter for pattern calls."
+    },
+    {
+      "task": "Smaller models when data is limited",
+      "example": "Training on a few hundred thousand chart windows where a much wider network would overfit."
+    },
+    {
+      "task": "Feature extractor for a downstream model",
+      "example": "Using the averaged map values as 180 chart-shape features alongside indicators in a gradient boosted tree."
+    }
+  ],
+  "avoidWhen": [
+    "Memory is tight or you need speed; keeping every map in memory makes training use more memory than a plain network of the same depth.",
+    "The information is in the order of numbers with no useful picture, such as a table of indicators; a tree model or a one-dimensional sequence model fits better.",
+    "A plain small CNN already reaches the same result on held-out folds; the extra connections add training cost without benefit."
+  ],
+  "example": {
+    "scenario": "At 11:30 Eastern a 128 by 128 pixel image of the last 64 five-minute MNQ bars is classified as trending up, ranging or trending down, as a regime label for later models.",
+    "input": {
+      "summary": "A chart image of the last 64 bars, scaled so it fits regardless of the price level.",
+      "fields": [
+        { "name": "image size", "value": "128 by 128 pixels", "meaning": "The size of the drawn chart the network receives." },
+        { "name": "bars drawn", "value": "64 five-minute bars", "meaning": "How much time the image covers, about five and a third hours." },
+        { "name": "latest close", "value": "19,905", "meaning": "The close of the last bar, at the right edge of the picture." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar, which sets the vertical scale." },
+        { "name": "growth rate", "value": "12 maps per layer", "meaning": "How many new feature maps each layer adds to the shared stack." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each regime label.",
+      "fields": [
+        { "name": "trending up", "value": "52 percent", "meaning": "The share of confidence that the window shows a rising trend." },
+        { "name": "ranging", "value": "35 percent", "meaning": "The share of confidence that price is moving sideways in a band." },
+        { "name": "trending down", "value": "13 percent", "meaning": "The share of confidence that the window shows a falling trend." }
+      ]
+    },
+    "reading": "A 52 percent top class with a 35 percent runner-up is an unsure label, so treat the regime as soft and not as a switch. Check how often these labels agree with a simple rule such as price above its 50-bar average before building trading rules on them."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "specificationId": "simulation-decision-models-agent-based-multi-agent-systems-multi-agent-simulation",
+  "name": "Multi-Agent Simulation",
+  "analogy": "Think of it as a small trading-floor role-play. A market maker, an informed trader and a hedger each get a script and a limited view of the room, and a referee runs the order matching bar after bar. You watch what the market maker earns and loses when the others behave the way they would on a real floor.",
+  "steps": [
+    {
+      "title": "Cast the roles and build the room",
+      "description": "You name a handful of distinct participants and give each a rule or a learned policy. You also build the shared environment: the order matching, the tick size, and how long messages take to arrive. The environment is kept separate from every participant so it can be inspected.",
+      "inExample": "Three roles are cast: a market maker quoting around 19,200, an informed trader who knows where the price is heading, and a hedger who trades for reasons unrelated to price. The tick size is a quarter of a point."
+    },
+    {
+      "title": "Give each role its own limited view",
+      "description": "At every simulated bar each role is shown only what it is allowed to see: its own cash and inventory, plus perhaps the visible order book. Nobody sees another role's private signal. This partial view is what makes the interaction realistic.",
+      "inExample": "The market maker sees the posted bids and offers and its own position, which is flat at zero contracts, but not that the informed trader is about to buy."
+    },
+    {
+      "title": "Each role decides in a fixed order",
+      "description": "A scheduler walks the roles through their turns in the same order every bar, so a run can be repeated exactly from a random seed. Each role turns what it sees into an action: quote, buy, sell, or wait.",
+      "inExample": "On bar 212 the market maker quotes a 1 point spread, the informed trader sends a market buy of 3 contracts, and the hedger waits."
+    },
+    {
+      "title": "The environment resolves everything at once",
+      "description": "The referee matches the submitted orders, delivers any messages that are due after their delay, and produces the next bar together with updated cash and inventory for every role. Prices come out of the roles' actions rather than from a fixed tape.",
+      "inExample": "The buy lifts the market maker's offer, the bar closes 1 point higher, and the market maker is now short 3 contracts into a rising price."
+    },
+    {
+      "title": "Run a full episode, then many with different seeds",
+      "description": "The observe, decide, resolve cycle repeats for every bar of an episode, and the whole episode is repeated many times with different seeds. If a role's policy is being trained, it is updated between episodes from the rewards it collected.",
+      "inExample": "Each episode is 500 bars long and 2,000 episodes are run, with the market maker's quoting policy updated every 10 episodes."
+    },
+    {
+      "title": "Read the trace by role",
+      "description": "The result is not a forecast. It is a record of every action and reward, plus statistics that can be pinned on a specific role: how wide the spread was, how large inventory got, and how much was lost to better-informed traders.",
+      "inExample": "The report splits the market maker's result into spread income, inventory swings and the cost of trading against the informed trader."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Developing a quoting policy",
+      "example": "Training a market-maker policy on MNQ against an informed trader and a noise trader to see how wide it should quote and how much inventory it can carry."
+    },
+    {
+      "task": "Measuring adverse selection",
+      "example": "Finding out how much of a market maker's loss comes from trading against counterparties who knew the next 1-minute move."
+    },
+    {
+      "task": "Testing an execution algorithm against reactive counterparties",
+      "example": "Sending a 20-contract buy through a simulated book that contains a predatory trader who raises offers when it sees size."
+    },
+    {
+      "task": "Studying crowding between strategies",
+      "example": "Letting three correlated strategies share one capital pool to see whether they trade against each other on volatile 5-minute bars."
+    }
+  ],
+  "avoidWhen": [
+    "You want a forecast of the next bar from price history alone; this model produces behaviour between roles, and a direction model fitted to the 35 base features answers that question directly.",
+    "You need the pattern that emerges from thousands of simple participants; an agent-based population model fits that better than a few named roles."
+  ],
+  "example": {
+    "scenario": "A researcher wants to know how a candidate market-making policy behaves on MNQ 5-minute bars when 20 percent of the flow comes from an informed trader. The policy is run for 2,000 seeded episodes of 500 bars each, starting at 19,200.",
+    "input": {
+      "summary": "The roles, the environment settings and the run length that define the simulation.",
+      "fields": [
+        { "name": "starting price", "value": "19,200", "meaning": "The MNQ price at the first bar of each episode." },
+        { "name": "number of roles", "value": "3", "meaning": "A market maker, an informed trader and a hedger." },
+        { "name": "episode length", "value": "500 bars", "meaning": "How many 5-minute bars each simulated episode lasts." },
+        { "name": "episode count", "value": "2,000", "meaning": "How many repeats with different random seeds are averaged." },
+        { "name": "tick size", "value": "a quarter of a point", "meaning": "The smallest price step the matching environment allows." },
+        { "name": "informed trader share of flow", "value": "20 percent", "meaning": "The fraction of orders that come from the trader with a private signal." },
+        { "name": "message delay", "value": "1 bar", "meaning": "How long a message takes to reach the other roles." }
+      ]
+    },
+    "output": {
+      "summary": "Per-role statistics averaged over the 2,000 episodes.",
+      "fields": [
+        { "name": "market maker average result per episode", "value": "310 US dollars", "meaning": "The average profit of the quoting policy after spread income, inventory swings and losses to the informed trader." },
+        { "name": "average quoted spread", "value": "5 ticks", "meaning": "The typical gap between the market maker's bid and offer, a little over 1 point." },
+        { "name": "adverse selection cost per episode", "value": "190 US dollars", "meaning": "The amount the market maker lost by trading against the informed trader just before the price moved." },
+        { "name": "average absolute inventory", "value": "6 contracts", "meaning": "How far from flat the market maker typically sat." }
+      ]
+    },
+    "reading": "The numbers describe how this policy behaves against these scripted roles; they say nothing about the real market. Use them to compare quoting policies against the same cast: if a wider spread cuts the adverse selection cost by more than it cuts spread income, it is worth testing further."
+  }
+}

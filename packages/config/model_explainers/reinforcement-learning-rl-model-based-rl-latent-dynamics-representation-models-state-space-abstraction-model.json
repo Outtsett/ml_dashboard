@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-state-space-abstraction-model",
+  "name": "State-Space Abstraction Model",
+  "analogy": "Think of it as sorting a thousand different-looking chart setups into a few labelled drawers, where two setups share a drawer only if they pay out the same way next and lead to the same kind of drawer afterwards, however different they look on the screen.",
+  "steps": [
+    {
+      "title": "Start from the full feature description",
+      "description": "Every bar is described by its full list of features, which holds far more distinctions than a trading decision needs. Many different-looking feature lists would lead to the same best action.",
+      "inExample": "Each 5-minute MNQ bar is described by its 35 base features, giving a huge number of slightly different states."
+    },
+    {
+      "title": "Define what counts as the same",
+      "description": "Two states are treated as equivalent when they have the same immediate reward and the same distribution over where they lead next. This is the behavioral definition of sameness, not visual similarity.",
+      "inExample": "A quiet drift up on low volume and a quiet drift up on slightly lower volume pay about the same and lead to the same kinds of next bars, so they count as the same."
+    },
+    {
+      "title": "Compare pairs of real states",
+      "description": "The model takes pairs of states from real experience and measures how differently they behave: how far apart their rewards are and how far apart the places they lead next are. That gap is the target distance for the pair.",
+      "inExample": "Millions of pairs of 5-minute bars are compared; a pair of opening-spike bars is far apart in behavior from a pair containing a lunch-hour drift bar."
+    },
+    {
+      "title": "Train the encoder to match that distance",
+      "description": "An encoder maps each raw state to a short abstract code, and is trained so that the distance between two codes matches the behavioral distance of the pair. Small distances mean nearly equivalent states, which degrades gracefully when the grouping is imperfect.",
+      "inExample": "The encoder produces a 6-number code per bar; the codes of the quiet-drift bars end up very close together."
+    },
+    {
+      "title": "Plan or learn in the small space",
+      "description": "Small models of reward and of where each code leads next are fit over the abstract space, and values or policies are computed there. Fewer distinct states means faster learning and a smaller search for any lookahead planner. The codes can also be grouped into a handful of labelled states for reading.",
+      "inExample": "The codes are grouped into 12 abstract states, and a 3-bar lookahead searches 12 options per step instead of thousands."
+    },
+    {
+      "title": "Map new bars and read off the answer",
+      "description": "A new bar is mapped to its abstract state, and the value or policy for that state is used. The mapping also shows which raw situations the policy treats as the same.",
+      "inExample": "The 13:40 bar lands in abstract state 7, labelled afterwards by inspection as quiet drift."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A regime scheme grounded in behavior",
+      "example": "Grouping MNQ bars into about a dozen states by how they pay and what follows, instead of by indicator thresholds."
+    },
+    {
+      "task": "Shrinking the search for a planner",
+      "example": "Letting a short lookahead search over 12 abstract states per step rather than the full feature space."
+    },
+    {
+      "task": "Transfer across related instruments",
+      "example": "Training one abstraction on ES and MNQ together so that learning on one helps the other."
+    },
+    {
+      "task": "Better value estimates for rare situations",
+      "example": "Borrowing information from well-sampled bars in the same abstract state to value an unusual bar."
+    },
+    {
+      "task": "Explaining a black-box policy",
+      "example": "Listing which different-looking raw conditions a trained agent treats as the same situation."
+    }
+  ],
+  "avoidWhen": [
+    "You want a regime label that matches a story you can name in advance, such as trend and range; a regime model with defined states is more direct.",
+    "Rewards are nearly pure noise; behavioral sameness then cannot be learned reliably and the groups would just reflect chance."
+  ],
+  "example": {
+    "scenario": "A trained abstraction maps an MNQ 5-minute bar at 13:40 into one of 12 abstract states and reports what that state tends to pay and where it leads.",
+    "input": {
+      "summary": "One bar's feature vector.",
+      "fields": [
+        { "name": "close", "value": "19,591", "meaning": "The close of the 13:40 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "16 points", "meaning": "The typical high-to-low travel of a recent five-minute bar; low, so the market is quiet." },
+        { "name": "volume against its 20-bar average", "value": "40 percent below average", "meaning": "How light trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "flat, up less than a tenth of one percent", "meaning": "How little price has moved over the previous 30 minutes." },
+        { "name": "bar feature count", "value": "35", "meaning": "The number of base features describing the bar." }
+      ]
+    },
+    "output": {
+      "summary": "The abstract state and what is known about it.",
+      "fields": [
+        { "name": "abstract state", "value": "state 7 of 12", "meaning": "The group this bar was assigned to by the learned mapping." },
+        { "name": "average next-bar payoff in this state", "value": "under 1 US dollar for a 1 contract long", "meaning": "The typical net result of a one-contract long over the next bar from bars of this state." },
+        { "name": "most likely next state", "value": "state 7 again, 64 percent", "meaning": "The chance that the following bar falls in the same abstract state." },
+        { "name": "bars assigned to this state in training", "value": "18,000 of 140,000", "meaning": "How many training bars share this state, which shows how well-sampled it is." }
+      ]
+    },
+    "reading": "State 7 behaves like a quiet drift that tends to persist, with a payoff near zero, which says there is little to do in it. Use the states as a map: look at which states carry a payoff after costs and treat the thin ones, with few training bars, with caution."
+  }
+}

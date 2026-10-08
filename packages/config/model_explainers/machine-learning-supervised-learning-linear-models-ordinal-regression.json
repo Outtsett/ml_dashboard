@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-ordinal-regression",
+  "name": "Ordinal Regression",
+  "analogy": "Think of it as a thermometer with marked lines. The model first reads a single temperature from the indicators, then checks which pair of marked lines it falls between: low, medium or high. The order of the levels is built in, so high is always above medium.",
+  "steps": [
+    {
+      "title": "Define ordered levels",
+      "description": "You split the thing you want to predict into a few levels that have a natural order, and label every training bar with its level. The order is the key difference from ordinary classification, which treats levels as unrelated labels.",
+      "inExample": "The 30-minute high-to-low range after a bar is labelled low (under 40 points), medium (40 to 80 points) or high (over 80 points)."
+    },
+    {
+      "title": "Combine the features into one score",
+      "description": "As in a scorecard, each feature is multiplied by a weight and added into a single number, a hidden gauge reading of how strongly the conditions point to the upper levels.",
+      "inExample": "Wide recent ranges and heavy volume add to the gauge; a quiet, narrow market subtracts."
+    },
+    {
+      "title": "Place cut-off lines on the gauge",
+      "description": "The model learns a ladder of cut-off lines along the gauge, one fewer than the number of levels. A reading below the first line leans to the lowest level, between lines to the middle, above the last to the highest.",
+      "inExample": "With three levels there are two cut-off lines, one separating low from medium and one separating medium from high."
+    },
+    {
+      "title": "Turn the reading into a probability for each level",
+      "description": "How far the reading sits above or below each cut-off line becomes the probability of being at or below that level. Subtracting neighbouring values gives the probability of each single level, and the probabilities add to 100 percent.",
+      "inExample": "A reading between the two lines, nearer the upper one, gives 18 percent low, 52 percent medium and 30 percent high."
+    },
+    {
+      "title": "Fit weights and cut-offs together",
+      "description": "Weights and cut-off lines are fitted at once so that the levels that really happened get high probability across the training bars. Because one gauge drives every level, probability falls away smoothly on either side of the most likely level.",
+      "inExample": "Training moves the gauge and the two lines until bars that went on to high-range moves sit mostly above the second line."
+    },
+    {
+      "title": "Read the level probabilities for a new bar",
+      "description": "A new bar's gauge reading is placed against the learned lines, giving a probability per level. You can take the most likely level or the chance of reaching at least a given level.",
+      "inExample": "The 14:35 bar gets 18, 52 and 30 percent, so medium is most likely and the chance of at least medium is 82 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting volatility level",
+      "example": "Forecasting whether the next 30 minutes of MNQ will be a low, medium or high range period, to set stop distance and size."
+    },
+    {
+      "task": "Trend strength grades",
+      "example": "Grading a trend as weak, moderate or strong from slope and average directional movement features."
+    },
+    {
+      "task": "News sentiment level",
+      "example": "Predicting whether FinBERT sentiment over the next hour will be negative, neutral or positive."
+    },
+    {
+      "task": "Risk bands for position size",
+      "example": "Assigning each bar a risk band, so the size cap follows the probability of the highest band."
+    }
+  ],
+  "avoidWhen": [
+    "The levels have no natural order, such as distinct chart patterns; ordinary multi-class classification is the right tool.",
+    "You need the exact size of a move rather than a band; a regression or quantile model keeps the number instead of discarding it into levels.",
+    "The effect of the features differs between the low and high ends; this model assumes one gauge works for every cut-off."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. An ordinal model gives the probability that the high-to-low range over the next 6 bars (30 minutes) will be low (under 40 points), medium (40 to 80 points) or high (over 80 points).",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "range of the last 6 bars", "value": "61 points", "meaning": "The high-to-low distance covered over the previous 30 minutes." },
+        { "name": "minutes until the cash market close", "value": "85", "meaning": "How long remains in the regular session, since activity changes toward the close." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each level and the summary readings you can take from it.",
+      "fields": [
+        { "name": "gauge reading", "value": "between the two cut-off lines, nearer the upper one", "meaning": "The combined score from the features, placed against the two learned cut-off lines." },
+        { "name": "probability of a low range", "value": "18 percent", "meaning": "The chance the next 30 minutes cover under 40 points." },
+        { "name": "probability of a medium range", "value": "52 percent", "meaning": "The chance the next 30 minutes cover 40 to 80 points." },
+        { "name": "probability of a high range", "value": "30 percent", "meaning": "The chance the next 30 minutes cover more than 80 points." },
+        { "name": "chance of at least a medium range", "value": "82 percent", "meaning": "The medium and high probabilities added together." }
+      ]
+    },
+    "reading": "Medium is the most likely level, with a meaningful 30 percent chance of a wide range. A reasonable use is to keep stops wide enough for a medium range and to cut size when the high-range probability rises, then check on held-out folds that the predicted probabilities match how often each level really occurred."
+  }
+}

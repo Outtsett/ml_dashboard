@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-graph-based-methods-graph-based-semi-supervised-learning",
+  "name": "Graph-Based Semi-Supervised Learning",
+  "analogy": "Think of it as a rumour spreading through a trading floor where people sit next to others who think alike. A few people already hold a firm view, such as trending day or quiet day. Everyone else takes on the views of the people sitting closest to them, until the whole floor settles.",
+  "steps": [
+    {
+      "title": "Turn every window into a point",
+      "description": "Each bar or window, labelled or not, becomes a point described by a row of features. Both the few labelled points and the many unlabeled ones are placed in the same picture.",
+      "inExample": "5,000 five-minute MNQ windows are described by 4 standardised features each: average true range, trend strength, volume ratio and distance from the 50-bar moving average. 150 of them carry a regime label."
+    },
+    {
+      "title": "Join each point to its nearest neighbours",
+      "description": "Each point is linked to the points most similar to it, for example its 10 nearest neighbours. The strength of each link grows with the similarity, so windows that look alike are tightly joined.",
+      "inExample": "The 14:35 window is joined to its 10 most similar windows, with the strongest link to the closest window and the weakest to the tenth."
+    },
+    {
+      "title": "Pin the known labels in place",
+      "description": "Points that have labels are fixed as sources of information. Their class is written as a clear vote for that class, and all other points start with no vote.",
+      "inExample": "Of the 10 neighbours of the 14:35 window, 3 are labelled: two as trending and one as ranging."
+    },
+    {
+      "title": "Let the votes spread along the links",
+      "description": "Each unlabeled point repeatedly takes a weighted average of its neighbours' votes, with stronger links counting more, while the labelled points keep their original votes. Information therefore flows from the labelled points through chains of similar windows.",
+      "inExample": "In round 1 the window hears only from its 3 labelled neighbours: trending 70 percent, ranging 30 percent. By round 2 its unlabeled neighbours hold votes too, and it shifts to trending 62, ranging 29 and volatile 9 percent."
+    },
+    {
+      "title": "Stop when the votes settle",
+      "description": "The spreading repeats until the votes stop changing. At that point every point has a score for each class, based both on its distance to labelled points and on the chain of similar windows between them.",
+      "inExample": "After 28 rounds the changes fall below a tiny tolerance and the process stops."
+    },
+    {
+      "title": "Read each point's final scores",
+      "description": "The class with the highest score is the point's label, and the scores themselves show how settled the call is. A point surrounded by one kind of window gets a firm call, and a point between two kinds stays uncertain.",
+      "inExample": "The 14:35 window ends with trending 64 percent, ranging 26 percent and volatile 10 percent, so it is called trending with moderate firmness."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Labelling market regimes from a few examples",
+      "example": "Spreading 150 hand labels across 5,000 MNQ windows to name each one trending, ranging or volatile."
+    },
+    {
+      "task": "Studying relationships between instruments",
+      "example": "Linking currency or index pairs by how alike their moves are, then spreading a label like risk-on across the connected pairs."
+    },
+    {
+      "task": "Finding outliers",
+      "example": "Flagging windows with weak links to every other window, such as the minutes around an unexpected announcement."
+    },
+    {
+      "task": "Combining prices and news",
+      "example": "Joining price windows and news items in one graph so that sentiment labels on a few news items spread to the price windows next to them."
+    }
+  ],
+  "avoidWhen": [
+    "You must label bars as they arrive live; the method works on a fixed graph, so each new bar needs a place added to the graph, and future bars must never sit in the graph used to label earlier ones.",
+    "Similar-looking windows often have different labels; the method assumes neighbours share a label, and when they do not the spreading just blurs the answer.",
+    "You have a very large pool of windows; the graph grows quickly with the square of the number of points unless it is pruned to nearest neighbours."
+  ],
+  "example": {
+    "scenario": "A research job labels 5,000 five-minute MNQ windows as trending, ranging or volatile, starting from 150 hand labelled windows. It follows the 14:35 window through the spreading.",
+    "input": {
+      "summary": "A graph of 5,000 windows, each joined to its 10 nearest neighbours, with 150 labelled windows.",
+      "fields": [
+        { "name": "windows in the graph", "value": "5,000", "meaning": "The number of five-minute windows treated as points." },
+        { "name": "labelled windows", "value": "150 (3 percent)", "meaning": "The small share of points whose regime is known and fixed." },
+        { "name": "links per window", "value": "10 nearest neighbours", "meaning": "How many similar windows each point is joined to." },
+        { "name": "average true range, 14 bars, of the 14:35 window", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "labelled neighbours of the 14:35 window", "value": "2 trending, 1 ranging", "meaning": "The known votes that sit among its 10 neighbours." }
+      ]
+    },
+    "output": {
+      "summary": "Final class scores for the 14:35 window and how the spreading ended.",
+      "fields": [
+        { "name": "trending score", "value": "64 percent", "meaning": "The settled share of belief that the window is a trending one." },
+        { "name": "ranging score", "value": "26 percent", "meaning": "The settled share of belief that the window is a ranging one." },
+        { "name": "volatile score", "value": "10 percent", "meaning": "The settled share of belief that the window is a volatile one." },
+        { "name": "rounds until the votes settled", "value": "28", "meaning": "How many rounds of averaging it took before the scores stopped changing." }
+      ]
+    },
+    "reading": "The window is called trending, and 64 percent against 26 percent is a moderate lead, not a certainty. Check the call against the held-back labelled windows, and keep every window in the graph earlier in time than the one being labelled when the result will be used in a strategy, so the walk-forward folds on the run page are not contaminated."
+  }
+}

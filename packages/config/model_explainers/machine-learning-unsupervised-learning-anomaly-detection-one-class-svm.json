@@ -1,0 +1,86 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-anomaly-detection-one-class-svm",
+  "name": "One-Class SVM",
+  "analogy": "Think of it as stretching a flexible fence around a herd. The fence is pulled as tight as it can go while still keeping nearly all the normal animals inside, and anything that wanders outside the fence is flagged as a stranger.",
+  "steps": [
+    {
+      "title": "Gather bars that are mostly normal",
+      "description": "The model is given a set of bars with no labels, on the assumption that most of them are ordinary. It never needs examples of bad bars, only a good picture of what usual looks like.",
+      "inExample": "It is given 20,000 5-minute MNQ bars, each described by four features, scaled to comparable sizes."
+    },
+    {
+      "title": "Rescale the features",
+      "description": "The model is sensitive to feature size, so every feature is put on the same scale first. Without this, a feature measured in large numbers would dominate the boundary.",
+      "inExample": "Return, range ratio, volume ratio and distance from average are each rescaled to have an average of zero and a typical size of one."
+    },
+    {
+      "title": "Choose how curved the fence may be",
+      "description": "A kernel setting lets the boundary bend around oddly shaped groups of normal bars instead of being a flat cut. A looser setting gives a smoother fence and a tighter one wraps closely around the data.",
+      "inExample": "A smooth bell-shaped kernel is chosen so the fence can curve around the main cluster and a smaller side cluster of opening-hour bars."
+    },
+    {
+      "title": "Say how many bars may fall outside",
+      "description": "You set an upper limit on the share of training bars allowed outside the fence. It acts as a dial between a tight fence that rejects many bars and a loose one that accepts nearly everything.",
+      "inExample": "The share is set to 2 percent, so about 400 of the 20,000 training bars may end up outside."
+    },
+    {
+      "title": "Fit the tightest fence that fits",
+      "description": "The model finds the boundary that encloses most of the normal bars while keeping the enclosed region as small as possible. Only a few of the bars, the ones sitting on or beyond the boundary, end up defining it.",
+      "inExample": "The fit keeps about 410 boundary-defining bars, called support bars, and discards the rest from the final rule."
+    },
+    {
+      "title": "Score a new bar by its side of the fence",
+      "description": "A new bar gets a signed score: positive if it falls inside the fence, negative if outside, and the farther from the fence the larger the number. A plain inside or outside label comes from the sign.",
+      "inExample": "The new bar scores minus 3 on the model's own scale, which puts it outside the fence."
+    },
+    {
+      "title": "Act on the label or the score",
+      "description": "The yes-or-no label is enough for a simple flag, but the score lets you rank bars from slightly odd to very odd. A stricter threshold can be set on the score if the default flags too much.",
+      "inExample": "A threshold of minus 1 is used to flag only strongly unusual bars, and this bar passes that threshold."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Defining normal market conditions",
+      "example": "Learning the shape of ordinary 5-minute bars on MNQ so that any bar outside it triggers a closer look."
+    },
+    {
+      "task": "A guard for model inputs",
+      "example": "Checking that today's feature row resembles the data a model was trained on, and pausing the model if it falls outside."
+    },
+    {
+      "task": "Detecting regime change",
+      "example": "Watching the share of bars outside the fence climb over several days, which suggests the market is behaving differently from the training period."
+    },
+    {
+      "task": "Cleaning odd bars",
+      "example": "Removing the roughly 2 percent of bars outside the fence before fitting a forecasting model."
+    }
+  ],
+  "avoidWhen": [
+    "You have hundreds of thousands of bars; training slows steeply as bars are added, so an isolation forest is the more practical choice.",
+    "The training bars contain many anomalies already; the fence will stretch to include them and stop flagging that kind of bar."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes. A One-Class SVM trained on a year of ordinary bars is asked whether this bar lies inside the region of normal behaviour.",
+    "input": {
+      "summary": "Four rescaled features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,276", "meaning": "The price at which the 5-minute bar closed, shown for reference and not used as a feature." },
+        { "name": "return over the bar", "value": "down about a third of a percent", "meaning": "How far price fell during this bar, a large move for a 5-minute bar." },
+        { "name": "range against average true range", "value": "nearly 3 times", "meaning": "The bar's range was nearly three times the typical recent range." },
+        { "name": "volume against its 20-bar average", "value": "about 3 times", "meaning": "Trading was much heavier than normal." },
+        { "name": "distance from the 50-bar average", "value": "just under 1 percent below", "meaning": "How far the close sits below its recent average price." }
+      ]
+    },
+    "output": {
+      "summary": "A signed score and an inside-or-outside label.",
+      "fields": [
+        { "name": "decision score", "value": "minus 3", "meaning": "Negative means outside the fence of normal behaviour; larger negative values mean farther outside. The scale is the model's own." },
+        { "name": "label", "value": "outside", "meaning": "The bar is not inside the region that the model learned as normal." },
+        { "name": "share of training bars allowed outside", "value": "2 percent", "meaning": "The dial that sets how tight the fence was drawn." }
+      ]
+    },
+    "reading": "A large drop with wide range and heavy volume sits outside the learned fence, so the model calls it unusual. That is not a prediction of what comes next: use it to widen risk limits, pause a model trained only on calm data, or mark the bar for review."
+  }
+}

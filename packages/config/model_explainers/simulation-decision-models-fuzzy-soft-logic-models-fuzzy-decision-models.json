@@ -1,0 +1,76 @@
+{
+  "specificationId": "simulation-decision-models-fuzzy-soft-logic-models-fuzzy-decision-models",
+  "name": "Fuzzy Decision Models",
+  "analogy": "Think of it as a discretionary trader's rulebook with dimmer switches instead of on-off switches. A reading is not simply overbought or not; it is a little overbought and a little neutral at once, each rule speaks with the loudness it deserves, and the position size is the blend of what every rule says.",
+  "steps": [
+    {
+      "title": "Name the categories each indicator can fall into",
+      "description": "For every input you define words such as low, medium and high, and draw an overlapping shape for each word over the indicator's range. Because the shapes overlap, a single reading can belong partly to two neighbouring words.",
+      "inExample": "The relative strength index gets the words neutral and overbought, average true range gets moderate and high, and 20-bar trend strength gets medium and strong."
+    },
+    {
+      "title": "Turn the current readings into degrees of belonging",
+      "description": "Each reading is checked against each word and receives a degree from zero to 100 percent: zero means not at all, 100 means fully. This replaces a hard threshold with a gradual one.",
+      "inExample": "A relative strength index of 69 is 75 percent overbought and 25 percent neutral. An average true range of 28 points is 60 percent moderate and 40 percent high. Trend strength is 70 percent strong and 30 percent medium."
+    },
+    {
+      "title": "Fire every rule with its own strength",
+      "description": "The rule base is written in plain if-then sentences. A rule that combines several conditions fires only as strongly as its weakest condition. Several rules can fire at the same time, each with a different strength.",
+      "inExample": "Rule A, strong trend and moderate volatility means a large size, fires at 60 percent. Rule B, overbought means a small size, fires at 75 percent. Rule C, high volatility means a small size, fires at 40 percent."
+    },
+    {
+      "title": "Blend the rules into one combined answer",
+      "description": "Each fired rule pulls the output toward its own conclusion in proportion to its strength. The pulls are combined rather than choosing a single winner, so the answer moves smoothly as readings change.",
+      "inExample": "Rule A pulls toward 90 percent of full size with strength 60. Rules B and C pull toward 20 percent of full size with strengths 75 and 40."
+    },
+    {
+      "title": "Convert the blend back to one crisp number",
+      "description": "The combined result is reduced to a single usable number, for example by finding its balance point. The system can also report which rules drove the number, so the decision can be audited.",
+      "inExample": "The balance point lands at 44 percent of full size, which is 4 of a maximum 10 contracts. Rule B was the loudest voice."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Smooth position sizing",
+      "example": "Scaling an MNQ position between 0 and 10 contracts from trend strength, average true range and the relative strength index instead of flipping size at fixed thresholds."
+    },
+    {
+      "task": "Graded overbought and oversold confidence",
+      "example": "Replacing the rule relative strength index above 70 with a confidence that rises gradually from 60 to 80, so readings of 69 and 71 are treated almost alike."
+    },
+    {
+      "task": "Fusing several weak indicators",
+      "example": "Combining momentum, volume and volatility readings on 5-minute bars into one entry confidence when none of them is decisive alone."
+    },
+    {
+      "task": "Encoding a discretionary trader's habits",
+      "example": "Writing down a trader's rules of thumb about when to size down near news so they can be backtested on walk-forward folds."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labeled history and want the data to discover the relationships; a tree or boosting model learns thresholds from the features without a person writing rules.",
+    "The rule base would need hundreds of rules; the overlapping conditions become impossible to audit and begin to fit noise."
+  ],
+  "example": {
+    "scenario": "At the close of a 5-minute MNQ bar a fuzzy sizing system reads three indicators and must decide what fraction of a maximum 10-contract position to hold.",
+    "input": {
+      "summary": "Three indicator readings for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "19,640", "meaning": "The price at which the bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "69", "meaning": "A momentum reading from 0 to 100; high values mean price has risen quickly." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of volatility." },
+        { "name": "trend strength, 20 bars", "value": "70 out of 100", "meaning": "How consistently price has moved in one direction over the last 20 bars." },
+        { "name": "maximum position", "value": "10 contracts", "meaning": "The largest size the system is allowed to hold." }
+      ]
+    },
+    "output": {
+      "summary": "One position size and the rules that produced it.",
+      "fields": [
+        { "name": "position size as a share of maximum", "value": "44 percent", "meaning": "The blended answer of all fired rules, where 0 means flat and 100 means full size." },
+        { "name": "contracts to hold", "value": "4", "meaning": "The share of the 10-contract maximum, rounded to whole contracts." },
+        { "name": "loudest rule", "value": "overbought means small size, strength 75 percent", "meaning": "The rule with the largest firing strength, which pulled the size down the most." }
+      ]
+    },
+    "reading": "A size of 44 percent says the strong trend argues for size while the overbought reading and the elevated volatility argue against it. If the relative strength index slips from 69 to 66 the size rises smoothly rather than jumping, which is the point of the method."
+  }
+}

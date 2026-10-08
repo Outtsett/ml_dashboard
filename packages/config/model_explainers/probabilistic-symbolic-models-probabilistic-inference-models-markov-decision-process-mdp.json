@@ -1,0 +1,82 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-inference-models-markov-decision-process-mdp",
+  "name": "Markov Decision Process (MDP)",
+  "analogy": "Think of it as planning a chess game for a trade. A good move is not the one that wins the most right now; it is the one that leaves you in the best spot for everything that follows. The model scores every position by what it is worth over the whole rest of the game.",
+  "steps": [
+    {
+      "title": "Describe the situation as a state",
+      "description": "A state is everything the next decision needs to know and nothing it does not. It must carry enough that the past adds no further information about what happens next.",
+      "inExample": "A state is the current position, the unrealized profit in coarse buckets, and the volatility level; here it is long 1 MNQ contract, plus 24 points, medium volatility."
+    },
+    {
+      "title": "List the actions available",
+      "description": "In every state the trader can choose from a short list of actions. Each action changes what state you end up in.",
+      "inExample": "The actions are hold, add one contract, or exit the position."
+    },
+    {
+      "title": "Say what each outcome is worth",
+      "description": "Every state-and-action pair earns a reward, which for trading is the profit or loss gained minus trading costs. Rewards today are counted fully while rewards further away are counted a little less.",
+      "inExample": "Exiting banks 48 US dollars of open profit (24 points at 2 US dollars) minus 2 US dollars of commission and slippage."
+    },
+    {
+      "title": "Estimate how states follow each other",
+      "description": "From history, the model estimates the odds of landing in each next state after each action. This is the model of the market that classical planning needs, and it is only as good as the history behind it.",
+      "inExample": "Holding at plus 24 points in medium volatility leads to a bigger gain about half the time and to a pullback otherwise, in proportions counted from past bars."
+    },
+    {
+      "title": "Work out the long-run value of every state",
+      "description": "Value is computed by sweeping over all states repeatedly: each state is worth the best action's immediate reward plus the discounted value of the states it leads to. The sweeps are guaranteed to settle on a single answer.",
+      "inExample": "After the sweeps settle, holding is worth 52 US dollars, exiting 46 US dollars, and adding 44 US dollars."
+    },
+    {
+      "title": "Read off the best action in each state",
+      "description": "The policy is simply the highest-value action in every state. It is a full rulebook, listing what to do wherever the trade might find itself.",
+      "inExample": "For this state the policy says hold, because 52 is higher than the other two values."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Deciding when to exit an open trade",
+      "example": "Choosing whether to hold, add to or close a long MNQ position given open profit and volatility, with costs counted in every choice."
+    },
+    {
+      "task": "Splitting up a large order",
+      "example": "Scheduling the child orders of a 40-contract ES order across several minutes to trade off market impact against price drift."
+    },
+    {
+      "task": "Choosing stop and target distances",
+      "example": "Treating a few stop and target pairs as the actions and picking the one with the best cost-adjusted value."
+    },
+    {
+      "task": "A solvable reference for reinforcement learning",
+      "example": "Giving a learned trading policy an exactly computed benchmark policy to be compared with on the same small state set."
+    }
+  ],
+  "avoidWhen": [
+    "The state space is too big to list, such as raw price windows; model-free reinforcement learning with a neural network is the usual choice there.",
+    "You cannot estimate how the market moves between states with confidence, because the whole answer rests on that estimate and a bad one produces a confident wrong policy."
+  ],
+  "example": {
+    "scenario": "You hold 1 long MNQ contract with 24 points of open profit while volatility is in the medium band. You want to know whether to hold, add or exit given a small, estimated model of how the market moves.",
+    "input": {
+      "summary": "The current state, the available actions and the numbers that score them.",
+      "fields": [
+        { "name": "position", "value": "long 1 MNQ contract", "meaning": "The size and side of the open trade." },
+        { "name": "open profit", "value": "24 points, 48 US dollars", "meaning": "The unrealized gain, with one MNQ point worth 2 US dollars." },
+        { "name": "volatility level", "value": "medium", "meaning": "The band that the 14-bar average true range of 22 points falls in." },
+        { "name": "cost of closing the contract", "value": "2 US dollars", "meaning": "The assumed commission and slippage for closing the contract." },
+        { "name": "discount for later rewards", "value": "95 percent", "meaning": "How much a reward one step further away is worth compared with one today." }
+      ]
+    },
+    "output": {
+      "summary": "A value for each action from this state, and the action the policy picks.",
+      "fields": [
+        { "name": "value of holding", "value": "52 US dollars", "meaning": "The expected total reward, now and later, if you hold and then act best afterward." },
+        { "name": "value of exiting", "value": "46 US dollars", "meaning": "The 48 US dollars of open profit less the 2 US dollar cost, taken now." },
+        { "name": "value of adding a contract", "value": "44 US dollars", "meaning": "The expected total reward from doubling the position and acting best afterward." },
+        { "name": "best action", "value": "hold", "meaning": "The action with the highest value in this state." }
+      ]
+    },
+    "reading": "Holding wins by 6 US dollars over exiting, a narrow edge that depends entirely on the estimated market model. Treat the gap as a prompt to test how the policy changes if the pullback odds are a little worse, and let the result decide how firmly to follow it."
+  }
+}

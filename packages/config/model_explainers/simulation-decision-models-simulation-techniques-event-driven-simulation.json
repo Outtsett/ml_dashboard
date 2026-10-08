@@ -1,0 +1,78 @@
+{
+  "specificationId": "simulation-decision-models-simulation-techniques-event-driven-simulation",
+  "name": "Event-Driven Simulation",
+  "analogy": "Think of it as a mail room with labelled envelopes. Every part of a trading system hands its news to a central sorter as a typed message, a new bar, a signal, an order or a fill, and the sorter delivers each to whoever asked for that kind. The same mail room can run on old bars or on the live feed.",
+  "steps": [
+    {
+      "title": "Define the kinds of messages",
+      "description": "The system has a short list of event types, such as market, signal, order and fill. Parts of the system talk only by sending and receiving these events, never by calling each other directly.",
+      "inExample": "Four event types are used: a new bar, a trade signal, an order and a fill."
+    },
+    {
+      "title": "Subscribe each part to what it needs",
+      "description": "The data feeder, the strategy, the portfolio and risk manager, and the execution handler each register for the event types they care about. Adding a new part, such as an extra risk check, means subscribing it without touching the others.",
+      "inExample": "The strategy listens for new bars. The portfolio listens for signals. The execution handler listens for orders."
+    },
+    {
+      "title": "Feed bars in strict time order",
+      "description": "The data source releases one bar at a time into the queue. The strategy therefore only ever sees the present bar, which prevents peeking at the future by construction.",
+      "inExample": "The 5-minute MNQ bars of three months are released one by one, about 17,400 in total."
+    },
+    {
+      "title": "Let each event trigger the next",
+      "description": "A new bar reaches the strategy, which may emit a signal. The signal reaches the portfolio, which applies sizing and risk rules and may emit an order. The order reaches the execution handler, which simulates the fill and emits a fill event that updates positions and cash.",
+      "inExample": "A crossover on bar 9,120 produces a signal. The portfolio converts it into an order for 2 contracts. The execution handler fills it one tick worse than the close."
+    },
+    {
+      "title": "Keep the log and swap the event source for live",
+      "description": "Every event is recorded, so the run can be audited or replayed. To go live, the data source and execution handler are replaced by the real feed and broker, and the strategy, risk and sizing code is unchanged.",
+      "inExample": "The log holds every bar, signal, order and fill. The same strategy code is later pointed at a live feed for paper trading."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Backtests you intend to trust",
+      "example": "Backtesting an MNQ 5-minute strategy so that the code path matches what will run live."
+    },
+    {
+      "task": "Paper trading with the real code",
+      "example": "Running the production strategy against a simulated broker before putting capital behind it."
+    },
+    {
+      "task": "Several strategies through one risk layer",
+      "example": "Routing signals from a trend strategy and a mean-reversion strategy through a single daily loss limit."
+    },
+    {
+      "task": "Auditing after the fact",
+      "example": "Replaying the saved event log to see exactly why a trade was taken or blocked on a given day."
+    }
+  ],
+  "avoidWhen": [
+    "You want a quick vectorised test of a signal across many parameter settings; a plain loop or table calculation is much faster for early exploration.",
+    "You need the exact order book behaviour of queue position and partial fills; a discrete event simulation of the book models that, while this style structures the whole system."
+  ],
+  "example": {
+    "scenario": "A researcher backtests a moving-average crossover on three months of MNQ 5-minute bars through an event-driven engine, with a daily loss limit and a cost of one tick of slippage per fill.",
+    "input": {
+      "summary": "The data source, the strategy and the rules the events pass through.",
+      "fields": [
+        { "name": "bars", "value": "17,388 five-minute bars", "meaning": "About three months of MNQ data released one bar at a time." },
+        { "name": "strategy", "value": "crossover of 12-bar and 48-bar averages", "meaning": "The signal logic wrapped by the strategy component." },
+        { "name": "position size", "value": "2 contracts", "meaning": "The size the portfolio component assigns to each signal." },
+        { "name": "daily loss limit", "value": "400 US dollars", "meaning": "The risk rule that blocks new orders for the rest of the day once breached." },
+        { "name": "slippage", "value": "1 tick, a quarter of a point", "meaning": "The amount the simulated fill is worse than the bar's close." }
+      ]
+    },
+    "output": {
+      "summary": "A log of events and the resulting equity result. The numbers illustrate the shape of the output, not a measured result.",
+      "fields": [
+        { "name": "bar events processed", "value": "17,388", "meaning": "One per bar, each delivered in time order." },
+        { "name": "signals emitted", "value": "214", "meaning": "How many times the strategy asked to trade." },
+        { "name": "orders blocked by the risk rule", "value": "27", "meaning": "Signals the daily loss limit refused to turn into orders." },
+        { "name": "fills", "value": "187", "meaning": "Orders executed in the simulation." },
+        { "name": "net result after costs", "value": "830 US dollars", "meaning": "The final change in simulated equity after slippage and commission." }
+      ]
+    },
+    "reading": "The useful output is the full log, not the final number. Every one of the 27 blocked signals can be inspected to confirm the risk rule behaved as intended, and the same strategy code is ready to run unchanged against a live feed."
+  }
+}

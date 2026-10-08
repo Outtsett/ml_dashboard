@@ -1,0 +1,81 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-simsiam",
+  "name": "SimSiam (Simple Siamese Representation Learning)",
+  "analogy": "Think of it as two identical twins who each see a differently disguised copy of the same chart. Each twin must predict what the other twin is thinking. One rule keeps them honest: when twin one is being corrected, twin two's thought is treated as fixed and may not be changed to make the match easier.",
+  "steps": [
+    {
+      "title": "Make two altered views of each window",
+      "description": "A window of bars is copied twice and each copy is altered in ways that should not change its meaning, such as noise, small rescaling or hidden bars. Both copies come from the same window, so they ought to be described alike.",
+      "inExample": "A 48-bar MNQ window gets a noisy copy, view A, and a masked copy, view B."
+    },
+    {
+      "title": "Send both through the same network",
+      "description": "One encoder with one set of weights reads both views, and a small projection layer shrinks each result to a short vector. Using the same weights for both is what makes the pair a siamese pair.",
+      "inExample": "Each view becomes a vector of 128 numbers through the shared encoder and projector."
+    },
+    {
+      "title": "Add a predictor on top",
+      "description": "A small extra network, the predictor, takes one view's vector and tries to produce the other view's vector. In each comparison it is applied to one side only, which is what makes the matching task non-trivial.",
+      "inExample": "The predictor turns view A's vector into a guess for view B's vector."
+    },
+    {
+      "title": "Freeze the other side during each correction",
+      "description": "When view A's guess is compared with view B's vector, the vector from view B is treated as a fixed target and no correction flows through it. This stop-gradient rule, applied in both directions, is what prevents the trivial cheat of giving every window the same vector.",
+      "inExample": "In the first comparison view B's vector is frozen; in the second, view A's vector is frozen."
+    },
+    {
+      "title": "Reward matching direction",
+      "description": "Both vectors are scaled to unit length, and the model is rewarded when the guess points the same way as the frozen target. No negative examples, large batches or slow-moving copy are used. The two directions are averaged.",
+      "inExample": "The direction match between guess and target rises from 30 percent to 90 percent over training with batches of only 128."
+    },
+    {
+      "title": "Keep the encoder, drop the rest",
+      "description": "After training, the projector and predictor are discarded. The encoder's output for a window serves as its description, used for clustering or as input to a model trained on labels.",
+      "inExample": "Today's window is described by the encoder's 128 numbers and passed to a small direction classifier."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining with small batches",
+      "example": "Learning window descriptions from MNQ bars on a single graphics card with batches of 128, where methods needing huge batches are impractical."
+    },
+    {
+      "task": "Features for downstream models",
+      "example": "Feeding the encoder's description beside the 35 base features into a tree model."
+    },
+    {
+      "task": "Clustering market states",
+      "example": "Grouping descriptions into recurring session types for regime analysis."
+    },
+    {
+      "task": "Embeddings for several instruments",
+      "example": "Training one encoder on MNQ and ES windows after rescaling each instrument separately."
+    }
+  ],
+  "avoidWhen": [
+    "You want guaranteed protection against collapse; this method relies on a trick that works in practice, so you must check that descriptions of different windows actually differ.",
+    "You need to retrieve specific look-alikes with a meaningful distance; a Siamese network trained on outcome pairs is the better match."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains SimSiam on two years of unlabelled MNQ 5-minute windows with a batch of 128. They then check the descriptions have not collapsed by comparing how different windows are described, and extract today's description.",
+    "input": {
+      "summary": "A batch of windows with two altered views each, read by one shared encoder.",
+      "fields": [
+        { "name": "windows per batch", "value": "128", "meaning": "A small batch, since no wrong answers are needed." },
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "features per bar", "value": "8", "meaning": "Rescaled return, range, body share, wick balance, volume and related measures." },
+        { "name": "distortions", "value": "noise and 15 percent masking", "meaning": "The changes that make the two views differ." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The recent typical bar travel." }
+      ]
+    },
+    "output": {
+      "summary": "A description of the window and a check that descriptions have not collapsed to a single point.",
+      "fields": [
+        { "name": "window description", "value": "128 numbers", "meaning": "The encoder output used by later models." },
+        { "name": "direction match between views", "value": "90 percent", "meaning": "How closely the guess for one view points the same way as the other view's vector." },
+        { "name": "spread of descriptions across windows", "value": "about 9 percent per number", "meaning": "The typical spread of each number across different windows once vectors are scaled to unit length; near zero would signal collapse." }
+      ]
+    },
+    "reading": "A high match is only meaningful together with a non-trivial spread, because a collapsed model also matches perfectly. With both healthy, the encoder can be tried as a feature source. Judge it by a labelled model across walk-forward folds, net of costs, not by the matching score."
+  }
+}

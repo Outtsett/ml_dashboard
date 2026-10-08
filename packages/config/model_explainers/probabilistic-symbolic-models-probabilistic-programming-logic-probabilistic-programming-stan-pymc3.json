@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-programming-stan-pymc3",
+  "name": "Probabilistic Programming (Stan, PyMC3)",
+  "analogy": "Think of it as writing down the story of how the data came to be, then handing the story to a tireless detective. The detective tries thousands of versions of the hidden numbers and keeps count of which versions could plausibly have produced what you saw.",
+  "steps": [
+    {
+      "title": "Write the data-generating story",
+      "description": "You write the model as a short program that says how the data would be produced: which hidden numbers exist, how they are drawn, and how they lead to the observed values. You do not write any fitting code.",
+      "inExample": "Each instrument has its own typical 5-minute move as a share of price, and each of those is drawn from a shared group-level typical move; observed returns scatter around zero by that amount."
+    },
+    {
+      "title": "State your starting beliefs",
+      "description": "Every hidden number gets a prior, which says what values are reasonable before seeing data. Priors keep the answers sensible when data is thin.",
+      "inExample": "The group-level typical move is believed to lie between 3 and 20 basis points of price per 5-minute bar, where a basis point is one hundredth of a percent."
+    },
+    {
+      "title": "Attach the observed data",
+      "description": "The real data is linked to the story, which tells the engine what has to be explained. The engine now knows how plausible any choice of hidden numbers is given what you saw.",
+      "inExample": "Sixty days of 5-minute returns for MNQ and ES are attached."
+    },
+    {
+      "title": "Let a sampler explore the hidden numbers",
+      "description": "A sampler wanders through the space of hidden numbers, spending more time where the explanation is better. Modern samplers follow the slope of the plausibility, so they take long confident strides, and the program finds that slope automatically.",
+      "inExample": "Four independent runs of the sampler each take 1,000 draws of the typical moves."
+    },
+    {
+      "title": "Check that the explorers agree",
+      "description": "The engine reports whether the separate runs have found the same answer and whether any stretch of the walk misbehaved. A fit that fails these checks must not be trusted.",
+      "inExample": "All four runs agree closely and none of the 4,000 draws is flagged as a divergence."
+    },
+    {
+      "title": "Read the answer as a range",
+      "description": "The result is not one value but all the draws together, which show the full range of plausible values for each hidden number. Summaries are read straight from the draws.",
+      "inExample": "MNQ's typical 5-minute move is most likely about 32 US dollars per contract, with a 94 percent range of 31 to 33 US dollars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sharing strength across instruments",
+      "example": "Estimating a volatility for each of MNQ, ES and M2K from short windows by letting them borrow from a shared group-level volatility."
+    },
+    {
+      "task": "Comparing two strategy settings with full uncertainty",
+      "example": "Asking how likely strategy A really beats strategy B on per-trade profit, as a probability, rather than a single significance number."
+    },
+    {
+      "task": "A custom model with no ready-made estimator",
+      "example": "Fitting a spread whose reversion speed is itself uncertain, written directly as a story."
+    },
+    {
+      "task": "Tail-risk parameters with error bars",
+      "example": "Estimating how heavy the tails of MNQ daily returns are, with a range that widens honestly when data is scarce."
+    }
+  ],
+  "avoidWhen": [
+    "The model is a standard one with a fast exact answer, such as a straight-line fit; the sampler is slower and adds nothing.",
+    "You need to retrain on every new bar in real time, because sampling can take seconds to minutes and does not suit a live loop."
+  ],
+  "example": {
+    "scenario": "You want a volatility estimate for MNQ and ES that does not swing wildly on a short sample, so you write a small hierarchical model and fit it to the last 60 days of 5-minute returns.",
+    "input": {
+      "summary": "A short model, the data it is attached to, and sampler settings.",
+      "fields": [
+        { "name": "model", "value": "one typical move per instrument, drawn from a shared group move", "meaning": "The data-generating story written as the program." },
+        { "name": "prior for the group typical move", "value": "3 to 20 basis points per bar", "meaning": "The range of values believed reasonable before seeing data, as a share of price." },
+        { "name": "data", "value": "60 days of 5-minute returns", "meaning": "About 4,700 return values for each of the two instruments, counting regular trading hours only." },
+        { "name": "sampler runs", "value": "4 runs of 1,000 draws", "meaning": "Independent explorations, used both for the answer and for the agreement check." }
+      ]
+    },
+    "output": {
+      "summary": "Draws for each typical move, summarized as a typical value and a range, plus the health check.",
+      "fields": [
+        { "name": "MNQ typical 5-minute move", "value": "32 US dollars per contract, range 31 to 33", "meaning": "The typical value and the 94 percent range of plausible values; 32 US dollars is 16 points, about 8 basis points of price." },
+        { "name": "ES typical 5-minute move", "value": "177 US dollars per contract, range 171 to 183", "meaning": "The typical value and the 94 percent range for the second instrument, about 6 basis points of price." },
+        { "name": "agreement between runs", "value": "all four agree", "meaning": "Whether the separate sampler runs reached the same answer." },
+        { "name": "flagged divergences", "value": "0 of 4,000", "meaning": "Draws where the sampler lost its footing; none means the fit can be trusted." }
+      ]
+    },
+    "reading": "Both ranges are narrow and the checks pass, so the estimates are usable inputs for sizing risk. The dollar figures differ because an ES contract is worth far more per point; as a share of price, MNQ is the faster mover. If any check had failed, the right move would be to fix the model or the priors before reading any number."
+  }
+}

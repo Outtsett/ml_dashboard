@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-supervised-learning-neural-models-multi-layer-perceptron-mlp",
+  "name": "Multi-Layer Perceptron (MLP)",
+  "analogy": "Think of it as a small committee chain. A first row of junior analysts each read all the indicators and form their own opinion, a second row of seniors reads those opinions and forms higher-level views, and a final decision maker turns those views into one probability.",
+  "steps": [
+    {
+      "title": "Feed in one flat row of features",
+      "description": "Each bar is described by a single row of rescaled numbers. The network has no memory of earlier bars, so anything about history must already be inside that row, such as returns over the last 6 and 12 bars.",
+      "inExample": "The 14:35 bar enters as a row of 35 rescaled features, including its relative strength index and trailing returns."
+    },
+    {
+      "title": "Let the first layer form mixtures",
+      "description": "Each unit in the first layer takes a weighted sum of all the features and then passes it through a bend that switches it on strongly or weakly. Each unit therefore detects one blend of conditions, such as oversold and heavy volume together.",
+      "inExample": "A first layer of 64 units each reacts to a different blend; one lights up for oversold readings on heavy volume."
+    },
+    {
+      "title": "Stack a second layer on the first",
+      "description": "The next layer repeats the same recipe on the first layer's outputs, combining the blends into higher-level patterns. This stacking is how the network builds shapes a plain weighted sum cannot.",
+      "inExample": "A second layer of 32 units combines the first-layer blends into patterns such as a washed-out selloff."
+    },
+    {
+      "title": "Convert the last layer to an answer",
+      "description": "The final unit turns its weighted sum into a probability for a yes-or-no question, or a plain number for a forecast. The whole chain is one function from the row of features to the answer.",
+      "inExample": "The output unit produces a 57 percent probability that the close 6 bars later is higher."
+    },
+    {
+      "title": "Learn by passing the blame backward",
+      "description": "During training the network makes forecasts, measures how wrong they were, and works out how much each weight in each layer contributed to the error. It then nudges every weight slightly to reduce the error. This is repeated on small batches of bars many times.",
+      "inExample": "Over many passes of 40,000 bars the weights change until the probabilities on a later validation block stop improving."
+    },
+    {
+      "title": "Stop early and keep it small",
+      "description": "Because the network has far more freedom than a few thousand market situations can support, training stops when the later-data score stops improving, and a penalty on weight size, and in some builds random switch-offs of units, keep it from memorising noise.",
+      "inExample": "Training halts after 22 passes, when the validation score peaks; a mild weight penalty guards against overfitting."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction probability from a feature table",
+      "example": "Predicting whether MNQ's close 30 minutes after a 5-minute bar is above that bar's close from the 35 base features."
+    },
+    {
+      "task": "Volatility forecasting",
+      "example": "Forecasting the high-to-low range of the next 6 bars to set stop distance and position size."
+    },
+    {
+      "task": "Filtering another strategy's trades",
+      "example": "Estimating the chance that a breakout entry reaches its target before its stop, and skipping low-probability ones."
+    },
+    {
+      "task": "Testing for interactions a linear model misses",
+      "example": "Checking whether an oversold reading only helps when volume is heavy, by seeing whether the network does better than a logistic baseline on the same folds."
+    }
+  ],
+  "avoidWhen": [
+    "The information lies in the order of the bars, such as the shape of the last 60 candles; a sequence model reads that directly, while this network only sees the summary row you give it.",
+    "You have little data; the network can memorise noise, and a simpler penalised linear model is safer.",
+    "You must explain every call; the hidden layers are difficult to describe in words."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A network with two hidden layers of 64 and 32 units gives the probability that the close 6 bars (30 minutes) later will be above this close.",
+    "input": {
+      "summary": "One flat row of rescaled features describing the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "hidden layer sizes", "value": "64 then 32 units", "meaning": "How many mixing units sit in each of the two middle layers." }
+      ]
+    },
+    "output": {
+      "summary": "One probability from the final unit, and the call.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "57 percent", "meaning": "The final unit's output after the two hidden layers have combined the features." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "strongest first-layer unit", "value": "oversold on heavy volume", "meaning": "The first-layer mixing unit that responded most to this bar." }
+      ]
+    },
+    "reading": "57 percent is a modest lean, a few points above a coin flip. Compare it with a logistic regression on the same folds: if the network is not clearly better after costs, the extra complexity is not earning anything."
+  }
+}

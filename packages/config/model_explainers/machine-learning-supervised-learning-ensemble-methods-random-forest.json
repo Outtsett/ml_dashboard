@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-ensemble-methods-random-forest",
+  "name": "Random Forest",
+  "analogy": "Think of it as a panel of 300 analysts, each handed a different random handful of past bars and allowed to consider only a few features at each question. They never talk to each other, and the final call is a show of hands.",
+  "steps": [
+    {
+      "title": "Give each tree its own random sample of bars",
+      "description": "For every tree, a sample of bars is drawn at random from the training bars with replacement, so some bars appear twice and about a third do not appear at all. Every tree therefore studies a slightly different history.",
+      "inExample": "From 50,000 five-minute MNQ bars, each of 300 trees receives its own random sample of 50,000 draws."
+    },
+    {
+      "title": "Allow only a few features at each question",
+      "description": "At every question in a tree, only a random handful of features is available to ask about, not all of them. This stops one dominant feature from appearing at the top of every tree, so the trees do not all look alike.",
+      "inExample": "With 35 base features, each question may consider only 6 randomly chosen ones."
+    },
+    {
+      "title": "Grow each tree deep and leave it uncorrected",
+      "description": "Each tree is grown until its end groups are small and mostly pure. A single tree like this is overfitted and unreliable by itself. The ensemble relies on the many trees' errors cancelling out.",
+      "inExample": "Each tree ends with groups of about 5 bars, much too specific to trust alone."
+    },
+    {
+      "title": "Repeat independently, many times",
+      "description": "The forest is simply many such trees grown separately, with no tree learning from another. Because they are independent, they can be grown in parallel across the machine's cores.",
+      "inExample": "300 trees are grown at the same time across the machine's cores."
+    },
+    {
+      "title": "Let every tree vote on a new bar",
+      "description": "A new bar is passed down every tree and each tree votes up or down according to the group in which the bar lands.",
+      "inExample": "For the 12:50 bar, 171 of the 300 trees vote up and 129 vote down."
+    },
+    {
+      "title": "Read the vote share as the score",
+      "description": "The share of trees voting for each side is the forest's score, a rough probability. Bars left out of a tree's sample also give a free check on how well the forest generalizes.",
+      "inExample": "171 of 300 votes is a 57 percent share for a higher close."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A sturdy first model on a feature table",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close from the 35 base features, with little tuning."
+    },
+    {
+      "task": "Ranking features",
+      "example": "Reading how often each feature was used and how much it helped across the 300 trees, to see whether volume or momentum features carry the signal."
+    },
+    {
+      "task": "Noisy targets",
+      "example": "Modelling a target dominated by noise, such as short-horizon returns, where averaging many unstable trees steadies the answer."
+    },
+    {
+      "task": "Spotting unusual bars",
+      "example": "Flagging bars on which the trees split almost evenly, as bars the forest cannot call."
+    }
+  ],
+  "avoidWhen": [
+    "You want to tune for the last bit of accuracy on a large table; boosted trees such as XGBoost or LightGBM are built for that and are the usual next step.",
+    "Prices will move well outside the range seen in training; trees cannot extend a trend beyond values they have seen."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 12:50. A forest of 300 trees, trained on the previous 12 months of bars, is asked whether the close 30 minutes later will be higher than this close.",
+    "input": {
+      "summary": "One row of features describing the bar that just closed, the same columns the trees were trained on.",
+      "fields": [
+        { "name": "close", "value": "19,455", "meaning": "The price at which the 12:50 five-minute bar closed." },
+        { "name": "price change over the last 6 bars", "value": "minus 39 points", "meaning": "How far price fell over the previous 30 minutes." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "10 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "29 points below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "trees in the forest", "value": "300", "meaning": "How many independent trees will vote." }
+      ]
+    },
+    "output": {
+      "summary": "The vote count, its share, and the feature the trees leaned on most.",
+      "fields": [
+        { "name": "trees voting for a higher close", "value": "171 of 300", "meaning": "How many trees placed the bar in a group that mostly closed higher." },
+        { "name": "vote share for a higher close", "value": "57 percent", "meaning": "The share of trees voting up, read as a rough probability." },
+        { "name": "call", "value": "up", "meaning": "The side with the larger share of votes." },
+        { "name": "most used feature", "value": "price change over the last 6 bars", "meaning": "The feature the trees asked about most often near the top of their questions." }
+      ]
+    },
+    "reading": "57 percent is a modest majority, not a certainty. A forest's vote share is not a calibrated probability, so pass it through a Calibrated Classifier step before sizing trades, and judge the model by the net result after costs across all folds."
+  }
+}

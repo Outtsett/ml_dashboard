@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-feudal-reinforcement-learning",
+  "name": "Feudal Reinforcement Learning",
+  "analogy": "Think of it as a portfolio manager and an execution trader. The manager looks at the hourly picture a few times a day and says only what posture to take, such as lean short and fade rallies. The trader never sees the manager's reasoning, just that instruction, and decides what to do on each bar.",
+  "steps": [
+    {
+      "title": "Split the job into two levels",
+      "description": "A slow manager and a fast worker are trained together. The manager acts rarely and thinks in terms of broad goals; the worker acts every bar and thinks in terms of the next move.",
+      "inExample": "The manager acts once per 12 five-minute bars, which is one hour, and the worker acts on every five-minute bar of Micro E-mini Nasdaq-100 futures."
+    },
+    {
+      "title": "The manager reads the coarse picture and sets a goal",
+      "description": "The manager sees a summary of the slower market state and outputs a goal, an abstract direction describing the posture it wants. It never picks a trade itself, and the goal stays fixed until the manager acts again.",
+      "inExample": "At 11:00 the manager reads the range and trend of the hour just finished and sets a goal that, read in words, means a mean-reversion posture that leans toward selling rallies."
+    },
+    {
+      "title": "The worker sees the raw bar and the goal",
+      "description": "The worker is given the latest bar data together with the manager's goal, but not the manager's internal reasoning. This keeps each level's learning problem small.",
+      "inExample": "The worker reads the 11:20 bar, a small rally into the top of the previous hour's range, and the mean-reversion goal."
+    },
+    {
+      "title": "The worker acts bar by bar",
+      "description": "The worker chooses a primitive action each bar, such as buy, sell or hold, trying to move the state in the direction the goal describes.",
+      "inExample": "The worker sells one contract on the rally."
+    },
+    {
+      "title": "Reward the worker for following the goal",
+      "description": "The worker is rewarded for progress toward the manager's goal over the bars that follow, not for the final profit. This lets it learn tactics quickly without waiting for a whole trade to finish.",
+      "inExample": "Over the next 3 bars the state moves toward the goal, giving a progress reward of 62 percent on a scale from minus 100 to plus 100 percent."
+    },
+    {
+      "title": "Reward the manager for real profit",
+      "description": "The manager is rewarded for the actual result over the whole hour, so it learns which goals are worth setting. Over time it learns to choose goals the worker can turn into profit.",
+      "inExample": "At the end of the hour the account is up 18 US dollars after costs, and that result teaches the manager that this goal was reasonable in this state."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Slow strategy with fast execution",
+      "example": "A daily-bar manager sets the posture for the day while a 1-minute worker handles entries and exits on Micro E-mini Nasdaq-100 futures (MNQ)."
+    },
+    {
+      "task": "Building a position over several bars",
+      "example": "A manager sets a target exposure of two contracts and the worker reaches it through a series of small orders."
+    },
+    {
+      "task": "Session-aware trading",
+      "example": "A slow manager tracks whether the market is in the opening drive, the midday lull or the close, and the worker adapts its tactics."
+    },
+    {
+      "task": "Splitting allocation from execution",
+      "example": "A top manager decides risk exposure across index futures while a separate worker trades each instrument."
+    }
+  ],
+  "avoidWhen": [
+    "The horizon is short and a single flat policy can already learn it; two levels add training difficulty and many settings to tune without a clear gain.",
+    "You need to inspect exactly why a trade was taken; the manager's goal is an abstract internal signal, which is harder to read than an explicit rule list."
+  ],
+  "example": {
+    "scenario": "A two-level agent trades Micro E-mini Nasdaq-100 futures (MNQ). The manager acts once per hour and the worker acts every five-minute bar. At 11:20 the manager's goal from 11:00 is still in force.",
+    "input": {
+      "summary": "What each level sees: a coarse summary for the manager and the raw bar plus goal for the worker.",
+      "fields": [
+        { "name": "previous hour's range", "value": "19,810 to 19,874", "meaning": "The high and low of the 10:00 to 11:00 hour, which is what the manager read when it set its goal at 11:00." },
+        { "name": "previous hour's trend", "value": "flat", "meaning": "The slower direction the manager read, which is neither up nor down." },
+        { "name": "five-minute close at 11:20", "value": "19,866", "meaning": "The latest bar the worker reads; a rally into the top of the previous hour's range." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "manager's goal in force", "value": "mean-reversion posture, lean short", "meaning": "A plain-words reading of the abstract goal the worker receives, set at 11:00 and held for the hour." }
+      ]
+    },
+    "output": {
+      "summary": "The goal the manager set, the worker's action, and the progress reward given afterwards.",
+      "fields": [
+        { "name": "manager goal strength", "value": "70 percent of full", "meaning": "How strongly the goal points toward the posture, on a scale from 0 to 100 percent; the goal itself is an abstract direction inside the network, and this is a human reading of it." },
+        { "name": "worker action", "value": "sell 1 contract", "meaning": "The primitive action the worker chose on the 11:20 bar." },
+        { "name": "worker progress reward after 3 bars", "value": "62 percent", "meaning": "How well the market state moved toward the goal, between minus 100 and plus 100 percent." },
+        { "name": "manager reward at the end of the hour", "value": "plus 18 US dollars", "meaning": "The actual profit after costs over the hour, used to train the manager." }
+      ]
+    },
+    "reading": "The worker's progress reward only says it followed the goal, not that the goal was wise; the manager's profit reward is what judges that. When evaluating the agent, look at the two levels separately: whether goals vary sensibly with the market, and whether the worker follows them. Validate on held-out folds after costs."
+  }
+}

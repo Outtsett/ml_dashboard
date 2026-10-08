@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-q-prop",
+  "name": "Q-Prop",
+  "analogy": "Think of it as a trader who judges today's trades by how they actually turned out, but also keeps a thick notebook of years of past trades to estimate what a typical outcome would have been. The notebook cancels noise from today's lesson, and a correction keeps the notebook from misleading anyone.",
+  "steps": [
+    {
+      "title": "Run the current policy for a short stretch",
+      "description": "The agent trades a batch of bars with its current policy and records what happened. This fresh experience is the part the final lesson is built from.",
+      "inExample": "The policy trades 128 consecutive 5-minute bars of Micro E-mini Nasdaq-100 futures, choosing a position size between fully short and fully long each bar."
+    },
+    {
+      "title": "Store every step in a long memory",
+      "description": "Each step is also written to a large replay memory holding experience from much earlier policies. Old steps are kept and reused instead of being thrown away after one update.",
+      "inExample": "The 128 new steps are added to a memory that already holds 200,000 earlier steps."
+    },
+    {
+      "title": "Train a critic from the long memory",
+      "description": "A critic learns from the replay memory to estimate how much reward a given position size would earn in a given market state. Because it studies far more history than one batch, its estimates are steady.",
+      "inExample": "Trained on the 200,000 steps, the critic says that holding 31 percent of full size in an oversold state is worth about 2 US dollars."
+    },
+    {
+      "title": "Use the critic as a noise-cancelling guess",
+      "description": "The critic's estimate near the policy's usual action is subtracted from the real outcome, removing the part of each result that the critic could already predict. What is left is the surprise that is truly due to the action.",
+      "inExample": "A step that earned 7 US dollars against the critic's 2 leaves a surprise of 5 to learn from."
+    },
+    {
+      "title": "Add back a correction so nothing is biased",
+      "description": "Subtracting a guess would tilt the lesson if the guess were wrong, so the critic's own contribution is added back in a way that cancels exactly. The result is still an honest lesson from real experience, only with less noise.",
+      "inExample": "The critic's direct contribution to the update is added back, so a poor critic cannot push the policy in a wrong direction."
+    },
+    {
+      "title": "Update the policy and weight the critic by trust",
+      "description": "The policy moves along the combined lesson. A setting controls how much the critic is used, falling back to plain trial-and-error learning when the critic is not helping.",
+      "inExample": "The critic is trusted at a weight of 60 percent for this batch, and the policy's mean position size moves from 31 to 34 percent of full size."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning from limited history",
+      "example": "Training a position-sizing agent on one year of 5-minute bars, where each bar is precious and should inform more than one update."
+    },
+    {
+      "task": "Fine-tuning with a pre-trained critic",
+      "example": "Starting a new training phase with a critic already trained on a large replay memory, to steady the first updates."
+    },
+    {
+      "task": "Keeping the critic informed across regimes",
+      "example": "Letting a broad memory covering trending and ranging years keep the critic informed while the current rollouts explore only recent bars."
+    },
+    {
+      "task": "Research on sample reuse",
+      "example": "Isolating how much of a method's gain comes from reusing stored experience rather than from its objective."
+    }
+  ],
+  "avoidWhen": [
+    "You want the simplest training loop that is easy to debug; plain actor-critic has far fewer moving parts than a method that also trains from a replay memory.",
+    "The action is a plain choice among a few options and the problem is small; simpler discrete-action methods will do."
+  ],
+  "example": {
+    "scenario": "A position-sizing agent trades 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars with a continuous size from minus 100 percent (fully short) to plus 100 percent (fully long). One Q-Prop update combines a fresh 128-bar rollout with a critic trained on stored history.",
+    "input": {
+      "summary": "The fresh rollout, the stored memory, and the state of one step used to illustrate the update.",
+      "fields": [
+        { "name": "fresh rollout length", "value": "128 bars", "meaning": "How many new five-minute steps the current policy just traded." },
+        { "name": "replay memory size", "value": "200,000 steps", "meaning": "The stored earlier experience the critic was trained on." },
+        { "name": "step close", "value": "19,150", "meaning": "The price at the illustrated step." },
+        { "name": "step relative strength index, 14 bars", "value": "31", "meaning": "A momentum reading; a low value means the market is leaning oversold." },
+        { "name": "policy's mean position size at this step", "value": "31 percent of full size", "meaning": "What the policy usually chooses in this state before any exploration." },
+        { "name": "actual reward at this step", "value": "7 US dollars", "meaning": "The profit from the bar after costs." }
+      ]
+    },
+    "output": {
+      "summary": "The pieces that make up one noise-reduced lesson, and the resulting change to the policy.",
+      "fields": [
+        { "name": "critic's expected reward", "value": "2 US dollars", "meaning": "What the replay-trained critic predicted for this state and size." },
+        { "name": "surprise left after subtraction", "value": "plus 5 US dollars", "meaning": "The real result minus the critic's guess, the part due to the action." },
+        { "name": "critic weight used", "value": "60 percent", "meaning": "How heavily the critic was relied on for this batch, between 0 and 100 percent." },
+        { "name": "mean position size after the update", "value": "34 percent of full size", "meaning": "The policy's usual choice in this kind of state, nudged up from 31 percent." }
+      ]
+    },
+    "reading": "The numbers show how one lesson is assembled, not that the agent is profitable. If the critic weight stays near zero for long stretches, the critic is not helping and the method is behaving like plain trial and error. Judge the trained agent on held-out folds after costs."
+  }
+}

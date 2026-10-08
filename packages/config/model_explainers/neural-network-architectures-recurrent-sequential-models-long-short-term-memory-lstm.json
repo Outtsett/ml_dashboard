@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
+  "name": "Long Short-Term Memory (LSTM)",
+  "analogy": "Think of it as a trader with a long-term notebook and a short-term focus. Three gatekeepers control the notebook: one decides what new facts to write, one decides what old facts to cross out, and one decides how much of the notebook to share when making the call.",
+  "steps": [
+    {
+      "title": "Start with a blank notebook and a clear head",
+      "description": "The model carries two things forward: a long-term memory called the cell, and a short-term working state. Both begin at neutral values at the start of each window.",
+      "inExample": "A 64-number cell and a 64-number working state are cleared before reading 60 bars of MNQ 5-minute data."
+    },
+    {
+      "title": "Read the next bar",
+      "description": "At each step the model takes the newest bar's features together with the previous working state. Bars are processed in strict time order, so nothing from the future is seen.",
+      "inExample": "At bar 45 the model takes in a bar with a 31-point range, volume 120 percent above average and a fall of 25 points."
+    },
+    {
+      "title": "Cross out what is stale",
+      "description": "The forget gate looks at the new bar and the working state and decides, for each item in the notebook, how much to keep. A closed gate wipes an old idea, such as a morning trend that has just failed.",
+      "inExample": "The forget gate drops most of the stored morning-uptrend note after the sharp reversal at bar 45."
+    },
+    {
+      "title": "Write what is new",
+      "description": "The input gate decides how much of a freshly computed candidate to add to the notebook. Unremarkable bars can be mostly ignored, while important ones are written in strongly.",
+      "inExample": "The reversal bar is written in strongly, adding a note that a heavy-volume sell-off has begun."
+    },
+    {
+      "title": "Update the notebook by adding",
+      "description": "The cell is updated by keeping the surviving old notes and adding the new ones. Because this is addition rather than repeated multiplication, information and learning signals survive across many bars.",
+      "inExample": "The notebook now holds a reduced trend note, a strong sell-off note and the opening-range level from 4 hours earlier."
+    },
+    {
+      "title": "Share only what is needed to answer",
+      "description": "The output gate decides how much of the notebook to reveal as the working state. After the final bar this working state goes to the output layer, which produces the prediction.",
+      "inExample": "After bar 60, the working state exposes the sell-off note and the output layer returns a 45 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Triple-barrier outcome prediction",
+      "example": "Predicting whether a 40-point target, a 25-point stop or the time limit is hit first from the 60 bars leading into an MNQ entry."
+    },
+    {
+      "task": "Multi-bar return forecasting",
+      "example": "Estimating the expected 30-minute change in MNQ where the path of the last hour, not just the last bar, carries the signal."
+    },
+    {
+      "task": "Carrying session context",
+      "example": "Holding the Asian-session range in memory across the London and New York opens to inform breakout logic."
+    },
+    {
+      "task": "Embeddings for a tree model",
+      "example": "Producing a compact summary of the last 60 bars to feed a gradient-boosted model alongside tabular indicators."
+    }
+  ],
+  "avoidWhen": [
+    "You need the fastest, simplest sequence model; the gated recurrent unit has fewer parts, trains faster and usually performs about the same on noisy bar data.",
+    "The windows are long and specific distant bars matter; an attention model can pick them out directly, where this model must squeeze them through its notebook."
+  ],
+  "example": {
+    "scenario": "At 14:05, an LSTM with a 64-number cell reads the last 60 bars of MNQ at 5-minute spacing after a failed morning rally, and returns the probability that the close 6 bars later is higher.",
+    "input": {
+      "summary": "A window of 60 bars, each reduced to scaled features.",
+      "fields": [
+        { "name": "window length", "value": "60 bars (5 hours)", "meaning": "How many 5-minute bars are read in order." },
+        { "name": "last close", "value": "19,744", "meaning": "The closing price of the final bar, in index points." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical recent high-to-low travel of a bar." },
+        { "name": "return over the last 6 bars", "value": "minus 67 points", "meaning": "Price fell over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "120 percent above average", "meaning": "Trading was more than twice as heavy as normal." },
+        { "name": "morning rally high, 15 bars back", "value": "19,880", "meaning": "A level price failed to hold, available in the window." }
+      ]
+    },
+    "output": {
+      "summary": "A direction probability read from the final working state.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "45 percent", "meaning": "The output layer's answer after the gates have processed all 60 bars." },
+        { "name": "call", "value": "down", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "forget gate average at the reversal bar", "value": "25 percent", "meaning": "How much of the old trend note survived at the reversal; low means the model discarded most of it." }
+      ]
+    },
+    "reading": "A 45 percent chance of up is a five-point lean toward further downside, which is small. Judge it against the up-close share in training and against costs; only an edge that survives commission and slippage across walk-forward folds is worth acting on."
+  }
+}

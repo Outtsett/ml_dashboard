@@ -1,0 +1,89 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-ordinal-regression",
+  "name": "Ordinal Regression",
+  "analogy": "Think of it as a thermometer with marked lines on it. The model reads one temperature for each bar, how bullish it looks, and the marks on the glass decide which labeled band, from large down to large up, that temperature falls into. Because the bands are ordered on one scale, nearby bands share their likelihood naturally.",
+  "steps": [
+    {
+      "title": "Sort the target into ordered buckets",
+      "description": "The target is cut into buckets that run from low to high, such as large down, small down, flat, small up and large up. Each training bar gets the bucket its later return fell into. The order matters and is kept.",
+      "inExample": "The 30-minute move on MNQ is cut into five buckets: below minus 50 points, minus 50 to minus 15, minus 15 to plus 15, plus 15 to plus 50, and above plus 50."
+    },
+    {
+      "title": "Compute one bullishness score per bar",
+      "description": "Every feature gets a single weight, and the weighted features are added into one score for the bar. A high score means the bar looks bullish, a low score bearish. There is just one score, shared by all the buckets.",
+      "inExample": "Momentum and volume features combine into a mildly bullish score for the 11:15 bar, a little above the middle of the scale."
+    },
+    {
+      "title": "Place cut-points along the score scale",
+      "description": "Four increasing cut-points, one less than the number of buckets, divide the score scale into five zones. They are learned during training and are always kept in increasing order so the buckets do not overlap.",
+      "inExample": "Four cut-points are learned from 20,000 past bars, and the middle two sit close to the center of the scale."
+    },
+    {
+      "title": "Measure the chance of falling at or below each cut",
+      "description": "For a bar, the model asks how likely it is that the outcome ends at or below each cut-point, using an S-shaped curve measured from the bar's score. A higher score slides all these chances down together, shifting probability toward the higher buckets.",
+      "inExample": "The chance of ending at or below each cut-point is 10, 31, 56 and 82 percent."
+    },
+    {
+      "title": "Subtract neighbors to get each bucket's chance",
+      "description": "The chance of one specific bucket is the cumulative chance at its upper cut-point minus the one at its lower cut-point. This guarantees the bucket chances are never negative and always add up to one hundred percent.",
+      "inExample": "Large down is 10 percent, small down 21, flat 25, small up 26 and large up 18 percent."
+    },
+    {
+      "title": "Return the buckets and the score",
+      "description": "The model returns the full list of bucket probabilities, the most likely bucket, and the bullishness score itself. The score is useful on its own for ranking bars, as an ordered conviction measure.",
+      "inExample": "The most likely bucket is small up, and the score can be compared with the score of any other bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting an ordered return bucket",
+      "example": "Forecasting whether the next 30-minute MNQ move will be large down, small down, flat, small up or large up, respecting the order between them."
+    },
+    {
+      "task": "A single conviction score for ranking and sizing",
+      "example": "Ranking all bars of a day by bullishness score and sizing larger on the highest scores."
+    },
+    {
+      "task": "Ranking volatility tiers",
+      "example": "Classifying the coming hour as low, medium, high or extreme volatility from trailing range and volume."
+    },
+    {
+      "task": "Grading trade setups",
+      "example": "Scoring each setup as weak, moderate or strong quality, to decide which setups reach execution."
+    },
+    {
+      "task": "Predicting how wide a session will be",
+      "example": "Forecasting whether tomorrow's range will be narrow, normal or wide compared with the last 20 sessions."
+    }
+  ],
+  "avoidWhen": [
+    "The categories have no real order, such as different chart pattern names; a multinomial model without an assumed order is the honest choice.",
+    "A feature affects the extremes differently from the middle, for example volume helping predict large moves but not small ones; the single shared weight set cannot represent that."
+  ],
+  "example": {
+    "scenario": "At 11:15 on an MNQ 5-minute chart, an ordinal model trained on 20,000 past bars is asked for the probability of each of five ordered buckets of the move over the next 6 bars (30 minutes).",
+    "input": {
+      "summary": "One row of features for the bar that just closed, and the five buckets being predicted.",
+      "fields": [
+        { "name": "close", "value": "19,640", "meaning": "The price at which the 11:15 bar closed." },
+        { "name": "move over the last 6 bars", "value": "plus 35 points", "meaning": "How far price has risen over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "58", "meaning": "A momentum reading from 0 to 100; above 50 means buying dominated." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "bucket boundaries", "value": "minus 50, minus 15, plus 15, plus 50 points", "meaning": "The cut lines that define large down, small down, flat, small up and large up." }
+      ]
+    },
+    "output": {
+      "summary": "A bullishness score and a probability for each ordered bucket.",
+      "fields": [
+        { "name": "bullishness score", "value": "mildly bullish", "meaning": "The single weighted-sum score; higher means more bullish." },
+        { "name": "large down (below minus 50)", "value": "10 percent", "meaning": "The chance of ending below the lowest cut-point." },
+        { "name": "small down (minus 50 to minus 15)", "value": "21 percent", "meaning": "The chance of falling in the second bucket." },
+        { "name": "flat (minus 15 to plus 15)", "value": "25 percent", "meaning": "The chance of falling in the middle bucket." },
+        { "name": "small up (plus 15 to plus 50)", "value": "26 percent", "meaning": "The chance of falling in the fourth bucket." },
+        { "name": "large up (above plus 50)", "value": "18 percent", "meaning": "The chance of ending above the highest cut-point." }
+      ]
+    },
+    "reading": "The two up buckets add to 44 percent against 31 percent for the two down buckets, a gentle upward lean. Use the score to rank bars across the day, and check on later bars that each bucket's quoted chance matched how often it happened."
+  }
+}

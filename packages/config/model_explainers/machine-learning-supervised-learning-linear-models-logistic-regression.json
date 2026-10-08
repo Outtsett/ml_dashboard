@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-logistic-regression",
+  "name": "Logistic Regression",
+  "analogy": "Think of it as a scorecard with a tipping scale. Each indicator adds or subtracts points, and the total is fed into a scale that turns any score into a probability between 0 and 100 percent: a large positive score means very likely up, zero means a coin flip.",
+  "steps": [
+    {
+      "title": "Define a yes-or-no outcome",
+      "description": "You choose a question with two answers and label every training bar with the answer that followed. The model then learns what separates the yes bars from the no bars.",
+      "inExample": "The question is whether the close 6 bars later is above this bar's close; each of 40,000 training bars is labelled yes or no."
+    },
+    {
+      "title": "Score each bar with weighted points",
+      "description": "Each feature is multiplied by a weight and the results are added into one score. As in a scorecard, a feature with a positive weight adds points when high and one with a negative weight subtracts.",
+      "inExample": "The relative strength index and the distance from the 50-bar average each get a negative weight, so oversold readings add points toward yes."
+    },
+    {
+      "title": "Convert the score to a probability",
+      "description": "The score passes through an S-shaped curve that squeezes any number into a range from 0 to 100 percent. A score of zero becomes 50 percent, and the further from zero the score, the closer to the edges.",
+      "inExample": "A score a little above zero becomes about 55 percent; a score a little below zero would be about 45 percent."
+    },
+    {
+      "title": "Adjust weights to make real outcomes likely",
+      "description": "The weights are adjusted so that, across the training bars, the probabilities given to what really happened are as high as possible. Confident wrong answers are punished hard, which keeps the probabilities honest.",
+      "inExample": "A bar given 90 percent up that actually closed lower is punished far more than one given 55 percent."
+    },
+    {
+      "title": "Keep the weights modest",
+      "description": "A small penalty on the size of the weights stops the scorecard from fitting noise in the training bars, especially when features overlap.",
+      "inExample": "A mild penalty keeps all 35 weights small so no single indicator dominates."
+    },
+    {
+      "title": "Read off a probability for a new bar",
+      "description": "A new bar is scored with the same weights and passed through the same curve. The output is the probability of yes, which you can compare with a cut-off such as 50 percent.",
+      "inExample": "The 14:35 bar scores a little above zero and comes out at 55 percent, an up call."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Probability of an up move",
+      "example": "Estimating the chance that MNQ's close 30 minutes after a 5-minute bar will be above that bar's close."
+    },
+    {
+      "task": "A readable baseline classifier",
+      "example": "Setting the reference point for boosted-tree and neural models on the same walk-forward folds."
+    },
+    {
+      "task": "Judging whether to take another signal's trade",
+      "example": "Estimating the chance a breakout entry reaches its target before its stop, and skipping those below 50 percent."
+    },
+    {
+      "task": "Regime labelling",
+      "example": "Classifying a bar as trending or ranging from volatility and slope features."
+    }
+  ],
+  "avoidWhen": [
+    "The boundary between classes is curved or needs combined conditions; a scorecard of straight points cannot draw it and a tree-based model can.",
+    "You need the probabilities to be sharp when classes are very rare; with little data on one side the scorecard leans toward the common answer."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. A fitted logistic regression gives the probability that the close 6 bars (30 minutes) later will be above this close.",
+    "input": {
+      "summary": "One row of rescaled features for the bar that just closed.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; under 30 is commonly read as oversold." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "A probability and the call it implies.",
+      "fields": [
+        { "name": "total score", "value": "a little above zero", "meaning": "The sum of weighted features before conversion; zero would mean a coin flip." },
+        { "name": "probability the close is higher 6 bars later", "value": "55 percent", "meaning": "The score converted to a probability by the S-shaped curve." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push upward", "value": "relative strength index of 27", "meaning": "The feature that added the most points toward yes for this bar." }
+      ]
+    },
+    "reading": "55 percent is a small lean over a coin flip. Because the output is a real probability, you can set a stricter cut-off, such as 58 percent, and trade only the strongest calls, then check on held-out folds whether those calls cover commission and slippage."
+  }
+}

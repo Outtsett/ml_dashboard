@@ -1,0 +1,89 @@
+{
+  "specificationId": "statistical-models-bayesian-models-bayesian-hierarchical-model",
+  "name": "Bayesian Hierarchical Model",
+  "analogy": "Think of it as a head coach with several trainees who each report how well a drill works for them. A trainee with years of results is trusted on their own numbers; a brand-new trainee with three sessions of results is pulled toward what the whole team has seen. Everyone gets an estimate that leans on the group exactly as much as their own history is thin.",
+  "steps": [
+    {
+      "title": "Split the data into natural groups",
+      "description": "The data is organized into groups that are related but not identical, such as one group per instrument, per trading session or per market regime. Every bar belongs to exactly one group, and each group will get its own set of weights.",
+      "inExample": "Three groups: MNQ with 8,000 five-minute bars, ES with 8,000, and a newly listed micro contract with only 300."
+    },
+    {
+      "title": "Fit each group on its own, in effect",
+      "description": "Each group has its own relationship between the features and the target, such as how much past momentum predicts the next 30 minutes. Taken alone, a group with little data gives a wobbly estimate, and a group with plenty gives a steady one.",
+      "inExample": "Taken alone, the momentum carry-over is 4 percent for MNQ, 3 percent for ES, and a noisy 20 percent for the new contract."
+    },
+    {
+      "title": "Learn what the groups have in common",
+      "description": "At the same time the model learns a shared picture across all groups: the typical weight and how much groups normally differ from it. This shared picture is learned from every group at once, so data-rich groups shape it most.",
+      "inExample": "Across the three groups the typical momentum carry-over comes out near 4 percent, and groups normally differ from it by only about 1 percent."
+    },
+    {
+      "title": "Pull each group toward the shared picture",
+      "description": "Each group's estimate is nudged toward the shared one by an amount that depends on how much data the group has and how much groups normally differ. Plenty of data means a tiny nudge; little data means a large one. This is called partial pooling.",
+      "inExample": "MNQ stays at 4 percent and ES stays at 3 percent, but the new contract is pulled from 20 percent down to 7 percent."
+    },
+    {
+      "title": "Keep a whole range of possible weights",
+      "description": "The model does not keep one number per weight. It samples thousands of plausible settings of every weight and of the shared picture together, by a repeated random-walk procedure, and checks that independent runs of that procedure agree before trusting the answer.",
+      "inExample": "Four independent sampling runs of 2,000 draws each agree on all weights, so the results are accepted."
+    },
+    {
+      "title": "Forecast with the group's own range",
+      "description": "To predict a bar, the model uses that bar's group weights across all the sampled settings, which gives a forecast range instead of one number. A brand-new group with no data uses the shared picture alone.",
+      "inExample": "A forecast for the micro contract uses its pulled estimate of 7 percent, and its range stays wider than MNQ's because it has less data."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Modeling several related instruments together",
+      "example": "Fitting one return model across MNQ, ES, YM and RTY so a thinly traded contract borrows from the liquid ones."
+    },
+    {
+      "task": "Estimating how an effect differs by session",
+      "example": "Measuring momentum's effect separately for the Asian, London and New York sessions while letting them share what they have in common."
+    },
+    {
+      "task": "Stabilizing estimates for rare regimes",
+      "example": "Estimating the feature weights for a rare high-volatility regime that has only a few hundred bars, anchored by the common regimes."
+    },
+    {
+      "task": "Cold-start forecasts for a new contract",
+      "example": "Producing a usable first-day forecast for a newly listed micro futures contract before it has collected its own history."
+    },
+    {
+      "task": "Correcting overconfident backtest results",
+      "example": "Pooling the backtest edge across fifty variants of a strategy to shrink the lucky ones toward the group average."
+    }
+  ],
+  "avoidWhen": [
+    "The groups are really unrelated, such as an index future and a currency pair with opposite behavior; pooling then drags each group toward a meaningless average.",
+    "You need a fast answer on very large data; the sampling procedure is slow, and a regularized linear model or gradient boosting is far quicker."
+  ],
+  "example": {
+    "scenario": "A researcher fits a 30-minute-ahead return model on three instruments, using the past 6 bars of momentum as the main feature. One instrument is a micro contract listed only a few weeks ago.",
+    "input": {
+      "summary": "Per-group data volume and the weight each group would get if fitted alone.",
+      "fields": [
+        { "name": "MNQ bars", "value": "8,000", "meaning": "Five-minute bars available for the MNQ group." },
+        { "name": "ES bars", "value": "8,000", "meaning": "Five-minute bars available for the ES group." },
+        { "name": "new micro contract bars", "value": "300", "meaning": "Five-minute bars available for the newly listed contract." },
+        { "name": "MNQ carry-over fitted alone", "value": "4 percent", "meaning": "Share of the past 30-minute return that shows up again in the next 30 minutes, fitted on MNQ only." },
+        { "name": "ES carry-over fitted alone", "value": "3 percent", "meaning": "The same share fitted on ES only." },
+        { "name": "new contract carry-over fitted alone", "value": "20 percent", "meaning": "The same share fitted on 300 bars only, which is very noisy." }
+      ]
+    },
+    "output": {
+      "summary": "A carry-over share for each group after pooling, the shared figure, and how far groups normally sit from it.",
+      "fields": [
+        { "name": "shared carry-over across groups", "value": "4 percent", "meaning": "The typical momentum carry-over learned from all groups together." },
+        { "name": "typical difference between groups", "value": "1 percent", "meaning": "How far groups normally sit from the shared figure, learned by the model from the data." },
+        { "name": "MNQ carry-over after pooling", "value": "4 percent", "meaning": "Barely changed, since MNQ has plenty of data." },
+        { "name": "ES carry-over after pooling", "value": "3 percent", "meaning": "Barely changed, for the same reason." },
+        { "name": "new contract carry-over after pooling", "value": "7 percent", "meaning": "Pulled strongly toward the shared figure because 300 bars cannot support 20 percent." },
+        { "name": "credible range of the new contract carry-over", "value": "3 to 11 percent", "meaning": "The range holding 90 percent of the sampled values, wider than for MNQ." }
+      ]
+    },
+    "reading": "The micro contract's raw 20 percent is almost three times its pooled 7 percent, and would have made its forecasts far too momentum-driven. The pooled figure is a more cautious starting point that will move toward its own data as bars accumulate. Check on later bars that pooling beat fitting each group alone, especially for the thin group."
+  }
+}

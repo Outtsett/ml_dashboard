@@ -1,0 +1,82 @@
+{
+  "specificationId": "machine-learning-supervised-learning-boosting-methods-lightgbm",
+  "name": "LightGBM",
+  "analogy": "Think of it as the same desk of junior analysts, but built for a very large tape. They sort each feature into a couple of hundred buckets first, like grouping prices into bands, and each analyst puts effort only where the next question pays off most, even if that leaves some branches short.",
+  "steps": [
+    {
+      "title": "Start from a flat first guess",
+      "description": "Every bar begins with the same guess, the average outcome in the training bars. All later trees are corrections to that starting point.",
+      "inExample": "Across 1,200,000 one-minute MNQ bars, 51 percent closed higher 10 bars later, so every bar starts at 51 percent."
+    },
+    {
+      "title": "Sort every feature into buckets",
+      "description": "Each numeric feature is cut into at most a couple of hundred buckets once, before training. The model then looks for splits between buckets and not between every distinct value, which saves memory and time at almost no loss in accuracy.",
+      "inExample": "The relative strength index, which has thousands of distinct values, is cut into 255 buckets of roughly equal size."
+    },
+    {
+      "title": "Measure where the guess is wrong",
+      "description": "For each bar the current guess is compared with what happened. The gap is the error, large where the guess was badly off and small where it was close.",
+      "inExample": "Bars that closed higher while the guess said 51 percent carry a sizeable upward error."
+    },
+    {
+      "title": "Grow the tree on the most promising leaf",
+      "description": "Instead of growing every branch to the same depth, the tree always splits the single end-leaf where a split would reduce error the most. This reaches accurate trees with fewer splits, so a limit on the number of leaves is used to keep it from overfitting.",
+      "inExample": "The tree is capped at 31 leaves. The leaf holding oversold, high-volume bars is split first because it promises the largest gain."
+    },
+    {
+      "title": "Add a small part of the correction and repeat",
+      "description": "The tree's correction is added to the running guess at reduced strength. Many trees follow, each studying what the earlier ones still miss, until a held-back later period stops improving.",
+      "inExample": "After 400 trees, the held-back month stops improving and training ends."
+    },
+    {
+      "title": "Score a new bar by adding up every tree",
+      "description": "The new bar is passed down every tree, the small corrections are summed onto the starting guess, and the total is converted into a probability.",
+      "inExample": "The 15:42 bar is scored by all 400 trees and lands at 54 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Models trained on a very large bar history",
+      "example": "Training on millions of MNQ 1-minute bars from the lake and retraining on every walk-forward fold without waiting long."
+    },
+    {
+      "task": "Wide feature tables",
+      "example": "Feeding the model all 151 technical indicators and the 35 base features at once and letting it ignore the useless ones."
+    },
+    {
+      "task": "Fast experimentation",
+      "example": "Trying many label definitions and horizons quickly, such as 5, 10 and 30 bars ahead, to see which target has any signal at all."
+    },
+    {
+      "task": "Meta-labelling another signal",
+      "example": "Scoring whether each breakout entry will reach its target before its stop, and trading only the entries above a chosen probability."
+    }
+  ],
+  "avoidWhen": [
+    "The training set is only a few hundred rows; leaf-wise growth can overfit small samples, and a Random Forest or a heavily limited XGBoost is steadier.",
+    "The information is the order of the bars themselves, such as the shape of the last 60 candles; a sequence model reads that directly."
+  ],
+  "example": {
+    "scenario": "A 1-minute MNQ bar closes at 15:42. The model, trained on about 3 years of one-minute bars, is asked whether the close 10 bars (10 minutes) later will be higher than this close.",
+    "input": {
+      "summary": "One row of features for the bar that just closed, the same columns the model was trained on.",
+      "fields": [
+        { "name": "close", "value": "19,613", "meaning": "The price at which the 15:42 one-minute bar closed." },
+        { "name": "price change over the last 10 bars", "value": "minus 16 points", "meaning": "How far price fell over the previous 10 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "39", "meaning": "A momentum reading from 0 to 100; lower values mean recent weakness." },
+        { "name": "volume against its 20-bar average", "value": "70 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "7 points", "meaning": "The typical high-to-low travel of a recent one-minute bar." },
+        { "name": "distance from the session volume-weighted average price", "value": "29 points below", "meaning": "How far the close sits below the day's volume-weighted average price." }
+      ]
+    },
+    "output": {
+      "summary": "One probability for the bar and the feature that pushed it most.",
+      "fields": [
+        { "name": "probability the close is higher 10 bars later", "value": "54 percent", "meaning": "The summed vote of all 400 trees, against a 51 percent starting guess." },
+        { "name": "call", "value": "up", "meaning": "The side the probability falls on when the dividing line is 50 percent." },
+        { "name": "largest push", "value": "distance from the session volume-weighted average price", "meaning": "The feature whose trees added the most to this bar's probability." }
+      ]
+    },
+    "reading": "54 percent is a slight lean, three points over the 51 percent starting point. On one-minute bars, costs are a large share of the move, so judge the model on the net result after commission and slippage across all folds, not on a single probability."
+  }
+}

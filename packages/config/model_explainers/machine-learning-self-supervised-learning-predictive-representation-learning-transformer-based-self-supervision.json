@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-predictive-representation-learning-transformer-based-self-supervision",
+  "name": "Transformer-based Self-Supervision",
+  "analogy": "Think of it as a team of analysts who each get a numbered slice of the last five hours of bars, with a few slices blacked out. Every analyst can look at every other slice, and together they reconstruct the missing ones. Doing that thousands of times teaches them how a session fits together.",
+  "steps": [
+    {
+      "title": "Cut the input into tokens",
+      "description": "The window of bars is split into equal slices called tokens. Each token is turned into a list of numbers, and a position stamp is added so the model knows where in the window each slice sits.",
+      "inExample": "A window of 60 five-minute MNQ bars is cut into 12 tokens of 5 bars each, and each token is stamped with its position from 1 to 12."
+    },
+    {
+      "title": "Choose a self-made puzzle",
+      "description": "There is no single puzzle. The family offers three: rebuild hidden tokens, make two different views of a window agree, or match the output of a slowly updated teacher copy. The training code makes the answer key itself.",
+      "inExample": "This run uses the rebuild puzzle and hides 3 of the 12 tokens, which is 25 percent of the window."
+    },
+    {
+      "title": "Let every token look at every other token",
+      "description": "Layers of self-attention let each token weigh every other token and pull in the ones that matter. This is how the model sees long range links, such as the opening range matching the afternoon range, which a model that reads in short steps may miss.",
+      "inExample": "Hidden token 8 attends strongly to tokens 7 and 9 on either side and, more weakly, to token 1, the start of the window."
+    },
+    {
+      "title": "Fill in or match, as the puzzle requires",
+      "description": "A small head on top of the encoder produces the answer to the puzzle. For the rebuild puzzle that is the values of the hidden bars. For the other puzzles it is a summary that should match another view or a teacher's summary.",
+      "inExample": "The head rebuilds the 15 hidden bars, 3 tokens of 5 bars, as open, high, low and close values."
+    },
+    {
+      "title": "Measure the miss and adjust",
+      "description": "The rebuilt values are compared with the true hidden values, and the size of the miss decides how strongly the weights are changed. Training runs over a large amount of unlabeled history, usually many passes.",
+      "inExample": "The average rebuilt bar is off by 4 points against a typical bar range of 22 points, a moderate miss that drives a moderate adjustment."
+    },
+    {
+      "title": "Reuse the encoder for a real task",
+      "description": "After pretraining, the encoder's summary of the whole window is read by a small model that does the real job, such as the direction of the close 6 bars ahead. The encoder can be frozen or fine-tuned a little on labelled data.",
+      "inExample": "A linear model on the encoder's summary of the window returns a 57 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining a sequence encoder on unlabeled bars",
+      "example": "Learning from years of MNQ and ES five-minute bars with no labels, then fine-tuning on a modest set of labelled direction examples."
+    },
+    {
+      "task": "Learning from long windows",
+      "example": "Using 60 or more bars so the encoder can link the opening range to the late afternoon, which a short window cannot do."
+    },
+    {
+      "task": "Spotting unusual windows",
+      "example": "Flagging windows the model rebuilds badly, such as the minutes around a surprise data release."
+    },
+    {
+      "task": "Combining news and prices later",
+      "example": "Using the same encoder design for headlines and bars so both are described in numbers that a single model can read."
+    }
+  ],
+  "avoidWhen": [
+    "You have only a few thousand bars; transformers need a lot of data before the pretraining beats a simple model on engineered features.",
+    "The edge, if any, sits in a handful of well-known indicators; a gradient boosted tree on the 35 base features is faster and easier to read.",
+    "You need to run on live ticks with tiny latency; the attention layers are heavier than a small recurrent network."
+  ],
+  "example": {
+    "scenario": "A research job pretrains an encoder on 60-bar windows of MNQ five-minute bars. For one window it hides 3 of the 12 tokens, asks the encoder to rebuild them, and then reads the window summary with a simple direction model.",
+    "input": {
+      "summary": "One window of 60 five-minute bars cut into 12 tokens, with 3 tokens hidden.",
+      "fields": [
+        { "name": "window length", "value": "60 five-minute bars", "meaning": "Five hours of trading as one input." },
+        { "name": "tokens", "value": "12 of 5 bars each", "meaning": "The slices that the encoder treats as its basic units." },
+        { "name": "tokens hidden", "value": "3 (positions 3, 8 and 11)", "meaning": "The slices blacked out for the rebuild puzzle, 25 percent of the window." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last visible bar closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar, used as the yardstick for the rebuild error." }
+      ]
+    },
+    "output": {
+      "summary": "Rebuilt bars for the hidden tokens, the rebuild error, a summary of the window, and a direction probability from a simple model.",
+      "fields": [
+        { "name": "rebuilt bars", "value": "15 bars (3 tokens)", "meaning": "The encoder's guess for the open, high, low and close of the hidden bars." },
+        { "name": "average rebuild error per bar", "value": "4 points", "meaning": "How far, on average, the rebuilt values are from the true ones." },
+        { "name": "window summary", "value": "128 numbers", "meaning": "The reusable description of the whole window; this is the actual product." },
+        { "name": "probability the close 6 bars later is higher", "value": "57 percent", "meaning": "What a simple linear model on the frozen summary returns." }
+      ]
+    },
+    "reading": "A rebuild error of 4 points against a typical bar range of 22 points shows the encoder understands the shape of a session. That is separate from direction. Use the 128-number summary as an input to your direction model and judge the 57 percent on the run page, against the same model fitted on the raw features."
+  }
+}

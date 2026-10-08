@@ -1,0 +1,82 @@
+{
+  "specificationId": "statistical-models-time-series-models-time-series-arima",
+  "name": "Time Series - ARIMA",
+  "analogy": "Think of it as a tape reader who ignores everything but the tape. They first look at the change from one print to the next, not the level, and then forecast the next change from the last few changes and from how wrong their previous guesses were.",
+  "steps": [
+    {
+      "title": "Take changes instead of levels",
+      "description": "The integrated part of the name (autoregressive integrated moving average) means the series is differenced: each value is replaced by its change from the previous one. Price wanders, but its changes hover around a steady level, which is what the rest of the model needs.",
+      "inExample": "The last five 5-minute MNQ closes, 18,446, 18,448, 18,450, 18,454 and 18,452, become changes of plus 2, plus 2, plus 4 and minus 2 points."
+    },
+    {
+      "title": "Look at how changes echo each other",
+      "description": "Charts of how each change relates to the changes one, two and three steps earlier show how many past changes and past surprises matter. These pictures are used to pick how many of each to include.",
+      "inExample": "The charts show a small link to the previous change and a small link to the previous forecast miss, so one of each is enough."
+    },
+    {
+      "title": "Fit the memory of past changes",
+      "description": "The autoregressive part forecasts the next change as a weighted blend of the last few changes. A positive weight means moves tend to continue; a negative one means they tend to reverse.",
+      "inExample": "The fitted weight on the last change is small and positive, so a little of the previous move carries into the next bar."
+    },
+    {
+      "title": "Fit the memory of past surprises",
+      "description": "The moving-average part adds a weighted share of the last few forecast misses, so a surprise keeps nudging the forecast for a short while before fading.",
+      "inExample": "The fitted weight on the last miss is small and negative; the last bar fell 2 points when a small rise was expected, which nudges the next forecast upward a little."
+    },
+    {
+      "title": "Check the leftovers are random noise",
+      "description": "Once fitted, the remaining misses should look like unpredictable noise with no pattern left. If a pattern remains, the settings are changed and the fit is repeated.",
+      "inExample": "The leftover misses show no link to their own past, so the settings of one earlier change and one earlier miss are accepted."
+    },
+    {
+      "title": "Forecast forward and widen the band",
+      "description": "The next change is forecast and added to the last close. Each further step uses earlier forecasts, so uncertainty accumulates, and the band around the forecast widens in a way that can be calculated.",
+      "inExample": "The next change is forecast at about plus 1 point, so the next close is 18,453 and the close 3 bars ahead is 18,454, with the band growing from about 49 to about 85 points either side."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A fast baseline forecast of a price series",
+      "example": "Forecasting the next three closes of the MNQ 5-minute series as the benchmark a fancier model must beat."
+    },
+    {
+      "task": "Forecasting a spread that should return to normal",
+      "example": "Modelling the gap between two related contracts, which is calm enough to be treated as steady, to time entries as it stretches."
+    },
+    {
+      "task": "Forecasting a volatility proxy",
+      "example": "Forecasting the logarithm of each bar's high-to-low range as a steady series, to anticipate quiet or busy periods."
+    },
+    {
+      "task": "Checking another model for leftover patterns",
+      "example": "Fitting it to a larger model's forecast errors; if it finds structure, the larger model has missed something simple."
+    }
+  ],
+  "avoidWhen": [
+    "The series has a strong repeating pattern at a fixed period, such as the daily volume shape; a seasonal version handles that, and plain autoregression cannot.",
+    "The size of the swings itself changes in clusters, as returns do; a model of volatility is needed for the band, since this one assumes a constant spread of surprises.",
+    "You need to use outside information such as news or volume; this model only reads the series itself."
+  ],
+  "example": {
+    "scenario": "The MNQ 5-minute close series is fitted with one earlier change, one difference and one earlier miss, then asked for the next close and the close three bars ahead.",
+    "input": {
+      "summary": "The recent close series, its last changes and the fitted settings.",
+      "fields": [
+        { "name": "last five closes", "value": "18,446 / 18,448 / 18,450 / 18,454 / 18,452", "meaning": "The recent 5-minute closing prices, oldest first, rounded to whole points." },
+        { "name": "last change", "value": "minus 2 points", "meaning": "The change from the previous close to the latest close." },
+        { "name": "settings", "value": "one change lag, one difference, one miss lag", "meaning": "How many past changes and past surprises the model uses, and how many times the series is differenced." },
+        { "name": "typical one-bar surprise", "value": "25 points", "meaning": "The usual size of the gap between a forecast and the next close in the fitted history." }
+      ]
+    },
+    "output": {
+      "summary": "Forecast closes with bands that widen with distance.",
+      "fields": [
+        { "name": "forecast close, 1 bar ahead", "value": "18,453", "meaning": "The latest close plus the forecast next change of about 1 point." },
+        { "name": "95 percent band, 1 bar ahead", "value": "18,404 to 18,502", "meaning": "The range expected to hold the next close 19 times in 20, about 49 points either side." },
+        { "name": "forecast close, 3 bars ahead", "value": "18,454", "meaning": "The close forecast 15 minutes ahead, almost unchanged." },
+        { "name": "95 percent band, 3 bars ahead", "value": "18,369 to 18,539", "meaning": "The wider range at three bars, about 85 points either side." }
+      ]
+    },
+    "reading": "The forecast is almost flat and the band is huge next to it, which is typical for short-horizon prices: the model is saying it knows very little. Its value is as a reference point, so keep it and see whether any richer model beats it on the same folds."
+  }
+}

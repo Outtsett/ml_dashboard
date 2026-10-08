@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-actor-critic",
+  "name": "Actor-Critic",
+  "analogy": "Think of it as a trader and a risk manager sitting side by side. The trader picks an action each bar; the manager has an opinion of how good the situation was and says whether the result was better or worse than expected, and the trader leans toward whatever beat expectations.",
+  "steps": [
+    {
+      "title": "Both read the same state",
+      "description": "The actor and the critic are two small networks that look at the same description of the market: recent features, the current position and the unrealised profit.",
+      "inExample": "Both read the features of the 11:05 five-minute bar and the fact that the account is flat."
+    },
+    {
+      "title": "The actor chooses an action",
+      "description": "The actor outputs a probability for each allowed action and one action is drawn from them. Drawing, rather than always taking the top choice, keeps the actor trying alternatives.",
+      "inExample": "The actor gives long 46 percent, flat 38 percent and short 16 percent, and the draw comes up long."
+    },
+    {
+      "title": "The critic states what it expected",
+      "description": "The critic outputs a single number: how much reward it expects from this state onward. This is the benchmark the actual result will be compared with.",
+      "inExample": "The critic expected 4 US dollars of reward from this state."
+    },
+    {
+      "title": "The market answers",
+      "description": "The action is carried out, the next bar arrives, and a reward is computed from the profit or loss minus trading costs.",
+      "inExample": "The next bar rises 6 points, worth 12 US dollars per contract, less 2 in costs, a reward of 10 US dollars."
+    },
+    {
+      "title": "Measure the surprise",
+      "description": "The surprise is the reward received plus the critic's value of the new state, minus what the critic expected. A positive surprise means things went better than predicted.",
+      "inExample": "10 received plus 1 for the new state, minus the expected 4, is a surprise of plus 7 US dollars."
+    },
+    {
+      "title": "Teach both networks, bar by bar",
+      "description": "The critic is nudged so its next expectation is closer to what happened. The actor is nudged to make the chosen action more likely when the surprise was positive and less likely when it was negative.",
+      "inExample": "The critic raises its value for this state, and the actor moves long from 46 to 48 percent in similar states."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning when to enter, hold or exit",
+      "example": "Training an agent on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars to choose flat, long or short each bar, with trading costs included in the reward."
+    },
+    {
+      "task": "Scaling conviction into size",
+      "example": "Reading the actor's probabilities as conviction and sizing up only when one side's probability is well ahead of the others."
+    },
+    {
+      "task": "Exit timing without a fixed stop",
+      "example": "Watching the critic's value fall as a trade turns against the entry and using that as a cue to leave."
+    },
+    {
+      "task": "A reference point for reinforcement learning research",
+      "example": "Using it as the simple baseline that more elaborate methods such as proximal policy optimization and soft actor-critic are compared against on the same folds."
+    }
+  ],
+  "avoidWhen": [
+    "You have a labelled table of features and a clear target such as direction; supervised models like gradient boosting are simpler, faster and easier to validate than a learning agent.",
+    "History is short, because the agent learns from a stream of its own trials and will be unstable on few bars; methods that reuse stored experience are a better fit."
+  ],
+  "example": {
+    "scenario": "An actor-critic agent has been training on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars. At 11:05 it is flat and must pick an action for the next bar.",
+    "input": {
+      "summary": "The state the actor and critic both read for this bar.",
+      "fields": [
+        { "name": "close", "value": "19,240", "meaning": "The price at which the 11:05 five-minute bar closed." },
+        { "name": "current position", "value": "flat", "meaning": "The agent holds no contracts right now." },
+        { "name": "relative strength index, 14 bars", "value": "38", "meaning": "A momentum reading from 0 to 100; the market is leaning weak but not yet oversold." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "30 percent above average", "meaning": "Trading is somewhat heavier than normal." },
+        { "name": "minutes since the session open", "value": "95", "meaning": "How far into the trading day the bar is." }
+      ]
+    },
+    "output": {
+      "summary": "The actor's action probabilities, the critic's expected reward, and the action drawn.",
+      "fields": [
+        { "name": "probability of long", "value": "46 percent", "meaning": "The actor's chance of choosing to buy one contract." },
+        { "name": "probability of flat", "value": "38 percent", "meaning": "The actor's chance of choosing to stay out." },
+        { "name": "probability of short", "value": "16 percent", "meaning": "The actor's chance of choosing to sell one contract." },
+        { "name": "critic's expected reward", "value": "4 US dollars", "meaning": "What the critic expects to earn from this state onward, before the action is known." },
+        { "name": "action drawn", "value": "long", "meaning": "The action actually sent to the market this bar." }
+      ]
+    },
+    "reading": "A 46 percent lean toward long is mild, which is the honest shape of most trading states. Do not read the probabilities as a forecast of price; they are the agent's current habit. Judge the agent by its net result after costs on held-out walk-forward folds, not by how confident it looks."
+  }
+}

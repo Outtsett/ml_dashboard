@@ -1,0 +1,82 @@
+{
+  "specificationId": "generative-models-latent-variable-models-neural-ode-generator",
+  "name": "Neural ODE Generator",
+  "analogy": "Think of it as a river map for market states. Drop a leaf of plain random noise at the source and a learned current carries it smoothly downstream until it lands as a realistic market window. Because every bend of the river is known, you can also float a real window back upstream and measure exactly how likely it was.",
+  "steps": [
+    {
+      "title": "Start from simple random noise",
+      "description": "Generation begins with a draw from a simple, well-understood distribution, usually a bell-shaped cloud of random numbers with the same length as one data row. This is the upstream end of the river.",
+      "inExample": "A random vector of 20 numbers is drawn to stand for a 20-bar window of 5-minute MNQ percentage returns."
+    },
+    {
+      "title": "Learn a current instead of fixed layers",
+      "description": "Rather than stacking a fixed number of layers, a neural network defines the speed and direction in which every value should move at every moment of a continuous clock running from zero to one. The network answers: at this point and this moment, which way do I push?",
+      "inExample": "At clock time three tenths, the network pushes the noise vector gently toward patterns with small returns and occasional large ones."
+    },
+    {
+      "title": "Let a solver follow the current",
+      "description": "A numerical solver takes many small steps along the current, adjusting step size to keep accuracy. After the clock reaches one, the noise has been carried into a data-like row. The solver trades speed for smoothness, which makes this model slower than layer-based models.",
+      "inExample": "The solver takes 38 adaptive steps and the vector becomes 20 returns with realistic spread, from about minus a fifth of a percent to about plus a fifth of a percent."
+    },
+    {
+      "title": "Track how much space is stretched",
+      "description": "While moving, the model also records how much the current squeezes or stretches the space around the point. This bookkeeping is what lets it state an exact probability for any real row, not just produce samples.",
+      "inExample": "The stretch bookkeeping shows the current spreads probability widely, so each generated window carries a modest density value."
+    },
+    {
+      "title": "Train by running real data upstream",
+      "description": "To train, real windows are floated backward along the current until they reach the noise end, and the model is rewarded when real windows land in high-probability spots of the noise cloud. Over many windows the current bends until real data maps cleanly to noise.",
+      "inExample": "A real 20-bar window from last Tuesday is run backward and lands in a moderately likely region of the noise cloud, so the loss for that window is small."
+    },
+    {
+      "title": "Sample or score after training",
+      "description": "After training, the model is used in two directions: forward from fresh noise to create new windows, or backward from a real window to read off its exact log probability, which marks unusual windows.",
+      "inExample": "Scoring today's window gives a log probability of minus 31, lower than the typical minus 24 of training windows, so it is flagged as somewhat unusual."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating realistic synthetic market windows",
+      "example": "Producing thousands of 20-bar MNQ return windows with the right mix of calm and jumpy bars for stress-testing a strategy."
+    },
+    {
+      "task": "Scoring how unusual a window is",
+      "example": "Computing an exact probability for the last 20 bars of ES and holding off a strategy when the window is far less likely than normal."
+    },
+    {
+      "task": "Modelling smooth continuous dynamics",
+      "example": "Describing how a vector of volatility readings drifts through the day as a continuous path rather than as separate bar-by-bar steps."
+    },
+    {
+      "task": "Comparing distributions between periods",
+      "example": "Fitting one model to calm months and one to volatile months and checking how well each explains a new week."
+    }
+  ],
+  "avoidWhen": [
+    "You need fast results on a modest GPU; the solver takes many small steps for every sample and every score, so a normalizing flow with fixed layers or a gradient boosting classifier is much quicker.",
+    "You want a direct direction probability for trading; the model describes how rows are distributed and says nothing about whether the next bar goes up, so a supervised model fits that job."
+  ],
+  "example": {
+    "scenario": "A research run trained the model on 12 months of 20-bar windows of MNQ 5-minute percentage returns. It now scores the latest window against what it learned and also generates a batch of synthetic windows for comparison.",
+    "input": {
+      "summary": "One real 20-bar window of returns to score, plus a request for synthetic windows.",
+      "fields": [
+        { "name": "window length in 5-minute bars", "value": "20", "meaning": "Number of consecutive bar returns in one data row." },
+        { "name": "latest window average absolute return", "value": "7 hundredths of a percent", "meaning": "Typical size of a bar's move in the window being scored." },
+        { "name": "latest window largest single bar return", "value": "minus a third of a percent", "meaning": "The biggest move in the window, a sharp drop in one bar." },
+        { "name": "solver accuracy setting", "value": "1 part in 1,000", "meaning": "How tightly the numerical solver follows the current; tighter is slower." },
+        { "name": "synthetic windows requested", "value": "500", "meaning": "How many new windows to generate from fresh noise." }
+      ]
+    },
+    "output": {
+      "summary": "An exact log probability for the real window and a batch of generated windows.",
+      "fields": [
+        { "name": "log probability of latest window", "value": "minus 31", "meaning": "How likely the model finds the window; higher means more typical." },
+        { "name": "typical log probability of training windows", "value": "minus 24", "meaning": "The average score of windows from the training period, used as a yardstick." },
+        { "name": "generated windows", "value": "500", "meaning": "Synthetic 20-bar return windows drawn by pushing noise down the current." },
+        { "name": "generated average absolute return", "value": "between 6 and 7 hundredths of a percent", "meaning": "Typical bar move across the synthetic windows, close to the 7 hundredths seen in real data." }
+      ]
+    },
+    "reading": "A score of minus 31 against a typical minus 24 says the latest window is less usual than most, mainly because of the one-third-of-a-percent single-bar drop. Treat it as a flag to look at, not a trade signal. The synthetic windows are useful only after confirming their spread matches real data, as the 6-to-7 versus 7 hundredths comparison does here."
+  }
+}

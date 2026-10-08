@@ -1,0 +1,87 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-hybrid-model-free-model-based-agent",
+  "name": "Hybrid Model-Free & Model-Based Agent",
+  "analogy": "Think of it as a trader who learns mostly from real trades but also replays a few short what-if scenarios in a simulator built from past bars. The what-ifs speed up learning, but they are kept short and never trusted over what really happened.",
+  "steps": [
+    {
+      "title": "Learn from real experience first",
+      "description": "The agent has a policy that chooses actions and a value estimate that scores situations. Both are trained from real transitions: what it saw, what it did, what it got and what came next.",
+      "inExample": "The agent stores real 5-minute MNQ transitions from the training folds: features, the position change, the net result after costs, and the next bar."
+    },
+    {
+      "title": "Fit a model of what happens next",
+      "description": "Separately, a small learned model is trained to predict the next state and the reward from the current state and an action. It is fit only on real transitions.",
+      "inExample": "The model learns that after a buy during rising volume, the next bar's return is usually small, typically a few hundredths of one percent."
+    },
+    {
+      "title": "Imagine short rollouts",
+      "description": "Starting from real states, the model is used to imagine a few steps ahead under the current policy. The rollouts are kept short on purpose, because small errors in the model compound as the imagined path gets longer.",
+      "inExample": "From a real 10:20 bar, the model imagines 3 bars ahead under the current policy, never more."
+    },
+    {
+      "title": "Mix real and imagined transitions",
+      "description": "The policy and value estimate are updated from a blend of real transitions and the imagined ones. The mixing ratio is a dial: more imagination learns faster but exposes the agent to the model's mistakes.",
+      "inExample": "Each training batch is 75 percent real transitions and 25 percent imagined ones."
+    },
+    {
+      "title": "Check the model against reality",
+      "description": "From time to time, the model's predictions are compared with what actually happened. If the error grows, the share of imagined data is turned down and the agent leans on real experience.",
+      "inExample": "On a held-out fold the model's next-bar error doubles after a volatile week, so the imagined share is cut from 25 percent to 5 percent."
+    },
+    {
+      "title": "Act with an optional lookahead",
+      "description": "At decision time the policy proposes actions, and the model can quickly look a few steps ahead to re-rank them. If confidence in the model is low, the agent simply acts on the policy alone.",
+      "inExample": "The policy proposes buy, hold and sell; the 3-bar lookahead ranks buy first and sell last."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Learning from limited trading history",
+      "example": "Training an MNQ execution agent when only a few months of 1-minute data exist, by adding short imagined rollouts to the real transitions."
+    },
+    {
+      "task": "Short lookahead for execution",
+      "example": "Re-ranking whether to enter now or wait one bar by checking a predicted 3-bar price path."
+    },
+    {
+      "task": "Warming up position sizing",
+      "example": "Pretraining the sizing policy against the model before fine-tuning on real fills with costs."
+    },
+    {
+      "task": "Testing robustness across a structural break",
+      "example": "Comparing a pure real-data agent with the hybrid across a month when volatility regimes shifted."
+    },
+    {
+      "task": "Extending simulated multi-asset data",
+      "example": "Generating extra short transitions for ES and MNQ together so a shared policy sees more varied situations."
+    }
+  ],
+  "avoidWhen": [
+    "Markets are changing faster than a model can be refit; the model's mistakes then dominate and a plain model-free agent is safer.",
+    "You need an easily explained, auditable rule; a supervised model on known features is much simpler to check."
+  ],
+  "example": {
+    "scenario": "At 10:20 the hybrid agent holds nothing on MNQ. The policy proposes three actions and the learned model looks 3 bars ahead before the agent commits.",
+    "input": {
+      "summary": "The current state features and the actions the policy is considering.",
+      "fields": [
+        { "name": "close", "value": "19,904", "meaning": "The close of the 10:20 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "return over the last 6 bars", "value": "up about a tenth of one percent", "meaning": "How much price has risen over the previous 30 minutes." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "imagined share of training data", "value": "25 percent", "meaning": "The current mix of imagined transitions in training; the rest is real." }
+      ]
+    },
+    "output": {
+      "summary": "A ranking of the candidate actions with and without the lookahead.",
+      "fields": [
+        { "name": "policy preference", "value": "buy 46 percent, hold 40 percent, sell 14 percent", "meaning": "How likely the model-free policy is to choose each action." },
+        { "name": "lookahead value, buy", "value": "plus 9 US dollars", "meaning": "The model's estimate of the 3-bar outcome of buying, after costs." },
+        { "name": "lookahead value, hold", "value": "0 US dollars", "meaning": "The estimated outcome of staying flat." },
+        { "name": "chosen action", "value": "buy 1 contract", "meaning": "The action taken after combining the policy preference with the lookahead." }
+      ]
+    },
+    "reading": "The lookahead agrees with the policy, so the agent acts. A nine-dollar edge is smaller than the noise of a single trade, so judge the system on many trades in walk-forward folds. If the lookahead often disagrees with what then happens, turn the imagined share down."
+  }
+}

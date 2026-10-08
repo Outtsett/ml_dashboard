@@ -1,0 +1,78 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-probabilistic-program-deepnet",
+  "name": "Probabilistic Program + DeepNet",
+  "analogy": "Think of it as a weather forecaster who runs thousands of what-if days instead of giving a single number. A neural network reads the conditions, a small written story says how the market could behave (quiet day, active day), and the forecaster replays that story thousands of times to report the odds and the spread.",
+  "steps": [
+    {
+      "title": "Let a neural network read the inputs",
+      "description": "A deep network turns the bars, indicators and news into a few numbers that feed the probabilistic program: for example how active the market looks and how large a typical move is. It does the heavy pattern reading.",
+      "inExample": "From the last 60 five-minute bars it reports that the market looks active with a 35 percent chance and gives typical move sizes for each of two states."
+    },
+    {
+      "title": "Write the story of how the market behaves",
+      "description": "The probabilistic program is a short, readable recipe that says which hidden things exist and how they produce the outcome. It might say: first the market is in a calm or active state, then the next 6-bar move is drawn from a spread that depends on that state.",
+      "inExample": "The story has two states, calm and active. In the calm state the 6-bar move is centred near zero with a spread of 22 points; in the active state the spread is 60 points."
+    },
+    {
+      "title": "Feed the network's numbers into the story",
+      "description": "The network's outputs become the settings of the story's dials: the odds of each state and the centre and spread within each. This is the link that lets the learned part and the written part work as one model.",
+      "inExample": "The active-state odds are set to 35 percent, the calm centre to plus 1 point and the active centre to plus 6 points."
+    },
+    {
+      "title": "Replay the story thousands of times",
+      "description": "Exact answers are usually out of reach, so the program is run many times with random draws, each run picking a state and then a move. The pile of results forms a full picture of what could happen and how often.",
+      "inExample": "It draws 5,000 runs: about 1,750 land in the active state and 3,250 in the calm state, each with its own sampled 6-bar move."
+    },
+    {
+      "title": "Read the odds off the pile and train end to end",
+      "description": "Probabilities, ranges and the chance of an up move are read directly from the sampled results. During training the difference between the story's predictions and what really happened is used to adjust the network, so the dials get set better over time.",
+      "inExample": "Counting the runs gives a 53 percent chance the 6-bar move is positive, a middle value of plus 2 points and an 80 percent range from minus 41 to plus 46 points."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Forecasts that come with honest uncertainty",
+      "example": "Producing a full range of likely 6-bar MNQ moves so a position size can be set from the width of the range and not just the direction."
+    },
+    {
+      "task": "Regime-aware outcome ranges",
+      "example": "Modelling a calm and an active state for 5-minute bars and reading how much each state contributes to today's risk."
+    },
+    {
+      "task": "Putting known structure around a neural read",
+      "example": "Writing down that volatility clusters and that news raises the odds of an active state, then letting the network supply the numbers."
+    },
+    {
+      "task": "Simulating scenarios for sizing and stops",
+      "example": "Using the sampled outcomes to estimate how often a stop 40 points away would be hit within 6 bars."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a point forecast or a yes-or-no direction; a gradient boosted tree or a plain network is cheaper and easier to validate.",
+    "You cannot write a sensible story for the market; a wrong story gives confident but wrong ranges, and learned alternatives such as quantile models avoid that.",
+    "You need fast scoring on every tick; sampling thousands of runs is far slower than one forward pass through a network."
+  ],
+  "example": {
+    "scenario": "At 15:10 Eastern a 5-minute MNQ bar closes. The model is asked for the spread of possible moves over the next 6 bars (30 minutes), to decide direction and stop distance.",
+    "input": {
+      "summary": "The features the network reads, which set the dials of a two-state story of calm versus active markets.",
+      "fields": [
+        { "name": "close", "value": "19,105", "meaning": "The price at which the 15:10 five-minute MNQ bar closed." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "price change over the last 6 bars", "value": "up about 23 points", "meaning": "How much price has risen over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "20 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "headlines in the last hour", "value": "9", "meaning": "How many news articles about the market appeared, which raises the odds of an active state." }
+      ]
+    },
+    "output": {
+      "summary": "The odds and the spread of the move over the next 6 bars, read from 5,000 sampled runs.",
+      "fields": [
+        { "name": "probability the 6-bar move is positive", "value": "53 percent", "meaning": "The share of the 5,000 sampled runs that ended above the current close." },
+        { "name": "middle value of the 6-bar move", "value": "plus 2 points", "meaning": "The median of the sampled moves, about 4 US dollars per contract." },
+        { "name": "80 percent range of the 6-bar move", "value": "minus 41 to plus 46 points", "meaning": "The span holding the middle 80 percent of sampled moves." },
+        { "name": "probability of the active state", "value": "35 percent", "meaning": "How likely the model thinks the market is in the wider-swinging state right now." }
+      ]
+    },
+    "reading": "The range of 87 points is far wider than the 2 point middle value, so the direction lean is tiny against the risk. Use the width to size the trade: with a 40 point stop you would be stopped out in a meaningful share of runs even if the lean is right."
+  }
+}

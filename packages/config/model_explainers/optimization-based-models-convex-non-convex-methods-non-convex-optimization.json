@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-convex-non-convex-methods-non-convex-optimization",
+  "name": "Non-Convex Optimization",
+  "analogy": "Think of it as hunting for the highest hill in fog, in a range full of foothills. Walking uphill from one spot finds the nearest summit, not the tallest one, so you start from many different places, sometimes take a step downhill on purpose, and compare the summits you found.",
+  "steps": [
+    {
+      "title": "Define the score to improve",
+      "description": "You choose one number to push up or down, such as a walk-forward score after costs, and list the settings that may change. There is no guarantee the landscape has a single peak.",
+      "inExample": "The score is the net-of-cost Sharpe-like ratio of a breakout rule on MNQ 5-minute bars, written in hundredths, and the settings are the lookback length and the stop distance."
+    },
+    {
+      "title": "Scatter many starting points",
+      "description": "The search begins from many different settings spread across the allowed ranges. Each start will climb to its own nearest peak, so many starts are the main defence against getting stuck on a poor one.",
+      "inExample": "Twenty starting pairs are drawn, with lookbacks from 5 to 120 bars and stops from 1 to 4 times the average true range."
+    },
+    {
+      "title": "Climb from each start",
+      "description": "From every start, a local method moves in small steps toward better scores until no nearby setting improves. Each climb ends on a local peak, which may or may not be the best.",
+      "inExample": "The 20 climbs end on 4 different peaks, with scores ranging from 8 to 35 hundredths."
+    },
+    {
+      "title": "Occasionally accept a worse step",
+      "description": "To escape a poor peak, the search sometimes accepts a step that lowers the score, with that chance shrinking over time, or adds random noise to each step. This lets it cross valleys between hills.",
+      "inExample": "Several climbs accept small downhill steps early on and cross over to taller peaks that a pure climb would have missed."
+    },
+    {
+      "title": "Compare the peaks and test their width",
+      "description": "The peaks found are ranked, but a high score alone is not enough. The search also checks neighbouring settings: a peak with high scores all around is far safer than a lone spike, which is probably luck.",
+      "inExample": "The best peak, at a lookback of 34 bars and a stop of 2 times the average true range, has neighbours scoring 31 to 34 hundredths, so it is a wide hill."
+    },
+    {
+      "title": "Report the best setting and what is not proven",
+      "description": "The result is the best setting found, and there is no certificate that it is the very best possible. The honest statement is that it is the best found across the starts tried.",
+      "inExample": "The report gives 34 bars and 2 times the average true range at a score of 35 hundredths, found in 6 of the 20 climbs."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Searching rule settings",
+      "example": "Choosing the lookback and stop distance of an MNQ breakout rule when small changes make the score jump."
+    },
+    {
+      "task": "Tuning model hyperparameters",
+      "example": "Searching tree depth, learning rate and feature count of a boosted model where the walk-forward score has several peaks."
+    },
+    {
+      "task": "Optimising non-smooth risk measures",
+      "example": "Choosing position sizes that minimise the worst drawdown on a historical path, which is not a bowl-shaped function."
+    },
+    {
+      "task": "Fitting market-impact curves",
+      "example": "Fitting a cost curve that flattens at large sizes, which a bowl-shaped model cannot represent."
+    }
+  ],
+  "avoidWhen": [
+    "The problem can be written as a bowl; a convex solver then gives a certified best answer quickly, and a many-start search is wasted effort.",
+    "You are tempted to search a huge number of settings against the same history; the best score found will mostly be luck, so hold out data the search never sees."
+  ],
+  "example": {
+    "scenario": "A researcher tunes two settings of an MNQ 5-minute breakout rule against a walk-forward, after-cost score, using twenty restarted searches. The scores are illustrative.",
+    "input": {
+      "summary": "The ranges of the two settings, the score to improve and the search budget.",
+      "fields": [
+        { "name": "lookback range", "value": "5 to 120 bars", "meaning": "How many past 5-minute bars define the breakout level." },
+        { "name": "stop distance range", "value": "1 to 4 times the average true range", "meaning": "How far from entry the protective stop sits, in units of the recent typical bar range." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar, which sets the unit for the stop." },
+        { "name": "score to improve", "value": "net-of-cost Sharpe-like ratio", "meaning": "Return per unit of risk after trading costs, measured on walk-forward folds and written in hundredths." },
+        { "name": "number of starts", "value": "20", "meaning": "How many different starting settings are climbed from." },
+        { "name": "budget per climb", "value": "150 evaluations", "meaning": "How many settings each climb may test." }
+      ]
+    },
+    "output": {
+      "summary": "The best setting found, how often it was found and how wide the peak is.",
+      "fields": [
+        { "name": "best lookback", "value": "34 bars", "meaning": "The breakout window of the best setting found." },
+        { "name": "best stop distance", "value": "2 times the average true range", "meaning": "About 46 points at the current range of 23 points." },
+        { "name": "best score", "value": "35 hundredths", "meaning": "The after-cost ratio on the walk-forward folds used for the search." },
+        { "name": "distinct peaks found", "value": "4", "meaning": "Different local peaks reached by the 20 climbs." },
+        { "name": "neighbour scores around the best", "value": "31 to 34 hundredths", "meaning": "Scores of nearby settings; close to the peak's own score means a wide, trustworthy hill." }
+      ]
+    },
+    "reading": "The wide neighbourhood is a good sign, but the score came from the same folds that guided the search. Confirm the setting on bars the search never saw before treating 35 hundredths as anything but an optimistic upper estimate."
+  }
+}

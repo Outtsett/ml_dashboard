@@ -1,0 +1,77 @@
+{
+  "specificationId": "hybrid-composite-architectures-neuro-symbolic-systems-neuro-symbolic-model",
+  "name": "Neuro-Symbolic Model",
+  "analogy": "Think of it as a junior analyst with a gut feel who must also show their work to a senior risk manager. The analyst's gut gives a first read of the tape; the risk manager's written rules then say where that read looks reckless, and the final call is the two agreed together.",
+  "steps": [
+    {
+      "title": "Let the neural part learn the patterns",
+      "description": "A neural network reads the raw inputs, such as recent bars, indicators and news sentiment, and produces a compact summary of the situation plus its own first prediction. This is the data-driven half: nobody tells it what to look for.",
+      "inExample": "From the last 40 five-minute MNQ bars and indicators it forms a summary and a first read of a 58 percent chance that the close 6 bars later is higher."
+    },
+    {
+      "title": "Write down the domain knowledge as rules",
+      "description": "The symbolic half is a short list of rules a trader would recognise, in if-then form. Each rule looks at the summary or at named features and produces a degree of how much it applies, from 0 to 100 percent.",
+      "inExample": "One rule says: if the relative strength index is above 70 and news sentiment is negative, be cautious about buying. Its degree of applying comes out at 64 percent."
+    },
+    {
+      "title": "Combine rules with smooth logic",
+      "description": "Rules use AND, OR and NOT, which are replaced by smooth arithmetic so that the whole system stays trainable. This lets several rules be stacked or combined into higher-level statements without breaking the learning.",
+      "inExample": "Overbought applies at 80 percent and negative news at 80 percent, and combining the two with AND gives the caution rule its 64 percent."
+    },
+    {
+      "title": "Fuse the two halves",
+      "description": "A fusion layer takes the neural summary and the rule results together and produces the final answer. It learns how far to let the rules pull the neural prediction in each situation.",
+      "inExample": "The fusion layer lets the caution rule pull the neural 58 percent down to a final 54 percent chance of an up move."
+    },
+    {
+      "title": "Train for accuracy and for consistency with the rules",
+      "description": "Training adjusts everything at once. The loss counts prediction errors, and it also penalises answers that contradict the rules, so the model is steered toward being right and being sensible by the rules' standards.",
+      "inExample": "Training bars where the model bought into an overbought market with bad news were penalised, which is why the fused answer now sits below the raw neural read."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predictions that must respect known trading logic",
+      "example": "A direction model for MNQ 5-minute bars that is not allowed to chase an extreme overbought reading against negative news."
+    },
+    {
+      "task": "Explainable decisions for review",
+      "example": "Reporting which rules fired and how much each moved a call, so you can see that a 54 percent reading was lowered by the caution rule from 58 percent."
+    },
+    {
+      "task": "Learning well with limited data",
+      "example": "Using rules to cover well-understood conditions so the network only has to learn the part of the market that rules do not describe."
+    },
+    {
+      "task": "Testing whether a rule is worth keeping",
+      "example": "Comparing walk-forward results with the rule layer on and off to see if a hand-written risk rule helps after costs."
+    }
+  ],
+  "avoidWhen": [
+    "There are no trustworthy rules to give it; a model with weak rules is a more complicated neural network, and a plain tree or neural model is simpler.",
+    "The rules are rigid and the data keeps contradicting them; a soft rule that is wrong will pull predictions the wrong way, so measure the rules first.",
+    "You only need raw predictive accuracy on a large feature table; a gradient boosted tree usually reaches it faster with far less to tune."
+  ],
+  "example": {
+    "scenario": "At 13:15 Eastern a 5-minute MNQ bar closes after a strong run higher. The model is asked how likely the close 6 bars later is to be above this close, with a rule that warns against buying overbought markets on bad news.",
+    "input": {
+      "summary": "Indicators and news for the bar, which both the neural part and the rules read.",
+      "fields": [
+        { "name": "close", "value": "19,880", "meaning": "The price at which the 13:15 five-minute MNQ bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "71", "meaning": "A momentum reading from 0 to 100; above 70 is commonly read as overbought." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market is moving." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "news sentiment, last hour", "value": "minus 12 on a scale from minus 100 to plus 100", "meaning": "The average FinBERT sentiment of recent headlines; slightly negative." }
+      ]
+    },
+    "output": {
+      "summary": "The neural first read, which rules fired and the final probability.",
+      "fields": [
+        { "name": "neural-only probability of a higher close in 6 bars", "value": "58 percent", "meaning": "What the network alone says before the rules are applied." },
+        { "name": "rule that fired", "value": "overbought with negative news, 64 percent", "meaning": "The caution rule and how strongly it applies to this bar, from 0 to 100 percent." },
+        { "name": "final probability of a higher close in 6 bars", "value": "54 percent", "meaning": "The fused answer after the rule pulled the neural read down." }
+      ]
+    },
+    "reading": "54 percent is a slim lean, and part of that is only because the rule shaved four points off. Use the printed rule to judge it: if you do not believe overbought-with-bad-news is a real risk, test the model with that rule turned off before you act."
+  }
+}

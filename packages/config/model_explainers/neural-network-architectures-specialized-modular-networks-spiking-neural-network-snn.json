@@ -1,0 +1,83 @@
+{
+  "specificationId": "neural-network-architectures-specialized-modular-networks-spiking-neural-network-snn",
+  "name": "Spiking Neural Network (SNN)",
+  "analogy": "Think of it as a bucket of neurons, each like a leaky bucket under a tap. Evidence drips in; the bucket slowly leaks; and only when it fills to the brim does it tip over and send a single splash downstream. A burst of one-sided buying fills buckets and fires, while thin scattered trades leak away.",
+  "steps": [
+    {
+      "title": "Turn the price stream into spikes",
+      "description": "The market is converted into discrete events. With delta modulation, a spike is fired each time a feature has moved by more than a set amount since its last spike. Quiet periods produce no spikes at all, and busy periods produce many.",
+      "inExample": "A spike fires each time price moves 2 points, which is 8 ticks, from the last spike; the last 40 one-minute bars produce 17 up spikes and 6 down spikes."
+    },
+    {
+      "title": "Let each unit collect charge",
+      "description": "Every unit holds a running charge called a membrane potential. Each simulated moment, weighted incoming spikes add to that charge. The charge persists from one moment to the next, which gives the unit a short memory without any extra memory machinery.",
+      "inExample": "A group of units wired to up spikes gains charge with each up spike over the 20 simulated timesteps."
+    },
+    {
+      "title": "Let the charge leak",
+      "description": "At every step the charge decays by a fixed fraction. Evidence that arrives spread thinly over a long time leaks away before it builds up, whereas a tight burst of evidence overwhelms the leak and fills the unit.",
+      "inExample": "Three scattered up spikes spread over many steps never fill their unit, but five up spikes within eight steps do."
+    },
+    {
+      "title": "Fire and reset when the threshold is crossed",
+      "description": "When the charge crosses a threshold, the unit emits a single on-or-off spike and its charge is knocked down. This keeps firing sparse: most units are silent most of the time, and downstream work happens only where a spike occurred.",
+      "inExample": "About 6 percent of the 1,024 hidden units fire at least once over the window; the rest stay silent."
+    },
+    {
+      "title": "Read the output layer's charge",
+      "description": "The last layer has one unit per class. Instead of counting spikes, the model usually reads the charge each output unit has accumulated by the end of the window and turns the charges into class scores.",
+      "inExample": "By the final step the up output unit holds more charge than the down output unit, and the scores become 57 percent up and 43 percent down."
+    },
+    {
+      "title": "Train with a smooth stand-in for the threshold",
+      "description": "A spike is an all-or-nothing step, which normally blocks learning. During training the forward pass keeps the true step, while the backward pass pretends the step was a smooth hill so errors can flow back. A penalty on firing keeps the network sparse.",
+      "inExample": "Training repeats this on many past windows until the output charges lean the right way more often than chance, while average firing stays near 6 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Classifying direction from an event stream",
+      "example": "Feeding trade and quote arrivals on MNQ as spikes and scoring the short-horizon direction from the raw event flow."
+    },
+    {
+      "task": "Detecting volatility bursts",
+      "example": "Using price-move spikes so that the network lights up only when range expands, for example around a news release."
+    },
+    {
+      "task": "Responding to order flow imbalance",
+      "example": "Treating signed aggressor volume as input current so that sustained one-sided buying slowly pushes a unit over threshold."
+    },
+    {
+      "task": "Cheap continuous scoring on special hardware",
+      "example": "Running the scorer on low-power brain-inspired chips; indirect for this dashboard, which runs on an ordinary graphics card."
+    }
+  ],
+  "avoidWhen": [
+    "You want a quick, strong baseline on a table of indicators; a boosted tree is faster to train and easier to explain.",
+    "You only have evenly spaced bars and no event data; the spike encoding adds complexity without adding information."
+  ],
+  "example": {
+    "scenario": "A trader wants a direction score for the next 5 minutes of MNQ. The last 40 one-minute bars are converted into spikes using a 2-point threshold, simulated for 20 timesteps, and the output layer's charge is read at the end.",
+    "input": {
+      "summary": "A window of recent bars encoded as spike trains, one train per feature.",
+      "fields": [
+        { "name": "window length", "value": "40 one-minute bars", "meaning": "How much recent history is converted into spikes." },
+        { "name": "spike threshold for price", "value": "2 points (8 ticks)", "meaning": "A spike fires when price has moved this far since the last spike." },
+        { "name": "up spikes in the window", "value": "17", "meaning": "How many times price moved up by the threshold." },
+        { "name": "down spikes in the window", "value": "6", "meaning": "How many times price moved down by the threshold." },
+        { "name": "simulation timesteps", "value": "20", "meaning": "How many moments the network is stepped through for this one window." },
+        { "name": "average true range, 14 five-minute bars", "value": "19 points", "meaning": "The recent typical bar travel, which sets how often spikes fire." }
+      ]
+    },
+    "output": {
+      "summary": "A score per class from the final charge, plus a record of which units fired when.",
+      "fields": [
+        { "name": "probability of an up move", "value": "57 percent", "meaning": "The up output unit's accumulated charge converted to a probability." },
+        { "name": "probability of a down move", "value": "43 percent", "meaning": "The down output unit's share of the same conversion." },
+        { "name": "share of hidden units that fired", "value": "6 percent", "meaning": "How sparse the activity was; it should stay in a modest band." },
+        { "name": "spike raster", "value": "1,024 units by 20 steps", "meaning": "A grid showing exactly which unit fired at which moment, plottable against the chart." }
+      ]
+    },
+    "reading": "A 57 percent lean is modest. Check the firing share: near zero means the network went silent and the score is noise, and near 100 percent means it has turned into an ordinary dense network. The raster is the unusual bonus, since you can see which moments of the window drove the call."
+  }
+}

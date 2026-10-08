@@ -1,0 +1,88 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-dbscan-density-based-spatial-clustering",
+  "name": "DBSCAN (Density-Based Spatial Clustering of Applications with Noise)",
+  "analogy": "Think of it as finding towns on a night-time satellite map. Wherever lights are packed closely together you have a town, towns can be any shape, and a single lone light out in the countryside belongs to no town at all.",
+  "steps": [
+    {
+      "title": "Set a radius and a crowd size",
+      "description": "You choose two settings: how close two bars must be to count as neighbours, and how many bars (the bar itself included) must lie within that radius for a bar to count as part of a crowd. These two numbers decide everything that follows.",
+      "inExample": "The radius is six tenths of a scaled unit and the crowd size is 15 bars, including the bar itself."
+    },
+    {
+      "title": "Count each bar's neighbours",
+      "description": "For every bar the model counts how many bars lie within the radius. A bar with enough of them sits in a dense area and is called a core bar.",
+      "inExample": "Of 20,000 bars, 17,400 are core bars with at least 15 bars inside the radius."
+    },
+    {
+      "title": "Start a cluster at an unvisited core bar",
+      "description": "The model picks a core bar not yet assigned and opens a new cluster there. Everything within the radius of this bar joins the cluster.",
+      "inExample": "A calm midday bar starts cluster 0 and pulls in its 23 neighbours."
+    },
+    {
+      "title": "Spread through connected core bars",
+      "description": "Any newly added bar that is itself a core bar adds its own neighbours too, and the cluster keeps growing like spilling ink along connected dense areas. This is why clusters can take any shape, including long curves.",
+      "inExample": "Cluster 0 spreads over 9,800 connected bars, forming a long band from quiet to moderately active bars."
+    },
+    {
+      "title": "Let edge bars join but not spread",
+      "description": "A bar that is within reach of a core bar but is not itself in a crowd joins the cluster as a border bar. It does not extend the cluster further.",
+      "inExample": "About 600 bars at the fringe of cluster 0 join as border bars."
+    },
+    {
+      "title": "Open further clusters in untouched areas",
+      "description": "The search moves to the next core bar not yet assigned and starts another cluster, until every core bar belongs somewhere. The number of clusters is whatever the data produces.",
+      "inExample": "Two more clusters form: one of high-volume opening bars and one of fast trending bars."
+    },
+    {
+      "title": "Label whatever is left as noise",
+      "description": "Bars that are neither core nor close enough to a core bar belong to no cluster and are labelled noise. These are the bars that have no crowd around them, which makes the model a built-in outlier finder.",
+      "inExample": "620 bars, about 3 percent of the total, are labelled noise, including the 14:35 bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding market states of irregular shape",
+      "example": "Grouping 5-minute MNQ bars by volatility, volume and trend features into dense states without choosing how many exist."
+    },
+    {
+      "task": "Separating outliers from the main crowd",
+      "example": "Treating the noise label as a flag for bars that fit no usual state, such as news-shock bars."
+    },
+    {
+      "task": "Discovering how many regimes there are",
+      "example": "Letting the density decide whether the data holds 2 or 5 distinct regimes before fitting a regime model."
+    },
+    {
+      "task": "Grouping irregular patterns",
+      "example": "Clustering the shapes of the first hour of trading across many days, where some shapes are rare and should stay unlabelled."
+    }
+  ],
+  "avoidWhen": [
+    "Your groups have very different densities, for example calm bars packed tightly and volatile bars spread out; one radius cannot fit both, so a Gaussian mixture or mean shift handles this better.",
+    "You have many features; distances stop being informative in high dimensions, so reduce the features first."
+  ],
+  "example": {
+    "scenario": "A researcher clusters one year of 5-minute MNQ bars to find the market states in it, then looks at where a specific bar from 14:35 landed.",
+    "input": {
+      "summary": "Each bar is a point described by three scaled features, plus the two settings.",
+      "fields": [
+        { "name": "close", "value": "19,260", "meaning": "The price at which the 14:35 bar closed, shown for reference and not used as a feature." },
+        { "name": "range against average true range", "value": "more than 3 times", "meaning": "The bar's range was more than three times the typical recent range." },
+        { "name": "volume against its 20-bar average", "value": "nearly 6 times", "meaning": "Trading was very heavy compared with normal." },
+        { "name": "return over the bar", "value": "down about half a percent", "meaning": "How far price fell during the bar." },
+        { "name": "neighbour radius", "value": "six tenths of a scaled unit", "meaning": "How close two bars must be to count as neighbours." },
+        { "name": "crowd size", "value": "15 bars", "meaning": "How many bars, the bar itself included, must lie within the radius for a bar to count as sitting in a dense area." }
+      ]
+    },
+    "output": {
+      "summary": "A cluster label for every bar, shown here for the 14:35 bar and for the whole run.",
+      "fields": [
+        { "name": "cluster label of the 14:35 bar", "value": "noise (the model's code for noise is minus 1)", "meaning": "The bar did not belong to any dense group." },
+        { "name": "bars within the radius, itself included", "value": "2", "meaning": "Far fewer than the 15 needed to count as a crowd." },
+        { "name": "clusters found", "value": "3", "meaning": "The number of dense market states in the year of bars." },
+        { "name": "share labelled noise", "value": "about 3 percent", "meaning": "The portion of all bars that fit no state: 620 of 20,000." }
+      ]
+    },
+    "reading": "The 14:35 bar had only 2 bars within the radius where 15 were needed, so it belongs to none of the three states and is flagged as noise. Treat noise bars as candidates for exclusion from training or for separate risk handling, and check that the radius is not so small that it labels ordinary bars as noise."
+  }
+}

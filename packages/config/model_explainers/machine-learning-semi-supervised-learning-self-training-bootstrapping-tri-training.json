@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-self-training-bootstrapping-tri-training",
+  "name": "Tri-Training",
+  "analogy": "Think of it as three analysts who each studied a slightly different sample of the marked bars. On an unmarked bar, if two of them agree, the third is made to adopt that call and learn from it, and the final decision is whatever at least two of the three say.",
+  "steps": [
+    {
+      "title": "Make three different training sets",
+      "description": "From the labelled bars, three new sets are drawn at random with replacement, so a bar can appear twice in one set and not at all in another. The three sets overlap heavily but are not identical, which gives the three classifiers different views of the same evidence.",
+      "inExample": "250 labelled five-minute MNQ bars yield three resampled sets, each of 250 bars."
+    },
+    {
+      "title": "Train one classifier on each set",
+      "description": "Three classifiers of the same kind are trained, one per set. Because their training sets differ, they make different mistakes, and that difference is what the method relies on.",
+      "inExample": "Three decision trees are trained, which will be called classifier 1, 2 and 3."
+    },
+    {
+      "title": "Find the bars on which two classifiers agree",
+      "description": "For each classifier in turn, the method looks at the unlabelled bars where the other two give the same call. Their agreement is treated as a stand-in label for the third classifier to learn from.",
+      "inExample": "For classifier 3, the method collects the unlabelled bars where classifiers 1 and 2 both say the same thing."
+    },
+    {
+      "title": "Check that the agreeing pair is trustworthy",
+      "description": "Before using the pair's calls, the method estimates how often the pair disagrees on labelled bars. Only if that error rate is low enough, and not worse than the previous round, are the new bars used.",
+      "inExample": "Classifiers 1 and 2 disagree on 31 percent of the labelled bars, which is lower than last round, so their calls are accepted."
+    },
+    {
+      "title": "Add the agreed bars and retrain",
+      "description": "The accepted bars are added to the third classifier's training set with the pair's call as the label, and the classifier is retrained. The same is done for the other two classifiers. The cycle repeats until nobody changes.",
+      "inExample": "Over several rounds, each classifier gains between 300 and 600 pseudo-labelled bars from its two partners."
+    },
+    {
+      "title": "Decide by majority vote",
+      "description": "To score a new bar, all three classifiers vote and the side with at least two votes wins. Because three voters cannot tie on two sides, the vote is always decisive.",
+      "inExample": "For the 12:15 bar, classifiers 1 and 2 vote up and classifier 3 votes down, so the call is up by 2 votes to 1."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Semi-supervised direction calls on single-view data",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close from one feature table and few labels."
+    },
+    {
+      "task": "Reducing self-training's runaway errors",
+      "example": "Replacing a single self-training classifier with three voters so one overconfident model cannot steer the labels alone."
+    },
+    {
+      "task": "Flagging contested bars",
+      "example": "Listing bars where the three classifiers split two to one, which are the least settled bars in the sample."
+    },
+    {
+      "task": "Candlestick pattern classification",
+      "example": "Labelling unlabelled chart windows as a pattern or not when only a small hand-labelled set exists."
+    }
+  ],
+  "avoidWhen": [
+    "The labelled set is too small to give three meaningfully different resampled sets; the classifiers then agree for the wrong reason, and two confident copies teach the third.",
+    "You have two clearly different feature groups, such as price and news; Co-Training uses them directly and gives its classifiers genuinely different information."
+  ],
+  "example": {
+    "scenario": "A researcher has 5,250 five-minute MNQ bars, 250 with a known outcome: whether the close 6 bars (30 minutes) later was above that bar's close. After tri-training, the three classifiers vote on the 12:15 bar.",
+    "input": {
+      "summary": "Labelled and unlabelled bars, and the features of the 12:15 bar given to all three trained classifiers.",
+      "fields": [
+        { "name": "labelled bars", "value": "250", "meaning": "Bars with a known 6-bar outcome that seed the three resampled sets." },
+        { "name": "unlabelled bars", "value": "5,000", "meaning": "Bars with no outcome that supply agreed labels." },
+        { "name": "classifiers", "value": "3", "meaning": "Three decision trees, each trained on its own resampled set." },
+        { "name": "price change over the last 6 bars", "value": "minus 19 points", "meaning": "How far price fell over the previous 30 minutes." },
+        { "name": "distance from the 50-bar moving average", "value": "35 points below", "meaning": "How far the close sits below its recent average." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." }
+      ]
+    },
+    "output": {
+      "summary": "Each classifier's probability, the vote count and the final call for the 12:15 bar.",
+      "fields": [
+        { "name": "classifier 1 probability of a higher close", "value": "60 percent", "meaning": "Classifier 1 leans up." },
+        { "name": "classifier 2 probability of a higher close", "value": "56 percent", "meaning": "Classifier 2 leans up." },
+        { "name": "classifier 3 probability of a higher close", "value": "47 percent", "meaning": "Classifier 3 leans down." },
+        { "name": "vote", "value": "2 up, 1 down", "meaning": "How the three classifiers voted." },
+        { "name": "average probability", "value": "54 percent", "meaning": "The mean of the three probabilities, a softer summary than the vote." }
+      ]
+    },
+    "reading": "A two-to-one vote is a weak majority, and the 54 percent average shows how modest the lean is. Treat split votes as low-confidence bars and look for a stronger edge among bars where all three agree."
+  }
+}

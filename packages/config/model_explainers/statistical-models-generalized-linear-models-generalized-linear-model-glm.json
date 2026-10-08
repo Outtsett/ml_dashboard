@@ -1,0 +1,85 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-generalized-linear-model-glm",
+  "name": "Generalized Linear Model (GLM)",
+  "analogy": "Think of it as one adjustable machine with a single weighted-sum engine and two interchangeable attachments. One attachment bends the engine's output into the right shape for your target, such as a probability or a count. The other says how much noise to expect at each level. Swap the attachments and the same machine handles direction, counts or sizes.",
+  "steps": [
+    {
+      "title": "Name the shape of the target",
+      "description": "The first decision is what kind of thing is being predicted: a yes-or-no outcome, a whole-number count, or an always-positive size. That choice decides which noise pattern the model assumes. A yes-or-no target, for example, is noisiest when the chance is near fifty-fifty.",
+      "inExample": "The target is whether the next 5-minute MNQ bar closes higher, a yes-or-no outcome, so the model assumes yes-or-no noise."
+    },
+    {
+      "title": "Choose the bending curve",
+      "description": "A link curve connects the plain weighted sum to the quantity being predicted. It guarantees valid answers: probabilities stay between zero and one, counts and sizes stay above zero. For a yes-or-no target the standard choice is an S-shaped curve.",
+      "inExample": "The S-shaped curve is chosen, so any score, however large, maps to a chance between 0 and 100 percent."
+    },
+    {
+      "title": "Build one weighted-sum score",
+      "description": "Every feature is multiplied by its weight and the results are added into a single score for the bar. All of the model's learning lives in these weights. Everything else, the curve and the noise pattern, is fixed by the choices above.",
+      "inExample": "The recent 15-minute fall and a momentum reading below 50 add to the score, near-average volume subtracts a little, and the total for the 10:30 bar comes out slightly positive."
+    },
+    {
+      "title": "Fit the weights by repeated reweighted fitting",
+      "description": "The weights are found by solving a weighted line-fitting problem, then re-weighting every bar according to the new fit, and repeating until the weights stop changing. This reaches the exact most-likely weights for the chosen noise pattern, usually in a handful of rounds.",
+      "inExample": "On 20,000 past bars the fitting converges after 5 rounds."
+    },
+    {
+      "title": "Judge the fit by deviance",
+      "description": "Fit quality is measured by deviance, a generalization of the sum of squared misses that suits any noise pattern. The model's deviance is compared with that of a no-feature model, which always predicts the average, to see how much the features actually explain.",
+      "inExample": "The fitted model's deviance on held-out later bars is only slightly below the no-feature model's, a small but real gain."
+    },
+    {
+      "title": "Bend the score into the answer",
+      "description": "For a new bar the score is passed through the bending curve to give the expected value of the target, and each weight comes with a standard error telling how firmly it was pinned down.",
+      "inExample": "The slightly positive score passes through the S-shaped curve and becomes a 55 percent chance that the bar closes higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting a yes-or-no outcome",
+      "example": "Estimating the chance that the next 5-minute MNQ bar closes higher from 35 base features, with an S-shaped bending curve."
+    },
+    {
+      "task": "Predicting a count",
+      "example": "Forecasting the number of trades or ticks in the next bar from volume and volatility, with a count-friendly curve."
+    },
+    {
+      "task": "Predicting a positive size",
+      "example": "Forecasting expected range or slippage in points, always above zero and with spread that grows with the size."
+    },
+    {
+      "task": "Testing which features really matter",
+      "example": "Comparing a model with and without the volume features and checking whether the improvement is bigger than chance before feeding them to a larger model."
+    },
+    {
+      "task": "Position sizing with auditable weights",
+      "example": "Mapping a signal's strength to a recommended position size where each feature's contribution can be read off and explained."
+    }
+  ],
+  "avoidWhen": [
+    "The relationship between features and target bends or depends on feature combinations; trees and neural networks find such structure while a GLM's single weighted sum cannot.",
+    "The target does not fit any of the standard noise patterns, such as a heavily multi-peaked distribution; a mixture model or a neural network that outputs a full distribution suits that better."
+  ],
+  "example": {
+    "scenario": "For a 10:30 five-minute MNQ bar, a GLM set up with yes-or-no noise and the S-shaped curve, trained on 20,000 past bars, is asked for the chance that the next bar closes higher.",
+    "input": {
+      "summary": "The family and curve choices, and one row of features for the bar that just closed.",
+      "fields": [
+        { "name": "family and curve", "value": "yes-or-no noise, S-shaped curve", "meaning": "The choices that make the output a probability between 0 and 100 percent." },
+        { "name": "move over the last 3 bars", "value": "minus 23 points", "meaning": "How far price has fallen over the previous 15 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "41", "meaning": "A momentum reading from 0 to 100; below 50 means recent selling dominated." },
+        { "name": "volume against its 20-bar average", "value": "10 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar." }
+      ]
+    },
+    "output": {
+      "summary": "The weighted-sum score and the probability it becomes.",
+      "fields": [
+        { "name": "weighted-sum score", "value": "slightly above zero", "meaning": "The sum of each feature times its weight, before the bending curve; zero would mean even odds." },
+        { "name": "probability the next bar closes higher", "value": "55 percent", "meaning": "The score after passing through the S-shaped curve." },
+        { "name": "comparison with always guessing the average", "value": "about 50 percent", "meaning": "The share of up bars in the training data, the baseline a feature-free model gives." }
+      ]
+    },
+    "reading": "A 55 percent chance against a baseline near 50 percent is a faint lean. The same machine could be pointed at a count or a size just by changing the family and curve. Judge it on later bars by the deviance against the no-feature model and by whether trades at this lean cover costs."
+  }
+}

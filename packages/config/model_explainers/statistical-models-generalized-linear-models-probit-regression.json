@@ -1,0 +1,81 @@
+{
+  "specificationId": "statistical-models-generalized-linear-models-probit-regression",
+  "name": "Probit Regression",
+  "analogy": "Think of it as an unseen tug of war between buyers and sellers. You cannot see the strength of the pull, only who won each bar. The model assumes the hidden pull is a bell-curve-shaped quantity, centered on a value the features determine, and that the bar closes up whenever the pull ends above zero.",
+  "steps": [
+    {
+      "title": "Imagine a hidden score behind each yes-or-no result",
+      "description": "The model supposes that behind each observed up-or-down bar there is a hidden continuous quantity, such as net buying pressure, that the data never shows directly. The visible bar is simply the sign of that hidden quantity, with a bell-curve amount of random noise added.",
+      "inExample": "Each 5-minute bar has an unseen net buying pressure, and the bar closes higher when that pressure ends above zero."
+    },
+    {
+      "title": "Let the features shift the center of the hidden score",
+      "description": "Each feature gets a weight, and the weighted features are added into a single number: where the hidden score is centered for this bar. A higher center means more of the bell curve sits above the threshold at zero.",
+      "inExample": "Positive order-flow imbalance and a close near the top of the bar move the center slightly above zero, by about a seventh of the bell curve's width."
+    },
+    {
+      "title": "Measure the bell curve above zero",
+      "description": "The chance of an up bar is the share of the bell curve, centered on the bar's value, that lies above zero. The standard bell curve is used, so the model reads the center as a distance measured in standard deviations.",
+      "inExample": "A bell curve centered slightly above zero has 56 percent of its area above zero, so the chance of an up bar is 56 percent."
+    },
+    {
+      "title": "Fit the weights by making the real outcomes likely",
+      "description": "Training adjusts the weights until the observed ups and downs are as likely as possible under the model. There is one best set of weights, found in a few repeated steps, so training is stable. A mild penalty keeps the weights modest.",
+      "inExample": "Eight rounds of adjustment on 20,000 bars settle the weights, and the chance quoted by the model matches the share of ups among similar past bars."
+    },
+    {
+      "title": "Compare with the logistic cousin",
+      "description": "The fitted probabilities almost match those of logistic regression. The weights are smaller, by roughly 40 percent, because the bell curve and the S-curve use different scales. The reason to choose probit is the hidden-score story, not the quality of the fit.",
+      "inExample": "A logistic model on the same data gives 56 percent for this bar, practically the same answer."
+    },
+    {
+      "title": "Return the probability and the hidden-score center",
+      "description": "For a new bar the model gives the probability of an up bar and also the center of the hidden score, which can be used to rank bars by conviction.",
+      "inExample": "The result is a 56 percent chance of an up bar and a center slightly above zero for ranking against other bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction when there is an unseen pressure story",
+      "example": "Estimating the chance the next 5-minute MNQ bar closes higher when the working idea is hidden net buying pressure crossing zero."
+    },
+    {
+      "task": "Chance of touching a barrier",
+      "example": "Estimating the chance a trade reaches its target before its stop, framed as a hidden score crossing a fixed line."
+    },
+    {
+      "task": "Modeling two correlated instruments at once",
+      "example": "A bivariate version predicting up-or-down for MNQ and ES jointly, with a shared hidden link between them."
+    },
+    {
+      "task": "Chance of a regime threshold crossing",
+      "example": "Estimating the chance realized volatility crosses into a high-volatility regime in the next hour."
+    }
+  ],
+  "avoidWhen": [
+    "You simply want the most readable weights and do not hold the hidden-score view; logistic regression says nearly the same thing and its weights read directly as changes in odds.",
+    "The relationship between features and outcome is nonlinear or full of interactions; gradient boosting finds structure that a single weighted sum cannot."
+  ],
+  "example": {
+    "scenario": "At 13:20 on an MNQ 5-minute chart, a trader wants the chance that the next bar closes higher, viewing the outcome as the sign of an unseen net buying pressure.",
+    "input": {
+      "summary": "Order-flow and price features for the bar that just closed.",
+      "fields": [
+        { "name": "order-flow imbalance", "value": "12 percent of total volume", "meaning": "Volume traded at the ask minus volume traded at the bid, as a share of total volume; positive means buyers were more aggressive." },
+        { "name": "close position within the bar", "value": "70 percent of the way up", "meaning": "Where the close sat between the bar's low (0 percent) and high (100 percent)." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "17 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "move over the last 3 bars", "value": "plus 12 points", "meaning": "How far price has risen over the previous 15 minutes." }
+      ]
+    },
+    "output": {
+      "summary": "The hidden-score center and the probability of an up bar.",
+      "fields": [
+        { "name": "center of the hidden net buying pressure", "value": "slightly above zero", "meaning": "The weighted-sum value, measured in standard deviations of the hidden noise." },
+        { "name": "probability the next bar closes higher", "value": "56 percent", "meaning": "The share of the bell curve centered on the bar's value that lies above zero." },
+        { "name": "same bar under a logistic model", "value": "56 percent", "meaning": "For comparison: logistic regression gives nearly the same answer." }
+      ]
+    },
+    "reading": "A 56 percent chance is a gentle lean and needs to be large enough to cover costs of roughly 2 US dollars per contract before it helps. Use the center value to rank bars by conviction and check on later bars that the quoted 56 percent matched the real hit rate."
+  }
+}

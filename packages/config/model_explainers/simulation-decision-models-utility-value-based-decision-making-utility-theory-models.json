@@ -1,0 +1,84 @@
+{
+  "specificationId": "simulation-decision-models-utility-value-based-decision-making-utility-theory-models",
+  "name": "Utility Theory Models",
+  "analogy": "Think of it as a scale that weighs pain and pleasure unevenly: a 1,000 US dollar loss weighs more on it than a 1,000 US dollar gain. Instead of asking which trade makes the most money on average, it asks which trade a sensible, loss-averse trader would actually prefer, and how big that trade should be.",
+  "steps": [
+    {
+      "title": "List what could happen and how likely each is",
+      "description": "The model starts from a short list of possible profit-and-loss results for a trade, each with a probability. This list is the trade's estimated lottery. It comes from past trades or a simulation, not from the utility model itself.",
+      "inExample": "A breakout setup has won 300 US dollars 55 percent of the time and lost 240 US dollars 45 percent of the time over the last 400 trades."
+    },
+    {
+      "title": "Choose how much losses should hurt",
+      "description": "A risk-aversion setting decides how steeply the curve bends. A higher setting means a loss costs far more satisfaction than an equal gain adds. A prospect-theory variant goes further and measures results from a reference point, with losses weighing roughly twice as much as gains.",
+      "inExample": "The risk policy is a log-utility trader scaled down to one quarter of full size, a common safety margin because the win rate is only an estimate."
+    },
+    {
+      "title": "Turn each result into satisfaction points",
+      "description": "Every possible result is passed through the bending curve so that big losses count for more than their dollar size and big gains count for a little less. The curve converts money into the satisfaction points the model actually compares.",
+      "inExample": "On a 25,000 US dollar account, a 240 US dollar loss removes slightly more satisfaction than a 240 US dollar gain adds, and the gap widens as the position gets larger."
+    },
+    {
+      "title": "Average the satisfaction points",
+      "description": "The satisfaction points are averaged using the probabilities, giving one expected satisfaction for each candidate decision, such as each position size. The certainty equivalent is the guaranteed amount that would give the same satisfaction, a plain measure of how much risk costs.",
+      "inExample": "Each contract has an average profit of 57 US dollars, but the satisfaction average rises with size only up to a point and then falls as the loss tail grows."
+    },
+    {
+      "title": "Pick the size that maximizes satisfaction",
+      "description": "The model scans position sizes and keeps the one with the highest expected satisfaction. For log utility on a simple win-or-lose bet this lands on the Kelly fraction, the share of the account to risk that maximizes long-run growth if the odds are exactly right.",
+      "inExample": "The full-size answer is to risk 19 percent of the account on each trade, because the payoff ratio is 5 to 4 at a 55 percent win rate."
+    },
+    {
+      "title": "Shrink for estimation error",
+      "description": "Because the win rate and payoff are estimated, the full answer is too aggressive. The model applies a fraction of it. This trades some growth for much smaller drawdowns and protects against an overconfident estimate.",
+      "inExample": "One quarter of 19 percent is about 5 percent of the account, roughly 1,200 US dollars at risk, which is 5 contracts at 240 US dollars of risk each."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sizing positions from an estimated edge",
+      "example": "Turning a setup's historical win rate and payoff ratio into a number of MNQ contracts, using a quarter-Kelly fraction instead of the full amount."
+    },
+    {
+      "task": "Comparing strategies by what a risk-averse trader would prefer",
+      "example": "Ranking two strategies with equal average profit by certainty equivalent, so the one with the deeper loss tail ranks lower."
+    },
+    {
+      "task": "Setting loss limits that match a stated risk appetite",
+      "example": "Choosing a daily loss limit for an MNQ and ES book that is consistent with a chosen risk-aversion setting rather than a round number."
+    },
+    {
+      "task": "Explaining behavior such as holding losers too long",
+      "example": "Using the loss-averse variant to show why a trader accepts a larger expected loss to avoid realizing a small one."
+    }
+  ],
+  "avoidWhen": [
+    "You need a forecast of where price goes next; this model decides what to do with a forecast and does not produce one, so pair it with a prediction model.",
+    "Your estimates of win rate and payoff are very uncertain or based on few trades; the sizing answer is highly sensitive to them and a fixed small fraction of capital is safer."
+  ],
+  "example": {
+    "scenario": "A trader has a breakout setup with estimated outcomes from the last 400 trades and a 25,000 US dollar account. The model is asked whether to take the next signal and how many MNQ contracts to trade.",
+    "input": {
+      "summary": "The estimated lottery for one contract, the account size, and the risk policy.",
+      "fields": [
+        { "name": "probability of a win", "value": "55 percent", "meaning": "How often the setup reached its target in the last 400 trades." },
+        { "name": "profit on a win, per contract", "value": "300 US dollars", "meaning": "The average amount won when the target was reached." },
+        { "name": "loss on a loss, per contract", "value": "240 US dollars", "meaning": "The average amount lost when the stop was hit." },
+        { "name": "account size", "value": "25,000 US dollars", "meaning": "The capital the fraction is applied to." },
+        { "name": "utility type", "value": "logarithmic (Kelly)", "meaning": "The shape of the satisfaction curve, which gives the growth-maximizing bet size." },
+        { "name": "fraction of the full answer applied", "value": "one quarter", "meaning": "The safety margin for the fact that the win rate is only an estimate." }
+      ]
+    },
+    "output": {
+      "summary": "The full-size answer, the size actually used, and the decision.",
+      "fields": [
+        { "name": "average profit per contract", "value": "57 US dollars", "meaning": "The probability-weighted result: 55 percent of 300 minus 45 percent of 240." },
+        { "name": "full Kelly fraction of the account at risk", "value": "19 percent", "meaning": "The growth-maximizing share of the account to lose if the stop is hit, if the estimates were exactly right." },
+        { "name": "fraction used", "value": "about 5 percent, roughly 1,200 US dollars at risk", "meaning": "One quarter of the full answer, applied to the account." },
+        { "name": "contracts to trade", "value": "5", "meaning": "About 1,200 US dollars at risk divided by 240 US dollars of risk per contract." },
+        { "name": "decision", "value": "take the trade", "meaning": "The average profit is positive and the utility-maximizing size is above zero." }
+      ]
+    },
+    "reading": "Take 5 contracts only if the 55 percent win rate and the 300 and 240 US dollar payoffs are believable on new data. If the true win rate is 44 percent the answer drops to zero, so a small error in the estimate can erase the whole position. Re-estimate the inputs on each new window and watch how sharply the size moves when they change."
+  }
+}

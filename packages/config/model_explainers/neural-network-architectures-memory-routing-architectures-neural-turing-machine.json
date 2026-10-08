@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-memory-routing-architectures-neural-turing-machine",
+  "name": "Neural Turing Machine",
+  "analogy": "Think of it as a trader with a notebook. A small brain watches the market bar by bar and can write a note on any page, erase part of an old note, or flip to the page that best matches what it sees now. The notebook remembers things long after the brain has stopped thinking about them.",
+  "steps": [
+    {
+      "title": "Start with a blank notebook",
+      "description": "Alongside the controller network sits an external memory, a grid of slots each holding a short list of numbers. At the start of a sequence it is reset to small neutral values, so nothing is remembered yet.",
+      "inExample": "A memory of 32 slots, each holding 16 numbers, is cleared before the session begins."
+    },
+    {
+      "title": "Read the current bar",
+      "description": "The controller, a small network, takes in the newest bar's features together with whatever it last read from memory. From these it decides what to write down and what to look up.",
+      "inExample": "At the 10:45 bar the controller sees a failed push at the prior high of 19,905 on heavy volume, plus its last memory read."
+    },
+    {
+      "title": "Write a note, partly erasing the old one",
+      "description": "The controller picks which slots to write to by giving every slot a share of attention. It first erases part of those slots and then adds new content, so memory is edited rather than just piled up.",
+      "inExample": "Most attention goes to slot 12, which is half erased and then updated with the failed-push level and its volume."
+    },
+    {
+      "title": "Look up a note by what it contains",
+      "description": "To read, the controller emits a description of what it is looking for, and every slot is compared with it for similarity. The best matches get the most weight, so the model finds past notes that resemble the present.",
+      "inExample": "The lookup describes a rejection near a prior high, and slot 7, an earlier rejection from this session, scores as the best match with 62 percent of the attention."
+    },
+    {
+      "title": "Move to a neighboring slot when needed",
+      "description": "The controller can also shift its attention to the slot next door, which lets it walk through a stored sequence in order. This supports tasks like replaying a series of stored events.",
+      "inExample": "Attention shifts one slot from slot 7 to slot 8, the note written right after the earlier rejection, which recorded the pullback that followed."
+    },
+    {
+      "title": "Combine the recalled note with the bar and answer",
+      "description": "The recalled memory is blended with the controller's own state to produce the prediction. Because every read and write is a smooth weighting, the whole system can be trained with ordinary gradient learning.",
+      "inExample": "The model combines the current failed push with the recalled pullback and outputs a 41 percent probability of a higher close 6 bars later."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Remembering key price levels",
+      "example": "Storing prior swing highs, swing lows and failed breakout prices on MNQ, and recalling the closest one when price returns to that zone."
+    },
+    {
+      "task": "Carrying session context",
+      "example": "Writing the Asian-session range once and reading it throughout the New York session without re-deriving it."
+    },
+    {
+      "task": "Recalling similar past regimes",
+      "example": "Retrieving how the instrument behaved the last time volatility and trend looked like they do now."
+    },
+    {
+      "task": "Long-horizon outcome prediction",
+      "example": "Predicting whether a profit target or stop is hit first using both the last 60 bars and a recalled situation from months earlier."
+    }
+  ],
+  "avoidWhen": [
+    "The signal is in the recent few bars only; a gated recurrent model is far simpler, trains more reliably and carries all the memory that is needed.",
+    "Training stability and reproducibility matter most; memory-augmented networks are touchy to train, so a standard recurrent model or a tree model on engineered level features is safer."
+  ],
+  "example": {
+    "scenario": "During an MNQ session, a Neural Turing Machine with 32 memory slots processes 5-minute bars and, at 10:45, is asked for the probability that the close 6 bars later is higher.",
+    "input": {
+      "summary": "The current bar, and a memory already holding earlier notes from the session.",
+      "fields": [
+        { "name": "close at 10:45", "value": "19,880", "meaning": "The 5-minute close, in index points, just under the day's high." },
+        { "name": "prior session high", "value": "19,905", "meaning": "A stored level that price tried and failed to hold above." },
+        { "name": "volume against its 20-bar average", "value": "100 percent above average", "meaning": "Trading was twice as heavy as normal on the failed push." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "memory slots in use", "value": "9 of 32", "meaning": "How many slots already hold meaningful notes before this bar is written." }
+      ]
+    },
+    "output": {
+      "summary": "The memory lookup result and the prediction.",
+      "fields": [
+        { "name": "best matching memory slot", "value": "slot 7 (an earlier rejection)", "meaning": "The stored note most similar to what the market is doing now." },
+        { "name": "attention weight on that slot", "value": "62 percent", "meaning": "How strongly the lookup focused on the best match." },
+        { "name": "probability the close is higher 6 bars later", "value": "41 percent", "meaning": "The model's answer after combining the current bar with the recalled note." },
+        { "name": "call", "value": "down", "meaning": "The side the probability falls on when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "The model leans down because a similar earlier rejection near a prior high was followed by a pullback. A nine-point lean from one recalled analogue is a hint rather than a signal, so inspect which note it recalled and test the idea against a plain level-distance rule before trusting it."
+  }
+}

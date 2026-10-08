@@ -1,0 +1,88 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-logic-programming-e-g-prolog",
+  "name": "Logic Programming (e.g., Prolog)",
+  "analogy": "Think of it as a compliance officer with a binder of facts and rules who answers any question by flipping through the binder, trying each page that could apply, and backing up whenever a page leads nowhere. You never tell the officer how to search; you only fill the binder and ask.",
+  "steps": [
+    {
+      "title": "Write down the facts",
+      "description": "A fact is a statement that is simply true, such as two instruments being highly correlated or an account holding a position. Facts are stored as they are, with no calculation attached.",
+      "inExample": "The binder holds three correlation facts for index futures, plus the fact that the account is long one Micro E-mini Nasdaq-100 contract."
+    },
+    {
+      "title": "Write down the rules",
+      "description": "A rule says that something is true if a list of other things are all true. Rules can refer to themselves, so one short rule can cover relationships that chain through many instruments.",
+      "inExample": "One rule says two instruments are a risky pair when their correlation is above 85 percent and the account holds both on the same side."
+    },
+    {
+      "title": "Ask a question",
+      "description": "You state a goal you want proven, and you can leave blanks in it. A blank means find me every value that makes this true.",
+      "inExample": "The question asks whether buying E-mini S&P 500 futures would create a risky pair with anything already held."
+    },
+    {
+      "title": "Match the question to a fact or a rule",
+      "description": "The engine looks through the binder from top to bottom for a fact or rule whose head fits the goal, filling in the blanks as it matches. A fact that fits answers the goal at once; a rule that fits turns the goal into smaller goals.",
+      "inExample": "The question matches the risky pair rule, which turns it into two smaller goals: a correlation above 85 percent, and both held on the same side."
+    },
+    {
+      "title": "Solve the smaller goals in order",
+      "description": "Each smaller goal is treated as a new question and matched the same way, going deeper until every goal is settled by a plain fact. A goal that cannot be proven from the binder counts as false.",
+      "inExample": "The stored correlation between the two index futures is 97 percent, which clears 85 percent, and the position fact shows the account is long one, so the same-side goal is also settled."
+    },
+    {
+      "title": "Back up and try the next page",
+      "description": "When a branch fails, the engine returns to the last choice it made and tries the next matching fact or rule. This backtracking is what lets it find every answer, not just the first.",
+      "inExample": "After the first risky pair is found, the engine backs up and checks the Russell 2000 futures facts, which fail because the account holds nothing there."
+    },
+    {
+      "title": "Report every answer found",
+      "description": "The engine returns each way the question can be proven, or a plain no when none exists. Each answer comes with the facts and rules that justify it, so the reasoning can be read back.",
+      "inExample": "The answer is yes, one risky pair: the Micro E-mini Nasdaq-100 position and the proposed E-mini S&P 500 order, with the 97 percent correlation fact as the reason."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding every risky combination of positions",
+      "example": "Listing all pairs among the index futures the account holds that are both highly correlated and held on the same side, before an order is sent."
+    },
+    {
+      "task": "Following relationships across several hops",
+      "example": "Tracing that a position in one currency cross carries indirect exposure to another currency through a shared leg, which a single table lookup cannot show."
+    },
+    {
+      "task": "Checking whether a proposed trade is allowed",
+      "example": "Asking whether a long entry at the open is eligible given account state, session rules and the maximum position per instrument."
+    },
+    {
+      "task": "Auditing a rule base for contradictions",
+      "example": "Querying for a trade that should be allowed under one rule and blocked under another, to find rules that disagree before they go live."
+    }
+  ],
+  "avoidWhen": [
+    "The relationships are not known facts but must be learned from noisy price data; a statistical model such as gradient boosting learns them, while this model only reasons over what you have written down.",
+    "The answer needs a probability or a degree of confidence, because a goal here is either proven or not and the model has no way to say it is probably true."
+  ],
+  "example": {
+    "scenario": "A research account is long one Micro E-mini Nasdaq-100 futures contract (MNQ) and a strategy proposes buying E-mini S&P 500 futures (ES). Before the order is sent, the rule base is asked whether the order would create a pair of highly correlated positions on the same side.",
+    "input": {
+      "summary": "Facts about correlation and current holdings, one risk rule, and one question.",
+      "fields": [
+        { "name": "correlation of MNQ and ES", "value": "97 percent", "meaning": "The measured relationship between the two index futures, stored as a fact." },
+        { "name": "correlation of MNQ and Russell 2000 futures", "value": "88 percent", "meaning": "A second correlation fact, which is also above the rule's limit." },
+        { "name": "correlation threshold in the rule", "value": "85 percent", "meaning": "The level above which two instruments count as the same bet." },
+        { "name": "current holding", "value": "long 1 MNQ", "meaning": "The only position the account has right now." },
+        { "name": "proposed order", "value": "buy 1 ES", "meaning": "The trade the strategy wants to send." },
+        { "name": "question", "value": "risky pair with the proposed order", "meaning": "Asks whether the order and any current holding form a risky pair." }
+      ]
+    },
+    "output": {
+      "summary": "A yes or no answer plus every proof found.",
+      "fields": [
+        { "name": "answer", "value": "yes", "meaning": "At least one risky pair would be created by this order." },
+        { "name": "risky pairs found", "value": "1", "meaning": "The number of separate ways the question was proven." },
+        { "name": "pair", "value": "MNQ and ES", "meaning": "The two positions that would be held on the same side with high correlation." },
+        { "name": "reason shown", "value": "correlation 97 percent, above 85; both long", "meaning": "The facts and rule conditions that made the goal provable." }
+      ]
+    },
+    "reading": "A yes means the rule base blocks or flags the order. Decide whether to cut size, skip the order, or add a rule that allows it with a smaller size. The answer is only as good as the facts: refresh the correlation facts from recent bars before relying on it."
+  }
+}

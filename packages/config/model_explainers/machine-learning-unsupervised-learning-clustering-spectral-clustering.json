@@ -1,0 +1,87 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-clustering-spectral-clustering",
+  "name": "Spectral Clustering",
+  "analogy": "Think of it as mapping a social network instead of measuring distances. Bars become people, every bar is friends with its most similar bars, and the model finds the groups that are tightly connected inside but only thinly connected to the outside, even when a group snakes around in a curve.",
+  "steps": [
+    {
+      "title": "Measure how similar bars are to their neighbours",
+      "description": "The model computes a similarity between bars, high for bars with alike features and fading to zero for distant ones. Usually each bar is linked only to its nearest few bars, which keeps the connections local.",
+      "inExample": "Each 5-minute bar is linked to its 15 most similar bars, with link strength fading as the bars grow less alike."
+    },
+    {
+      "title": "Build a network of bars",
+      "description": "The links form a network where bars are the nodes and similarities are the link strengths. Groups of bars that link mostly to each other appear as dense islands joined by few weak links.",
+      "inExample": "The network has 8,000 nodes, about 100 trading days of 5-minute bars, and forms a long curved band plus a separate compact island."
+    },
+    {
+      "title": "Ask where the network is easiest to cut",
+      "description": "Mathematically the model analyses the network's connection pattern to find the few directions in which it divides most naturally. In plain terms, it looks for the cuts that sever the fewest strong links.",
+      "inExample": "The cut that separates the compact island from the curved band severs under 2 percent of the total link strength."
+    },
+    {
+      "title": "Give each bar new short coordinates",
+      "description": "Each bar is rewritten using a few numbers that say where it sits in terms of those natural divisions. In this new view, bars of one island lie close together even if they were far apart along a curve in the original features.",
+      "inExample": "Every bar is rewritten with 3 new coordinates, in which the curved band is straightened into a tight clump."
+    },
+    {
+      "title": "Run a simple clustering on the new coordinates",
+      "description": "Because the groups are now compact, a simple method such as K-means can split them cleanly. You still choose the number of groups beforehand.",
+      "inExample": "K-means with 3 groups is run on the 3 coordinates and finds them cleanly."
+    },
+    {
+      "title": "Give each bar its group",
+      "description": "Each bar takes the group assigned in the new coordinates. The result can follow shapes that straight-line distance methods cannot, such as curves or intertwined bands.",
+      "inExample": "The bars are labelled into a quiet band, an active band and the compact island."
+    },
+    {
+      "title": "Handle new bars with care",
+      "description": "The method works on a whole set of bars at once and has no built-in way to place a fresh bar. Usually the new bar is linked to its nearest fitted bars and given their majority group, or the whole analysis is re-run.",
+      "inExample": "The new bar's 15 nearest fitted bars are mostly from the active band, so it is given that group."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Clustering curved or interlocking groups",
+      "example": "Separating market states that lie along a curve in volatility and trend, where K-means would cut across them wrongly."
+    },
+    {
+      "task": "Grouping instruments by a similarity table",
+      "example": "Clustering futures contracts from a table of how closely their returns move together, without a distance in features."
+    },
+    {
+      "task": "Segmenting trading days by their shape",
+      "example": "Grouping days whose intraday paths are similar in shape, even when the sizes of their moves differ."
+    },
+    {
+      "task": "Exploring structure before a regime model",
+      "example": "Testing whether MNQ bars hold separable states before investing time in a regime model."
+    }
+  ],
+  "avoidWhen": [
+    "You have more than about 10,000 to 20,000 bars; the analysis of the network grows heavy with size, so use K-means or a density method on bars, and spectral clustering on days or instruments.",
+    "The groups are simple round blobs; the extra machinery gains nothing over K-means, which is faster and can score new bars directly."
+  ],
+  "example": {
+    "scenario": "A researcher clusters 8,000 five-minute MNQ bars described by three features whose relationship is curved, to find market states that K-means splits incorrectly, then places the latest bar.",
+    "input": {
+      "summary": "Features for the latest bar, with the settings used to build the network.",
+      "fields": [
+        { "name": "range against average true range", "value": "30 percent above normal", "meaning": "The bar's high-to-low travel compared with the recent norm." },
+        { "name": "volume against its 20-bar average", "value": "20 percent above", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "20-bar return", "value": "plus a fifth of a percent", "meaning": "How far price has risen over the last 20 bars, about 100 minutes." },
+        { "name": "neighbours linked per bar", "value": "15", "meaning": "How many of the most similar bars each bar is connected to." },
+        { "name": "number of groups", "value": "3", "meaning": "How many groups the final step was asked to find." }
+      ]
+    },
+    "output": {
+      "summary": "A group number for the latest bar and how clearly the groups separate.",
+      "fields": [
+        { "name": "group number", "value": "2 of 3", "meaning": "The tightly connected group of bars that the latest bar belongs to." },
+        { "name": "neighbours in the same group", "value": "13 of 15", "meaning": "How many of the bar's 15 most similar bars are in group 2, a sign of a clear assignment." },
+        { "name": "bars in the group", "value": "2,100 of 8,000", "meaning": "How large the group is." },
+        { "name": "link strength cut between groups", "value": "under 2 percent", "meaning": "The share of total link strength severed by the separation, small when groups are well separated." }
+      ]
+    },
+    "reading": "Thirteen of the latest bar's 15 closest bars share group 2, so the placement is clear. Compare how your strategy's results differ across the three groups; if they do not differ, the grouping gives no practical edge."
+  }
+}

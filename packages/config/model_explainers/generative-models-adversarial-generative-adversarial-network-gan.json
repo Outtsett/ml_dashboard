@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-adversarial-generative-adversarial-network-gan",
+  "name": "Generative Adversarial Network (GAN)",
+  "analogy": "Think of it as a counterfeiter and a bank inspector locked in a training contest. The counterfeiter keeps printing fake price histories, the inspector keeps trying to spot them, and each round of getting caught or fooling the inspector makes the fakes better.",
+  "steps": [
+    {
+      "title": "Start with a counterfeiter and an inspector",
+      "description": "Two neural networks are built. The generator turns a list of random numbers into a fake sample. The discriminator looks at a sample and says how likely it is to be real. At the start both are poor.",
+      "inExample": "The generator turns 64 random numbers into a fake 12-bar run of 5-minute MNQ bars, and at first the result looks like static."
+    },
+    {
+      "title": "Train the inspector on real and fake",
+      "description": "The inspector is shown real samples from history and fake ones from the generator, with the correct answers. It learns the tells that separate them, such as unrealistic jumps or wrong bar shapes.",
+      "inExample": "It sees 128 real 12-bar runs and 128 fakes, and learns that fakes have wicks far too long."
+    },
+    {
+      "title": "Train the counterfeiter to fool the inspector",
+      "description": "The generator is adjusted so the inspector gives its fakes a higher realness score. It never sees the real data directly; it learns only from the inspector's reactions.",
+      "inExample": "The generator shortens its wicks because that raises the realness score the inspector gives."
+    },
+    {
+      "title": "Take turns many times",
+      "description": "The two steps alternate. As the inspector gets sharper the generator must improve; as the generator improves the inspector must look for subtler tells. The contest is the whole method.",
+      "inExample": "Over thousands of rounds, the inspector's score for fakes rises from 5 percent toward 50 percent."
+    },
+    {
+      "title": "Watch for the contest going wrong",
+      "description": "If the inspector wins too easily the generator stops learning, and if the generator finds one trick it may keep repeating a few samples, which is called mode collapse. Practitioners balance the two and check variety.",
+      "inExample": "Checking 200 generated runs shows many different shapes, not one run repeated, so the generator has not collapsed."
+    },
+    {
+      "title": "Draw new samples from random numbers",
+      "description": "After training, the inspector is set aside. Each fresh list of random numbers pushed through the generator gives a new sample that was never in the data.",
+      "inExample": "A new list of 64 random numbers yields a new 12-bar run that starts at 19,100 and ends at 19,129."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Synthetic price-path generation",
+      "example": "Producing thousands of invented 5-minute MNQ runs to widen the set of paths a strategy is stress-tested on."
+    },
+    {
+      "task": "Data augmentation for rare situations",
+      "example": "Adding more examples of fast sell-offs to a training set where they make up under 1 percent of bars."
+    },
+    {
+      "task": "Seeing what the model has learned about the market",
+      "example": "Looking at generated runs to check whether the model reproduces known features such as volatility clustering and fat tails."
+    }
+  ],
+  "avoidWhen": [
+    "You need a forecast or a probability for the next bar; a model trained on the target directly, such as gradient boosting, is far more reliable than sampling imitation data.",
+    "You want training that is easy to check; a GAN has no single number that says it is good, so a diffusion model or a variational model is easier to monitor."
+  ],
+  "example": {
+    "scenario": "A researcher wants extra synthetic 5-minute runs of MNQ to stress-test a trailing stop. A GAN trained on a year of 12-bar runs is asked for one new run starting at the same price as a real recent run.",
+    "input": {
+      "summary": "A list of random numbers plus the starting price, since the generator needs nothing else.",
+      "fields": [
+        { "name": "random numbers", "value": "64 values from a bell-shaped distribution", "meaning": "The only source of variety; a different list gives a different run." },
+        { "name": "random seed number", "value": "7,310", "meaning": "Fixes the list so that the same run can be reproduced." },
+        { "name": "starting price", "value": "19,100", "meaning": "The price used as the first open of the generated run." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a bar, used to scale the generated moves." },
+        { "name": "bars requested", "value": "12 bars of 5 minutes", "meaning": "The length of the run, one hour." }
+      ]
+    },
+    "output": {
+      "summary": "One synthetic 12-bar run with a few summary values and the inspector's verdict.",
+      "fields": [
+        { "name": "final close", "value": "19,129", "meaning": "Where the synthetic run ends, 29 points above the start." },
+        { "name": "highest high in the run", "value": "19,141", "meaning": "The top of the run, 41 points above the start." },
+        { "name": "lowest low in the run", "value": "19,087", "meaning": "The bottom of the run, 13 points below the start." },
+        { "name": "inspector realness score", "value": "49 percent", "meaning": "How real the trained inspector rates the run; near 50 percent means it cannot tell it from history." }
+      ]
+    },
+    "reading": "This run is an invented example, not a prediction of the next hour. Use many of them as scenarios, and compare their overall features, such as the spread of the daily range, with real history. If the real and invented features disagree, fix the generator before using its output."
+  }
+}

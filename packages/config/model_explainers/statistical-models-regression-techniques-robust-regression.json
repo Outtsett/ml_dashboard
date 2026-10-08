@@ -1,0 +1,83 @@
+{
+  "specificationId": "statistical-models-regression-techniques-robust-regression",
+  "name": "Robust Regression",
+  "analogy": "Think of it as a jury that listens to every bar but gives less weight to the witness who is shouting. A bar far from the pattern still testifies, but it cannot outvote hundreds of ordinary bars that agree with each other.",
+  "steps": [
+    {
+      "title": "Fit an ordinary line first",
+      "description": "It begins with a standard straight-line fit, in which every bar counts equally. This is only a starting point, and it will be pulled toward any extreme bars in the table.",
+      "inExample": "A first fit on 12 months of 5-minute MNQ bars, including the bars right after scheduled news releases, leans too far because of a few huge reaction bars."
+    },
+    {
+      "title": "Measure how far each bar sits from the line",
+      "description": "Every bar's miss is recorded and compared with the typical miss. Bars whose miss is far above typical are the suspects.",
+      "inExample": "A typical bar misses by about 28 points; the bar after the 08:30 jobs report misses by 258 points, nearly ten times typical."
+    },
+    {
+      "title": "Give each bar a weight by how far off it is",
+      "description": "Bars with small misses keep full weight. Past a chosen threshold, a bar's weight shrinks the further off it is, so its influence is capped instead of growing without limit as it does under ordinary fitting.",
+      "inExample": "Ordinary bars keep a weight of 100 percent; the jobs-report bar is cut to a weight of 15 percent."
+    },
+    {
+      "title": "Refit the line using the weights",
+      "description": "A new line is fitted in which each bar counts in proportion to its weight. The extreme bar still has a say, just a small one, and the line settles closer to how the typical bars behave.",
+      "inExample": "The refit line slopes less steeply than the first one, because the jobs-report bar no longer drags it."
+    },
+    {
+      "title": "Repeat until the line stops moving",
+      "description": "Because the misses changed after the refit, the weights are recalculated and the line is refit again. This loop usually settles within a handful of rounds.",
+      "inExample": "After six rounds the weights and the line change by less than a point of forecast, so the loop stops."
+    },
+    {
+      "title": "Forecast, and list the bars that were down-weighted",
+      "description": "A new bar is forecast with the final line. The list of bars that ended with low weights is a useful by-product: it points to news bars, bad prints and other events worth looking at on their own.",
+      "inExample": "The 14:35 bar gets its forecast, and the run flags 41 of 61,000 training bars with weights under 30 percent, mostly around scheduled releases."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Fitting through news-contaminated history",
+      "example": "Estimating how the next-6-bar change in MNQ depends on momentum, without the handful of jobs-report and Fed bars deciding the answer."
+    },
+    {
+      "task": "A hedge ratio that survives a crash day",
+      "example": "Estimating how many ES contracts offset one MNQ contract over a year that includes one violent sell-off bar sequence."
+    },
+    {
+      "task": "Finding suspect bars in a feed",
+      "example": "Listing the bars the fit refuses to trust, such as a stray print far from the surrounding prices, before they reach another model."
+    },
+    {
+      "task": "Trustworthy feature screening",
+      "example": "Checking which indicators carry a weight distinct from zero when a few extreme bars are not allowed to manufacture the result."
+    }
+  ],
+  "avoidWhen": [
+    "The extreme bars are the thing you are trying to forecast, such as tail moves around news; down-weighting them throws away exactly that information, and a quantile model speaks about the tails directly.",
+    "The data is clean with no real outliers; the robust fit then gives nearly the same answer as an ordinary regression and is slightly less efficient."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ model of the next-6-bar change is fitted on 12 months of bars, including the bars around scheduled news. The robust fit is compared with the weights it assigns to the bars.",
+    "input": {
+      "summary": "One row of feature readings for the bar to forecast, plus two training bars that show how the weights work.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "change over the last 6 bars", "value": "minus 57 points", "meaning": "How much price fell over the previous 30 minutes." },
+        { "name": "distance below the 50-bar moving average", "value": "77 points", "meaning": "How far the close sits below its 50-bar average price." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "miss of a typical training bar", "value": "28 points", "meaning": "The usual size of the gap between forecast and outcome across ordinary training bars." },
+        { "name": "miss of a jobs-report bar", "value": "258 points", "meaning": "The gap between forecast and outcome on one 08:30 news-release bar in the training set." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast made with the down-weighted fit, and the weights that explain it.",
+      "fields": [
+        { "name": "forecast change over the next 6 bars", "value": "plus 6 points", "meaning": "The forecast from the robust line, about 12 US dollars per contract before costs." },
+        { "name": "weight of a typical training bar", "value": "100 percent", "meaning": "Ordinary bars keep full influence on the fit." },
+        { "name": "weight of the jobs-report bar", "value": "15 percent", "meaning": "The extreme bar is allowed only a small share of influence." },
+        { "name": "training bars with weight under 30 percent", "value": "41 of 61,000", "meaning": "The count of bars the fit largely refused to trust, listed for review." }
+      ]
+    },
+    "reading": "In this illustration an ordinary fit on the same rows would have given a larger forecast because of the jobs-report bar; the robust forecast reflects how the typical bar behaves. Read the flagged-bar list as a to-do list: confirm they are real events and decide whether to model them separately."
+  }
+}

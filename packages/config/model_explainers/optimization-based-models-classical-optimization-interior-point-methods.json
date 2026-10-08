@@ -1,0 +1,83 @@
+{
+  "specificationId": "optimization-based-models-classical-optimization-interior-point-methods",
+  "name": "Interior-Point Methods",
+  "analogy": "Think of it as finding the best spot in a large warehouse by walking through the middle of the aisles instead of sliding along the walls. A soft force keeps you off the walls, and as you get surer of the direction the force fades, so you finish right beside the best corner without ever having crawled around the whole building.",
+  "steps": [
+    {
+      "title": "Describe the problem as goals and limits",
+      "description": "As in any constrained optimisation, you give a quantity to maximise or minimise and a set of limits it must respect. The method suits large problems with many variables and many limits at once.",
+      "inExample": "Maximise the expected score of a basket of four index futures, with the weights adding to 100 percent and no weight above 30 percent."
+    },
+    {
+      "title": "Start safely inside the allowed region",
+      "description": "The first guess is a point strictly inside all the limits, not on any boundary. Every later step must also stay strictly inside.",
+      "inExample": "The start is an equal split of 25 percent in each of the four instruments, well inside the 30 percent cap."
+    },
+    {
+      "title": "Add a soft wall near every limit",
+      "description": "Each hard limit is replaced by a penalty that grows without bound as you approach it. The penalty keeps the path away from the walls, and its strength is controlled by a dial.",
+      "inExample": "A penalty rises steeply as any weight nears 30 percent or 0 percent, so no step can touch those edges."
+    },
+    {
+      "title": "Take a big, well-aimed step",
+      "description": "At each round, the method works out the best direction using the local shape of the problem and takes a long step toward it, rather than creeping from corner to corner. A handful of such steps is usually enough, even for very large problems.",
+      "inExample": "The weights move from 25 percent each toward the higher-scoring instruments in the first step, with MNQ rising to 29 percent."
+    },
+    {
+      "title": "Turn down the soft walls and repeat",
+      "description": "After each step, the penalty dial is turned down so the path is allowed closer to the edges. The route traced is called the central path, and it leads to the true best answer as the penalty reaches zero.",
+      "inExample": "Over 14 rounds the penalty is cut each time and the weights close in on the corner where three instruments sit at their 30 percent cap."
+    },
+    {
+      "title": "Stop when the answer is close enough",
+      "description": "The method measures the gap between its current answer and a proven bound on the best possible one, and stops when the gap is tiny. The result is within a chosen tolerance of the exact optimum.",
+      "inExample": "With the gap below one part in a million, the solver reports weights of 30, 30, 30 and 10 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Solving very large allocation problems",
+      "example": "Allocating a risk budget across hundreds of futures and forex pairs in one solve, where hopping corner to corner would take too long."
+    },
+    {
+      "task": "Mean-variance portfolio building",
+      "example": "Running the quadratic risk-versus-return balance for a basket of index futures at every rebalance, under margin, sector and turnover limits."
+    },
+    {
+      "task": "Regularised model fitting",
+      "example": "Fitting a return forecast with a penalty on large coefficients, which can be written as a problem this method solves quickly."
+    },
+    {
+      "task": "Planning execution across venues",
+      "example": "Scheduling a large order across several venues and many five-minute slices with a smooth cost model."
+    }
+  ],
+  "avoidWhen": [
+    "The problem is small and you will re-solve after small changes; a corner-walking method can restart from the previous answer quickly, while this method restarts from scratch each time.",
+    "Quantities must be whole numbers, such as contract counts; this method returns fractions, so use integer programming instead."
+  ],
+  "example": {
+    "scenario": "A researcher allocates a basket of four index futures, maximising a combined signal score with weights summing to 100 percent and no instrument above 30 percent. The solver is an interior-point method.",
+    "input": {
+      "summary": "A score out of 100 per instrument and the limits on the weights. The scores are illustrative.",
+      "fields": [
+        { "name": "MNQ signal score", "value": "90 out of 100", "meaning": "The model's illustrative score for Micro E-mini Nasdaq-100 futures; higher is more attractive." },
+        { "name": "ES signal score", "value": "80 out of 100", "meaning": "The illustrative score for E-mini S&P 500 futures." },
+        { "name": "M2K signal score", "value": "50 out of 100", "meaning": "The illustrative score for Micro E-mini Russell 2000 futures." },
+        { "name": "YM signal score", "value": "30 out of 100", "meaning": "The illustrative score for E-mini Dow futures." },
+        { "name": "total weight required", "value": "100 percent", "meaning": "The weights must add up to fully invested." },
+        { "name": "cap on any one weight", "value": "30 percent", "meaning": "No instrument may exceed this share." }
+      ]
+    },
+    "output": {
+      "summary": "The weights, the score they achieve, and how the solve went.",
+      "fields": [
+        { "name": "weights of MNQ, ES, M2K, YM", "value": "30, 30, 30, 10 percent", "meaning": "The share of the basket in each instrument, within a hundredth of a percent of the exact answer." },
+        { "name": "combined score", "value": "69 out of 100", "meaning": "The weighted sum of scores: 30 percent of 90 plus 30 percent of 80 plus 30 percent of 50 plus 10 percent of 30." },
+        { "name": "rounds taken", "value": "14", "meaning": "The number of well-aimed steps before the gap closed." },
+        { "name": "remaining gap to the bound", "value": "under one part in a million", "meaning": "How close the answer is to the proven best possible." }
+      ]
+    },
+    "reading": "For this simple problem a corner-walking method gives the same answer, so the value of this method shows up only when the basket is large. Use the weights as target exposure, and remember they are only as good as the scores that went in."
+  }
+}

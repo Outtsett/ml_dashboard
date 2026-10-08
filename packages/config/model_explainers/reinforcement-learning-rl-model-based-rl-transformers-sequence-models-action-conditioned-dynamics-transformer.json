@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-action-conditioned-dynamics-transformer",
+  "name": "Action-Conditioned Dynamics Transformer",
+  "analogy": "Think of it as an analyst who has read the whole recent tape bar by bar, with a note of what the desk did on each bar, and who can look back at any single earlier bar when forecasting. Ask what happens next if we go long, and the analyst answers by glancing at the most relevant earlier moments.",
+  "steps": [
+    {
+      "title": "Turn every bar and every action into a token",
+      "description": "Each bar and each action taken is converted into a short list of numbers called a token. The history becomes one line of tokens, with a bar token followed by an action token, then the next bar token, and so on.",
+      "inExample": "Over the last 40 five-minute MNQ bars, each bar becomes one token and each position held becomes another, giving 80 tokens in order."
+    },
+    {
+      "title": "Mark the order of the tokens",
+      "description": "Attention by itself has no sense of order, so a position marker is added to every token. The model then knows which bar came first and how far back each one is.",
+      "inExample": "The bar from 35 minutes ago is tagged as 7 bars back, and the latest bar is tagged as the most recent."
+    },
+    {
+      "title": "Let each token look back at earlier ones",
+      "description": "Every token decides which earlier tokens matter most and blends their information. A mask blocks any look at the future, so a prediction can only use what had already happened.",
+      "inExample": "When forecasting the next bar, the model puts heavy weight on the 12:40 high and the 13:25 pullback low, and little on the quiet stretch between them."
+    },
+    {
+      "title": "Read the action token to condition the forecast",
+      "description": "The forecast is made from the point where the proposed action sits in the line, so the answer is tied to what the desk would do. A single contract does not move the market, so the predicted bar is much the same for every action; what changes is the reward and the position carried forward.",
+      "inExample": "With the proposed action set to long, the model predicts a next close change of plus 4 points and a reward of plus 8 US dollars before costs; with flat it predicts the same move but a reward of zero."
+    },
+    {
+      "title": "Predict the next bar and the reward",
+      "description": "The model outputs the next bar's features and the reward expected from the action. Fed back as the next token, this lets the model roll forward many bars into the imagined future.",
+      "inExample": "The next bar is predicted to close at 19,874, 4 points above the current close, with a reward of about 8 US dollars before costs for being long."
+    },
+    {
+      "title": "Compare actions by rolling each one forward",
+      "description": "To plan, the model rolls the line forward under several action choices and compares the imagined results, which can be turned into a trade decision or fed to a search.",
+      "inExample": "Rolling out 3 bars under long, flat and short gives totals after costs of plus 19, zero and minus 23 US dollars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A forward model for planning trades",
+      "example": "Letting a search compare long, flat and short over the next 6 MNQ bars by imagining each from the same history."
+    },
+    {
+      "task": "Patterns that span a long stretch of bars",
+      "example": "Using several hours of structure, such as the morning high and a midday pullback, to forecast whether the next bars retest that high."
+    },
+    {
+      "task": "Seeing what the forecast leaned on",
+      "example": "Inspecting which earlier bars drew the most attention, to check the model is not relying on a stale overnight bar."
+    },
+    {
+      "task": "Generating a trade from a target outcome",
+      "example": "Asking for the action series most consistent with a goal of 40 US dollars of gain in the next 30 minutes."
+    }
+  ],
+  "avoidWhen": [
+    "Training data is limited; this kind of model needs a lot of data and long histories to beat a simple recurrent model, and on a few months of bars it overfits.",
+    "A short feature row already holds the information; a gradient boosted tree on engineered features is cheaper and often as good."
+  ],
+  "example": {
+    "scenario": "At the 14:10 bar on MNQ, the model has 40 bars of history with the positions held on each. It is asked what the next bar looks like if the desk goes long.",
+    "input": {
+      "summary": "The recent bars with their held positions, plus the action being considered.",
+      "fields": [
+        { "name": "close", "value": "19,870", "meaning": "The latest five-minute bar's close." },
+        { "name": "history length", "value": "40 five-minute bars", "meaning": "The window of tokens the model can look back over." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "10 percent below average", "meaning": "Trading is slightly lighter than normal." },
+        { "name": "position held on the last bar", "value": "flat", "meaning": "The action token attached to the latest bar." },
+        { "name": "action being considered", "value": "go long 1 contract", "meaning": "The action the forecast is conditioned on." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast for the next bar under the proposed action and the reward expected.",
+      "fields": [
+        { "name": "predicted next close", "value": "19,874", "meaning": "The model's forecast of where the next bar closes if the action is taken." },
+        { "name": "predicted reward if long", "value": "8 US dollars", "meaning": "The reward expected for holding one contract through that bar, before costs: 4 points at 2 US dollars a point." },
+        { "name": "predicted reward if flat", "value": "0 US dollars", "meaning": "Standing aside earns nothing whatever the bar does." },
+        { "name": "strongest earlier bar", "value": "the 13:25 pullback low", "meaning": "The earlier bar that drew the most attention." }
+      ]
+    },
+    "reading": "Use the forecast to compare actions against each other, not as a price target. If the strongest attention falls on bars from the previous session while the market has since changed regime, distrust the forecast."
+  }
+}

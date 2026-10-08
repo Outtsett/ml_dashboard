@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-diffusion-score-based-diffusion-model",
+  "name": "Diffusion Models",
+  "analogy": "Think of it as restoring a chart that has been slowly smudged until it is pure grey static. The model learns, at every level of smudging, to remove a little of the smudge. To create something new, you hand it fresh static and let it clean the static step by step until a believable chart appears.",
+  "steps": [
+    {
+      "title": "Slowly bury real data in noise",
+      "description": "In the forward direction, real samples have a small amount of random noise added over many steps until nothing recognizable is left. This direction needs no learning, since the amounts of noise are fixed in advance.",
+      "inExample": "The 6 returns that followed a real 48-bar window are buried in noise over 1,000 steps until they look like static."
+    },
+    {
+      "title": "Pick a random step and make a noisy sample",
+      "description": "During training, one real sample and one random step number are chosen, and exactly that much noise is added. This gives the network a damaged sample for which the true noise is known.",
+      "inExample": "Step 400 is chosen, so the 6 values carry a medium amount of noise."
+    },
+    {
+      "title": "Ask the network to guess the noise",
+      "description": "The network is given the noisy sample and the step number and must guess which noise was added. It is rewarded for guesses close to the true noise. Doing this at every step number teaches it how to undo smudging at every level.",
+      "inExample": "Told 'this is step 400' and shown the 48 known bars as context, the network guesses the noise on the 6 values and is off by a small amount."
+    },
+    {
+      "title": "Start generation from pure static",
+      "description": "To create new data, begin with a sample of random noise and the last step number. The model has never seen this exact sample, and that freedom is where variety comes from. For a forecast, the known bars are supplied to the network at every step as context.",
+      "inExample": "The start is 6 random values for the 6 bars to come, step number 1,000, with the 48 known bars supplied as context."
+    },
+    {
+      "title": "Remove a little noise at each step",
+      "description": "At each step the network guesses the noise present, a small part of it is subtracted, and a touch of fresh randomness may be added. Fewer steps can be used with faster samplers, at some cost in quality.",
+      "inExample": "A faster sampler uses 50 steps instead of 1,000 and moves from step 1,000 down to step 0."
+    },
+    {
+      "title": "Read the clean sample, or repeat for many samples",
+      "description": "When the last step is done, the sample is a new piece of data. Running the process many times from different static gives a whole collection, which shows a range of outcomes.",
+      "inExample": "Repeating 20 times gives 20 different versions of the next 6 bars, whose last bars can be compared."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Synthetic windows with stable training",
+      "example": "Generating many 48-bar windows of 5-minute MNQ returns that cover calm and wild stretches, since diffusion training is more steady than adversarial training."
+    },
+    {
+      "task": "Filling gaps in data",
+      "example": "Completing missing 5-minute bars during a feed outage by letting the model restore the missing stretch consistent with the bars on either side."
+    },
+    {
+      "task": "Showing a range of futures instead of one guess",
+      "example": "Conditioning on the last 48 bars and drawing 20 samples of the next 6 bars to see how wide the range of outcomes is."
+    },
+    {
+      "task": "Producing chart images",
+      "example": "Creating synthetic candlestick pictures for an image model, which is the setting where diffusion models first became famous."
+    }
+  ],
+  "avoidWhen": [
+    "You need a fast answer inside a live loop; each sample takes dozens of network passes, while a direct classifier answers in one pass.",
+    "You just need a probability that price will be higher; a model trained on that single target, such as gradient boosting, answers it more directly and can be checked more easily."
+  ],
+  "example": {
+    "scenario": "A researcher conditions a diffusion model on the last 48 five-minute bars of MNQ and asks for 20 possible versions of the next 6 bars, to see how wide the range of outcomes is.",
+    "input": {
+      "summary": "The known recent bars, the number of samples, and the sampler settings.",
+      "fields": [
+        { "name": "known bars", "value": "48 bars of 5 minutes", "meaning": "The recent history the samples are conditioned on." },
+        { "name": "closing price of the last known bar", "value": "19,512", "meaning": "The price from which the next 6 bars are measured." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "bars to generate", "value": "6", "meaning": "How many future bars each sample covers, 30 minutes." },
+        { "name": "samples requested", "value": "20", "meaning": "How many different possible futures to draw." },
+        { "name": "denoising steps", "value": "50", "meaning": "How many clean-up steps each sample takes." }
+      ]
+    },
+    "output": {
+      "summary": "A summary of the 20 sampled futures after 6 bars.",
+      "fields": [
+        { "name": "median move after 6 bars", "value": "plus 4 points", "meaning": "The middle value of the 20 sampled moves from the last known close." },
+        { "name": "range from 10th to 90th percentile", "value": "minus 38 to plus 44 points", "meaning": "The span that holds the middle 80 percent of the sampled moves." },
+        { "name": "samples ending higher", "value": "11 of 20", "meaning": "How many of the samples end above the last known close." },
+        { "name": "probability implied of a higher close", "value": "55 percent", "meaning": "The share of samples ending higher, a mild lean." }
+      ]
+    },
+    "reading": "The width of the range is more informative than the median: roughly plus or minus 40 points tells you how big the surprise could be, which helps set stop size. A 55 percent lean from only 20 samples is small and must be proven on held-out folds after costs before it informs any trade."
+  }
+}

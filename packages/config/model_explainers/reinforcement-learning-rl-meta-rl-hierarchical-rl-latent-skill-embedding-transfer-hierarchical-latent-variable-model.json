@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-hierarchical-latent-variable-model",
+  "name": "Hierarchical Latent Variable Model",
+  "analogy": "Think of it as describing a trading day on two levels: a headline for the whole session, such as grinding uptrend on light volume, and the bar-by-bar details that fit under that headline. The model learns both levels from the bars alone and can write new details to fit any headline.",
+  "steps": [
+    {
+      "title": "Read a long stretch of bars",
+      "description": "The model takes a trajectory of bars, long enough to show the shape of a session or a few days. It must explain this stretch at two levels of detail at once.",
+      "inExample": "A window of 78 five-minute MNQ bars, one full cash session, is read in one go."
+    },
+    {
+      "title": "Infer the slow, top-level code",
+      "description": "An inference network reads the whole window and produces a spread of values for a top-level code. This code captures what is true of the stretch overall: its general trend, volatility level and character.",
+      "inExample": "The top-level code lands near a grinding-uptrend, moderate-volatility character for the session."
+    },
+    {
+      "title": "Infer the fast, bottom-level codes",
+      "description": "Given the top-level code, a second network reads short pieces of the window and produces bottom-level codes for each piece. They capture the local, bar-to-bar movements consistent with the overall character.",
+      "inExample": "Bottom-level codes describe pullbacks of about 15 to 25 points against the broader advance."
+    },
+    {
+      "title": "Rebuild the bars from both levels",
+      "description": "A generator takes the top and bottom codes and rebuilds the bars. Training asks for a good rebuild while keeping both codes close to simple priors, so the codes carry useful structure and not noise.",
+      "inExample": "The rebuilt session shows a similar overall drift and the same typical range per bar as the real one."
+    },
+    {
+      "title": "Use different clocks for the two levels",
+      "description": "The top-level code is set once for the whole window, while the bottom-level code changes frequently. That difference in clocks is what gives the levels their different roles.",
+      "inExample": "The session code stays fixed across the 78 bars, while the local code updates every 3 bars."
+    },
+    {
+      "title": "Generate or compare",
+      "description": "To generate, fix the top-level code and sample new bottom-level codes, yielding new bar paths for that kind of session. To compare, line up top-level codes from different periods to find similar ones.",
+      "inExample": "With the grinding-uptrend code fixed, 100 new sessions are sampled, each with different pullbacks but the same overall character."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Conditioning an agent on the market's character",
+      "example": "Feeding the session-level code to a high-level policy that chooses a trend or range approach, and the bar-level code to the execution policy."
+    },
+    {
+      "task": "Regime-specific synthetic data",
+      "example": "Generating 100 synthetic grinding-uptrend sessions to stress-test a stop-loss rule inside that regime."
+    },
+    {
+      "task": "Detecting a regime shift",
+      "example": "Flagging the bar where the top-level code moves sharply, such as when a quiet range turns into a news-driven selloff."
+    },
+    {
+      "task": "Finding similar periods",
+      "example": "Comparing top-level codes across ES and MNQ to find days whose overall character matched."
+    },
+    {
+      "task": "Pretraining features",
+      "example": "Using the learned codes as inputs to a separate supervised or reinforcement learning model."
+    }
+  ],
+  "avoidWhen": [
+    "You want a plainly named regime such as bull, bear or sideways; a hidden Markov regime model gives labelled states that are easier to read and check.",
+    "A single bar-level prediction is the goal; the two-level structure adds training effort that a direct model avoids."
+  ],
+  "example": {
+    "scenario": "After a full MNQ cash session of 78 five-minute bars, the model is asked to summarize the session at two levels and then to generate a fresh session of the same character.",
+    "input": {
+      "summary": "One window of bars from a single session.",
+      "fields": [
+        { "name": "window length", "value": "78 five-minute bars", "meaning": "The number of bars in one full cash session." },
+        { "name": "session open", "value": "19,640", "meaning": "The price at the start of the window, rounded to a whole point." },
+        { "name": "session close", "value": "19,812", "meaning": "The price at the end of the window, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a five-minute bar across the session." },
+        { "name": "total volume against its 20-day average", "value": "10 percent below average", "meaning": "How heavy the whole session's trading was compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "The two levels of code and a generated session of the same character.",
+      "fields": [
+        { "name": "top-level session code", "value": "8 numbers, nearest label: grinding uptrend", "meaning": "The slow code summarizing the session; the label was attached afterwards by inspecting similar sessions." },
+        { "name": "bottom-level codes", "value": "26 groups of 8 numbers", "meaning": "The fast codes describing local movement under the session code, one per 3-bar piece." },
+        { "name": "generated session drift", "value": "plus 150 points over 78 bars", "meaning": "The overall move of a new session sampled with the same top-level code." },
+        { "name": "generated typical pullback", "value": "20 points", "meaning": "The typical size of dips in the generated session." }
+      ]
+    },
+    "reading": "Compare generated sessions with real ones of the same character: if drift and pullback sizes land in the same ranges, the generator is realistic enough to stress-test with. The label on the top-level code is a human interpretation added afterwards, so check it against the price chart."
+  }
+}

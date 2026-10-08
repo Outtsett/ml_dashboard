@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-value-based-methods-deep-q-network-dqn",
+  "name": "Deep Q-Network (DQN)",
+  "analogy": "Think of it as a trader keeping a scrapbook of past situations and what happened after each choice. A neural network studies random pages from the scrapbook to learn what each choice is worth in each situation, and a frozen copy of its older self provides steady targets so it is not chasing itself.",
+  "steps": [
+    {
+      "title": "Describe the situation as a state",
+      "description": "Each bar is turned into a row of numbers, the state: recent returns, indicators, volume and the current position. The network reads this row and nothing else.",
+      "inExample": "The 10:30 MNQ five-minute bar becomes a row of 40 numbers, including the last 6 returns, the relative strength index, volume against its average and the current position."
+    },
+    {
+      "title": "Estimate the worth of each action",
+      "description": "The network outputs one number for each available action: short, flat or long. Each number is its estimate of the total reward to come if that action is taken now and good choices follow.",
+      "inExample": "For this state the network outputs about minus 4, plus 1 and plus 8 US dollars for short, flat and long."
+    },
+    {
+      "title": "Mostly pick the best, sometimes explore",
+      "description": "To collect experience, the agent usually takes the action with the highest estimate but occasionally picks one at random. The chance of a random pick starts very high and is lowered as training goes on.",
+      "inExample": "At the start about 9 bars in 10 are a random choice. Late in training only 1 bar in 20 is random."
+    },
+    {
+      "title": "Store each experience in a replay buffer",
+      "description": "After every bar the agent saves what it saw, what it did, the reward and the next state. The store holds a large pool of past experience from all stages of training.",
+      "inExample": "The buffer holds the most recent 100,000 transitions from the training window."
+    },
+    {
+      "title": "Learn from random batches of the past",
+      "description": "Instead of learning from the last few bars, the network learns from a random batch drawn from the buffer. Mixing old and new experience stops it from overfitting to whatever just happened and lets it reuse each bar many times.",
+      "inExample": "Each learning step draws 64 random transitions from different days and months."
+    },
+    {
+      "title": "Aim at a slowly changing target",
+      "description": "The learning target for each transition is the reward plus the best estimated worth of the next state. That worth comes from a frozen copy of the network, refreshed only every so often, so the targets hold still while the main network learns.",
+      "inExample": "The frozen copy is updated every 1,000 learning steps, and in between it supplies the targets."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A discrete-action trading policy",
+      "example": "Learning short, flat or long decisions on MNQ five-minute bars from a state of recent features and the current position."
+    },
+    {
+      "task": "Getting more from a fixed stretch of history",
+      "example": "Replaying the same 12 months of bars thousands of times in different random mixes, instead of passing over them once."
+    },
+    {
+      "task": "A baseline for fancier value-based agents",
+      "example": "Establishing the result that Double, Dueling or prioritised variants must beat on the same walk-forward folds."
+    },
+    {
+      "task": "Seeing what the agent thinks each state is worth",
+      "example": "Plotting the three action estimates over a trading day to see where it expects short, flat or long to pay."
+    }
+  ],
+  "avoidWhen": [
+    "Actions are continuous, such as choosing any position size; a method that outputs a size directly fits better than one that needs a fixed list of choices.",
+    "Rewards are extremely noisy; the estimates of worth chase the noise and can be overstated, and a calmer variant or a supervised model is safer."
+  ],
+  "example": {
+    "scenario": "A trained agent reads the 10:30 five-minute bar on MNQ and must choose between short, flat and long. The agent holds no position.",
+    "input": {
+      "summary": "One row of state features describing the bar and the current position.",
+      "fields": [
+        { "name": "close", "value": "19,985", "meaning": "The price at which the 10:30 five-minute bar closed." },
+        { "name": "price change over the last 6 bars", "value": "up 44 points", "meaning": "How much price rose over the previous 30 minutes, about a fifth of a percent." },
+        { "name": "relative strength index, 14 bars", "value": "58", "meaning": "A momentum reading from 0 to 100; above 50 means recent buying." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts held." }
+      ]
+    },
+    "output": {
+      "summary": "An estimated worth for each action and the action the agent picks.",
+      "fields": [
+        { "name": "estimated worth of short", "value": "minus 4 US dollars", "meaning": "The total reward the network expects if it goes short now." },
+        { "name": "estimated worth of flat", "value": "plus 1 US dollar", "meaning": "The total reward expected from standing aside." },
+        { "name": "estimated worth of long", "value": "plus 8 US dollars", "meaning": "The total reward expected from going long." },
+        { "name": "action taken", "value": "go long 1 contract", "meaning": "The action with the highest estimate." }
+      ]
+    },
+    "reading": "Read the gap between the best and second best estimate: a gap of 7 dollars is a clear preference, a gap of under 1 dollar is a coin toss that costs would erase. The estimates are the network's opinion and tend to run optimistic, so judge the agent by results on held-out folds after costs."
+  }
+}

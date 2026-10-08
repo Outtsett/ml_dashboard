@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-normalized-advantage-function-naf",
+  "name": "Normalized Advantage Function (NAF)",
+  "analogy": "Think of it as a hill with a single peak for every market situation. The network draws the hill by stating where the top is, how high it is, and how steeply it falls off on each side, so the best position size can simply be read off the peak with no searching.",
+  "steps": [
+    {
+      "title": "Read the market state",
+      "description": "One network looks at the features and the current position. It will give three things from this single reading: a value, a best action and a steepness.",
+      "inExample": "The network reads the 12:30 five-minute bar of Micro E-mini Nasdaq-100 futures along with the fact that the account is flat."
+    },
+    {
+      "title": "State the best action and the height",
+      "description": "The network outputs the action it believes scores highest in this state, and the score that action would earn. Together these are the top of the hill.",
+      "inExample": "The best position size is plus 35 percent of maximum, worth 3 US dollars."
+    },
+    {
+      "title": "State how steeply value falls away",
+      "description": "The network also outputs a steepness number. A large value means any size other than the best one is much worse, which signals high confidence; a small one means a wide, flat top.",
+      "inExample": "The steepness is 6, meaning a size 20 percent away from the best loses only about 12 cents of score."
+    },
+    {
+      "title": "Score any action by its distance from the peak",
+      "description": "The score of any other action is the peak height minus a penalty that grows with the square of its distance from the best action, scaled by the steepness. The shape is a smooth cap, so its maximum is exactly at the best action.",
+      "inExample": "A size of plus 60 percent is 25 percent away from the peak, so its score is about 19 cents below the 3 US dollar peak."
+    },
+    {
+      "title": "Train with ordinary value learning",
+      "description": "Because the best score is simply the peak height, the usual rule can be used: move the score of the action taken toward the reward plus the discounted peak of the next state. No second network is needed.",
+      "inExample": "The step earned 5 US dollars; the score for the size traded is pulled toward 5 plus the discounted peak of the next bar's state."
+    },
+    {
+      "title": "Act on the peak",
+      "description": "At deployment the best action is used directly, so one network provides the whole decision. During training some noise is added around it to explore.",
+      "inExample": "In deployment the agent sizes at plus 35 percent of maximum, which is 1 contract of a 3-contract maximum."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A single-network sizing policy",
+      "example": "Deploying one file that outputs the position size for Micro E-mini Nasdaq-100 futures (MNQ) 5-minute bars, instead of a separate actor and critic."
+    },
+    {
+      "task": "Using steepness as a confidence cue",
+      "example": "Scaling the nominal size down when the steepness is low, because many sizes look equally good."
+    },
+    {
+      "task": "Choosing a stop distance",
+      "example": "Letting the action be how many points to place a stop below entry, with the peak giving the preferred distance."
+    },
+    {
+      "task": "A test of whether a separate actor is needed",
+      "example": "Comparing it with deep deterministic policy gradient on the same folds to see whether the extra network buys anything."
+    }
+  ],
+  "avoidWhen": [
+    "The best action depends on the state in a way that a single smooth peak cannot capture, such as a choice between two very different sizes; a general actor-critic method handles that better.",
+    "The action has many dimensions, since the steepness grows quickly with their number; use a method with a separate actor for allocations across many instruments."
+  ],
+  "example": {
+    "scenario": "A single network sizes Micro E-mini Nasdaq-100 futures (MNQ) positions on 5-minute bars, between minus 100 and plus 100 percent of a 3-contract maximum. At 12:30 the account is flat.",
+    "input": {
+      "summary": "The state read by the one network.",
+      "fields": [
+        { "name": "close", "value": "19,334", "meaning": "The price at which the 12:30 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "41", "meaning": "A momentum reading from 0 to 100; slightly weak." },
+        { "name": "average true range, 14 bars", "value": "20 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "20 percent below average", "meaning": "Trading is lighter than normal." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "maximum position", "value": "3 contracts", "meaning": "The size that an action of 100 percent corresponds to." }
+      ]
+    },
+    "output": {
+      "summary": "The three numbers that describe the hill for this state, and a score for an alternative size.",
+      "fields": [
+        { "name": "best position size", "value": "plus 35 percent", "meaning": "The action at the peak, as a share of the maximum." },
+        { "name": "value at the peak", "value": "3 US dollars", "meaning": "The score of taking the best action in this state." },
+        { "name": "steepness", "value": "6", "meaning": "How quickly the score falls as the size moves away from the best size." },
+        { "name": "score at plus 60 percent", "value": "about 19 cents below the peak", "meaning": "The score of a larger size, lower than the peak by half the steepness times the squared distance." }
+      ]
+    },
+    "reading": "The best size of 35 percent of 3 contracts is about one contract. A low steepness means several sizes look nearly equal, so a smaller position or no trade is reasonable. These values describe what the network has learned, not a measured edge; check the trained agent on held-out folds after costs."
+  }
+}

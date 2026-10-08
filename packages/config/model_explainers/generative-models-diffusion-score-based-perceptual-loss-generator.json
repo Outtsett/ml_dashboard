@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-diffusion-score-based-perceptual-loss-generator",
+  "name": "Perceptual Loss Generator",
+  "analogy": "Think of it as grading a copy of a chart not by laying it over the original and counting every mismatched pixel, but by showing both to an expert chart reader and asking whether they would read the same patterns. A copy shifted by one pixel still passes, and a copy with the wrong pattern fails.",
+  "steps": [
+    {
+      "title": "Start with a generator that makes pictures",
+      "description": "The base is an image generator, usually a diffusion model, that turns noisy pictures into clean ones step by step. Perceptual loss is an add-on to how that generator is trained, not a new kind of generator.",
+      "inExample": "A diffusion model is set up to redraw 64-bar candlestick chart images."
+    },
+    {
+      "title": "Bring in a frozen expert network",
+      "description": "A network already trained on a huge picture collection is added as a judge. It is never changed. Its inner layers describe pictures in terms of edges, textures and shapes, and these descriptions are what the generator will be compared on.",
+      "inExample": "A pre-trained image network is loaded and frozen; its early layers see wick edges and its later layers see overall trend shapes."
+    },
+    {
+      "title": "Compare the descriptions, not the pixels",
+      "description": "The generated picture and the real picture are both passed through the expert. The difference between its inner descriptions is the perceptual loss. Two pictures that look alike to a reader score close, even if single pixels differ.",
+      "inExample": "A generated chart shifted by 2 pixels has a large pixel error but a small feature distance of 12 on a scale of 0 to 100 where lower is closer."
+    },
+    {
+      "title": "Add it to the usual noise-removal goal",
+      "description": "The generator is still trained to guess and remove noise as in any diffusion model. The perceptual loss is added on top with a weight, so the result is both accurate at the pixel level and right in structure.",
+      "inExample": "The training loss is the usual noise error plus half the feature distance."
+    },
+    {
+      "title": "Tune the balance",
+      "description": "Too little perceptual weight leaves blurry pictures, and too much can create odd textures that fool the expert but not a person. The weight is tuned by looking at results.",
+      "inExample": "A weight of one half keeps wicks sharp; a weight of 3 starts to add texture that is not on real charts."
+    },
+    {
+      "title": "Generate or repair pictures",
+      "description": "At generation time the trained model denoises as usual, and the result is cleaner and closer to what a reader would call right. The same idea is used for sharpening low-resolution pictures.",
+      "inExample": "A blurry, low-resolution chart image is turned into a sharp one in which each candle and wick is readable."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Sharpening low-resolution chart pictures",
+      "example": "Upscaling a small chart screenshot of 64 bars so candle bodies and wicks are readable for a pattern-recognition network."
+    },
+    {
+      "task": "Making generated chart images match what a reader sees",
+      "example": "Training an image generator for candlestick pictures so that the trend shape matters more than whether each pixel agrees."
+    },
+    {
+      "task": "Comparing two chart images in a human-like way",
+      "example": "Scoring how similar a generated chart is to a real one by feature distance, instead of by exact pixel differences."
+    }
+  ],
+  "avoidWhen": [
+    "The data is a numeric series or table; the feature comparison is built on pictures, so a numeric generator such as a plain diffusion model on the series is more direct.",
+    "You need exact numeric accuracy such as the precise close of each bar; perceptual loss cares about look, not exact values, so a pixel or value error is the right measure."
+  ],
+  "example": {
+    "scenario": "A research team trains a diffusion model to sharpen small chart images of MNQ 5-minute bars, so that a candle-pattern network can read them. They train with a perceptual loss from a frozen pre-trained image network and then sharpen one blurry chart.",
+    "input": {
+      "summary": "A blurry chart picture and the training and sharpening settings.",
+      "fields": [
+        { "name": "input image", "value": "64 by 64 pixels, 64 bars", "meaning": "A small, blurry chart picture of 64 five-minute bars." },
+        { "name": "target image size", "value": "256 by 256 pixels", "meaning": "The size of the sharp picture the model should produce." },
+        { "name": "perceptual loss weight", "value": "one half", "meaning": "How much the feature comparison counts next to the plain noise-removal goal." },
+        { "name": "feature layers compared", "value": "3", "meaning": "How many inner layers of the frozen image network are used for the comparison." },
+        { "name": "denoising steps", "value": "50", "meaning": "How many clean-up steps the model takes while sharpening." }
+      ]
+    },
+    "output": {
+      "summary": "A sharpened picture with two measures of how close it is to the real chart.",
+      "fields": [
+        { "name": "sharpened chart image", "value": "256 by 256 pixels", "meaning": "The new picture in which candle bodies and wicks are readable." },
+        { "name": "feature distance to the real chart", "value": "12 on a scale of 0 to 100", "meaning": "How different the expert network's inner descriptions of the two pictures are; lower is closer." },
+        { "name": "pixel error against the real chart", "value": "4 on a scale of 0 to 100", "meaning": "How far the pixel brightness differs on average, a stricter and less human-like measure." },
+        { "name": "candle patterns read from the sharpened image", "value": "3 of 3 matched", "meaning": "How many known patterns that the pattern network found on the original chart it also finds on the sharpened one." }
+      ]
+    },
+    "reading": "A low feature distance with a modest pixel error is the goal. The sharpened picture is a reconstruction, so it may add detail that was not in the blurry input; use it to read shapes, never to recover exact prices."
+  }
+}

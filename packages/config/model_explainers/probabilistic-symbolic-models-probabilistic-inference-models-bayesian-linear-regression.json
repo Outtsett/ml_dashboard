@@ -1,0 +1,82 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-inference-models-bayesian-linear-regression",
+  "name": "Bayesian Linear Regression",
+  "analogy": "Think of it as a straight-line fit that admits how much it does not know. Instead of drawing one line through the bars, it keeps a whole bundle of lines that are all plausible and tells you how far apart they would put the forecast.",
+  "steps": [
+    {
+      "title": "Start by doubting every feature",
+      "description": "Before seeing any data, the model assumes each feature's effect is probably small, centred on zero. This starting belief is called the prior, and it quietly guards against over-reading noise.",
+      "inExample": "All three features start with an effect likely to be small, somewhere between minus and plus a few points of forward move for every 100 points of feature."
+    },
+    {
+      "title": "Show it the training bars",
+      "description": "The model looks at how each feature lined up with the outcome across the training window. Features that moved together with the outcome consistently earn bigger effects; noisy ones stay near zero.",
+      "inExample": "Across 600 bars, the 6-bar move shows a weak negative link to the next 6 bars, and volume shows almost none."
+    },
+    {
+      "title": "Update the belief about each effect",
+      "description": "Prior and data are combined into a new belief that is a range of plausible effects, not a single number. With little or messy data the range stays wide; with plenty of clean data it tightens. This is an exact calculation, with no random sampling needed.",
+      "inExample": "The 6-bar move's effect is now believed to be near minus 3 points of forward move for every 100 points of recent move, with a range wide enough that zero is not ruled out."
+    },
+    {
+      "title": "Forecast with all plausible effects at once",
+      "description": "For a new bar, the model does not use one line. It uses every plausible set of effects, weighted by how believable each is, so the forecast carries uncertainty about the effects.",
+      "inExample": "The new bar's features are fed through all plausible effect sets, which disagree by a small amount about the average move."
+    },
+    {
+      "title": "Add the noise that no feature explains",
+      "description": "Even with the effects known exactly, future bars scatter around the forecast. The model adds this ordinary noise to the uncertainty about the effects to give the full predictive spread.",
+      "inExample": "The scatter of 6-bar moves around the fitted line is about 37 points, and the disagreement between plausible effects adds a little more, so the total predictive spread comes to about 38 points."
+    },
+    {
+      "title": "Optionally tune the doubt by the evidence",
+      "description": "The strength of the starting doubt and the noise level can be chosen by asking which setting makes the observed data most believable, which avoids needing a separate validation split.",
+      "inExample": "The setting with the highest evidence keeps the starting doubt moderately strong, which suits a 600-bar window."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A forecast that states its own uncertainty",
+      "example": "Predicting the MNQ move over the next 6 bars as an average plus a spread, so a trade can be skipped when the spread dwarfs the average."
+    },
+    {
+      "task": "Sizing by confidence",
+      "example": "Cutting position size when the predictive spread widens because the current features sit far from anything seen in the training window."
+    },
+    {
+      "task": "A steady fallback on short windows",
+      "example": "Using it early in a walk-forward fold when a gradient boosting model would have too few bars to learn from."
+    },
+    {
+      "task": "Comparing candidate feature sets",
+      "example": "Asking which of two feature subsets makes the training window more believable, without holding out bars."
+    }
+  ],
+  "avoidWhen": [
+    "The link between features and outcome bends or has interactions, such as an effect that only appears when volatility is high; a tree-based or neural model captures that, and a straight line cannot.",
+    "You have very large amounts of data and many features, where the extra care about uncertainty adds little and speed matters."
+  ],
+  "example": {
+    "scenario": "On a 5-minute MNQ chart you fit the model on the last 600 bars to forecast the change in the close 6 bars (30 minutes) ahead, using three features. The newest bar has just closed.",
+    "input": {
+      "summary": "Three feature values for the newest bar, measured the same way as in the 600 training bars.",
+      "fields": [
+        { "name": "move over the last 6 bars", "value": "minus 60 points", "meaning": "How far the close has fallen over the previous 30 minutes." },
+        { "name": "volume against its 20-bar average", "value": "40 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "minus 82 points", "meaning": "How far the close sits below its recent average price." },
+        { "name": "training window", "value": "600 bars", "meaning": "The number of 5-minute bars used to form the belief about each feature's effect." },
+        { "name": "close", "value": "19,512", "meaning": "The latest closing price, used to place the forecast in points." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast of the 6-bar move as an average and a spread, not a single number.",
+      "fields": [
+        { "name": "expected move over 6 bars", "value": "plus 2 points", "meaning": "The average of the forecast; one point is worth 2 US dollars per contract, so about 4 US dollars." },
+        { "name": "spread of the forecast", "value": "38 points", "meaning": "One standard deviation of the predictive distribution, combining effect uncertainty and ordinary noise." },
+        { "name": "95 percent range", "value": "minus 72 to plus 76 points", "meaning": "The span within which the 6-bar move is expected to fall 95 times out of 100, if the model is right." },
+        { "name": "share of spread from effect uncertainty", "value": "about 5 percent", "meaning": "How much of the spread comes from not knowing the effects exactly rather than from market noise." }
+      ]
+    },
+    "reading": "A plus 2 point lean inside a 38-point spread is a whisper, far below typical trading costs. The useful message is the width: this is a bar to leave alone, and the model says so honestly instead of handing back a confident-looking single number."
+  }
+}

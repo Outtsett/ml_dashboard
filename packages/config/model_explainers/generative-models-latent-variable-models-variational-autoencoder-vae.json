@@ -1,0 +1,83 @@
+{
+  "specificationId": "generative-models-latent-variable-models-variational-autoencoder-vae",
+  "name": "Variational Autoencoder (VAE)",
+  "analogy": "Think of it as a trader who describes each chart in a few fuzzy words, such as quiet drift down on thin volume, and a second person who redraws the chart from only those words. The wording is deliberately kept loose and standard, so you can also invent new fuzzy descriptions and have the second person draw charts that never existed.",
+  "steps": [
+    {
+      "title": "Compress the row into a short code",
+      "description": "An encoder network reads one data row and squeezes it into a small number of values called the code. This forces the model to keep only what matters about the row and drop the rest.",
+      "inExample": "A row of 12 bar features is squeezed into a code of just 3 values."
+    },
+    {
+      "title": "Make the code a fuzzy range, not a point",
+      "description": "Instead of one exact code, the encoder outputs a centre and a spread for each code value. The code is then drawn at random from that range. This blur is what makes the model generative, because nearby codes must all decode to sensible rows.",
+      "inExample": "The first code value has a centre just under 1 and a spread of about a third; this pass's random draw comes out a little above the centre."
+    },
+    {
+      "title": "Rebuild the row from the drawn code",
+      "description": "A decoder network takes the drawn code and tries to recreate the original row. The gap between the rebuilt row and the real row is the reconstruction error and shows how much of the row survived the squeeze.",
+      "inExample": "The decoder rebuilds the 12 features with an average miss of about a quarter of a standard deviation per feature."
+    },
+    {
+      "title": "Keep the codes close to a standard shape",
+      "description": "A second penalty pulls all the fuzzy ranges toward a plain bell-shaped cloud centred at zero. Without it the model would give each row its own isolated corner of code space and could not be sampled from later.",
+      "inExample": "The penalty nudges the first code's centre from just under 1 toward zero and its spread from about a third toward 1."
+    },
+    {
+      "title": "Balance rebuilding against tidiness",
+      "description": "Training adds the reconstruction error and the tidiness penalty into one score and improves both together over many rows. Too much tidiness makes the code ignore the input; too little makes sampling produce junk.",
+      "inExample": "After training, the rebuild error settles near a fifth of a standard deviation and the tidiness penalty near 2, with all 3 code values still in use."
+    },
+    {
+      "title": "Use it to rebuild, sample or flag",
+      "description": "After training, three uses open up: encode a row to get its short description, decode random draws from the plain cloud to create new rows, or flag rows that rebuild badly as unusual.",
+      "inExample": "A bar with a rebuild error of about 1 standard deviation against a typical fifth is flagged as unlike the training bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compressing many features into a few",
+      "example": "Reducing the 35 base features of each MNQ bar to a code of 4 numbers that a small downstream classifier can use."
+    },
+    {
+      "task": "Flagging unusual bars",
+      "example": "Marking 5-minute bars whose features rebuild poorly, such as a spike around an economic release, as outside normal conditions."
+    },
+    {
+      "task": "Generating synthetic feature rows",
+      "example": "Drawing new rows to enlarge a small set of rare high-volatility examples before training a risk model."
+    },
+    {
+      "task": "Denoising features",
+      "example": "Passing noisy volume and range features through the model so only the shared structure remains."
+    }
+  ],
+  "avoidWhen": [
+    "You need sharp, exact rebuilds of fine detail; the blur that makes sampling work also smooths away small features, and an exact density model such as a normalizing flow keeps more.",
+    "The only goal is a direction call; a compressed code does not target the direction of the next move, so a supervised model trained on that label is better."
+  ],
+  "example": {
+    "scenario": "A variational autoencoder trained on 12 months of MNQ 5-minute bar feature rows is asked to describe the 14:35 bar and to say whether it is unusual compared with the training bars.",
+    "input": {
+      "summary": "One row of 12 bar features, normalised the same way as the training rows; six of them are shown here.",
+      "fields": [
+        { "name": "close", "value": "19,274", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "return over the last 5 bars", "value": "minus a fifth of a percent", "meaning": "Price change over the previous five 5-minute bars." },
+        { "name": "average true range, 14 bars", "value": "28 points", "meaning": "Typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "relative strength index, 14 bars", "value": "31", "meaning": "A momentum reading from 0 to 100; low values mean recent selling pressure." },
+        { "name": "distance from the 50-bar moving average", "value": "about a third of a percent below", "meaning": "How far the close sits below its recent average price." }
+      ]
+    },
+    "output": {
+      "summary": "A short code for the bar, a rebuild of its features and a measure of how well the rebuild matched.",
+      "fields": [
+        { "name": "code centre values", "value": "just under 1, about minus a half, just over 1", "meaning": "The model's short three-number description of the bar." },
+        { "name": "rebuild error", "value": "about a quarter of a standard deviation per feature", "meaning": "How far, on average, the rebuilt features landed from the real ones." },
+        { "name": "typical rebuild error in training", "value": "about a fifth of a standard deviation per feature", "meaning": "The yardstick: the ordinary rebuild error for training bars." },
+        { "name": "unusual-bar flag", "value": "no", "meaning": "The bar is flagged only if its rebuild error far exceeds the training level, here about 3 times." }
+      ]
+    },
+    "reading": "A rebuild error of about a quarter against a typical fifth is ordinary, so the bar behaves like bars seen in training. The three code numbers can feed another model as a compact description of the bar. Only a rebuild error well above normal, for example 3 times the training level or more, is worth treating as an unusual market state."
+  }
+}

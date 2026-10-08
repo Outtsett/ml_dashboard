@@ -1,0 +1,82 @@
+{
+  "specificationId": "neural-network-architectures-generative-latent-models-variational-autoencoder-vae",
+  "name": "Variational Autoencoder (VAE)",
+  "analogy": "Think of it as a trader who summarizes each market day not as one fixed sticky note but as a fuzzy region on a map of all days. Because the map is smooth and filled in, you can pick any new spot on it and the trader can sketch a believable chart for a day that never happened.",
+  "steps": [
+    {
+      "title": "Read a window of market data",
+      "description": "The model receives a block of numbers, such as a short run of bars or a set of indicator readings. As with a plain autoencoder, there is no outcome label; the model is trying to learn what its own data looks like.",
+      "inExample": "A 60-bar stretch of MNQ 5-minute returns, scaled to similar sizes, goes in as one example."
+    },
+    {
+      "title": "Describe the window as a fuzzy region",
+      "description": "The encoder does not output one point. It outputs a center and a spread for each hidden dimension, which together describe a small fuzzy blob on a map of all market windows. The spread says how unsure the model is.",
+      "inExample": "The window is described by 4 centers and 4 spreads; the first dimension, loosely volatility, has a center of 12 and a narrow spread of 3 on a map where real windows mostly fall between minus 30 and plus 30."
+    },
+    {
+      "title": "Draw a random point from the blob",
+      "description": "The model picks one random point inside that fuzzy region. This randomness during training is what forces the whole map to be smooth, so nearby points decode to similar-looking windows.",
+      "inExample": "A point such as 11, minus 4, 2 and 9 on that map is drawn from the blob."
+    },
+    {
+      "title": "Rebuild the window from the point",
+      "description": "The decoder expands the point back into a full window of numbers and is scored on how closely it matches the original. This keeps the map faithful to real data.",
+      "inExample": "The decoder outputs a 60-bar return path that resembles the original, with a similar size of swings."
+    },
+    {
+      "title": "Keep the map tidy",
+      "description": "A second penalty pulls all the fuzzy blobs toward a simple bell-shaped cloud around the center of the map. Training balances rebuilding well against keeping the map orderly, so that any spot on it decodes to something plausible.",
+      "inExample": "The blob for this window is pulled slightly toward the map's center, trading a little rebuild accuracy for a smoother map."
+    },
+    {
+      "title": "Generate or inspect",
+      "description": "After training, new windows are made by picking random points on the map and decoding them. The blobs of real windows also serve as compact features, and windows that decode badly are treated as unusual.",
+      "inExample": "Sampling 1,000 random points yields 1,000 synthetic 60-bar paths with a spread of volatility similar to the training months."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating synthetic price paths for stress tests",
+      "example": "Producing many plausible 60-bar MNQ paths to check that a strategy's stop logic does not depend on one historical sequence."
+    },
+    {
+      "task": "Compressing indicators into smooth codes",
+      "example": "Reducing the 151 technical indicators to a 4-number code whose neighbors behave similarly, for clustering regimes."
+    },
+    {
+      "task": "Flagging unfamiliar windows",
+      "example": "Scoring each new hour by how poorly it decodes, to pause a strategy during conditions unlike the training months."
+    },
+    {
+      "task": "Exploring what the model thinks is typical",
+      "example": "Sliding one hidden dimension and watching the decoded path go from quiet drift to wide swings."
+    }
+  ],
+  "avoidWhen": [
+    "You need a direct up or down probability; the model is built to describe and generate data rather than predict an outcome, so a supervised model is the more direct tool.",
+    "You need synthetic data that reproduces rare fat-tailed shocks exactly; generated paths tend to be smoother than real markets, so they understate tail risk and should not stand in for a real backtest."
+  ],
+  "example": {
+    "scenario": "A variational autoencoder was trained on 60-bar windows of MNQ 5-minute returns from the last 12 months. Two things are done with it: one real window is encoded, and one new window is generated.",
+    "input": {
+      "summary": "One real 60-bar window of scaled returns, and a random point for generation.",
+      "fields": [
+        { "name": "window length", "value": "60 bars (5 hours)", "meaning": "The number of 5-minute bars in the input window." },
+        { "name": "average true range over the window", "value": "26 points", "meaning": "The typical high-to-low travel of a bar within the window." },
+        { "name": "net move over the window", "value": "plus 80 points", "meaning": "Price rose modestly across the five hours." },
+        { "name": "largest single-bar move", "value": "minus 40 points", "meaning": "The biggest one-bar move, a drop." },
+        { "name": "random point for generation", "value": "5, minus 10, 3, 0", "meaning": "A spot picked at random on the learned map, where real windows mostly fall between minus 30 and plus 30, to be decoded into a new window." }
+      ]
+    },
+    "output": {
+      "summary": "A fuzzy-region description of the real window, and a generated window.",
+      "fields": [
+        { "name": "center of the first hidden dimension", "value": "12", "meaning": "Where the window sits on the loosely volatility-like axis of the map." },
+        { "name": "spread of the first hidden dimension", "value": "3", "meaning": "How uncertain the model is about that coordinate; smaller is more certain." },
+        { "name": "generated window range", "value": "average true range 24 points", "meaning": "A synthetic 60-bar path decoded from the random point, with typical swings of about 24 points." },
+        { "name": "generated net move", "value": "minus 20 points", "meaning": "The synthetic path drifts down slightly; it is an illustration, not a forecast." }
+      ]
+    },
+    "reading": "The center and spread tell you where a real window lives on the map and how sure the model is. The generated path is a plausible sketch of a day type, useful for stress-testing logic but never as evidence of an edge; compare its swing sizes with real data before relying on it."
+  }
+}

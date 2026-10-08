@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-supervised-learning-linear-models-lars-least-angle-regression",
+  "name": "Least Angle Regression (LARS)",
+  "analogy": "Think of it as hiring analysts one at a time. You start with nobody, bring in whoever best explains what is left unexplained, and let them take on the work until a second analyst is just as relevant, then both share it, and so on. The record of who joined when is the main product.",
+  "steps": [
+    {
+      "title": "Start with an empty model",
+      "description": "All weights begin at zero, so the first forecast is just the average outcome. What is left to explain is the gap between each bar's real outcome and that average, called the leftover.",
+      "inExample": "The forecast for every bar begins at the average 6-bar MNQ move, and the leftover is each bar's difference from it."
+    },
+    {
+      "title": "Find the feature most related to the leftover",
+      "description": "The model checks every rescaled feature against the leftover and picks the one that moves most closely with it. That feature becomes the first member of the model.",
+      "inExample": "Out of 151 indicators, the distance from the 50-bar moving average moves most closely with the leftover and joins first."
+    },
+    {
+      "title": "Grow its weight until a rival catches up",
+      "description": "The weight on the chosen feature is increased gradually, and the leftover shrinks as it grows. The model stops the moment another feature becomes just as closely related to the leftover as the first one.",
+      "inExample": "The weight grows until the 6-bar return becomes equally related to the leftover, which happens at step 2."
+    },
+    {
+      "title": "Move forward with both together",
+      "description": "Now two features share the work. The model raises both weights together in the direction that keeps them equally related to the leftover, so neither is favoured, until a third feature catches up.",
+      "inExample": "The distance from the moving average and the 6-bar return rise together until the relative strength index joins at step 3."
+    },
+    {
+      "title": "Repeat, recording each step",
+      "description": "The process continues, adding one feature at a time, and saves the whole set of weights at every step. This gives a path from the emptiest model to the fullest, instead of one answer.",
+      "inExample": "The path has up to 151 steps; at step 9 nine indicators carry weight, at step 20 twenty do."
+    },
+    {
+      "title": "Stop at the step that works best on later data",
+      "description": "Each step is a candidate model. The model is picked by testing every step on bars after the training period and keeping the one with the smallest error.",
+      "inExample": "Walk-forward testing picks step 9, and that nine-indicator model forecasts a rise of 3 points for the 14:35 bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Seeing the order in which features matter",
+      "example": "Reading which of the 151 indicators enter first on MNQ 5-minute bars, as a ranking of how much each explains."
+    },
+    {
+      "task": "Choosing how many features to keep",
+      "example": "Picking the number of indicators by the point where held-out error stops improving."
+    },
+    {
+      "task": "Many features, few bars",
+      "example": "Fitting a daily model with a hundred derived features and only a few years of bars."
+    },
+    {
+      "task": "Fast comparison of model sizes",
+      "example": "Looking at every size from 1 to 30 indicators in one pass instead of refitting for each."
+    }
+  ],
+  "avoidWhen": [
+    "The data is very noisy, as most price moves are; the entry order can wobble with small changes, so conclusions about which feature comes first should be checked across folds.",
+    "You only need one final model; coordinate-based lasso gives the same kind of answer with simpler tooling."
+  ],
+  "example": {
+    "scenario": "A 5-minute MNQ bar closes at 14:35. The model has walked through 151 technical indicators, entering them one at a time, and walk-forward testing chose the nine-indicator step. It forecasts the change in the close 6 bars later in points.",
+    "input": {
+      "summary": "The bar's rescaled indicators and the chosen step of the path.",
+      "fields": [
+        { "name": "close", "value": "18,452", "meaning": "The price at which the 14:35 five-minute bar closed." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price; this indicator entered the model first." },
+        { "name": "return over the last 6 bars", "value": "down about a third of a percent", "meaning": "How much price has fallen over the previous 30 minutes; this indicator entered second." },
+        { "name": "relative strength index, 14 bars", "value": "27", "meaning": "A momentum reading from 0 to 100; this indicator entered third." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "path step chosen", "value": "9", "meaning": "The number of indicators carrying weight in the model that tested best on later data." }
+      ]
+    },
+    "output": {
+      "summary": "A forecast move, plus the entry order that explains it.",
+      "fields": [
+        { "name": "forecast change in the close after 6 bars", "value": "plus 3 points", "meaning": "The expected amount by which the close 30 minutes later is above this bar's close." },
+        { "name": "indicators with weight", "value": "9 of 151", "meaning": "The number of features the chosen step uses; the rest are exactly zero." },
+        { "name": "entry order of the first three", "value": "distance, 6-bar return, relative strength", "meaning": "The order in which these indicators joined the model, from most to least related to the leftover." },
+        { "name": "forecast in US dollars per contract", "value": "plus 6 US dollars", "meaning": "3 points times 2 US dollars per MNQ point, before any trading costs." }
+      ]
+    },
+    "reading": "Use the forecast as a faint lean and the entry order as a map: indicators that enter early in every fold are the ones to study. A forecast of 3 points still has to beat commission and slippage on held-out folds before it means anything for trading."
+  }
+}

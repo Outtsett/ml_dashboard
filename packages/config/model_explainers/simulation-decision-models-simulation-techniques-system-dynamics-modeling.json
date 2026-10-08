@@ -1,0 +1,82 @@
+{
+  "specificationId": "simulation-decision-models-simulation-techniques-system-dynamics-modeling",
+  "name": "System Dynamics Modeling",
+  "analogy": "Think of it as plumbing for the market. Open interest and dealer inventory are tanks that fill and drain through pipes, and some pipes are controlled by the water levels in other tanks. Turn one tap, wait for the delays, and watch the levels rise, overshoot and settle.",
+  "steps": [
+    {
+      "title": "Identify the tanks",
+      "description": "You choose the few accumulated quantities that matter, called stocks. A stock only changes through what flows in and out of it, never in a jump.",
+      "inExample": "Three stocks: open interest in MNQ, the volatility level, and the margin that traders must post."
+    },
+    {
+      "title": "Draw the pipes and the loops",
+      "description": "Each flow is an equation that depends on the current levels. Some loops reinforce a change, such as rising prices pulling in more buyers, and some oppose it, such as higher volatility raising margin and slowing new positions.",
+      "inExample": "Rising open interest pushes volatility up. Higher volatility raises margin. Higher margin slows the inflow of new positions."
+    },
+    {
+      "title": "Add the delays",
+      "description": "Many effects arrive late: a margin increase takes days to force selling. Delays are what make a system overshoot and oscillate instead of settling smoothly, so they are written in explicitly.",
+      "inExample": "Margin responds to volatility with a two-session delay."
+    },
+    {
+      "title": "Fit the free dials to history",
+      "description": "The strengths of the flows and the lengths of the delays are tuned until the simulated levels follow the quantities you can actually measure, such as open interest and realised volatility.",
+      "inExample": "The strength of the volatility response is tuned so simulated volatility tracks the last year of observed volatility."
+    },
+    {
+      "title": "Step the system forward",
+      "description": "Time advances in small steps. At each step every flow is computed from the current levels, each stock is updated by its net flow, and the clock moves on. The entire path of every stock is recorded.",
+      "inExample": "The model advances session by session for ten sessions, updating all three stocks each time."
+    },
+    {
+      "title": "Run what-if tests",
+      "description": "Change one dial, such as a margin rule or a shock to volatility, and run again. Comparing the paths shows how the structure of the system, not a statistical fit, produces the outcome.",
+      "inExample": "A volatility shock of 6 points on session 1 is applied, and then the margin response delay is lengthened to four sessions to compare."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Open interest cycles",
+      "example": "Modelling how open interest in MNQ builds and unwinds over the life of a trend, alongside price and volatility."
+    },
+    {
+      "task": "Deleveraging cascades",
+      "example": "Simulating how a volatility spike raises margin, forces selling and pushes volatility higher still."
+    },
+    {
+      "task": "Dealer inventory and hedging pressure",
+      "example": "Representing how accumulated dealer positions feed hedging flows that push prices."
+    },
+    {
+      "task": "Testing a rule change",
+      "example": "Checking how a new margin schedule or circuit breaker would change the simulated path before it is adopted."
+    }
+  ],
+  "avoidWhen": [
+    "You want to predict the next 5-minute bar; a model trained on the 35 base features does that directly, while this model describes slow structural cycles.",
+    "The individual behaviour of different traders is what matters; an agent-based simulation represents that, while this model works with totals."
+  ],
+  "example": {
+    "scenario": "A researcher asks how an MNQ volatility shock might play out over the next ten sessions through the loop between open interest, volatility and margin, starting from calm conditions.",
+    "input": {
+      "summary": "The starting level of each stock, the shock, and the main dials of the model.",
+      "fields": [
+        { "name": "starting open interest", "value": "280,000 contracts", "meaning": "The number of open MNQ contracts at the start." },
+        { "name": "starting annualised volatility", "value": "16 percent", "meaning": "The realised volatility level at the start." },
+        { "name": "volatility shock", "value": "plus 6 points on session 1", "meaning": "A sudden jump in volatility that starts the simulation." },
+        { "name": "margin response delay", "value": "2 sessions", "meaning": "How long margin takes to react to a change in volatility." },
+        { "name": "time step", "value": "1 session", "meaning": "How often every flow and level is recomputed." }
+      ]
+    },
+    "output": {
+      "summary": "The simulated path of each stock over ten sessions.",
+      "fields": [
+        { "name": "open interest peak", "value": "305,000 contracts on session 6", "meaning": "The highest level before the margin loop pulls positions out." },
+        { "name": "open interest at the end", "value": "262,000 contracts", "meaning": "The level after the unwinding, below the starting 280,000." },
+        { "name": "volatility peak", "value": "24 percent", "meaning": "The highest annualised volatility in the simulation." },
+        { "name": "peak after the shock", "value": "session 4", "meaning": "When volatility reached its high, after the delayed margin effect." }
+      ]
+    },
+    "reading": "The shape matters more than the numbers: a jump, a delayed overshoot and a slow unwind. Lengthening the delay makes the overshoot larger, showing how much of the instability comes from the delay itself. Compare the shape with real episodes before relying on it."
+  }
+}

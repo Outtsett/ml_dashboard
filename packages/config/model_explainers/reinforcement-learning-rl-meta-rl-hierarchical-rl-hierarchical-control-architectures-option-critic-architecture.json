@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-option-critic-architecture",
+  "name": "Option-Critic Architecture",
+  "analogy": "Think of it as a trader with a handful of playbooks, such as ride the trend or fade the extremes. Each playbook has its own way of trading and its own sense of when it has run its course, and the trader discovers both from experience instead of being handed them.",
+  "steps": [
+    {
+      "title": "Create a set of options",
+      "description": "An option is a mini-strategy. Each one has its own trading policy for use while it is active and its own rule for when to stop. A small number are created with no labels and no hand design.",
+      "inExample": "Four options are created. Nothing tells them what to be; they start out nearly identical."
+    },
+    {
+      "title": "Pick an option",
+      "description": "A top-level policy looks at the current state and chooses which option to run. This happens only at the start and each time an option ends.",
+      "inExample": "On the 9:45 bar the top-level policy picks option 2."
+    },
+    {
+      "title": "Run the option bar by bar",
+      "description": "While active, the option alone decides the primitive actions: buy, sell or hold. The top-level policy stays out of the way until the option stops.",
+      "inExample": "Option 2 buys 1 MNQ contract and then holds it for several 5-minute bars as price keeps rising."
+    },
+    {
+      "title": "Ask whether to stop",
+      "description": "On every bar the active option consults its termination rule, which gives the probability that it should end right now. That probability is learned too. It is higher where continuing looks worse than handing control back, and a small switching cost stops options from ending on every bar.",
+      "inExample": "After 9 bars, momentum fades and the stop probability of option 2 rises from 4 percent to 38 percent."
+    },
+    {
+      "title": "Learn from reward through both channels",
+      "description": "The trading rewards update the option's policy so it acts better, and update its stop rule so it ends at better moments. Both come from the same objective, so no separate discovery step is needed.",
+      "inExample": "The profit of the 9-bar hold, minus costs, pushes option 2 to keep trending trades longer when the average true range is high."
+    },
+    {
+      "title": "Hand control back and repeat",
+      "description": "When an option ends, the top-level policy chooses again. Over many episodes, different options can come to specialize in different market conditions, without anyone assigning them.",
+      "inExample": "Later inspection shows option 2 mostly active in strong trends and option 3 mostly active in quiet ranges."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Discovering trading postures without labels",
+      "example": "Letting four options emerge on MNQ 5-minute bars and then looking at which market conditions each one ended up handling."
+    },
+    {
+      "task": "Learning how long to hold",
+      "example": "Replacing a fixed 6-bar holding period with a stop rule that learns to exit sooner when volatility falls."
+    },
+    {
+      "task": "Finding session structure",
+      "example": "Checking whether options naturally switch around the cash open and the lunch lull."
+    },
+    {
+      "task": "Segmenting history into behaviors",
+      "example": "Using the record of which option was active as a data-driven regime label for backtest diagnostics."
+    },
+    {
+      "task": "Switching execution style",
+      "example": "Options that act more aggressively when liquidity is deep and passively when spreads are wide."
+    }
+  ],
+  "avoidWhen": [
+    "You already know the regimes and want them labeled explicitly; a regime classifier trained on those labels is easier to check than options that may blur together.",
+    "Data is limited; options often collapse into one that runs forever or one that stops every bar, and avoiding that needs plenty of experience."
+  ],
+  "example": {
+    "scenario": "At 9:45 on an MNQ session the top-level policy has just picked option 2 for the next stretch, and the system checks each bar whether option 2 should continue.",
+    "input": {
+      "summary": "The current bar's features, the active option and how long it has run.",
+      "fields": [
+        { "name": "close", "value": "20,306", "meaning": "The close of the current five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "27 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "return over the last 6 bars", "value": "up about a fifth of one percent", "meaning": "How much price has risen over the previous 30 minutes." },
+        { "name": "relative strength index, 14 bars", "value": "68", "meaning": "A momentum reading from 0 to 100; high values mean recent buying strength." },
+        { "name": "active option", "value": "option 2", "meaning": "The mini-strategy currently in control." },
+        { "name": "bars since the option started", "value": "9", "meaning": "How long option 2 has been running." }
+      ]
+    },
+    "output": {
+      "summary": "The option's action for this bar and its probability of ending.",
+      "fields": [
+        { "name": "action", "value": "hold the long position", "meaning": "What option 2 does on this bar." },
+        { "name": "probability the option ends now", "value": "38 percent", "meaning": "The chance, from the learned stop rule, that option 2 hands control back after this bar." },
+        { "name": "next option if it ends", "value": "option 3, 71 percent likely", "meaning": "Which option the top-level policy would most likely pick next if option 2 stops." }
+      ]
+    },
+    "reading": "A 38 percent stop chance is the option saying that momentum is fading but not yet gone. Look at the history of active options against the price chart afterwards; options that line up with recognizable trend and range stretches are useful, and options that flip every bar are a sign training has not separated them."
+  }
+}

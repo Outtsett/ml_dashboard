@@ -1,0 +1,82 @@
+{
+  "specificationId": "generative-models-latent-variable-models-bayesian-generator",
+  "name": "Bayesian Generator",
+  "analogy": "Think of it as a trader who summarizes each chart window in a short note, but never writes a single exact value. Every note says 'about this, give or take that'. When redrawing a chart from a note, the trader picks a value within the give-or-take, so each redraw differs a little and the spread shows how unsure the trader is.",
+  "steps": [
+    {
+      "title": "Read the window and describe it as a range",
+      "description": "The encoder reads a chart window and, for each hidden feature, produces two numbers: a best value and a measure of how unsure it is. The window is described by ranges, not by single points.",
+      "inExample": "A window of 54 known bars, with the 6 bars after it hidden from the encoder, is described by 8 hidden features, each with a best value and a spread."
+    },
+    {
+      "title": "Pick one value from inside each range",
+      "description": "A single value is drawn at random from within each feature's range. A trick makes this draw compatible with training, so the model can still learn from it. Different draws give different results from the same window.",
+      "inExample": "The first hidden feature has a best value of 4 and a spread of 3, and a draw gives 5, all counted in tenths."
+    },
+    {
+      "title": "Redraw the window from the draw",
+      "description": "The decoder takes the drawn values and produces a full window, along with its own range of uncertainty. Because the draw varies, each redraw is slightly different.",
+      "inExample": "The decoder redraws all 60 bars from the 8 drawn values, with the 54 known closes within 3 points of the real ones on average."
+    },
+    {
+      "title": "Keep the ranges honest with a template",
+      "description": "Training balances two goals: the redraw should match the real window, and the hidden ranges should stay close to a simple template, usually a bell curve centred on zero. The template keeps the hidden space tidy so that random draws from it make sense.",
+      "inExample": "Training pulls the best values toward zero and the spreads toward 1, so the 8 features stay close to a bell curve."
+    },
+    {
+      "title": "Account for model uncertainty too",
+      "description": "In a Bayesian neural network variant the model's own weights are given ranges as well. Each time it runs, it draws a slightly different version of itself, so disagreement between runs shows how much the model does not know.",
+      "inExample": "Running the decoder 20 times with 20 draws of its hidden values gives 20 slightly different redraws of the last 6 bars."
+    },
+    {
+      "title": "Generate new windows or read the uncertainty",
+      "description": "To generate, draw hidden values from the template and decode them. To measure uncertainty, repeat the draw many times and look at how far apart the results are.",
+      "inExample": "Twenty redraws of the hidden 6 bars end between 38 points below and 41 points above the last known close."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating varied synthetic windows with a measure of doubt",
+      "example": "Producing 60-bar windows of 5-minute MNQ bars along with a spread that shows where the model is unsure."
+    },
+    {
+      "task": "Compressing windows into a smooth hidden space",
+      "example": "Turning each window into 8 hidden values whose neighbouring values give similar windows, useful for clustering regimes."
+    },
+    {
+      "task": "Measuring uncertainty in a forecast",
+      "example": "Training with the last 6 bars of each window hidden from the encoder, then redrawing those 6 bars many times to see the width of the range of outcomes, which can inform position size."
+    },
+    {
+      "task": "Flagging unusual windows",
+      "example": "Marking windows that the model rebuilds poorly or describes with very wide ranges as unfamiliar."
+    }
+  ],
+  "avoidWhen": [
+    "You want very sharp generated samples; these models tend to produce smoother, blurrier output, and an adversarial or diffusion model gives crisper samples.",
+    "You only need a direction call; a classifier trained on that target directly, such as gradient boosting, is simpler and more accurate."
+  ],
+  "example": {
+    "scenario": "A researcher trained a variational generator on 60-bar windows of 5-minute MNQ bars, with the last 6 bars hidden from the encoder. For a live window of 54 known bars they ask for the hidden description, a redraw, and the spread of the 6 hidden bars across 20 draws.",
+    "input": {
+      "summary": "One window of 54 known bars and the settings for drawing.",
+      "fields": [
+        { "name": "known bars", "value": "54 bars of 5 minutes", "meaning": "How many bars the encoder reads; the 6 bars after them are what the decoder must draw." },
+        { "name": "closing price of the last known bar", "value": "19,240", "meaning": "The close at the end of the known bars." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "hidden features", "value": "8", "meaning": "How many numbers, each with a spread, describe the window." },
+        { "name": "draws", "value": "20", "meaning": "How many times the draw and redraw are repeated for the last 6 bars." }
+      ]
+    },
+    "output": {
+      "summary": "The hidden description, how well the known bars were redrawn, and the spread of the last 6 bars.",
+      "fields": [
+        { "name": "first hidden feature, best value and spread", "value": "4 and 3, counted in tenths", "meaning": "The model's best value for that feature and how unsure it is." },
+        { "name": "average error of the redrawn known closes", "value": "3 points", "meaning": "How far the redrawn closes sit from the real closes on average." },
+        { "name": "close after 6 more bars, middle of 20 draws", "value": "19,243", "meaning": "The middle value of the 20 draws, about 3 points above the last known close." },
+        { "name": "range of the 20 draws", "value": "19,203 to 19,282", "meaning": "The lowest and highest outcomes in the 20 draws, showing how unsure the model is." }
+      ]
+    },
+    "reading": "The middle value is close to the last close, so the model offers no strong direction. The width of 79 points is the useful part; compare it with the average true range of 25 to see the uncertainty and check on held-out folds that the range is neither too wide nor too narrow."
+  }
+}

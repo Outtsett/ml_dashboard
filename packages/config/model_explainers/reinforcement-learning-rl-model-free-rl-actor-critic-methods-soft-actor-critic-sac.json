@@ -1,0 +1,84 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-soft-actor-critic-sac",
+  "name": "Soft Actor-Critic (SAC)",
+  "analogy": "Think of it as a trader who is paid for profit but also earns a small bonus for keeping their approach flexible, so they never settle into one habit. The bonus shrinks automatically as they become sure of themselves, and two cautious reviewers always give the lower of their two grades.",
+  "steps": [
+    {
+      "title": "Act with a spread, not a single answer",
+      "description": "The actor outputs a typical action and a spread around it, and the action actually taken is drawn from that spread. Staying spread out is rewarded, so the agent keeps trying nearby alternatives.",
+      "inExample": "In an oversold state the actor's typical position size is plus 30 percent of full size with a spread of 25 percent, and the draw gives plus 41 percent."
+    },
+    {
+      "title": "Store the experience",
+      "description": "Each step, its action and the reward are written to a large memory. Training samples random old steps from it, so each bar of history is used many times.",
+      "inExample": "The step is added to a memory of 300,000 stored steps."
+    },
+    {
+      "title": "Two critics grade the step",
+      "description": "Two separate critics each estimate the value of taking this action in this state. The lower of the two is used, which guards against the habit of critics to be too optimistic.",
+      "inExample": "One critic says 4 US dollars and the other says 3, so 3 is used."
+    },
+    {
+      "title": "Add the flexibility bonus",
+      "description": "The value used for learning includes a bonus for how spread out the actor's choices are. A larger bonus rewards more exploration; a smaller bonus lets the actor settle.",
+      "inExample": "A bonus worth about 1 US dollar is added because the actor's spread is wide."
+    },
+    {
+      "title": "Teach the critics and then the actor",
+      "description": "The critics are trained toward the reward plus the discounted value of the next state, using the lower critic. The actor is then trained to pick actions that the critics grade highly while staying spread out.",
+      "inExample": "The actor's typical size drifts from 30 toward 33 percent in similar states while keeping most of its spread."
+    },
+    {
+      "title": "Tune the bonus automatically",
+      "description": "A setting called the temperature controls how big the flexibility bonus is. It is adjusted by itself to keep the actor's spread near a chosen target, rising if the actor gets too rigid and falling if it is too random.",
+      "inExample": "The temperature eases from one fifth to slightly under one fifth as the actor's spread is a little above the target."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Position sizing that can adapt when the regime flips",
+      "example": "Training an agent on Micro E-mini Nasdaq-100 futures (MNQ) 5-minute bars whose size output keeps exploring, so it can recover when a trending period turns into a range."
+    },
+    {
+      "task": "Learning from limited history",
+      "example": "Reusing a year of stored bars many times instead of discarding each batch after one update."
+    },
+    {
+      "task": "A cautious value estimate",
+      "example": "Relying on the lower of two critics so the agent is less likely to chase trades whose value it has overestimated."
+    },
+    {
+      "task": "Continuous allocation",
+      "example": "Outputting a fraction of maximum size from short to long instead of a three-way choice."
+    }
+  ],
+  "avoidWhen": [
+    "You want a plain labelled prediction such as next-hour direction; supervised models like gradient boosting answer that directly and are much easier to check than a learning agent.",
+    "You need the exact same action every time for the same input; the sampled action varies, so a deterministic method or the typical action alone is needed at deployment."
+  ],
+  "example": {
+    "scenario": "A soft actor-critic agent sizes positions on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars. At 13:40 it is flat and must choose a size between minus 100 and plus 100 percent of its maximum.",
+    "input": {
+      "summary": "The state the actor reads and the settings that shape its spread.",
+      "fields": [
+        { "name": "close", "value": "19,512", "meaning": "The price at which the 13:40 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "29", "meaning": "A momentum reading; a low value means the market is leaning oversold." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "about half a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "current position", "value": "flat", "meaning": "The agent holds nothing right now." },
+        { "name": "temperature", "value": "one fifth", "meaning": "How much reward the agent gets for staying spread out; learned automatically." }
+      ]
+    },
+    "output": {
+      "summary": "The actor's typical size, its spread, the size drawn, and the critic grades behind it.",
+      "fields": [
+        { "name": "typical position size", "value": "plus 30 percent of full size", "meaning": "The centre of the actor's choice, a mild lean toward long." },
+        { "name": "spread of the choice", "value": "25 percent of full size", "meaning": "How widely the drawn size varies around the typical size." },
+        { "name": "size drawn this bar", "value": "plus 41 percent of full size", "meaning": "The size actually sent to the market while training." },
+        { "name": "two critic grades", "value": "4 and 3 US dollars", "meaning": "The two separate value estimates for this state and action." },
+        { "name": "grade used", "value": "3 US dollars", "meaning": "The lower of the two, used so the estimate leans cautious." }
+      ]
+    },
+    "reading": "At deployment use the typical size, not the random draw, so behaviour is repeatable. A growing gap between the two critic grades is a warning that the value estimate is unreliable in that state. Validate on held-out folds with costs before trusting any sizing the agent gives."
+  }
+}

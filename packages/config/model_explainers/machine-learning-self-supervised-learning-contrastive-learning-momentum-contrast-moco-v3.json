@@ -1,0 +1,81 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-contrastive-learning-momentum-contrast-moco-v3",
+  "name": "Momentum Contrast (MoCo v3)",
+  "analogy": "Think of it as a student and a slow-moving mentor playing a matching game. Both look at differently altered copies of the same chart. The student must recognise the mentor's version of the same chart among a crowd of other charts. The mentor changes slowly, which keeps the game stable.",
+  "steps": [
+    {
+      "title": "Make two altered views of each window",
+      "description": "Each window of bars is copied twice and each copy is changed in ways that should not alter its meaning, such as noise, small rescaling or hidden bars. The two copies of one window form the matching pair.",
+      "inExample": "Each of 1,024 MNQ windows in a batch gets a noisy view and a masked view."
+    },
+    {
+      "title": "Describe views with a student and a momentum mentor",
+      "description": "The student network reads one view. A second network of the same shape, the momentum encoder, reads the other view. The momentum encoder is not trained directly; its weights are a slow-moving average of the student's weights.",
+      "inExample": "The student turns the noisy view into a 256-number vector, and the momentum encoder turns the masked view into another."
+    },
+    {
+      "title": "Use a transformer backbone",
+      "description": "In this version the backbone is a transformer, a network that lets every segment of the window look at every other segment. For market data the window is cut into short segments, each segment is embedded, and attention mixes them.",
+      "inExample": "The 48-bar window is cut into 6 segments of 8 bars, which the transformer relates to each other."
+    },
+    {
+      "title": "Score each view against the crowd",
+      "description": "The student's vector is compared with the mentor's vector for its own window, which is the correct match, and with the mentor's vectors for all other windows in the batch, which are wrong matches. A temperature setting controls how sharp the contrast must be.",
+      "inExample": "Each noisy view is scored against 1,024 candidates, of which exactly 1 is correct."
+    },
+    {
+      "title": "Reward picking the correct match",
+      "description": "The student is adjusted to give high similarity to its own window's mentor vector and low similarity to the others. The loss is applied in both directions by swapping the roles of the two views.",
+      "inExample": "The correct match rises from the 40th most similar candidate early on to the top few by the end of training."
+    },
+    {
+      "title": "Move the mentor slightly toward the student",
+      "description": "After every update, the momentum encoder's weights shift a tiny fraction toward the student's. Its slow drift keeps the targets consistent from step to step, which is what makes training stable with a transformer.",
+      "inExample": "Each step the mentor takes a tenth of 1 percent of the student's weights, so it trails by around a thousand updates."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Pretraining a transformer without labels",
+      "example": "Learning from years of unlabelled MNQ and ES windows before fine-tuning on a few months of direction labels."
+    },
+    {
+      "task": "Clustering market states",
+      "example": "Grouping the learned descriptions into recurring session types."
+    },
+    {
+      "task": "Features for a downstream forecaster",
+      "example": "Using the 256-number description of each window as input to a tree model alongside the 35 base features."
+    },
+    {
+      "task": "Combining price and news descriptions",
+      "example": "Producing descriptions for price windows and for FinBERT sentiment scores, then joining them for one model."
+    }
+  ],
+  "avoidWhen": [
+    "Your history is small; transformers trained this way need many windows to beat simpler features.",
+    "You need a fast, cheap baseline; a boosted tree on the 151 indicators trains in minutes and is the right comparison."
+  ],
+  "example": {
+    "scenario": "A researcher pretrains MoCo v3 on two years of unlabelled MNQ 5-minute windows. For today's window they extract the student's description and check that the window's own altered twin would be recognised among 1,024 candidates.",
+    "input": {
+      "summary": "A batch of windows, each seen through two altered views, read by a transformer student and a momentum mentor.",
+      "fields": [
+        { "name": "windows per batch", "value": "1,024", "meaning": "How many windows compete in each matching round." },
+        { "name": "window length", "value": "48 five-minute bars", "meaning": "Four hours of trading described to the model." },
+        { "name": "segments per window", "value": "6 segments of 8 bars", "meaning": "How the window is cut for the transformer to relate." },
+        { "name": "temperature setting", "value": "one fifth", "meaning": "How sharply the correct match must stand out from the others." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The recent typical bar travel." }
+      ]
+    },
+    "output": {
+      "summary": "A reusable window description and a check on how well matches are recognised.",
+      "fields": [
+        { "name": "window description", "value": "256 numbers", "meaning": "The student's output used by later models." },
+        { "name": "similarity to the mentor's version of the same window", "value": "88 percent", "meaning": "How alike the student's and mentor's descriptions of the same window are." },
+        { "name": "rank of the correct match among 1,024 candidates", "value": "1st", "meaning": "The correct window is picked out as the most similar, as intended." }
+      ]
+    },
+    "reading": "Recognising the correct window shows the description is distinctive and stable under alteration. It does not show forecasting skill. Compare a small labelled model on these descriptions against the same model on raw indicators across walk-forward folds, net of costs, before relying on it."
+  }
+}

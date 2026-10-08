@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-probabilistic-inference-sampling-monte-carlo-simulation",
+  "name": "Monte Carlo Simulation",
+  "analogy": "Think of it as replaying the next year ten thousand times with the dice reshuffled each time. No single replay means anything, but the pile of ten thousand endings shows how bad a bad year can get and how often it happens.",
+  "steps": [
+    {
+      "title": "Choose how to generate a possible future",
+      "description": "You pick a way to produce random price or trade sequences that look like the real thing. This can be a fitted statistical process, or a resampling of real historical results in chunks so that streaks are kept.",
+      "inExample": "The method resamples blocks of 5 trades from the strategy's 400 historical trades, which keeps winning and losing streaks together."
+    },
+    {
+      "title": "Build one complete path",
+      "description": "A path is a full journey through time, not only an end point. Because the whole route is kept, you can see the dips along the way, including how deep the worst fall was.",
+      "inExample": "One path strings together 250 resampled trades, producing an equity curve with its own ups, downs and low point."
+    },
+    {
+      "title": "Apply the strategy or portfolio rules along that path",
+      "description": "On each path you compute the thing you care about: the final profit, the worst drawdown, or whether a loss limit was ever touched. Each path gives one value for each quantity.",
+      "inExample": "For the path, the final profit is 1,180 US dollars and the deepest fall from a peak is 720 US dollars."
+    },
+    {
+      "title": "Repeat thousands of times",
+      "description": "Steps one to three run again and again with fresh random draws. The more paths, the steadier the result, and the accuracy depends on the number of paths rather than the complexity of the problem.",
+      "inExample": "The process is repeated for 10,000 paths."
+    },
+    {
+      "title": "Read the distribution",
+      "description": "The paths together form a distribution of outcomes. Any percentile or probability is read directly: the typical result, the bad-luck result, or the share of paths that crossed a danger line.",
+      "inExample": "Sorting the 10,000 final profits gives a median, a bad-luck 5th percentile and a good-luck 95th percentile; counting the paths whose drawdown passed the danger line gives the chance of passing it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Stress testing a strategy's drawdown",
+      "example": "Estimating how deep and how likely a drawdown is for an MNQ strategy by reshuffling its 400 backtested trades."
+    },
+    {
+      "task": "Value at risk and expected shortfall",
+      "example": "Estimating a one-day loss level for a book of index futures from simulated returns that keep fat tails."
+    },
+    {
+      "task": "Sizing against risk of ruin",
+      "example": "Finding the largest number of contracts for which the simulated chance of losing 3,000 US dollars stays under 5 percent."
+    },
+    {
+      "task": "Putting error bars on a backtest",
+      "example": "Resampling a walk-forward result to attach a range to its profit factor instead of reporting one number."
+    },
+    {
+      "task": "Pricing path-dependent payoffs",
+      "example": "Pricing a barrier option on an index future by simulating many price paths and averaging the payoff."
+    }
+  ],
+  "avoidWhen": [
+    "You need a prediction about the next bar; this method shows the spread of possible outcomes under assumptions you supply and does not predict direction.",
+    "The historical sample is tiny or unrepresentative; resampling 30 lucky trades will only produce 10,000 lucky-looking paths."
+  ],
+  "example": {
+    "scenario": "A researcher has 400 historical trades from an MNQ 5-minute strategy and wants to know how a year of 250 trades could turn out, and how likely a 1,500 dollar drawdown is.",
+    "input": {
+      "summary": "The historical trade results and the simulation settings.",
+      "fields": [
+        { "name": "historical trades", "value": "400", "meaning": "The after-cost results of the strategy's past trades, used as the pool for resampling." },
+        { "name": "average trade", "value": "4 US dollars", "meaning": "The mean result of a historical trade after commission and slippage." },
+        { "name": "typical swing per trade", "value": "55 US dollars", "meaning": "The spread of individual trade results around the average." },
+        { "name": "trades per simulated year", "value": "250", "meaning": "How many trades make up each simulated path." },
+        { "name": "simulated paths", "value": "10,000", "meaning": "How many alternative years are generated." },
+        { "name": "drawdown danger line", "value": "1,500 US dollars", "meaning": "The fall from a peak that is counted as an unacceptable outcome." }
+      ]
+    },
+    "output": {
+      "summary": "The distribution of the 10,000 simulated years.",
+      "fields": [
+        { "name": "median final profit", "value": "1,000 US dollars", "meaning": "Half of the simulated years ended above this value." },
+        { "name": "5th percentile final profit", "value": "minus 430 US dollars", "meaning": "Only one year in twenty ended worse than this." },
+        { "name": "95th percentile final profit", "value": "2,460 US dollars", "meaning": "Only one year in twenty ended better than this." },
+        { "name": "median maximum drawdown", "value": "650 US dollars", "meaning": "The typical deepest fall from a peak in a simulated year." },
+        { "name": "chance of passing the danger line", "value": "2 percent", "meaning": "The share of simulated years in which drawdown exceeded 1,500 US dollars." }
+      ]
+    },
+    "reading": "About one simulated year in eight ends in a loss, one in twenty ends worse than minus 430 dollars, and about one in fifty falls through the 1,500 dollar line. If the account cannot tolerate that frequency, reduce size and run the simulation again. The answer is only as good as the 400 trades behind it."
+  }
+}

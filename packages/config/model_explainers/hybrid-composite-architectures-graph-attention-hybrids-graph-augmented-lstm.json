@@ -1,0 +1,82 @@
+{
+  "specificationId": "hybrid-composite-architectures-graph-attention-hybrids-graph-augmented-lstm",
+  "name": "Graph-Augmented LSTM",
+  "analogy": "Think of it as a newsroom with one reporter per instrument. Each reporter keeps a running memory of their own market through the day. Before filing, every reporter hears a quick briefing from the reporters on related markets, so a move in one is heard in the others.",
+  "steps": [
+    {
+      "title": "Give every instrument its own history",
+      "description": "Each instrument gets a window of its recent bars with the same set of features, such as returns, range and volume, computed from past data only. All instruments share the same window length.",
+      "inExample": "Three index futures, MNQ, MES and MYM, each get the last 48 five-minute bars with 8 features."
+    },
+    {
+      "title": "Run a memory network along time for each one",
+      "description": "A long short-term memory network reads each instrument's window bar by bar, keeping a memory of what mattered. The same network, with the same settings, is used for every instrument, so what it learns about market dynamics is shared.",
+      "inExample": "After 48 bars, each instrument has a memory vector of 16 numbers describing its recent behaviour."
+    },
+    {
+      "title": "Define who is related to whom",
+      "description": "A graph says which instruments are linked. Links can be fixed by structure, such as the same index family or a shared currency leg, or built from recent correlation. Links are built from past data only, inside the training fold.",
+      "inExample": "All three index futures are linked to each other because their recent correlation exceeds 85 percent."
+    },
+    {
+      "title": "Share memories along the links",
+      "description": "Each instrument's memory is blended with the memories of its linked neighbours, usually as a weighted average that also keeps part of its own. After this step each memory knows what the neighbours have been doing.",
+      "inExample": "MYM's memory is mixed with MNQ's and MES's, picking up the selling pressure that started in MNQ."
+    },
+    {
+      "title": "Read out a prediction for each instrument",
+      "description": "A small output layer turns each blended memory into a prediction for that instrument, such as the chance that its close several bars ahead is higher. All instruments are predicted in one pass.",
+      "inExample": "The outputs are 47 percent up for MNQ, 46 percent for MES and 52 percent for MYM."
+    },
+    {
+      "title": "Train on all instruments together",
+      "description": "Training adds up the errors across all instruments and adjusts the shared memory network and the blending together, so the model learns both how each market behaves and how related markets influence each other.",
+      "inExample": "A loss summed over three instruments is minimised across walk-forward training folds, with the correlation links rebuilt inside each fold."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Predicting several related instruments at once",
+      "example": "Forecasting the 6-bar direction of MNQ, MES and MYM in one pass so each uses the others' state."
+    },
+    {
+      "task": "Forex panels with shared currency legs",
+      "example": "Predicting EURUSD, GBPUSD and EURGBP together, where the euro and the pound appear in more than one pair."
+    },
+    {
+      "task": "Lending strength to thin markets",
+      "example": "Forecasting a thinly traded contract by borrowing information from liquid neighbours."
+    },
+    {
+      "task": "Cross-market volatility forecasts",
+      "example": "Predicting next-hour realised volatility for each index future, with the graph carrying the shared volatility factor."
+    }
+  ],
+  "avoidWhen": [
+    "You trade one instrument with no meaningful neighbours; the graph adds nothing, and a single sequence model or gradient boosting is simpler.",
+    "Links between instruments are weak or unstable; a badly chosen graph spreads noise from one market into another and can hurt the forecast."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute bar, a trained model reads the last 48 bars of MNQ, MES and MYM and predicts, for each, the chance that its close 6 bars later is higher than its current close.",
+    "input": {
+      "summary": "Three instruments, each with 48 bars of 8 normalised features, and a graph linking them.",
+      "fields": [
+        { "name": "instruments", "value": "MNQ, MES, MYM", "meaning": "Micro E-mini Nasdaq-100, Micro E-mini S&P 500 and Micro E-mini Dow futures, which share a strong common market factor." },
+        { "name": "bars per instrument", "value": "48", "meaning": "Four hours of 5-minute bars given to each instrument." },
+        { "name": "MNQ return over the last 6 bars", "value": "minus over a third of a percent", "meaning": "Recent price change in the leading instrument." },
+        { "name": "MYM return over the last 6 bars", "value": "minus a tenth of a percent", "meaning": "Recent price change in the laggard." },
+        { "name": "MNQ average true range, 14 bars", "value": "27 points", "meaning": "Typical high-to-low travel of an MNQ bar." },
+        { "name": "link strength between instruments", "value": "88 percent average correlation", "meaning": "How tightly the three move together, which sets how much they borrow from each other." }
+      ]
+    },
+    "output": {
+      "summary": "A probability of up for each instrument in one pass.",
+      "fields": [
+        { "name": "MNQ probability of up", "value": "47 percent", "meaning": "Chance that MNQ's close 6 bars later is higher." },
+        { "name": "MES probability of up", "value": "46 percent", "meaning": "The same event for MES, close to MNQ because of the strong link." },
+        { "name": "MYM probability of up", "value": "52 percent", "meaning": "The same event for MYM, which fell least, so it stays near even despite the weakness in its neighbours." }
+      ]
+    },
+    "reading": "MNQ and MES lean slightly down, while MYM, which has fallen less, is near even. These are small edges, so judge them on walk-forward folds with costs, where one MNQ point is worth 2 US dollars. The useful check is whether sharing across instruments scores better than a version of the model that treats each alone."
+  }
+}

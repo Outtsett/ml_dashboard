@@ -1,0 +1,83 @@
+{
+  "specificationId": "machine-learning-self-supervised-learning-predictive-representation-learning-predictive-coding-models",
+  "name": "Predictive Coding Models",
+  "analogy": "Think of it as a floor trader who is constantly forming an expectation for the next bar and then noticing how wrong the expectation was. The expectation is the model's picture of the market, and the size of the surprise tells it, and you, where that picture is out of date.",
+  "steps": [
+    {
+      "title": "Compress each observation into a state",
+      "description": "An encoder turns each window of bars into a short summary of numbers, called the latent state. The state keeps what is needed to describe the window and leaves out fine detail.",
+      "inExample": "Each 5-minute bar, with its previous 20 bars for context, becomes a latent state of 24 numbers."
+    },
+    {
+      "title": "Form an expectation of the next state",
+      "description": "A predictor, usually a recurrent network, reads the states seen so far and produces its own expectation of what the next state will look like. It predicts the summary of the next observation, not the next price.",
+      "inExample": "Having read states up to 14:30, the predictor expects the 14:35 state to show mildly rising activity and a small upward drift."
+    },
+    {
+      "title": "Compare the expectation with what arrives",
+      "description": "When the next bar arrives, it is encoded and compared with the expectation. The gap is the prediction error, also called surprise. A large gap means the market did something the model did not expect.",
+      "inExample": "The 14:35 bar arrives with heavy volume and a fall. The surprise is 90 percent above the typical surprise on recent bars."
+    },
+    {
+      "title": "Adjust to shrink the surprise",
+      "description": "The weights of the encoder and the predictor are changed so that the same situation produces a smaller error next time. Training sweeps over a very large unlabeled history, so the model slowly learns the regular rhythms of the series.",
+      "inExample": "Across the training history, the average surprise falls by about 38 percent from where it started."
+    },
+    {
+      "title": "Stack levels from fast to slow",
+      "description": "In a hierarchical version, higher levels predict slower features such as the trend of the last hour, while lower levels predict bar to bar detail. Each level sends its prediction down and passes its surprise up.",
+      "inExample": "The bottom level is surprised by one large bar, while the top level, which tracks the one-hour trend, is hardly surprised at all."
+    },
+    {
+      "title": "Use the state and the surprise downstream",
+      "description": "Once trained, the latent state and the size of the surprise at each level are handed to another model, or read on their own as a warning signal that the market has stopped behaving as before.",
+      "inExample": "A linear model reads the state and surprise at 14:35 and returns a 53 percent probability that the close 6 bars later is higher."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Flagging when the market stops behaving normally",
+      "example": "Raising an alert when the surprise stays above 2 times its typical size for six bars, as around a data release."
+    },
+    {
+      "task": "Learning a state description from unlabeled history",
+      "example": "Training on years of MNQ 5-minute bars with no labels, then using the 24-number state as inputs to a direction model."
+    },
+    {
+      "task": "Separating fast detail from slow structure",
+      "example": "Reading the top level for the one-hour trend and the bottom level for bar to bar noise, to see which one a strategy depends on."
+    },
+    {
+      "task": "A baseline predictor of the next step",
+      "example": "Comparing how well it predicts the next latent state against the simple guess that nothing changes."
+    }
+  ],
+  "avoidWhen": [
+    "You need a labelled answer such as buy or sell directly; this model produces states and surprises, so a supervised model fits that job better.",
+    "The series is almost pure noise at your timeframe; the easiest way to predict the next state is to make every state the same, and then it says nothing.",
+    "You must compare which of two assets is cheaper or richer; a prediction error on one series does not carry across series."
+  ],
+  "example": {
+    "scenario": "The model has been trained on a year of MNQ 5-minute bars. At 14:35 a heavy-volume bar closes and the job asks how surprised the model was and what the state now says.",
+    "input": {
+      "summary": "The 21 most recent 5-minute bars, encoded one by one into states, and the bar that just arrived.",
+      "fields": [
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "bar range", "value": "46 points", "meaning": "The high-to-low travel of the 14:35 bar, about twice the recent norm." },
+        { "name": "volume against its 20-bar average", "value": "140 percent above", "meaning": "How heavy trading in the bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "bars of history read", "value": "21", "meaning": "The number of earlier encoded states the predictor used to form its expectation." }
+      ]
+    },
+    "output": {
+      "summary": "The new latent state, the surprise at two levels, and a direction probability from a simple model on top.",
+      "fields": [
+        { "name": "latent state", "value": "24 numbers", "meaning": "The model's compact description of the market after the 14:35 bar." },
+        { "name": "surprise at the bar level", "value": "90 percent above typical", "meaning": "How far the new bar was from the model's expectation, compared with recent bars." },
+        { "name": "surprise at the one-hour level", "value": "20 percent below typical", "meaning": "The slower level was not surprised, so the larger trend is still as expected." },
+        { "name": "probability the close 6 bars later is higher", "value": "53 percent", "meaning": "The reading of a simple linear model fitted on the state and the surprise." }
+      ]
+    },
+    "reading": "A surprise 90 percent above typical at the bar level with a calm one-hour level says one bar was unusual while the larger picture held. A direction probability of 53 percent is barely off a coin flip, so use the surprise as a context flag first. Check on the run page whether it adds value after costs."
+  }
+}

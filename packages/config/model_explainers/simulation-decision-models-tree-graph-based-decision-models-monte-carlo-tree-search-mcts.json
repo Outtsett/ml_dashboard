@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-tree-graph-based-decision-models-monte-carlo-tree-search-mcts",
+  "name": "Monte Carlo Tree Search (MCTS)",
+  "analogy": "Think of it as a chess player with no rulebook for judging positions, who instead plays thousands of quick random games from each candidate move and then picks the move whose games went best on average. The more a move keeps winning, the more games it gets to play, so the effort piles up on the promising lines.",
+  "steps": [
+    {
+      "title": "Start a search tree at today's situation",
+      "description": "The tree begins with a single root that stands for the situation you face right now. Each possible action from that situation will become a branch. The tree starts tiny and is grown only where the search finds it worth looking.",
+      "inExample": "The root is the moment before the first slice of a 10-contract MNQ buy order, with three actions on offer: buy 1, buy 2 or buy 3 contracts now."
+    },
+    {
+      "title": "Walk down the most promising branch",
+      "description": "From the root, the search repeatedly picks the branch that has either scored well so far or been tried too rarely to judge. This balance of rewarding winners and still testing neglected options stops it from locking onto an early lucky streak.",
+      "inExample": "In the first few dozen walks all three branches are tried; later the buy-2 branch, with the lowest average cost so far, gets chosen more often."
+    },
+    {
+      "title": "Add one new step to the tree",
+      "description": "When the walk reaches a spot where an action has never been tried, the search adds that action as a new branch. The tree therefore grows one step at a time, and only along lines that were chosen for a reason.",
+      "inExample": "After buying 2 contracts now, the search adds a branch for the next 5-minute slice: buy 1, 2 or 3 more."
+    },
+    {
+      "title": "Play out the rest at random",
+      "description": "From the new branch the search finishes the order by playing quick random choices against a simulated market that reacts to the size traded, until all 10 contracts are bought or the 30-minute window ends. The result of that one play-through is its score.",
+      "inExample": "One play-through fills the remaining 8 contracts in random slices and ends with a total extra cost of 12 US dollars compared with buying everything at the starting price."
+    },
+    {
+      "title": "Send the score back up the tree",
+      "description": "The score from the play-through is added to every branch the walk passed through, from the new step back up to the root. Each branch keeps a running average and a count of how many times it has been visited.",
+      "inExample": "The 12 US dollar cost is added to the new slice's record and to the buy-2 branch at the root, which now has one more visit."
+    },
+    {
+      "title": "Repeat, then choose the most visited action",
+      "description": "Steps two to five repeat thousands of times, or until the time budget runs out, and the search can be stopped at any moment. The recommended action is the root branch that was visited most, because visits pile up on branches that kept looking good.",
+      "inExample": "After 2,000 simulations the buy-2 branch holds 1,120 visits with an average extra cost of 10 US dollars for the whole order, so the recommendation is to buy 2 contracts now."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Slicing a large order over time",
+      "example": "Choosing how many MNQ contracts to buy in each 5-minute slice so that the order's own price impact is smallest across 30 minutes."
+    },
+    {
+      "task": "Planning a sequence of hedge adjustments",
+      "example": "Searching over a series of small futures hedges against a simulated market that moves after each hedge, to keep exposure near zero at low cost."
+    },
+    {
+      "task": "Building or trimming a position step by step",
+      "example": "Deciding in which order to add three planned entries to a trade when each addition changes the average entry price and the remaining risk."
+    },
+    {
+      "task": "Rebalancing a book with many discrete trades",
+      "example": "Finding a cheap sequence of ES and MNQ trades that reaches a target exposure when trading cost grows with size."
+    }
+  ],
+  "avoidWhen": [
+    "You only need a one-step prediction such as next-bar direction; a classifier gives that directly, while a tree search spends effort on planning you do not need.",
+    "You have no trustworthy simulator of how the market responds; the search is only as good as the simulated market it plays inside, and a poor simulator gives confident but wrong advice."
+  ],
+  "example": {
+    "scenario": "A fund must buy 10 MNQ contracts over the next 30 minutes with as little price impact as possible. At 10:15 the search is asked how many contracts to buy in the first 5-minute slice, using a simulated market fitted to past order-book behavior.",
+    "input": {
+      "summary": "The current situation, the simulated market, and the search budget.",
+      "fields": [
+        { "name": "contracts still to buy", "value": "10", "meaning": "The size of the whole order that must be completed within the window." },
+        { "name": "time window", "value": "30 minutes, six 5-minute slices", "meaning": "How long the order has to finish." },
+        { "name": "starting price", "value": "19,840", "meaning": "The MNQ price when the first slice is about to be sent." },
+        { "name": "average true range, 14 bars", "value": "18 points", "meaning": "How much a typical 5-minute bar moves, which sets how fast price can run away from the order." },
+        { "name": "actions at the first slice", "value": "buy 1, buy 2 or buy 3 contracts", "meaning": "The three branches at the root of the search tree." },
+        { "name": "simulations allowed", "value": "2,000", "meaning": "The search budget: how many random play-throughs it may run before answering." }
+      ]
+    },
+    "output": {
+      "summary": "For each first action, how often the search chose it and the average extra cost of the whole order it saw, plus the recommendation.",
+      "fields": [
+        { "name": "buy 1 contract: visits and average extra cost", "value": "410 visits, 14 US dollars", "meaning": "Extra cost is what the whole 10-contract order cost above buying everything at the starting price, averaged over the play-throughs." },
+        { "name": "buy 2 contracts: visits and average extra cost", "value": "1,120 visits, 10 US dollars", "meaning": "The branch with the lowest average extra cost, so it attracted the most visits." },
+        { "name": "buy 3 contracts: visits and average extra cost", "value": "470 visits, 16 US dollars", "meaning": "Buying more at once pushed the simulated price further against the order." },
+        { "name": "recommended first action", "value": "buy 2 contracts", "meaning": "The root branch with the most visits." }
+      ]
+    },
+    "reading": "An average extra cost of 10 US dollars for the whole order is about 1 US dollar per contract in simulated cost. Run the search again with a different random seed: if the recommendation changes, the budget was too small to separate the options. The numbers describe the simulated market, so compare them with real fills before trusting them."
+  }
+}

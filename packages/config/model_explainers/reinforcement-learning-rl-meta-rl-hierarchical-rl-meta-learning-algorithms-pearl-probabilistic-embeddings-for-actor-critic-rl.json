@@ -1,0 +1,82 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-pearl-probabilistic-embeddings-for-actor-critic-rl",
+  "name": "PEARL (Probabilistic Embeddings for Actor-Critic RL)",
+  "analogy": "Think of it as a trader walking into an unfamiliar session who keeps a running guess of what kind of day it is, along with how sure he is. Early on the guess is vague so he probes with small positions; as the day shows its character the guess sharpens and he commits.",
+  "steps": [
+    {
+      "title": "Collect a short context of recent transitions",
+      "description": "Each transition is one step of experience: what the market looked like, the exposure taken, the reward received and what happened next. A small bundle of the most recent ones forms the context.",
+      "inExample": "The context is the last 20 five-minute bars of MNQ with the exposure the policy held and the reward each paid."
+    },
+    {
+      "title": "Turn each transition into a small belief",
+      "description": "An encoder looks at every transition by itself and produces a rough Gaussian belief about the hidden task code, meaning a bell-shaped guess with a centre and a width.",
+      "inExample": "Each of the 20 transitions gives its own guess about a 5-number task code, some wide, some narrow."
+    },
+    {
+      "title": "Combine the beliefs into one posterior",
+      "description": "The individual beliefs are multiplied together so that confident ones count for more. The result does not depend on the order of the transitions, and it narrows as more evidence arrives.",
+      "inExample": "The combined belief is centred near a calm, mildly trending day, with a width of 55 percent of its starting width before any bars were seen."
+    },
+    {
+      "title": "Sample a task code from the belief",
+      "description": "A single task code is drawn from the combined belief. A wide belief gives varied draws, which makes the policy explore; a narrow belief gives nearly the same draw every time, which makes it commit.",
+      "inExample": "The draw lands at a point that reads as a quiet, slow-trend day."
+    },
+    {
+      "title": "Let the actor read the bar and the code",
+      "description": "A soft actor-critic policy takes the current bar's features and the sampled task code and outputs a target exposure, a number from fully short to fully long, with an entropy bonus that keeps it from becoming overconfident.",
+      "inExample": "With the quiet-day code and a relative strength index of 58 the actor outputs a target exposure of 35 percent of the maximum long."
+    },
+    {
+      "title": "Train from a replay store",
+      "description": "During training the encoder and actor-critic learn from stored past experience rather than only fresh rollouts, with a penalty keeping the belief close to a plain bell-shaped prior unless the evidence justifies moving it.",
+      "inExample": "The 20 transitions came from a replay store, so the same history also trains the encoder on other days."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "One policy across many instruments",
+      "example": "A single exposure policy that reads MNQ, ES and other index futures and infers from recent bars which one it is effectively trading."
+    },
+    {
+      "task": "Regime-aware exposure sizing",
+      "example": "Holding a smaller exposure while the belief about the current regime is wide and increasing it as the belief narrows on a trending day."
+    },
+    {
+      "task": "Starting on a new instrument from a short history",
+      "example": "Beginning to size positions after only 20 bars of a newly added symbol."
+    },
+    {
+      "task": "Watching how well the situation is understood",
+      "example": "Using the width of the belief as a live signal; a persistently wide belief means conditions are not being identified."
+    }
+  ],
+  "avoidWhen": [
+    "The decision is a simple long-or-short class label from a table of features; a gradient boosting model is far easier to train and audit.",
+    "You cannot afford a replay store and long training; the encoder, actor and two critics are many moving parts to tune."
+  ],
+  "example": {
+    "scenario": "The policy is set loose on MNQ at the open with no prior knowledge of the day. After 20 five-minute bars it is asked what exposure to hold, with a maximum of 3 contracts.",
+    "input": {
+      "summary": "The recent context transitions and the features of the newest bar.",
+      "fields": [
+        { "name": "context length", "value": "20 five-minute bars", "meaning": "How many recent transitions the encoder uses to infer the task." },
+        { "name": "task code size", "value": "5 numbers", "meaning": "How many numbers describe the inferred situation." },
+        { "name": "belief width before any bars", "value": "100 percent", "meaning": "How uncertain the belief is at the start, equal to the plain prior; later widths are shown as a share of this." },
+        { "name": "close", "value": "19,105", "meaning": "The price at which the newest bar closed, rounded to the nearest point." },
+        { "name": "relative strength index, 14 bars", "value": "58", "meaning": "A momentum reading from 0 to 100; mildly positive." },
+        { "name": "average true range, 14 bars", "value": "17 points", "meaning": "The typical high-to-low travel of a recent bar, here quiet." }
+      ]
+    },
+    "output": {
+      "summary": "A target exposure and the current width of the belief about the task.",
+      "fields": [
+        { "name": "target exposure", "value": "35 percent of the maximum long", "meaning": "A number from minus 100 percent (fully short) to plus 100 percent (fully long); here a moderate long lean." },
+        { "name": "contracts held", "value": "1 contract", "meaning": "The exposure of 35 percent times the 3-contract maximum, rounded to whole contracts." },
+        { "name": "belief width after 20 bars", "value": "55 percent of the starting width", "meaning": "How uncertain the belief still is; lower means the situation is better identified." }
+      ]
+    },
+    "reading": "The exposure is the action, and the belief width is the confidence: a width that stays near 100 percent of its starting value means the context is not identifying anything and the exposure should not be trusted. Judge the exposure only after costs on bars it has not seen."
+  }
+}

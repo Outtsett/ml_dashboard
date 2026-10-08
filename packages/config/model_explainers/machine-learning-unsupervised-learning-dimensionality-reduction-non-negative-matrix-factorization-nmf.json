@@ -1,0 +1,89 @@
+{
+  "specificationId": "machine-learning-unsupervised-learning-dimensionality-reduction-non-negative-matrix-factorization-nmf",
+  "name": "Non-Negative Matrix Factorization (NMF)",
+  "analogy": "Think of it as finding the paint colours behind a set of paintings. Every painting is made by mixing a few base colours in different amounts, and you can only add paint, never remove it. The model discovers the base colours and how much of each every painting used.",
+  "steps": [
+    {
+      "title": "Arrange the data as a table of non-negative numbers",
+      "description": "The model needs a table where every value is zero or more, such as volumes, counts or ranges. Each row is an item, such as a trading day, and each column is a measurement, such as the volume in one time slot.",
+      "inExample": "The table has one row per trading day and six columns, each the total MNQ volume in one block of the day, for 250 days."
+    },
+    {
+      "title": "Choose how many building blocks to find",
+      "description": "You pick a small number of building-block patterns. Fewer blocks give a simpler summary and more blocks reproduce the days more exactly.",
+      "inExample": "Three building blocks are requested."
+    },
+    {
+      "title": "Start with random positive guesses",
+      "description": "The model begins with random positive guesses for the building blocks and for how much of each block each day uses. A smart start from a simpler decomposition is often used to get a stable answer.",
+      "inExample": "Three random positive volume shapes are drawn, and every day starts with equal amounts of each."
+    },
+    {
+      "title": "Nudge the amounts to rebuild the days better",
+      "description": "Holding the blocks fixed, the amounts each day uses are adjusted so that mixing the blocks recreates the real days more closely. The updates multiply by a factor, which keeps every number positive.",
+      "inExample": "Days with a heavy opening get more of the opening-heavy block, and days with a busy close get more of the closing block."
+    },
+    {
+      "title": "Nudge the blocks to rebuild the days better",
+      "description": "Then the blocks themselves are adjusted, holding the amounts fixed, to reduce the remaining difference between the rebuilt days and the real ones. Again every number stays positive.",
+      "inExample": "The opening-heavy block sharpens to put most of its volume in the first hour."
+    },
+    {
+      "title": "Repeat until the rebuild stops improving",
+      "description": "The two nudging steps alternate until the gap between the rebuilt table and the real table stops shrinking. The result is a set of additive building blocks and a small table of amounts.",
+      "inExample": "After 300 rounds the average gap is about 6 percent of the volume."
+    },
+    {
+      "title": "Read each block and score new items",
+      "description": "Because blocks can only add, each one is a readable pattern, such as a morning surge. A new day is described by how much of each block is needed to rebuild it, found by the same positive-only fitting.",
+      "inExample": "The new day needs 48 percent of the opening-heavy block, 17 percent of the midday-lull block and 35 percent of the closing-ramp block."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Finding typical intraday volume shapes",
+      "example": "Breaking each day's volume profile into an opening surge, a midday lull and a closing ramp, and seeing how much of each a day contains."
+    },
+    {
+      "task": "Compact, readable features",
+      "example": "Describing each trading day by three block amounts instead of six or 78 volume values, then feeding them to a model."
+    },
+    {
+      "task": "Spotting changes in how the day unfolds",
+      "example": "Watching whether the share of the opening-surge block creeps up over months, a sign the daily rhythm is changing."
+    },
+    {
+      "task": "Decomposing non-negative signals",
+      "example": "Splitting a matrix of trade counts by price level and time into a few recurring activity patterns."
+    }
+  ],
+  "avoidWhen": [
+    "Your data can be negative, such as returns or standardized features; the method cannot handle negative values, so use principal component analysis or independent component analysis.",
+    "You want the best possible compression of variance; blocks are chosen for readability rather than ranking by importance, so principal component analysis compresses more tightly."
+  ],
+  "example": {
+    "scenario": "A researcher summarises how MNQ volume is spread across a regular trading day, using 250 days and three building blocks, and then decomposes one new day.",
+    "input": {
+      "summary": "Total volume in six blocks of the day for the new day, in contracts.",
+      "fields": [
+        { "name": "volume in block 1, first hour", "value": "210,000", "meaning": "Contracts traded during the first hour of the day, usually the busiest." },
+        { "name": "volume in block 2", "value": "120,000", "meaning": "Contracts traded in the second hour." },
+        { "name": "volume in block 3", "value": "80,000", "meaning": "Contracts traded in the third hour, near the midday lull." },
+        { "name": "volume in block 4", "value": "75,000", "meaning": "Contracts traded in the fourth hour, the quietest stretch." },
+        { "name": "volume in block 5", "value": "95,000", "meaning": "Contracts traded in the fifth hour as activity returns." },
+        { "name": "volume in block 6, final stretch", "value": "150,000", "meaning": "Contracts traded in the closing stretch, also usually busy." },
+        { "name": "building blocks requested", "value": "3", "meaning": "How many patterns the model was asked to find." }
+      ]
+    },
+    "output": {
+      "summary": "How much of each building-block pattern the day needs, and how well the rebuild matches.",
+      "fields": [
+        { "name": "share from the opening-surge pattern", "value": "48 percent", "meaning": "How much of the day's volume is explained by the pattern concentrated in the first hour." },
+        { "name": "share from the midday-lull pattern", "value": "17 percent", "meaning": "How much is explained by the flat, low-volume pattern through the middle of the day." },
+        { "name": "share from the closing-ramp pattern", "value": "35 percent", "meaning": "How much is explained by the pattern rising into the close." },
+        { "name": "rebuild gap", "value": "6 percent of total volume", "meaning": "How far the volume rebuilt from the three patterns differs from the actual day." }
+      ]
+    },
+    "reading": "This was an opening-heavy day with a busy close and a short lull: close to half its volume follows the opening-surge pattern. Use the three shares as day-type features, and watch the rebuild gap, because a large gap means the day has a shape the three patterns do not capture."
+  }
+}

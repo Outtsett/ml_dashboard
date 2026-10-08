@@ -1,0 +1,78 @@
+{
+  "specificationId": "probabilistic-symbolic-models-symbolic-reasoning-systems-rule-based-system",
+  "name": "Rule-Based System",
+  "analogy": "Think of it as a pre-flight checklist read from the top: the first line that applies decides what you do, and you can point to that exact line afterwards. There is no learning and no maybe, only a fixed list and a clear answer.",
+  "steps": [
+    {
+      "title": "Write the rules in priority order",
+      "description": "Each rule pairs one condition on the current bar with one action. The list is ordered by importance, so safety checks sit above entry ideas.",
+      "inExample": "Rule one stands aside when the spread is wide, rule two stands aside outside the trading session, rule three buys on an uptrend, and rule four sells on a downtrend."
+    },
+    {
+      "title": "Collect the current facts",
+      "description": "The system reads the values it needs from the bar that just closed. Nothing is stored between bars and nothing is derived beyond what the conditions ask for.",
+      "inExample": "For the 10:20 five-minute bar it reads the spread, the session clock, the trend direction and the relative strength index."
+    },
+    {
+      "title": "Test each condition from the top",
+      "description": "Conditions are plain true or false tests. The system walks down the list in order and checks each one against the facts, with no weighting and no partial credit.",
+      "inExample": "The spread is one tick, so rule one is false. The bar is inside the session, so rule two is false. The trend is up and the index is below 70, so rule three is true."
+    },
+    {
+      "title": "Stop at the first rule that fires",
+      "description": "The first true condition wins and everything below it is ignored. This fixed conflict policy is what makes every decision reproducible.",
+      "inExample": "Rule three fires, so rule four is never looked at, even though it might also have been partly satisfied."
+    },
+    {
+      "title": "Return the action and the rule that caused it",
+      "description": "The output is the action attached to the winning rule, along with which rule it was. If no rule fires, a default action, usually do nothing, is returned.",
+      "inExample": "The system returns buy one contract and records that rule three produced it."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "A strict entry filter",
+      "example": "Requiring the trend filter, then the volatility filter, then the session filter to pass in that order before a breakout entry is allowed on Micro E-mini Nasdaq-100 futures (MNQ)."
+    },
+    {
+      "task": "Risk reduction steps",
+      "example": "Halving size once the day's loss passes a first limit and flattening everything at a second limit, with each trigger traceable to one rule."
+    },
+    {
+      "task": "Pre-trade sanity checks",
+      "example": "Blocking an order when the maximum position is reached, the market is closed or the spread is too wide."
+    },
+    {
+      "task": "The plain reference strategy",
+      "example": "Running a simple indicator-threshold strategy on the same walk-forward folds so that any learned model has a transparent baseline to be compared against."
+    }
+  ],
+  "avoidWhen": [
+    "The right decision depends on subtle combinations of many features; a learned model such as gradient boosting finds those combinations, while a hand-written list only holds the ones you thought of.",
+    "You need a graded degree of conviction, such as scaling size by confidence; a fuzzy system or a probability model gives that, whereas rules here only fire or do not."
+  ],
+  "example": {
+    "scenario": "A five-minute bar on Micro E-mini Nasdaq-100 futures (MNQ) closes at 10:20 Pacific time. A four-rule list decides whether to buy, sell, or stand aside.",
+    "input": {
+      "summary": "The handful of facts the rules ask about for this one bar.",
+      "fields": [
+        { "name": "close", "value": "19,615", "meaning": "The price at which the 10:20 five-minute bar closed." },
+        { "name": "spread", "value": "1 tick (a quarter point)", "meaning": "The gap between best bid and best ask, a normal reading for this contract." },
+        { "name": "inside the trading session", "value": "yes", "meaning": "Whether the bar falls inside the hours the strategy is allowed to trade." },
+        { "name": "trend direction", "value": "up", "meaning": "The close is above the 50-bar moving average and that average is rising." },
+        { "name": "relative strength index, 14 bars", "value": "58", "meaning": "A momentum reading from 0 to 100; below 70 means the move is not yet stretched." },
+        { "name": "average true range, 14 bars", "value": "21 points", "meaning": "The typical high-to-low travel of a recent bar, used for the stop distance." }
+      ]
+    },
+    "output": {
+      "summary": "One action, the rule that produced it, and a default if nothing fires.",
+      "fields": [
+        { "name": "action", "value": "buy 1 contract", "meaning": "The instruction attached to the first rule whose condition was true." },
+        { "name": "rule that fired", "value": "rule 3, uptrend entry", "meaning": "The position in the list of the winning rule, so the decision can be audited." },
+        { "name": "rules checked", "value": "3 of 4", "meaning": "How far down the list the system went before it stopped." },
+        { "name": "stop distance", "value": "21 points (42 US dollars per contract)", "meaning": "One average true range below the entry, as the rule specifies." }
+      ]
+    },
+    "reading": "The action can be sent directly because the reason is exact: rule three fired and nothing above it did. If the strategy loses money, look at which rule fired on the losing trades and edit that rule, rather than retraining anything."
+  }
+}

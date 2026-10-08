@@ -1,0 +1,84 @@
+{
+  "specificationId": "optimization-based-models-decomposition-relaxation-lagrangian-relaxation",
+  "name": "Lagrangian Relaxation",
+  "analogy": "Think of it as a desk head who cannot enforce a hard limit of three trades a day, so instead charges every trader a fee per trade. If too many trades come in, the fee goes up; if too few, it goes down. When the fee is right, the desk naturally lands on about three trades.",
+  "steps": [
+    {
+      "title": "Pick the awkward rule to relax",
+      "description": "Find the one rule that makes the problem hard, and set it aside. Everything else stays as a strict rule. Without the awkward rule the problem becomes easy enough to solve in one pass.",
+      "inExample": "The awkward rule is pick at most 3 of 8 candidate setups. Without it, the answer is simply take every setup that has a positive score."
+    },
+    {
+      "title": "Turn the rule into a price",
+      "description": "Instead of forbidding a violation, charge a price for each unit of it. The price starts at zero, which means the rule is ignored, and it is the only thing the method will adjust from here on.",
+      "inExample": "The price per chosen setup starts at 0 points, so all 8 setups look attractive and the relaxed answer picks all 8."
+    },
+    {
+      "title": "Solve the easy version with the price included",
+      "description": "Each option now has its own score minus the price. The easy problem is solved exactly: keep every option whose score still beats the price. This solve is fast, and its total is a ceiling: no answer that obeys the rule can score higher.",
+      "inExample": "At a price of 5 points, setups scoring 12, 10, 9, 7 and 6 stay. The relaxed total is 34 points: the price of 5 points on 3 allowed picks plus what the five kept setups clear above the price. It is a ceiling on what any legal pick can reach."
+    },
+    {
+      "title": "Check how badly the rule was broken",
+      "description": "Count how far the easy solution overshoots or undershoots the relaxed rule. This gap tells the method which direction to move the price.",
+      "inExample": "At a price of 5 points, 5 setups were chosen against a limit of 3, so the rule was broken by 2 and the price is too low."
+    },
+    {
+      "title": "Nudge the price and repeat",
+      "description": "If the rule was broken, raise the price; if the answer was too timid, lower it. Step sizes shrink over time. Each round produces a new upper limit, and the lowest one seen so far is the tightest.",
+      "inExample": "Raising the price to 6 gives an upper limit of 32 points with 4 setups, and raising it to 7 gives 31 points with the 3 best setups."
+    },
+    {
+      "title": "Repair into a legal answer and report the gap",
+      "description": "The relaxed answer may still break the rule, so a simple repair step makes it legal, for example by keeping only the best items. The distance between the repaired answer and the upper limit shows how close to the best possible answer you are.",
+      "inExample": "Keeping the setups scoring 12, 10 and 9 gives a legal answer worth 31 points, equal to the upper limit of 31, so the gap is zero."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Picking at most a fixed number of trades",
+      "example": "From 8 candidate setups on MNQ five-minute bars, choose the best 3 by expected net points while keeping a hard daily cap on trade count."
+    },
+    {
+      "task": "Bounding a shared capital or margin limit",
+      "example": "Several strategies share one margin pool; relax the pool limit into a price per dollar of margin to see the best total any legal split could reach."
+    },
+    {
+      "task": "Judging a fast heuristic",
+      "example": "A quick rule fills a portfolio and scores 28 points; the Lagrangian upper limit says nothing legal can exceed 31, so the heuristic is within about 10 percent."
+    },
+    {
+      "task": "Pruning inside an exact search",
+      "example": "Supplying the upper limit at each branch of an exact trade-selection solver so that branches that cannot win are dropped early."
+    }
+  ],
+  "avoidWhen": [
+    "The problem has no awkward rule to relax or is already small; a direct exact solver finds the answer without the price-adjusting loop.",
+    "You need a feasible answer you can trade right away and have no repair step; the relaxed solution on its own can break the rule it relaxed."
+  ],
+  "example": {
+    "scenario": "A research desk has 8 candidate MNQ setups for tomorrow, each with an expected net score in points after costs. Risk rules allow at most 3 trades. The method finds the best legal total and proves how close it is.",
+    "input": {
+      "summary": "Eight setups with expected net scores, and one hard limit on how many may be taken.",
+      "fields": [
+        { "name": "setup 1 expected net score", "value": "12 points", "meaning": "Expected result of the first setup after commission and slippage, in MNQ points." },
+        { "name": "setup 2 expected net score", "value": "10 points", "meaning": "Expected result of the second setup after costs." },
+        { "name": "setup 3 expected net score", "value": "9 points", "meaning": "Expected result of the third setup after costs." },
+        { "name": "setups 4 to 8 expected net scores", "value": "7, 6, 4, 3 and 1 points", "meaning": "The remaining five setups, each weaker than the first three." },
+        { "name": "maximum trades allowed", "value": "3", "meaning": "The hard risk limit that is turned into a price." },
+        { "name": "value of one MNQ point", "value": "2 US dollars", "meaning": "Converts the scores from points into money." }
+      ]
+    },
+    "output": {
+      "summary": "The price that balances the rule, an upper limit, and a legal pick that reaches it.",
+      "fields": [
+        { "name": "balancing price per chosen setup", "value": "7 points", "meaning": "The price at which the number of attractive setups settles near the limit of 3." },
+        { "name": "upper limit on any legal total", "value": "31 points", "meaning": "No legal choice of at most 3 setups can score higher than this." },
+        { "name": "repaired legal choice", "value": "setups 1, 2 and 3", "meaning": "The three best setups, which respect the limit of 3 trades." },
+        { "name": "legal choice total", "value": "31 points (62 US dollars)", "meaning": "What the repaired choice is expected to earn if the scores are right." },
+        { "name": "gap to the upper limit", "value": "0 points", "meaning": "The repaired choice reaches the upper limit, so it is provably the best legal pick." }
+      ]
+    },
+    "reading": "A gap of zero means the pick is the best possible for these scores. The scores themselves are only estimates, so the guarantee is about the arithmetic, not about tomorrow's market. If the gap were large, the pick might be improved and the next step would be an exact solver."
+  }
+}

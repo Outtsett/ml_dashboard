@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-consistency-based-methods-consistency-regularization-e-g-model-mean-teacher",
+  "name": "Consistency Regularization (Π-model, Mean Teacher)",
+  "analogy": "Think of it as asking the same analyst about the same market twice, once with a slightly blurred chart and once with a slightly different one. A sound analyst gives the same answer both times. You grade them on the few cases where you know the truth, and on every other case you simply penalise answers that change when the chart is blurred.",
+  "steps": [
+    {
+      "title": "Start with a few labels and many unlabeled windows",
+      "description": "The data has two parts: a small set of windows with known labels, and a large set with none. Both are used, but in different ways.",
+      "inExample": "There are 300 five-minute MNQ windows labelled trending, ranging or volatile, and 20,000 unlabeled windows from the same year."
+    },
+    {
+      "title": "Make two slightly different versions of each window",
+      "description": "Each window is copied twice with small random changes, such as a little noise, a slight change of scale, or random switching off of parts of the network. The two versions describe the same market moment.",
+      "inExample": "One unlabeled window becomes version one, with 1 percent noise, and version two, with a 2 percent change of scale."
+    },
+    {
+      "title": "Get a prediction for each version",
+      "description": "In the Pi-model the same network predicts both versions. In Mean Teacher, a second network called the teacher predicts one of them. The teacher is a slow running average of the student's weights, so its answers are steadier.",
+      "inExample": "The student gives trending 62 percent, ranging 27 percent, volatile 11 percent for version one. The teacher gives trending 66 percent, ranging 24 percent, volatile 10 percent for version two."
+    },
+    {
+      "title": "Penalise disagreement",
+      "description": "The two sets of predictions are compared, and the gap is added to the training error. The model is pushed to answer the same way however the input is lightly disturbed, which smooths its decision boundary through regions where no labels exist.",
+      "inExample": "The two answers differ by at most 4 percentage points, so the penalty for this window is small."
+    },
+    {
+      "title": "Add the normal error on the labelled windows",
+      "description": "On the windows with labels the model is also graded the usual way, by how far its answer is from the truth. The disagreement penalty starts near zero and is raised slowly, so the model learns from the labels first.",
+      "inExample": "In the first epochs the disagreement penalty is close to zero, and by epoch 30 it has been raised to its full strength."
+    },
+    {
+      "title": "Update the teacher as a slow average",
+      "description": "After each step the teacher's weights move a tiny amount toward the student's, for example 99 parts old to 1 part new. The teacher therefore lags the student and gives steadier targets for the next round.",
+      "inExample": "The teacher moves 1 percent of the way toward the student after each step, so after 100 steps it has covered about two thirds of the gap."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Classifying regimes with few labels",
+      "example": "Labelling windows as trending, ranging or volatile when only 300 of 20,000 windows have a label."
+    },
+    {
+      "task": "Making a classifier robust to noise",
+      "example": "Training a model whose regime call does not flip when the last bar's close is nudged by one tick."
+    },
+    {
+      "task": "Chart pattern recognition with limited labels",
+      "example": "Classifying candlestick pictures into pattern types from a small labelled set and a large pool of unlabeled charts."
+    },
+    {
+      "task": "Spotting inconsistent predictions",
+      "example": "Flagging windows where small disturbances flip the answer, which marks them as borderline and unreliable."
+    }
+  ],
+  "avoidWhen": [
+    "You have plenty of labels for every class; plain supervised training with a good validation scheme is simpler and does not depend on how you choose the disturbances.",
+    "You cannot design disturbances that leave the true label unchanged; if noise really changes the regime, forcing the answer to stay the same teaches the wrong thing.",
+    "You need a fast, easily explained model; a gradient boosted tree on named features is easier to read than a network trained on consistency."
+  ],
+  "example": {
+    "scenario": "A research job classifies five-minute MNQ windows into three regimes using 300 labelled windows and 20,000 unlabeled ones. One unlabeled window is checked under two light disturbances.",
+    "input": {
+      "summary": "One unlabeled 30-bar window and two lightly disturbed copies of it.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "noise added to version one", "value": "1 percent of the bar range", "meaning": "A small random change used to create the first disturbed copy." },
+        { "name": "scale change in version two", "value": "2 percent", "meaning": "A slight stretch of the window used to create the second disturbed copy." },
+        { "name": "labelled windows available", "value": "300 of 20,000", "meaning": "The small share of windows that have a known regime label." }
+      ]
+    },
+    "output": {
+      "summary": "Regime probabilities for each version and the disagreement between them.",
+      "fields": [
+        { "name": "student probabilities, version one", "value": "trending 62 percent, ranging 27 percent, volatile 11 percent", "meaning": "What the network being trained says about the first copy." },
+        { "name": "teacher probabilities, version two", "value": "trending 66 percent, ranging 24 percent, volatile 10 percent", "meaning": "What the slowly averaged teacher says about the second copy." },
+        { "name": "largest gap between the two answers", "value": "4 percentage points", "meaning": "The biggest difference on any one class; zero would mean the answers are identical." },
+        { "name": "regime call", "value": "trending", "meaning": "The class with the highest probability in the final model." }
+      ]
+    },
+    "reading": "A largest gap of 4 percentage points means the answer is stable under light disturbance, so the trending call is trustworthy for this window. A large disagreement would mark a borderline window. The regime label is only useful if a strategy behaves differently by regime, which the run page tests across walk-forward folds."
+  }
+}

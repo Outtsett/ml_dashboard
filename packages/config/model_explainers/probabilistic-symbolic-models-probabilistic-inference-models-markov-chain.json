@@ -1,0 +1,77 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-inference-models-markov-chain",
+  "name": "Markov Chain",
+  "analogy": "Think of it as a board game where your next square depends only on the square you are standing on, never on how you got there. The model is just the table of odds for each square, built by counting how often the market made each move.",
+  "steps": [
+    {
+      "title": "Cut the market into a few labelled states",
+      "description": "A continuous reading is turned into a short list of states, such as low, medium and high. The cut points are fixed from the training data so that every bar lands in exactly one state.",
+      "inExample": "The 14-bar average true range of MNQ 5-minute bars is cut into low under 15 points, medium 15 to 30 points, and high over 30 points."
+    },
+    {
+      "title": "Label every bar with its state",
+      "description": "Each bar in the history gets the state it belonged to, which turns the price history into a plain sequence of labels such as medium, medium, high, medium.",
+      "inExample": "A year of regular-session bars becomes a string of about 18,000 labels."
+    },
+    {
+      "title": "Count the moves from each state",
+      "description": "For every state the model counts how often the next bar was in each state. Each row of counts is divided by its total to give odds that add up to 100 percent.",
+      "inExample": "Out of 8,000 medium bars, 1,760 were followed by low, 4,640 by medium and 1,600 by high."
+    },
+    {
+      "title": "Turn counts into the transition table",
+      "description": "The table of odds is the entire model. Reading across a row gives the chance of each next state, given the state you are in now.",
+      "inExample": "From medium the odds are 22 percent low, 58 percent medium and 20 percent high; the low and high rows are counted the same way."
+    },
+    {
+      "title": "Look further ahead by multiplying the table",
+      "description": "To see two, three or more bars ahead, the table is multiplied by itself that many times. Repeating this far enough also shows the long-run share of time spent in each state.",
+      "inExample": "Multiplying the table out 3 bars from medium gives 32 percent low, 44 percent medium and 24 percent high; far enough out it settles at 34, 43 and 23 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "How sticky a volatility regime is",
+      "example": "Reading how often an MNQ market in the high-volatility state is still high on the next 5-minute bar."
+    },
+    {
+      "task": "A baseline to beat",
+      "example": "Checking whether a hidden Markov model's regime forecast is any better than this plain counting table before adopting it."
+    },
+    {
+      "task": "Signal persistence",
+      "example": "Counting how often an overbought reading of the relative strength index is still overbought on the next bar."
+    },
+    {
+      "task": "Quiet-to-busy transitions at a session boundary",
+      "example": "Estimating the chance that a quiet pre-market bar is followed by an active bar when the New York session opens."
+    }
+  ],
+  "avoidWhen": [
+    "The next state clearly depends on more than the current state, such as on how long the market has been in it; a hidden Markov model or a sequence model holds that memory.",
+    "The input is a continuous reading you cannot meaningfully cut into a few states, because the cuts discard detail that a regression would keep."
+  ],
+  "example": {
+    "scenario": "You track MNQ volatility on 5-minute bars in three states. The latest 14-bar average true range is 22 points, so the market is in the medium state, and you want the odds for the next bars.",
+    "input": {
+      "summary": "The current state and the transition table learned from counting a year of bars.",
+      "fields": [
+        { "name": "current 14-bar average true range", "value": "22 points", "meaning": "The reading that places the market in a state; one point is worth 2 US dollars per contract." },
+        { "name": "current state", "value": "medium", "meaning": "The band, 15 to 30 points, that the reading falls in." },
+        { "name": "bars observed in the medium state", "value": "8,000", "meaning": "The number of training bars the medium row of the table was counted from." },
+        { "name": "next-bar odds from medium", "value": "22 low, 58 medium, 20 high", "meaning": "The learned chance of each state on the following bar, in percent." },
+        { "name": "next-bar odds from low", "value": "62 low, 31 medium, 7 high", "meaning": "The learned chance of each state on the following bar after a low-volatility bar, in percent." },
+        { "name": "next-bar odds from high", "value": "15 low, 33 medium, 52 high", "meaning": "The learned chance of each state on the following bar after a high-volatility bar, in percent." }
+      ]
+    },
+    "output": {
+      "summary": "The odds for the next bar, for 3 bars ahead, and the long-run share of each state.",
+      "fields": [
+        { "name": "state 1 bar ahead", "value": "22 percent low, 58 percent medium, 20 percent high", "meaning": "Read straight from the medium row of the transition table." },
+        { "name": "state 3 bars ahead", "value": "32 percent low, 44 percent medium, 24 percent high", "meaning": "The table multiplied by itself 3 times, starting from medium." },
+        { "name": "long-run share of time", "value": "34 percent low, 43 percent medium, 23 percent high", "meaning": "Where the market ends up spending its time if the table held for a very long run." }
+      ]
+    },
+    "reading": "By 3 bars ahead (15 minutes) the odds are already within a couple of points of the long-run mix, so the current volatility state says little beyond a few bars. That is a useful honest baseline; any fancier regime model should beat these numbers on held-out bars to earn its complexity."
+  }
+}

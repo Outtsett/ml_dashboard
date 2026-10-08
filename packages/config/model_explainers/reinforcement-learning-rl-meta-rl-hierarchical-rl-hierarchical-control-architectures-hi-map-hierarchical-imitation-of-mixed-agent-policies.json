@@ -1,0 +1,87 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-hi-map-hierarchical-imitation-of-mixed-agent-policies",
+  "name": "HI-MAP (Hierarchical Imitation of Mixed Agent Policies)",
+  "analogy": "Think of it as a trading desk manager who has learned, by watching, which of the desk's specialists to hand the book to at any moment: the mean-reversion trader in a quiet range, the breakout trader on a big morning, the closer who flattens everything before the session ends.",
+  "steps": [
+    {
+      "title": "Build a library of specialist policies",
+      "description": "Gather several sub-policies that each trade well in a narrow situation. They can come from rules, from past human decisions or from earlier trained models. None of them has to be good everywhere.",
+      "inExample": "Three specialists are collected: a mean-reversion policy, a breakout policy and a flatten-before-the-close policy, all acting on 5-minute MNQ bars."
+    },
+    {
+      "title": "Record which specialist was in charge for each bar",
+      "description": "For each historical bar, the demonstrations say which specialist a skilled trader or a rule set was using, and what action it took. The specialist labels, not the raw trades, are what the top level learns from.",
+      "inExample": "At 10:05 the demonstrations mark the breakout policy; at 12:30 they mark mean reversion; at 15:50 they mark the flatten policy."
+    },
+    {
+      "title": "Teach the selector to imitate the choice",
+      "description": "The high-level selector reads the bar's features and learns to predict which specialist the demonstrations would pick. It copies the assignment decision rather than any single trade.",
+      "inExample": "After training, given a wide opening bar with heavy volume, the selector leans strongly toward the breakout specialist."
+    },
+    {
+      "title": "Teach each specialist its own behavior",
+      "description": "Each low-level policy is trained to copy the actions of its demonstrated expert in the situations where it is assigned. This warm start removes the slow trial-and-error search a fresh agent would need.",
+      "inExample": "The breakout policy learns to enter in the direction of a bar that closes beyond the prior 12-bar high, sized at 2 contracts."
+    },
+    {
+      "title": "Fine-tune the whole stack with rewards",
+      "description": "Once the copies work, reinforcement learning with a profit-and-cost reward improves the selector and the specialists together. A penalty keeps the selector from drifting too far from what it copied, so it can improve on the demonstrations without inventing odd behavior.",
+      "inExample": "Trading costs of about 1 US dollar per contract per side are charged, which teaches the selector to avoid switching specialists on every bar."
+    },
+    {
+      "title": "Blend or choose at decision time",
+      "description": "On a new bar the selector outputs a weight for each specialist. The system can follow the single top choice or mix the specialists' actions by those weights. A flat specialist can take over when the selector is unsure.",
+      "inExample": "At 10:35 the weights are 62 percent breakout, 30 percent mean reversion and 8 percent flatten, so the blended action is a small long position of 1 contract."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Blending a trend specialist and a range specialist",
+      "example": "Letting one selector decide, bar by bar on MNQ 5-minute data, whether the breakout rules or the fade rules should be steering right now."
+    },
+    {
+      "task": "Distilling a discretionary trader's habits",
+      "example": "Learning from a logged history of which approach a trader used in each situation, then using rewards to improve on that history."
+    },
+    {
+      "task": "Managing several existing systematic strategies",
+      "example": "Allocating control among three finished strategies on ES and MNQ so that each one trades only in the regimes where it has worked."
+    },
+    {
+      "task": "Handling the open and the close separately",
+      "example": "Giving the first 15 minutes after the cash open and the last 10 minutes before the close their own dedicated specialists."
+    },
+    {
+      "task": "Retreating to flat around news",
+      "example": "Routing to a do-nothing specialist when the selector's confidence collapses around a scheduled economic release."
+    }
+  ],
+  "avoidWhen": [
+    "You have no trustworthy specialists or demonstrations to imitate; a single model trained directly on labeled outcomes is simpler and does not inherit anyone's blind spots.",
+    "The specialists are all near-copies of one idea; the selector then has nothing real to choose between and only adds complexity."
+  ],
+  "example": {
+    "scenario": "At 10:35 Eastern on an MNQ session, the system has three specialists and must decide who controls the next 5-minute bar after a strong opening drive.",
+    "input": {
+      "summary": "The current bar's features plus the position the system already holds.",
+      "fields": [
+        { "name": "close", "value": "19,847", "meaning": "The price at which the 10:35 five-minute bar closed, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "31 points", "meaning": "The typical high-to-low travel of a recent bar, showing that the market is moving widely." },
+        { "name": "close against prior 12-bar high", "value": "plus 6 points", "meaning": "How far the close sits beyond the highest price of the previous twelve bars." },
+        { "name": "volume against its 20-bar average", "value": "110 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm; here a little over double." },
+        { "name": "minutes since the cash open", "value": "65", "meaning": "How far into the trading session the bar sits, which separates open, midday and close behavior." },
+        { "name": "current position", "value": "flat", "meaning": "The system holds no contracts going into this bar." }
+      ]
+    },
+    "output": {
+      "summary": "A weight for each specialist and the action those weights produce.",
+      "fields": [
+        { "name": "weight on breakout specialist", "value": "62 percent", "meaning": "How much control the selector gives the breakout policy for this bar." },
+        { "name": "weight on mean-reversion specialist", "value": "30 percent", "meaning": "How much control the selector gives the fade policy for this bar." },
+        { "name": "weight on flatten specialist", "value": "8 percent", "meaning": "How much control the selector gives the stay-flat policy for this bar." },
+        { "name": "blended action", "value": "buy 1 contract", "meaning": "The position change produced by mixing the three specialists' actions with those weights." }
+      ]
+    },
+    "reading": "The selector is leaning on the breakout specialist but not fully, so the system takes a small position rather than a full one. Watch the weights across bars: weights that jump around from bar to bar mean the selector is unstable, and every switch costs commission and slippage."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-task-aware-meta-rl",
+  "name": "Task-Aware Meta-RL",
+  "analogy": "Think of it as a trader who wears a name badge for the market he is in: it says what instrument, how volatile and whether trending. The same brain makes every decision, but it always reads the badge first, so it behaves differently in a calm session than in a wild one.",
+  "steps": [
+    {
+      "title": "Build a task description",
+      "description": "The model assembles a short list of numbers that says which kind of situation this is. It can come from fixed facts like instrument and timeframe, from recent behaviour of the bars, or from both.",
+      "inExample": "The description combines the fact that this is index futures with the last 60 bars' volatility, trend strength, share of up bars and time of day."
+    },
+    {
+      "title": "Compress it into an embedding",
+      "description": "A small encoder turns the raw description into a compact embedding, a handful of numbers that act as the badge. Similar situations get similar embeddings.",
+      "inExample": "The description becomes an 8-number embedding that reads as a volatile, mildly trending morning."
+    },
+    {
+      "title": "Attach the embedding to every decision",
+      "description": "The embedding is added to the bar's features as extra input for both the policy and the value estimator. Most of the network is shared; the embedding steers it toward the right specialisation.",
+      "inExample": "The policy's input is the bar's 35 base features plus the 8-number embedding."
+    },
+    {
+      "title": "Choose a position",
+      "description": "The policy gives a preference for each possible position given the features and the embedding. With a different embedding the same features can produce a different preference.",
+      "inExample": "The policy gives long 46 percent, flat 22 percent and short 32 percent."
+    },
+    {
+      "title": "Learn with a standard actor-critic update",
+      "description": "Policy, value estimator and encoder are trained together with an ordinary actor-critic update plus an entropy bonus that keeps the policy from locking onto one action. Nothing about the update itself is special; only the extra input is.",
+      "inExample": "Rewards earned over many mornings and afternoons update the policy and the encoder together."
+    },
+    {
+      "title": "Recompute the embedding at deployment",
+      "description": "At decision time the embedding is recomputed using only past bars, in exactly the way it was during training. If the description is unfamiliar, the effect fades toward the pooled behaviour.",
+      "inExample": "On the next bar the volatility statistics are refreshed from bars up to that close, and the embedding is recomputed."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "One policy for several instruments",
+      "example": "A single position policy that trades MNQ and ES, conditioned on which instrument and how volatile it currently is."
+    },
+    {
+      "task": "Regime-specialised behaviour from one network",
+      "example": "Letting a trending regime and a choppy regime produce different positions from the same set of 35 base features."
+    },
+    {
+      "task": "Cold start with metadata",
+      "example": "Starting a newly added contract on instrument details alone before its own bar history has built up."
+    },
+    {
+      "task": "Cutting size when the situation is unfamiliar",
+      "example": "Reducing position size automatically when the embedding sits far from anything seen in training."
+    }
+  ],
+  "avoidWhen": [
+    "You trade one instrument in one steady regime; the task description adds inputs that vary little and a plain actor-critic or tree model is simpler.",
+    "You need the model to react inside a session to a sudden change; an embedding built from past bars lags turns, so a model that adapts from its own recent rewards is a better fit."
+  ],
+  "example": {
+    "scenario": "At 9:55 the New York open is under way on MNQ. A single policy shared across instruments reads the situation badge built from the last 60 five-minute bars, then states what position it prefers.",
+    "input": {
+      "summary": "The bar's features plus statistics describing the recent market situation.",
+      "fields": [
+        { "name": "instrument", "value": "MNQ", "meaning": "The Micro E-mini Nasdaq-100 futures contract, part of the fixed task description." },
+        { "name": "average true range, 14 bars", "value": "34 points", "meaning": "The typical high-to-low travel of a recent bar, elevated at the open." },
+        { "name": "share of up bars, last 60", "value": "54 percent", "meaning": "How many of the last 60 five-minute bars closed above their open." },
+        { "name": "return over the last 60 bars", "value": "up about a third of a percent", "meaning": "How far price has risen over the previous five hours, a measure of how persistent the trend is." },
+        { "name": "time of day", "value": "09:55 New York", "meaning": "When in the session the bar closed, which shapes how volatile the market tends to be." },
+        { "name": "embedding size", "value": "8 numbers", "meaning": "How many numbers make up the compact situation badge." }
+      ]
+    },
+    "output": {
+      "summary": "A preference over the three positions, shaped by the situation badge.",
+      "fields": [
+        { "name": "share long", "value": "46 percent", "meaning": "How strongly the policy prefers holding a long position." },
+        { "name": "share flat", "value": "22 percent", "meaning": "How strongly the policy prefers staying out." },
+        { "name": "share short", "value": "32 percent", "meaning": "How strongly the policy prefers holding a short position." },
+        { "name": "probability the close is higher", "value": "59 percent", "meaning": "The long share divided by the long and short shares combined." }
+      ]
+    },
+    "reading": "Compare the result with the same actor-critic given a constant badge: only the difference shows what task awareness added. The 59 percent lean is a direction call for the newest bar and needs to survive trading costs before it matters."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "specificationId": "hybrid-composite-architectures-generative-discriminative-hybrids-autoencoder-gan-fusion",
+  "name": "Autoencoder-GAN Fusion",
+  "analogy": "Think of it as a forger and an examiner working from field notes. A summariser writes a short note about each real chart, the forger recreates a chart from only that note, and an examiner tries to tell the forgeries from the real ones. The forger improves until its copies pass, while the notes stay meaningful.",
+  "steps": [
+    {
+      "title": "Compress the real data into a short code",
+      "description": "An encoder network reads a real data window and squeezes it into a small code. This is the same first move as a plain autoencoder and gives the model a compact description of each window.",
+      "inExample": "A 30-bar window of 5-minute MNQ percentage returns is squeezed into a code of 8 numbers."
+    },
+    {
+      "title": "Rebuild the window from the code",
+      "description": "A decoder, which also plays the role of the forger, recreates the window from the code. The gap between the rebuilt and the real window is the reconstruction error, which keeps the forgeries tied to the real window they came from.",
+      "inExample": "The rebuilt window misses the real one by about 6 hundredths of a percent on average per bar."
+    },
+    {
+      "title": "Have an examiner judge real against generated",
+      "description": "A discriminator network is shown a mix of real windows and windows the decoder produced, rebuilt from a real code or made from a random one, and must say which is which. It is trained to get better at spotting fakes, and its accuracy tells how convincing the forger currently is.",
+      "inExample": "The examiner labels 78 percent of windows correctly in early training."
+    },
+    {
+      "title": "Train the forger to fool the examiner",
+      "description": "The decoder is also trained to make windows the examiner mistakes for real. This adversarial pressure removes the blurry, over-smoothed look that plain reconstruction produces, so generated windows keep realistic jumps and fat tails.",
+      "inExample": "After many rounds the examiner is down to 54 percent, almost a coin flip, and generated windows show realistic sharp bars."
+    },
+    {
+      "title": "Balance the two goals",
+      "description": "Reconstruction accuracy and examiner fooling are added into one score with weights. Too much weight on fooling can produce realistic but unrelated windows; too little brings back blur. The weights are tuned as settings.",
+      "inExample": "A weight of 1 on reconstruction and a tenth of that on fooling keeps rebuilt windows close to their originals while sharpening them."
+    },
+    {
+      "title": "Use the codes or the forger",
+      "description": "After training, the encoder gives compact codes for other models, the decoder generates new windows from random or edited codes, and the examiner can serve as a gauge of how realistic a window looks.",
+      "inExample": "Sampling 500 random codes produces 500 synthetic 30-bar windows with realistic bar-to-bar jumps."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Generating realistic synthetic price windows",
+      "example": "Creating 5-minute MNQ return windows that keep the occasional sharp bar, for stress-testing a strategy beyond the single history that happened."
+    },
+    {
+      "task": "Cleaning noisy series",
+      "example": "Passing a window with a few bad ticks through the encoder and decoder to get a smoother version that keeps the real structure."
+    },
+    {
+      "task": "Compact codes for downstream models",
+      "example": "Using the 8-number code of each 30-bar ES window as input to a regime classifier."
+    },
+    {
+      "task": "Augmenting scarce situations",
+      "example": "Generating extra high-volatility windows when only a few dozen real ones exist in the training period."
+    }
+  ],
+  "avoidWhen": [
+    "You want a stable, easy-to-train model; adversarial training is touchy and can swing or collapse, whereas a plain autoencoder or a normalizing flow trains steadily.",
+    "You need exact probabilities of rows; the fusion produces convincing samples but no exact likelihood, so a normalizing flow is the better fit."
+  ],
+  "example": {
+    "scenario": "A fusion model trained on 12 months of 30-bar windows of MNQ 5-minute percentage returns is used to create synthetic windows for a strategy stress test and to check how realistic one real window looks.",
+    "input": {
+      "summary": "A request for synthetic windows plus one real window to check.",
+      "fields": [
+        { "name": "window length in 5-minute bars", "value": "30", "meaning": "Number of consecutive bar returns in each window." },
+        { "name": "code length", "value": "8", "meaning": "How many numbers the encoder uses to describe a window." },
+        { "name": "real window average absolute return", "value": "8 hundredths of a percent", "meaning": "Typical bar move in the real window to be checked." },
+        { "name": "real window largest bar return", "value": "plus 29 hundredths of a percent", "meaning": "The biggest single move in the real window." },
+        { "name": "synthetic windows requested", "value": "500", "meaning": "How many new windows to generate from random codes." }
+      ]
+    },
+    "output": {
+      "summary": "Synthetic windows, a rebuilt copy of the real window and the examiner's realism score.",
+      "fields": [
+        { "name": "synthetic windows produced", "value": "500", "meaning": "New 30-bar return windows decoded from random codes." },
+        { "name": "synthetic average absolute return", "value": "between 7 and 8 hundredths of a percent", "meaning": "Typical bar move across the synthetic windows, near the real 8 hundredths." },
+        { "name": "reconstruction error of the real window", "value": "5 hundredths of a percent per bar", "meaning": "How far the rebuilt copy landed from the real window." },
+        { "name": "examiner realism score of the real window", "value": "61 percent", "meaning": "The examiner's confidence that the window is real; values near 50 percent mean it is hard to tell." }
+      ]
+    },
+    "reading": "Synthetic windows with an average move of between 7 and 8 hundredths of a percent versus 8 in real data suggest the forger matches overall size. Before using them, also compare the tail: the biggest synthetic bars should reach near plus or minus 30 hundredths. Use them to widen tests, never as proof that a strategy works."
+  }
+}

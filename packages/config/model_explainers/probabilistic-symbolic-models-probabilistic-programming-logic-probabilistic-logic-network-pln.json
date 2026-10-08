@@ -1,0 +1,81 @@
+{
+  "specificationId": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-logic-network-pln",
+  "name": "Probabilistic Logic Network (PLN)",
+  "analogy": "Think of it as a case file where every claim carries two stamps: how likely it is, and how much evidence is behind that. A claim backed by two cases and one backed by two thousand can share the same odds, yet they are not trusted equally.",
+  "steps": [
+    {
+      "title": "Write each fact with two numbers",
+      "description": "Every statement in the knowledge base carries a strength, which is how likely it is, and a confidence, which is how much evidence supports that strength. Keeping the two apart is the core idea of the model.",
+      "inExample": "A volume spike is followed by a breakout with strength 62 percent and confidence 70 percent, because 140 past cases back it."
+    },
+    {
+      "title": "Link facts into chains of if-then",
+      "description": "Statements are joined by links such as if this then that. A link inherits its strength and confidence from the evidence behind it, so the knowledge base is a web of uncertain implications.",
+      "inExample": "A second link says a news release is followed by a volume spike with strength 80 percent and confidence 50 percent."
+    },
+    {
+      "title": "Chain links by deduction",
+      "description": "If one link leads from A to B and another from B to C, a new link from A to C is derived. Its strength is roughly the product of the two strengths, and its confidence is lower than either, because each indirect step adds doubt.",
+      "inExample": "News release to breakout is derived with strength about 50 percent and confidence about 35 percent."
+    },
+    {
+      "title": "Derive other directions with induction and abduction",
+      "description": "From observed cases the model can generalize forward (induction) or infer a likely cause backward (abduction). Each pattern has its own formula for combining the premises into a conclusion, always carrying a confidence with it.",
+      "inExample": "Seeing a breakout after a volume spike suggests news may be the cause, supported with low confidence."
+    },
+    {
+      "title": "Merge independent sources by revision",
+      "description": "When two sources give separate estimates of the same statement, they are combined weighted by their confidences, so the better-supported estimate counts for more. The merged confidence is higher than either source alone.",
+      "inExample": "Direct evidence of 22 cases says news release to breakout is 45 percent at confidence 30 percent; merging with the derived 50 percent at 35 percent gives about 48 percent at 50 percent."
+    },
+    {
+      "title": "Report the conclusion with its trace",
+      "description": "The result is a strength-and-confidence pair plus the chain of rules that produced it, so a reader can see how the confidence was built and where it was eroded.",
+      "inExample": "The trace shows one derived link and one direct source merged, ending at strength 48 percent and confidence 50 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Scoring trading rules by evidence",
+      "example": "Labelling each hand-written MNQ rule with how likely it works and how many cases back that claim, so a rule seen twice is not treated like one seen 2,000 times."
+    },
+    {
+      "task": "Deriving a belief with no direct data",
+      "example": "Estimating the breakout odds after a rare news event by chaining two well-tested implications."
+    },
+    {
+      "task": "Merging separate signal sources",
+      "example": "Combining a technical rule, a FinBERT sentiment rule and an ES correlation rule into one strength-and-confidence pair."
+    },
+    {
+      "task": "Explaining a recommendation",
+      "example": "Showing the chain of rules behind a trade idea, with the confidence at each link."
+    }
+  ],
+  "avoidWhen": [
+    "You have a large table of labelled bars and just want a prediction; a supervised model learns directly from the table, while this model needs hand-built rules.",
+    "You need the model to be tuned and tested by standard cross-validation, since this style of reasoning does not have a mature tooling for fold-based evaluation."
+  ],
+  "example": {
+    "scenario": "A research desk has two rules on file about MNQ and wants a belief about how often a scheduled news release is followed by a breakout, a case it has only seen 22 times.",
+    "input": {
+      "summary": "Three pieces of evidence, each with a strength and a confidence.",
+      "fields": [
+        { "name": "volume spike then breakout: strength", "value": "62 percent", "meaning": "How often a breakout of the prior 12-bar range followed a volume spike of more than 50 percent above average." },
+        { "name": "volume spike then breakout: confidence", "value": "70 percent", "meaning": "How well supported that strength is; 140 past cases stand behind it." },
+        { "name": "news release then volume spike: strength", "value": "80 percent", "meaning": "How often a scheduled release was followed by a volume spike." },
+        { "name": "news release then volume spike: confidence", "value": "50 percent", "meaning": "How well supported that strength is, from a smaller set of cases." },
+        { "name": "direct cases of news then breakout", "value": "22 cases at strength 45 percent", "meaning": "A separate, directly observed estimate whose confidence is only 30 percent because it is a small count." }
+      ]
+    },
+    "output": {
+      "summary": "A merged belief about news release followed by breakout, with the chain that built it.",
+      "fields": [
+        { "name": "derived strength and confidence", "value": "50 percent and 35 percent", "meaning": "The result of chaining the two rules; the confidence is lower than either rule's." },
+        { "name": "merged strength", "value": "48 percent", "meaning": "The derived and direct estimates combined, weighted by their confidences." },
+        { "name": "merged confidence", "value": "50 percent", "meaning": "How well supported the merged strength is, higher than either source alone." }
+      ]
+    },
+    "reading": "A strength of 48 percent at 50 percent confidence says roughly even odds with only moderate backing, which is the honest answer for a rare event. Use it to decide how much to trust the rule, and let further cases lift the confidence before the rule is allowed to move real position size."
+  }
+}

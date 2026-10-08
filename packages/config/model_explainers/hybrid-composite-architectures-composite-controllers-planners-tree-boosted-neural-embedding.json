@@ -1,0 +1,82 @@
+{
+  "specificationId": "hybrid-composite-architectures-composite-controllers-planners-tree-boosted-neural-embedding",
+  "name": "Tree-Boosted Neural Embedding",
+  "analogy": "Think of it as a filing system followed by a reader. A team of tree models sorts every bar into labelled drawers such as quiet uptrend on thin volume. A neural network then learns what each drawer means and how drawers relate, and combines that with the raw numbers to make the final call.",
+  "steps": [
+    {
+      "title": "Grow a boosted forest first",
+      "description": "A gradient boosting model is trained on the engineered features of each bar. Its trees carve the feature space into many small regions where outcomes tend to look alike. At this stage it is a normal boosted model.",
+      "inExample": "200 trees of depth 4 are fit on features of 5-minute MNQ bars to predict the close 6 bars ahead."
+    },
+    {
+      "title": "Record the leaf each bar falls into",
+      "description": "Every tree ends in leaves, each leaf being one region. For any bar, each tree reports which leaf the bar landed in. The list of leaf numbers across all trees is a coded address of the bar's market bucket.",
+      "inExample": "The 14:35 bar lands in leaf 7 of tree 1, leaf 3 of tree 2, and so on across 200 trees."
+    },
+    {
+      "title": "Freeze the trees",
+      "description": "The trees are locked. From now on they only produce addresses; none of the later learning changes where their splits fall. This keeps the stage that finds thresholds separate from the stage that learns meaning.",
+      "inExample": "The leaf addresses for all 90,000 training bars are computed once and stored."
+    },
+    {
+      "title": "Turn each leaf into a short vector",
+      "description": "Every leaf gets a short vector of numbers, learned during training, called its embedding. Leaves that behave alike end up with similar vectors, so the model can share knowledge between regions that a plain yes or no code would treat as unrelated.",
+      "inExample": "Each leaf becomes 8 numbers; leaves of high-volume selloffs end up with similar vectors across several trees."
+    },
+    {
+      "title": "Join the embeddings with the continuous features",
+      "description": "The leaf vectors are pooled and joined with the original continuous features, standardised using only past data. This lets the network recover detail that the trees rounded into buckets.",
+      "inExample": "200 leaf vectors are combined into one summary and placed next to 12 standardised features such as range, volume and momentum."
+    },
+    {
+      "title": "Train a small network head",
+      "description": "A small neural network takes the joined input and learns to output the probability of the target, such as price being higher 6 bars later. Only the embeddings and this head learn at this stage.",
+      "inExample": "The head, with 64 hidden units, outputs a 56 percent probability of up for the 14:35 bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction or barrier-outcome prediction on tabular features",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close, from the 35 base features."
+    },
+    {
+      "task": "Labelling market buckets",
+      "example": "Using the leaf addresses to group bars into recurring conditions such as low volatility, trending up, and counting how often each bucket occurs."
+    },
+    {
+      "task": "Finding look-alike bars",
+      "example": "Retrieving the 20 historical bars whose embeddings are closest to the current bar and looking at what followed them."
+    },
+    {
+      "task": "Fast refreshes on recent data",
+      "example": "Refitting only the head on the last two weeks of ES bars without rebuilding the trees."
+    }
+  ],
+  "avoidWhen": [
+    "The signal lives in the raw order of many bars, such as the exact shape of the last 100 candles; a sequence model reads that directly, while this model sees mostly summary features.",
+    "You need the simplest possible baseline; plain gradient boosting is quicker to fit and check, and the extra network earns its place only if the combined model scores better on the same walk-forward folds."
+  ],
+  "example": {
+    "scenario": "A tree-boosted neural embedding is trained on 12 months of MNQ 5-minute bars. At the close of the 14:35 bar it estimates the chance that the close 6 bars later is higher than this close.",
+    "input": {
+      "summary": "One row of 12 engineered features (five are shown) and the leaf addresses the frozen trees assign to it.",
+      "fields": [
+        { "name": "close", "value": "19,058", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "Typical high-to-low travel of a recent bar." },
+        { "name": "relative strength index, 14 bars", "value": "33", "meaning": "A momentum reading from 0 to 100; low values mean recent selling." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above", "meaning": "How heavy trading was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "about a third of a percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "trees in the frozen forest", "value": "200", "meaning": "Each tree contributes one leaf address for this bar." }
+      ]
+    },
+    "output": {
+      "summary": "A probability from the network head plus the dense vector describing the bar's market bucket.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "56 percent", "meaning": "The head's chance that the close 30 minutes later is above the current close." },
+        { "name": "probability from the boosted forest alone", "value": "54 percent", "meaning": "What the trees would have said without the network, shown as a reference." },
+        { "name": "bucket vector length", "value": "8 numbers per tree, pooled", "meaning": "The dense coordinate of this bar's market bucket, usable for finding similar bars." }
+      ]
+    },
+    "reading": "56 percent versus 54 from the trees alone is a small shift, so the network adds a light correction. Judge the combined model against the plain boosted forest on the same walk-forward folds and with costs, since only a lead that survives those checks justifies the added complexity."
+  }
+}

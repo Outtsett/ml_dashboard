@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-planning-based-agents-planet-planning-network",
+  "name": "PlaNet (Planning Network)",
+  "analogy": "Think of it as a trader who keeps a small simulator of the market in their head. Before every bar they quickly play out a thousand imaginary next few bars, keep the plans that looked best, take only the first move of the best plan, and then start the whole imagining again on the next bar.",
+  "steps": [
+    {
+      "title": "Compress the recent bars into a short summary",
+      "description": "The model reads the recent bars and squeezes them into a small set of numbers, a hidden summary of where the market is right now. It carries that summary forward from bar to bar like a running memory, so it does not have to reread the whole history each time.",
+      "inExample": "The last 30 five-minute MNQ bars, with the close near 19,850, are squeezed into a short summary that the model carries into the 10:15 bar."
+    },
+    {
+      "title": "Learn to imagine forward from the summary",
+      "description": "During training the model learns two skills from real history: rebuilding the bars it saw from its summary, and predicting how the summary changes after each action and what reward follows. These two skills together are its imagination.",
+      "inExample": "From past data it has learned that holding a long position after a quiet, rising stretch usually moves the summary toward mild gains of a few points."
+    },
+    {
+      "title": "Invent many candidate action sequences",
+      "description": "At decision time there is no trained decision-maker. Instead the model invents a crowd of random plans, each a short series of positions for the next several bars, such as long, long, flat, flat.",
+      "inExample": "It invents 1,000 plans, each choosing a position of short, flat or long for each of the next 6 bars."
+    },
+    {
+      "title": "Imagine each plan and score it",
+      "description": "Each plan is played forward inside the imagined market. The model adds up the rewards it predicts along the way, and the total becomes that plan's score. No real bar is touched.",
+      "inExample": "The plan long, long, long, long, flat, flat is scored at a predicted gain of 38 US dollars after costs; a plan that stays short scores minus 22."
+    },
+    {
+      "title": "Keep the best plans and search again around them",
+      "description": "The model keeps the top fraction of plans, learns what they have in common, and draws a fresh crowd of plans centred on that pattern. Repeating this narrows the search onto the most promising series of positions.",
+      "inExample": "The 100 best plans are kept, a new 1,000 are drawn around them, and after 5 rounds most of the plans agree on starting with a long position."
+    },
+    {
+      "title": "Take only the first move, then plan again",
+      "description": "The model carries out only the first action of the winning plan. When the next bar arrives, it updates its summary with the real bar, throws the old plan away and runs the whole search again.",
+      "inExample": "It buys 1 contract now. At 10:20 the real bar arrives, the summary is refreshed, and a new search begins."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Short-horizon position choices without a trained policy",
+      "example": "Choosing each 5-minute bar whether to be short, flat or long on MNQ by imagining the next 6 bars, so that changing the reward does not require retraining a separate decision network."
+    },
+    {
+      "task": "Testing different reward definitions quickly",
+      "example": "Comparing a reward that counts only net profit against one that also punishes drawdown, using the same learned imagination for both."
+    },
+    {
+      "task": "Decisions that can be traced to an imagined plan",
+      "example": "Showing the exact six-bar plan behind a trade so a reviewer can see what the model expected to happen."
+    },
+    {
+      "task": "A reusable market model for other methods",
+      "example": "Training the imagination once on ES bars and later using it to warm-start a method that learns a decision network inside it."
+    }
+  ],
+  "avoidWhen": [
+    "The decision must be made in a few milliseconds; searching a thousand imagined plans on every bar is slow compared with a trained network that answers in one pass.",
+    "Little history is available or the market behaves unlike the past; the imagination is only as good as the data it learned from, and its mistakes compound over a long plan."
+  ],
+  "example": {
+    "scenario": "At 10:15 a new five-minute bar closes on Micro E-mini Nasdaq-100 futures (MNQ). The model is flat and must pick this bar's position by imagining the next 6 bars.",
+    "input": {
+      "summary": "The recent bars compressed into the model's summary, plus the current position and the planning settings.",
+      "fields": [
+        { "name": "close", "value": "19,850", "meaning": "The price at which the 10:15 five-minute bar closed." },
+        { "name": "recent bars read", "value": "30 five-minute bars", "meaning": "The window of history squeezed into the model's running summary." },
+        { "name": "average true range, 14 bars", "value": "25 points", "meaning": "The typical high-to-low travel of a recent bar, a measure of how much the market moves." },
+        { "name": "current position", "value": "flat", "meaning": "The model holds no contracts going into this decision." },
+        { "name": "plans imagined per round", "value": "1,000", "meaning": "How many random action series are tried in each search round." },
+        { "name": "bars looked ahead", "value": "6 bars (30 minutes)", "meaning": "How far into the imagined future each plan runs." }
+      ]
+    },
+    "output": {
+      "summary": "The first action of the best plan, the full plan behind it, and the reward the model predicts for it.",
+      "fields": [
+        { "name": "action to take now", "value": "buy 1 contract", "meaning": "The first step of the winning plan, the only step actually carried out." },
+        { "name": "best plan", "value": "long, long, long, long, flat, flat", "meaning": "The full six-bar series of positions the model currently prefers; it will be replaced next bar." },
+        { "name": "predicted reward of the plan", "value": "38 US dollars", "meaning": "The imagined total gain after costs along that plan, not a measured result." },
+        { "name": "agreement among the top plans", "value": "81 of the top 100 start long", "meaning": "How many of the best plans share the same first action, a rough sign of how settled the choice is." }
+      ]
+    },
+    "reading": "The 38 dollar figure is the model's own imagination, so treat it as a ranking tool, not a forecast of profit. The agreement figure is the more useful dial: if the top plans split about evenly between long and flat, the model is unsure and the trade deserves less size or none."
+  }
+}

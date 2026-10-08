@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-consistency-based-methods-fixmatch",
+  "name": "FixMatch",
+  "analogy": "Think of it as a junior trader who only learns from his own calls when he is nearly certain. He reads a clean chart, and if he is very sure of the answer, he writes it down as a working answer. He then has to reach the same answer from a badly smudged copy of the chart, which toughens him up.",
+  "steps": [
+    {
+      "title": "Train normally on the few labelled windows",
+      "description": "The model first learns the usual way from the small set of windows that have a known label, by comparing its answer with the truth.",
+      "inExample": "300 labelled five-minute MNQ windows, marked trending, ranging or volatile, give the ordinary training error."
+    },
+    {
+      "title": "Make a weak and a strong version of each unlabeled window",
+      "description": "Each unlabeled window is copied twice. The weak copy has only light changes, such as a little noise. The strong copy has heavy changes, such as stretching or squeezing the time axis or blanking out stretches of bars.",
+      "inExample": "One unlabeled window becomes a weak copy with 1 percent noise and a strong copy with the time axis warped and 6 of its 30 bars blanked."
+    },
+    {
+      "title": "Read the weak copy and check how sure the model is",
+      "description": "The model predicts the weak copy. The highest probability is its confidence. The most likely class is kept as a working label only if the confidence is above a high threshold, often 95 percent. Otherwise the window is skipped this round.",
+      "inExample": "The model gives trending 96 percent, ranging 3 percent, volatile 1 percent on the weak copy. The top probability of 96 percent clears the 95 percent threshold, so trending becomes the working label."
+    },
+    {
+      "title": "Ask the strong copy to reach the same answer",
+      "description": "The model now predicts the strong copy and is graded against the working label as if it were the truth. This forces the model to find the same answer from a heavily distorted input.",
+      "inExample": "On the strong copy the model gives trending 71 percent, so it is graded against trending and receives a moderate correction."
+    },
+    {
+      "title": "Combine the two errors and repeat",
+      "description": "The error on labelled windows and the error on the confident unlabeled windows are added and the weights are adjusted. As the model improves, more windows clear the threshold, so more unlabeled data is used.",
+      "inExample": "Early in training only 18 percent of unlabeled windows clear the threshold; later about 55 percent do."
+    },
+    {
+      "title": "Use the trained model on new windows without any distortion",
+      "description": "At use time there are no weak or strong copies. A new window goes in, and the model gives class probabilities directly.",
+      "inExample": "The 14:35 window goes in unchanged and returns trending 58 percent, ranging 30 percent, volatile 12 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Regime classification with few labels",
+      "example": "Training a trending, ranging or volatile classifier from 300 labelled windows plus many thousands of unlabeled ones."
+    },
+    {
+      "task": "Pattern recognition on chart pictures",
+      "example": "Classifying candlestick pattern pictures when only a few hundred are labelled and the rest of the charts are not."
+    },
+    {
+      "task": "Using a large unlabeled history when labels are costly",
+      "example": "Squeezing value out of 10 years of MNQ windows when labelling is done by hand."
+    },
+    {
+      "task": "Seeing how much extra data can help",
+      "example": "Comparing the model against the same network trained on only the labelled windows to measure the gain from the unlabeled pool."
+    }
+  ],
+  "avoidWhen": [
+    "The model starts out poorly calibrated; confident wrong answers become working labels and the model reinforces its own mistakes.",
+    "Strong distortions change the true label, as a squeezed time axis might change what a regime looks like; then the model is trained toward the wrong answer.",
+    "You have plenty of labels; ordinary supervised training with a good validation scheme is simpler and removes the risk of self-reinforcing errors."
+  ],
+  "example": {
+    "scenario": "A research job trains a three-regime classifier on 300 labelled and 20,000 unlabeled five-minute MNQ windows. One unlabeled window is checked to see whether it earns a working label.",
+    "input": {
+      "summary": "One unlabeled 30-bar window, shown to the model as a weak copy and a strong copy.",
+      "fields": [
+        { "name": "window length", "value": "30 five-minute bars", "meaning": "Two and a half hours of trading." },
+        { "name": "latest close", "value": "18,452", "meaning": "The price at which the last bar of the window closed." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "weak copy", "value": "1 percent noise", "meaning": "A light disturbance used to get a reliable guess." },
+        { "name": "strong copy", "value": "time warp and 6 bars blanked", "meaning": "A heavy disturbance the model must see through." },
+        { "name": "confidence threshold", "value": "95 percent", "meaning": "How sure the model must be on the weak copy before its guess is used as a working label." }
+      ]
+    },
+    "output": {
+      "summary": "The decision about the working label and the model's answer on the strong copy.",
+      "fields": [
+        { "name": "weak copy confidence", "value": "96 percent for trending", "meaning": "The top probability on the lightly disturbed copy." },
+        { "name": "working label decision", "value": "accepted as trending", "meaning": "The window clears the 95 percent threshold, so its guess is used for training." },
+        { "name": "strong copy probability for trending", "value": "71 percent", "meaning": "What the model says on the heavily distorted copy, before this step's correction." },
+        { "name": "windows accepted this round", "value": "55 percent", "meaning": "The share of all unlabeled windows that cleared the threshold in this round of training." }
+      ]
+    },
+    "reading": "The window is accepted because the model was 96 percent sure, and the strong copy at 71 percent shows it still has something to learn from the distorted version. A confidence of 71 percent on the weak copy would have been skipped. Judge the finished classifier on labelled out-of-sample windows, not on its own working labels."
+  }
+}

@@ -18,6 +18,7 @@ import type {
 } from "@/ml/lib/catalog_types";
 import type { TrainableCatalogResponse } from "@shared/trainableModelTypes";
 import type { CatalogLifecycleResponse } from "@shared/catalogLifecycle";
+import type { ModelExplainer } from "@shared/modelExplainer";
 
 // Re-export trainable types so picker/composer consumers have one import surface.
 export type {
@@ -141,6 +142,25 @@ export function useRefreshCatalog() {
       qc.invalidateQueries({ queryKey: KEYS.taxonomy });
       qc.invalidateQueries({ queryKey: KEYS.trainable });
       qc.invalidateQueries({ queryKey: KEYS.lifecycle });
+    },
+  });
+}
+
+// ─── Explainer (how the model works, in plain words) ────────────────────────
+//
+// `null` when the specification has no explainer file (the route answers 404
+// with `written: false`); any other failure is an error.
+
+export function useModelExplainer(id: string | null) {
+  return useQuery<ModelExplainer | null>({
+    queryKey: ["/api/model-catalog", id, "explainer"],
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/model-catalog/${encodeURIComponent(id!)}/explainer`, { signal });
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`explainer request failed (${response.status})`);
+      return (await response.json()) as ModelExplainer;
     },
   });
 }

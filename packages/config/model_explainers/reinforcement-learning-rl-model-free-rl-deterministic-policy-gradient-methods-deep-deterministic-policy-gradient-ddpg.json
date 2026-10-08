@@ -1,0 +1,83 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-deep-deterministic-policy-gradient-ddpg",
+  "name": "Deep Deterministic Policy Gradient (DDPG)",
+  "analogy": "Think of it as a position-sizing dial and a coach. The dial turns the market picture into one exact size every time. The coach scores any size in any situation and tells the dial which way to turn to score higher, and a bit of random jiggle is added during practice so new sizes get tried.",
+  "steps": [
+    {
+      "title": "The actor turns the state into one exact action",
+      "description": "The actor takes the market state and outputs a single number, such as a position size between fully short and fully long. Given the same state it always gives the same answer.",
+      "inExample": "For the 10:55 bar the actor outputs a position size of plus 42 percent of the maximum."
+    },
+    {
+      "title": "Add practice noise",
+      "description": "Because the actor is exact, it would never try anything new. During training a little random noise is added to its output so nearby sizes are tested.",
+      "inExample": "Noise of plus 8 percent is added during training, so the size traded is plus 50 percent of the maximum."
+    },
+    {
+      "title": "Trade it and store the result",
+      "description": "The size is traded for one bar. The state, the action, the reward and the next state are saved in a large replay memory for reuse.",
+      "inExample": "The result is a reward of 6 US dollars after costs, saved with the state and the 50 percent size."
+    },
+    {
+      "title": "Teach the critic from random old steps",
+      "description": "The critic learns to score a state and an action together. It is trained on random samples from the memory against a slowly changing copy of itself, which keeps its targets steady.",
+      "inExample": "A batch of 256 stored steps is drawn and the critic's score for each is pulled toward the reward plus the slow copy's view of the next state."
+    },
+    {
+      "title": "Ask the critic which way to turn the dial",
+      "description": "For a state, the critic is asked how its score would change if the action were slightly larger or smaller. The actor is then adjusted in the direction that raises the score.",
+      "inExample": "The critic says a slightly larger long size would score higher in this state, so the actor's output for that state rises a little."
+    },
+    {
+      "title": "Blend the slow copies toward the new weights",
+      "description": "Slowly updated copies of both networks are moved a small fraction of the way toward the current ones after every step. This keeps the learning targets from jumping around.",
+      "inExample": "The slow actor and slow critic each move half of one percent of the way toward their current versions."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Continuous position sizing",
+      "example": "Outputting a fraction of maximum size on Micro E-mini Nasdaq-100 futures (MNQ) 5-minute bars, from fully short to fully long."
+    },
+    {
+      "task": "Allocation across instruments",
+      "example": "Outputting one weight per instrument across a few index futures in a single decision."
+    },
+    {
+      "task": "Execution speed",
+      "example": "Choosing how fast to slice a large order across the next several bars."
+    },
+    {
+      "task": "A starting point for a more careful method",
+      "example": "Training a first agent whose networks initialise a more stable successor such as twin delayed deep deterministic policy gradient."
+    }
+  ],
+  "avoidWhen": [
+    "Training must be stable without careful tuning; this method is known to collapse into always long or always flat, and its twin-critic successor handles that better.",
+    "The action is a small set of choices such as buy, sell or hold; a discrete method such as a deep Q-network is simpler."
+  ],
+  "example": {
+    "scenario": "A deterministic policy agent sizes positions on 5-minute Micro E-mini Nasdaq-100 futures (MNQ) bars. At 10:55 it is flat and must output a size between minus 100 and plus 100 percent of a 5-contract maximum.",
+    "input": {
+      "summary": "The state the actor reads, and the training noise setting.",
+      "fields": [
+        { "name": "close", "value": "19,403", "meaning": "The price at which the 10:55 five-minute bar closed." },
+        { "name": "relative strength index, 14 bars", "value": "36", "meaning": "A momentum reading from 0 to 100; the market is leaning weak." },
+        { "name": "average true range, 14 bars", "value": "23 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "return over the last 6 bars", "value": "down about 40 hundredths of a percent", "meaning": "How much price has fallen over the previous 30 minutes." },
+        { "name": "current position", "value": "flat", "meaning": "No contracts are held." },
+        { "name": "maximum position", "value": "5 contracts", "meaning": "The size that an action of 100 percent corresponds to." }
+      ]
+    },
+    "output": {
+      "summary": "One exact size, plus the practice noise used while training and the critic's score.",
+      "fields": [
+        { "name": "actor output", "value": "plus 42 percent", "meaning": "The exact position size as a share of the maximum, always the same for this state." },
+        { "name": "contracts at deployment", "value": "2", "meaning": "42 percent of 5 contracts is a little over 2, rounded to whole contracts." },
+        { "name": "practice noise added in training", "value": "plus 8 percent", "meaning": "Random jiggle used only while learning, giving a traded size of 50 percent." },
+        { "name": "critic's score for this size", "value": "4 US dollars", "meaning": "What the critic expects this state and size to earn from here on." }
+      ]
+    },
+    "reading": "At deployment use the actor output alone with no noise, and round to whole contracts. A single exact size is easy to act on but gives no sense of confidence, so also look at how the critic's score changes for nearby sizes. Validate the agent on held-out folds after costs before trusting it."
+  }
+}

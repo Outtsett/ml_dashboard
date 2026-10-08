@@ -1,0 +1,79 @@
+{
+  "specificationId": "neural-network-architectures-attention-based-architectures-vision-transformer-vit",
+  "name": "Vision Transformer (ViT)",
+  "analogy": "Think of it as cutting a printed candlestick chart into a grid of square tiles, handing the tiles around a table, and letting every person look at every other tile before one reader, holding a summary card, says what pattern the picture shows.",
+  "steps": [
+    {
+      "title": "Draw the chart as a picture",
+      "description": "The recent bars are drawn as a candlestick chart image of fixed size, the way a trader would see it on screen. The model works on the picture, not on the table of numbers behind it.",
+      "inExample": "The last 60 one-minute MNQ bars are drawn as a 224 by 224 pixel candlestick image."
+    },
+    {
+      "title": "Cut the picture into tiles",
+      "description": "The image is divided into a grid of equal square tiles. Each tile is flattened into a list of pixel values and converted by a learned layer into a compact numeric description.",
+      "inExample": "With 16 by 16 pixel tiles the image becomes 196 tiles, and the two rightmost columns cover the most recent 8 or so bars."
+    },
+    {
+      "title": "Mark where each tile came from",
+      "description": "A position signal is added to each tile so the model knows whether it is top left or bottom right, because left to right here means earlier to later. A special summary token is placed at the front to collect the final answer.",
+      "inExample": "Each of the 196 tiles gets its row and column marker, and a summary token is placed in front, making 197 items."
+    },
+    {
+      "title": "Let every tile look at every other tile",
+      "description": "Stacked transformer layers use self-attention so each tile can draw on any other tile, near or far. A tile with a long wick can link up with a distant tile showing a similar earlier wick. Several heads look for different relationships at once.",
+      "inExample": "After 12 layers, the tile holding the latest long lower wick is strongly linked to a tile 30 bars earlier holding a similar wick."
+    },
+    {
+      "title": "Read the answer from the summary token",
+      "description": "After the final layer the summary token has absorbed what the tiles said. A small output layer turns it into class probabilities, such as which candlestick pattern the picture shows or which direction the next move may take.",
+      "inExample": "The summary token yields: bullish engulfing 44 percent, hammer 18 percent, no pattern 38 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Recognising named chart patterns",
+      "example": "Labelling a window of MNQ 1-minute bars as a bullish engulfing, hammer or no pattern, as the dashboard's candle vision study does with its 61 patterns."
+    },
+    {
+      "task": "Learning from how a chart looks",
+      "example": "Capturing shapes that are hard to write as indicators, like a staircase of higher lows into a flat top."
+    },
+    {
+      "task": "Picking up distant relationships on a chart",
+      "example": "Linking a double top whose two peaks are 40 bars apart, where a small local filter would see only one peak at a time."
+    },
+    {
+      "task": "Pre-trained image features",
+      "example": "Starting from a model pre-trained on ordinary pictures and fine-tuning it on candlestick images to save training time."
+    }
+  ],
+  "avoidWhen": [
+    "The numbers behind the chart are available and sufficient; a model on the table of features, such as a gradient boosted tree, avoids throwing away precision by drawing a picture.",
+    "You have only a small set of labelled chart images; vision transformers need a lot of data or a pre-trained start, and a small convolutional network tends to do better on little data.",
+    "Pixel-exact price levels matter, such as a stop a quarter of a point away; tile and pixel resolution blurs exact prices."
+  ],
+  "example": {
+    "scenario": "At 10:42 Eastern the last 60 one-minute MNQ bars are drawn as a candlestick image and the model is asked which candle pattern the end of the picture shows.",
+    "input": {
+      "summary": "One image of the last 60 bars, broken into 196 tiles, with the ending bars at the right edge.",
+      "fields": [
+        { "name": "image size", "value": "224 by 224 pixels", "meaning": "The size of the drawn chart the model receives." },
+        { "name": "tile size", "value": "16 by 16 pixels", "meaning": "How big each square piece of the picture is." },
+        { "name": "number of tiles", "value": "196", "meaning": "The 14 by 14 grid of tiles the picture is cut into." },
+        { "name": "bars drawn", "value": "60 one-minute bars", "meaning": "How much time the picture covers, one hour." },
+        { "name": "latest close", "value": "19,770", "meaning": "The close of the last bar drawn, near the right edge." },
+        { "name": "average true range, 14 bars", "value": "10 points", "meaning": "The typical high-to-low travel of a recent one-minute bar, which sets the vertical scale of the drawing." }
+      ]
+    },
+    "output": {
+      "summary": "Pattern probabilities and where in the picture the model looked.",
+      "fields": [
+        { "name": "bullish engulfing", "value": "44 percent", "meaning": "The share of confidence given to the last two bars forming a bullish engulfing pattern." },
+        { "name": "hammer", "value": "18 percent", "meaning": "The share given to a hammer shape in the last bar." },
+        { "name": "no pattern", "value": "38 percent", "meaning": "The share given to neither pattern being present." },
+        { "name": "most attended region", "value": "right-hand 3 columns", "meaning": "The tiles over the last few bars drew the most attention from the summary token." }
+      ]
+    },
+    "reading": "A 44 percent reading is a lean, not a certain label, and a pattern name is not a forecast. To use it, test whether bars labelled bullish engulfing at this confidence went on to a higher close 6 bars later more often than the base rate on held-out folds, after costs."
+  }
+}

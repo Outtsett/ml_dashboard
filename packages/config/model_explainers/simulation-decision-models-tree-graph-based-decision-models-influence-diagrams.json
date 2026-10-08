@@ -1,0 +1,83 @@
+{
+  "specificationId": "simulation-decision-models-tree-graph-based-decision-models-influence-diagrams",
+  "name": "Influence Diagrams",
+  "analogy": "Think of it as a one-page flowchart a risk committee draws on a whiteboard: boxes for the things nobody knows yet, one box for the choice you must make, one box for the payoff, and arrows showing what influences what. The model then works backwards through the chart and tells you the best choice for every situation you might be looking at when you decide.",
+  "steps": [
+    {
+      "title": "Draw the boxes and arrows",
+      "description": "A person decides which uncertain things matter, which choice is being made, and what payoff is being judged. Each uncertain thing becomes a box, the choice becomes a box, the payoff becomes a box, and an arrow is drawn wherever one box directly affects another. Arrows into the choice box mark exactly what you will know when you decide.",
+      "inExample": "Three boxes you can see at decision time (trend of the last hour, volatility, news sentiment) feed the choice box and also feed a fourth, unknown box, the 30-minute move, which in turn feeds the payoff box."
+    },
+    {
+      "title": "Fill each uncertain box with odds from history",
+      "description": "For every uncertain box the model counts, in past bars, how often each outcome followed each combination of the boxes pointing at it. These counts become small tables of probabilities, softened slightly so that a combination seen only twice is not treated as certain.",
+      "inExample": "From 8,000 past five-minute bars, when the trend was up, volatility high and sentiment neutral, the next 30 minutes moved plus 40 points 30 percent of the time and plus 10 points 20 percent of the time."
+    },
+    {
+      "title": "Attach the payoff",
+      "description": "The payoff box turns a choice and an outcome into one number the model can compare, such as profit after costs. Going long earns the move, going short earns the opposite, and staying flat earns nothing and pays no cost.",
+      "inExample": "One MNQ point is worth 2 US dollars and a round trip costs 2 US dollars, so a long position that sees a plus 10 point move earns 20 minus 2, or 18 US dollars."
+    },
+    {
+      "title": "Average out the uncertain outcomes",
+      "description": "Working backwards from the payoff, the model removes each uncertain box by averaging over its outcomes, weighted by their probabilities. What is left is the expected payoff of each choice for each combination of things you will know at decision time.",
+      "inExample": "For the up-trend, high-volatility, neutral-news situation the expected 30-minute move averages out to plus 3 points, which is plus 6 US dollars before costs for a long position."
+    },
+    {
+      "title": "Pick the best choice for every situation",
+      "description": "The choice box is then removed too. For each combination of known information, the model keeps whichever choice has the highest expected payoff. The result is a lookup table, a policy, that says what to do in every case the diagram covers.",
+      "inExample": "Long scores 4 US dollars, short scores minus 8 US dollars and flat scores zero, so the policy for this situation reads: go long."
+    },
+    {
+      "title": "Read the policy and the best expected value",
+      "description": "The last box left is the payoff itself, and its value is the best average result the whole decision problem can deliver under the stated odds. The policy table is what you carry forward and apply bar by bar as the known information changes.",
+      "inExample": "The best expected value for this situation is 4 US dollars per contract, and the policy table holds one such answer for every other combination of trend, volatility and sentiment."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Trade decisions with many interacting factors",
+      "example": "Combining trend, volatility, news sentiment and time of day into one go-long, go-short or stay-flat rule on 5-minute MNQ bars without drawing a tree with thousands of branches."
+    },
+    {
+      "task": "Deciding whether extra information is worth paying for",
+      "example": "Asking whether a paid order-flow feed improves the long, short or flat decision enough to cover its monthly cost, by adding a buy-the-data choice box ahead of the trade choice."
+    },
+    {
+      "task": "An auditable decision structure for a review",
+      "example": "Showing a risk reviewer exactly what the trading rule knows when it acts, because every arrow into the choice box is a piece of information available at that moment."
+    },
+    {
+      "task": "Choosing which forecasting model to trust this bar",
+      "example": "Treating agreement between a tree model and a linear model as an uncertain box and the choice of whose forecast to follow as the decision box."
+    }
+  ],
+  "avoidWhen": [
+    "You want the structure learned from the data: the arrows come from a person's judgment, so a model that discovers its own relationships, such as gradient boosting, is the better fit.",
+    "The decision has many sequential steps against a reacting market; a tree search that simulates the market step by step handles that better than a fixed table of odds."
+  ],
+  "example": {
+    "scenario": "At 09:40 New York time a trader must choose long, short or flat on one MNQ contract for the next 30 minutes. The diagram has been filled from 8,000 past five-minute bars and is asked for the best choice in today's situation.",
+    "input": {
+      "summary": "The three things known at decision time, plus the money terms that turn a move into a payoff.",
+      "fields": [
+        { "name": "trend of the last hour", "value": "up", "meaning": "The first known fact: price closed higher over the previous 12 five-minute bars." },
+        { "name": "volatility level", "value": "high", "meaning": "The second known fact: the average true range of the last 14 bars, 31 points, sits in the top third of recent history." },
+        { "name": "news sentiment", "value": "neutral", "meaning": "The third known fact: the financial news sentiment score for the last hour, from the FinBERT language model, lies near zero." },
+        { "name": "value of one MNQ point", "value": "2 US dollars", "meaning": "How many dollars a one-point move earns or loses on one contract." },
+        { "name": "round-trip trading cost", "value": "2 US dollars", "meaning": "Commission and slippage paid once for entering and leaving a position." },
+        { "name": "possible 30-minute moves and their odds", "value": "plus 40 points 30 percent, plus 10 points 20 percent, minus 10 points 30 percent, minus 40 points 20 percent", "meaning": "The outcome table for this exact combination of trend, volatility and sentiment, taken from history." }
+      ]
+    },
+    "output": {
+      "summary": "The expected payoff of each choice and the choice the policy recommends.",
+      "fields": [
+        { "name": "expected payoff of going long", "value": "4 US dollars", "meaning": "The odds-weighted average result of holding one long contract for 30 minutes, after costs." },
+        { "name": "expected payoff of going short", "value": "minus 8 US dollars", "meaning": "The odds-weighted average result of holding one short contract, after costs." },
+        { "name": "expected payoff of staying flat", "value": "0 US dollars", "meaning": "No position means no gain and no cost." },
+        { "name": "recommended choice", "value": "long", "meaning": "The choice with the highest expected payoff for this combination of known facts." }
+      ]
+    },
+    "reading": "The table says long has a small positive average after costs here, and only here: change any of the three known facts and the policy may flip. Treat the 4 US dollars as only as trustworthy as the odds behind it, so check on later bars that the stated odds matched what happened before acting on the policy."
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-diffusion-score-based-unet-generator-used-in-diffusion",
+  "name": "U-Net Generator (Used in Diffusion)",
+  "analogy": "Think of it as an analyst who first zooms out to see the shape of a whole session, then zooms back in to the individual bars, while keeping notes from each level of zoom to hand. Zooming out gives the big picture and the kept notes keep the fine detail, so nothing is lost on the way back.",
+  "steps": [
+    {
+      "title": "Take in a noisy sample and a step number",
+      "description": "In a diffusion model, the U-Net is the network that does the clean-up work. It receives a damaged sample and a number telling it how damaged the sample is, since the right fix at heavy noise differs from the right fix at light noise.",
+      "inExample": "The input is a 64-bar window with a medium amount of noise, labelled step 400 of 1,000."
+    },
+    {
+      "title": "Zoom out in stages",
+      "description": "The first half of the network, the encoder, repeatedly shrinks the sample while adding more descriptive channels. Each stage sees a wider stretch of the sample than the last, so later stages capture broad patterns.",
+      "inExample": "The 64-bar window is reduced to 32, then 16, then 8 positions, with the later stages seeing whole hours of trading at once."
+    },
+    {
+      "title": "Reason about the whole sample in the middle",
+      "description": "At the smallest size, in the bottleneck, the network can relate every part to every other part, often with attention layers. This lets it decide what a believable whole would look like.",
+      "inExample": "At 8 positions, the model relates the opening hour to the closing hour to decide that the drift should be gently downward."
+    },
+    {
+      "title": "Zoom back in",
+      "description": "The second half, the decoder, enlarges the sample again stage by stage until it matches the input size. The enlargement alone would lose detail, which is what the next step fixes.",
+      "inExample": "The 8 positions grow back to 16, 32 and finally 64 bars."
+    },
+    {
+      "title": "Pass notes across with shortcuts",
+      "description": "At each size the encoder's view is copied straight across to the decoder at the same size. These skip connections hand the fine detail from the input directly to the output stage, so small features survive the trip through the bottleneck.",
+      "inExample": "The 32-position view from the way down is joined to the 32-position stage on the way up, preserving bar-by-bar wiggles."
+    },
+    {
+      "title": "Output the estimated noise",
+      "description": "The final output has the same size as the input and is the network's estimate of the noise in it. The diffusion sampler subtracts a share of that estimate and repeats at the next step.",
+      "inExample": "The model outputs 64 noise estimates, and subtracting a small share of them leaves a slightly cleaner window for step 399."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "The noise-guessing network inside a diffusion model",
+      "example": "Serving as the denoiser that generates synthetic 64-bar windows of 5-minute MNQ returns, with a one-dimensional version that reads sequences."
+    },
+    {
+      "task": "Marking regions of a chart image",
+      "example": "Producing a mask that shades where support and resistance zones sit on a chart picture, the segmentation job the U-Net was first built for."
+    },
+    {
+      "task": "Cleaning or restoring sequences and images",
+      "example": "Removing noise from a corrupted stretch of tick data, or restoring a blurry chart screenshot."
+    }
+  ],
+  "avoidWhen": [
+    "The task is classification or a single forecast; a U-Net outputs something the same size as its input, so a classifier or gradient boosting fits better.",
+    "The data has no local structure to exploit, such as a table of unrelated features; the zoom-out and zoom-in design assumes neighbours matter, so a plain tabular model is a better fit."
+  ],
+  "example": {
+    "scenario": "Inside a diffusion model that generates 64-bar windows of normalized 5-minute MNQ returns, the U-Net is asked at step 400 of 1,000 to estimate the noise in a partly noisy window.",
+    "input": {
+      "summary": "A noisy 64-bar window and the step number, which are the only inputs.",
+      "fields": [
+        { "name": "noisy window", "value": "64 values", "meaning": "Normalized returns of 64 five-minute bars with random noise added." },
+        { "name": "step number", "value": "400 of 1,000", "meaning": "How far through the noise ladder the sample is; higher numbers mean more noise." },
+        { "name": "sizes in the network", "value": "4 sizes: 64, 32, 16 and 8 positions", "meaning": "How many different sizes the sample is shrunk through on the way down and enlarged through on the way back up." },
+        { "name": "smallest size reached", "value": "8 positions", "meaning": "The size at which the whole sample is considered together." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The scale used to turn normalized returns into points on the chart." }
+      ]
+    },
+    "output": {
+      "summary": "An estimate of the noise for every one of the 64 positions and what removing a share of it does.",
+      "fields": [
+        { "name": "estimated noise", "value": "64 values", "meaning": "The network's guess of how much of each value is noise." },
+        { "name": "typical size of the estimated noise", "value": "62 percent of the size of the clean returns", "meaning": "How large the removed noise is, on a scale where the clean returns have size 100 percent." },
+        { "name": "window range before clean-up", "value": "96 points", "meaning": "The high-to-low span of the noisy window." },
+        { "name": "window range after one step of clean-up", "value": "95 points", "meaning": "The span after subtracting a small share of the estimated noise; one step moves the window only slightly toward a realistic one." }
+      ]
+    },
+    "reading": "The U-Net does one small step of a long process. Its value shows only when the sampler repeats the step down to step 0, so judge it by the quality of the finished samples and not by a single output."
+  }
+}

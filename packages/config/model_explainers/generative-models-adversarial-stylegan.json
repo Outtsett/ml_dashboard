@@ -1,0 +1,78 @@
+{
+  "specificationId": "generative-models-adversarial-stylegan",
+  "name": "StyleGAN",
+  "analogy": "Think of it as a painter working from a mixing desk with one slider per layer of the painting. The first sliders set the big structure, like the overall trend of a chart, and the last sliders set fine texture, like the length of wicks. You can take the big structure from one chart and the fine texture from another.",
+  "steps": [
+    {
+      "title": "Turn random numbers into a style recipe",
+      "description": "A mapping network of several layers first reworks the random numbers into an intermediate recipe. This reworking untangles features so that separate ideas, such as trend and noise, can be adjusted separately.",
+      "inExample": "A list of 512 random numbers from seed 2,201 becomes a style recipe describing a steady uptrend."
+    },
+    {
+      "title": "Begin from a fixed plain canvas",
+      "description": "Unlike other generators, the picture does not start from the random numbers. It starts from a small learned canvas that is the same every time, and the recipe alone decides how the canvas is changed.",
+      "inExample": "A small 4 by 4 starting canvas, identical for every chart, is the base."
+    },
+    {
+      "title": "Apply the recipe at every layer",
+      "description": "At each layer the recipe sets how strongly to scale and shift the features. Early layers work on coarse structure and later layers on detail, so the recipe controls the picture from big shapes down to fine texture.",
+      "inExample": "Early layers set the rising slope of the chart and late layers set the thickness of candle bodies."
+    },
+    {
+      "title": "Mix recipes from different sources",
+      "description": "During training, and when generating, different layers may be given different recipes. Taking early layers from one recipe and late layers from another combines coarse structure from one picture with fine detail from another.",
+      "inExample": "The first 4 layers use the recipe of seed 2,201, a steady uptrend, and the remaining layers use seed 9,874, a choppy day with long wicks."
+    },
+    {
+      "title": "Add fresh random texture at each layer",
+      "description": "Small amounts of new random noise are added at every layer. This creates natural variation in detail, such as small irregularities, without changing the main structure.",
+      "inExample": "Noise changes tiny details like individual wick lengths, but the uptrend stays the same."
+    },
+    {
+      "title": "Judge against real pictures and refine",
+      "description": "As in any generative adversarial network, an inspector compares generated and real pictures and the generator keeps improving. Later versions remove odd artifacts and make small changes in the recipe produce smooth changes in the picture.",
+      "inExample": "The inspector scores the mixed chart 51 percent, meaning it can barely tell it from a real chart."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Making controllable chart pictures",
+      "example": "Generating candlestick chart images with a chosen trend shape but varied wick texture, to train a pattern-recognition network on more variety."
+    },
+    {
+      "task": "Exploring which image features a network has learned",
+      "example": "Sliding one style layer at a time to see which layers control trend, volatility and gaps in generated MNQ chart pictures."
+    },
+    {
+      "task": "Synthetic data when only images exist",
+      "example": "Creating extra labelled chart screenshots when a vision model for candle patterns has too few examples of a rare pattern."
+    }
+  ],
+  "avoidWhen": [
+    "Your data is numbers in a table or a price series; this model was built for pictures, and simpler generators on the numbers directly are easier to train and check.",
+    "You have a small image set; StyleGAN needs a large amount of data and powerful graphics hardware, and with little data a smaller conditional generator is better."
+  ],
+  "example": {
+    "scenario": "A researcher training a candle-pattern image network wants chart pictures that combine a steady uptrend with choppy, wick-heavy candles. They mix the style recipes of two seeds in a trained StyleGAN.",
+    "input": {
+      "summary": "Two random seeds, a layer split point, and an image size.",
+      "fields": [
+        { "name": "coarse style seed", "value": "2,201 (steady uptrend)", "meaning": "The seed whose recipe controls broad structure such as the slope of the chart." },
+        { "name": "fine style seed", "value": "9,874 (choppy, long wicks)", "meaning": "The seed whose recipe controls detail such as wick length and candle texture." },
+        { "name": "layer split", "value": "first 4 of 14 layers use the coarse seed", "meaning": "Where the picture switches from one recipe to the other." },
+        { "name": "image size", "value": "256 by 256 pixels", "meaning": "The size of the chart picture produced." },
+        { "name": "bars drawn", "value": "64 bars of 5 minutes", "meaning": "How many candles the picture is meant to show." }
+      ]
+    },
+    "output": {
+      "summary": "One mixed chart picture and a few checks on it.",
+      "fields": [
+        { "name": "mixed chart image", "value": "256 by 256 candlestick picture", "meaning": "A synthetic chart with the trend of seed 2,201 and the texture of seed 9,874." },
+        { "name": "rising candles in the picture", "value": "40 of 64", "meaning": "A count showing the uptrend structure was kept." },
+        { "name": "average wick length against body length", "value": "90 percent longer than the body", "meaning": "How long wicks are compared with candle bodies, showing the choppy texture was kept." },
+        { "name": "inspector realness score", "value": "51 percent", "meaning": "How real the inspector finds the picture; near 50 percent means it cannot tell it from a real chart." }
+      ]
+    },
+    "reading": "The picture is a controlled blend, useful as an extra training example for an image network. It says nothing about the future of the market. Keep synthetic images labelled as such and test the image network on real charts only."
+  }
+}

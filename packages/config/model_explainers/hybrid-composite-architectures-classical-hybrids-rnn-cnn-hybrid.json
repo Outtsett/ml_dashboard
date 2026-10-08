@@ -1,0 +1,82 @@
+{
+  "specificationId": "hybrid-composite-architectures-classical-hybrids-rnn-cnn-hybrid",
+  "name": "RNN-CNN Hybrid",
+  "analogy": "Think of it as two analysts on one desk. The first scans each short stretch of the chart for local shapes, such as a sharp rejection candle or a tight squeeze. The second reads the first analyst's notes in time order, remembers what came earlier, and makes the call.",
+  "steps": [
+    {
+      "title": "Cut the history into short stretches",
+      "description": "The recent history is divided into a series of short stretches in time order. Each stretch holds a few bars of price, volume and indicator values laid out like a small picture.",
+      "inExample": "The last 60 five-minute MNQ bars are cut into 12 stretches of 5 bars, each with 8 feature columns."
+    },
+    {
+      "title": "Scan each stretch for local shapes",
+      "description": "The convolutional part slides small filters across each stretch. Each filter responds to one local shape, such as a rising run, a wide-range bar on heavy volume, or a flat squeeze. The result is a short list of shape scores for that stretch.",
+      "inExample": "Each 5-bar stretch is reduced to 16 shape scores; the stretch just before the close scores high on falling bars with rising volume."
+    },
+    {
+      "title": "Line the shape scores up in time",
+      "description": "The shape scores of every stretch are lined up in time order, producing a sequence of short summaries that replaces the raw bars. This sequence is the handover from the first analyst to the second.",
+      "inExample": "The 12 stretches give a sequence of 12 summaries, each with 16 numbers."
+    },
+    {
+      "title": "Read the sequence with memory",
+      "description": "The recurrent part, a long short-term memory network, reads the summaries one after another and keeps a running memory, deciding at each step what to hold on to and what to forget. This captures how the shapes developed over time, such as a squeeze followed by a break.",
+      "inExample": "Memory keeps the early quiet squeeze and the recent selling run, and drops the unremarkable stretches between them."
+    },
+    {
+      "title": "Turn the final memory into a call",
+      "description": "The memory after the last stretch passes through a small output layer that turns it into class probabilities, here the chance of up versus down over the chosen horizon.",
+      "inExample": "The output layer gives a 44 percent chance of up and 56 percent chance of down over the next 6 bars."
+    },
+    {
+      "title": "Train both parts together",
+      "description": "Both parts are trained end to end on past examples with known outcomes. Errors flow back through the memory part into the shape-scanning part, so the filters learn the shapes that matter for the memory, not shapes chosen by hand.",
+      "inExample": "After training on 12 months of bars, a filter that began as random noise can settle on spotting wide-range reversal bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction calls from the recent bar sequence",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close, from the previous 60 bars of price, volume and indicators."
+    },
+    {
+      "task": "Recognising multi-bar patterns that unfold over time",
+      "example": "Detecting a squeeze followed by a breakout attempt, where both the shape of the bars and their order matter."
+    },
+    {
+      "task": "Classifying regimes from short windows",
+      "example": "Labelling each 60-bar ES window as trending, ranging or volatile for a strategy that switches behaviour."
+    },
+    {
+      "task": "Combining raw bars with indicators",
+      "example": "Feeding open, high, low, close, volume and a handful of the 151 technical indicators as columns so the shape scanner sees them together."
+    }
+  ],
+  "avoidWhen": [
+    "You have mostly tabular features and few rows; gradient boosting finds thresholds in such tables with far less data than this network needs.",
+    "You need an explanation of exactly why the call was made; the learned filters and memory are hard to read, and a tree-based model gives clearer reasons."
+  ],
+  "example": {
+    "scenario": "At the close of the 14:35 five-minute MNQ bar, the model reads the last 60 bars as 12 stretches of 5 bars and outputs the chance that the close 6 bars later is higher than this close.",
+    "input": {
+      "summary": "A block of the last 60 bars with 8 columns each, normalised using only past data; five summary values are shown.",
+      "fields": [
+        { "name": "bars in the window", "value": "60", "meaning": "Five hours of 5-minute bars, the history the model sees." },
+        { "name": "close of the latest bar", "value": "19,310", "meaning": "The price at which the 14:35 bar closed." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "Typical high-to-low travel of a recent bar." },
+        { "name": "volume against its 20-bar average, latest bar", "value": "90 percent above", "meaning": "Heavy trading in the latest bar compared with the recent norm." },
+        { "name": "return over the last 12 bars", "value": "minus about two fifths of a percent", "meaning": "How much price fell over the previous hour." },
+        { "name": "relative strength index, 14 bars", "value": "30", "meaning": "A momentum reading from 0 to 100; low values mean persistent selling." }
+      ]
+    },
+    "output": {
+      "summary": "Probabilities for the two classes, plus the call they imply.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "44 percent", "meaning": "The model's chance that price will be above the current close in 30 minutes." },
+        { "name": "probability the close is lower 6 bars later", "value": "56 percent", "meaning": "The remaining chance, so the two add to 100 percent." },
+        { "name": "call", "value": "down", "meaning": "The side the probability favours when the dividing line is 50 percent." }
+      ]
+    },
+    "reading": "A 56 percent lean toward down is modest. Whether it earns money depends on trading costs: one MNQ point is worth 2 US dollars, so a 6-bar move needs to beat commission and slippage on average. Check the lean on walk-forward folds with costs before trusting it."
+  }
+}

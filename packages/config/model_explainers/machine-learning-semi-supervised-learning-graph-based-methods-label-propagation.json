@@ -1,0 +1,84 @@
+{
+  "specificationId": "machine-learning-semi-supervised-learning-graph-based-methods-label-propagation",
+  "name": "Label Propagation",
+  "analogy": "Think of it as a crowded trading floor where a few traders wear name tags reading bullish or bearish and everyone else wears a blank tag. Each blank-tag trader copies the tag most common among the people standing closest, and this repeats until the room settles.",
+  "steps": [
+    {
+      "title": "Describe every bar as a row of numbers",
+      "description": "Each bar, whether its outcome is known or not, becomes a row of features such as its recent return, its volume against the recent norm and its distance from a moving average. The features are scaled so that none of them dominates the others.",
+      "inExample": "2,000 five-minute MNQ bars from one month are each described by 6 scaled features. Only 120 of them have a known outcome."
+    },
+    {
+      "title": "Link each bar to its look-alikes",
+      "description": "Every bar is connected to the handful of bars that look most like it, and each link has a strength: very similar bars get a strong link, weaker matches get a thin one. The result is a web of bars, which is the graph the labels will travel along.",
+      "inExample": "Each bar is linked to its 10 closest look-alikes. The 10:15 bar has one very strong link and several thin ones."
+    },
+    {
+      "title": "Pin the known labels",
+      "description": "Bars with a known outcome are given a firm label, here closed higher or closed lower 6 bars later. Bars with no outcome start with no opinion at all.",
+      "inExample": "The 120 known bars are pinned: 63 as closed higher and 57 as closed lower. The other 1,880 start undecided."
+    },
+    {
+      "title": "Let the labels flow along the links",
+      "description": "In each round, every undecided bar takes on the average opinion of its neighbors, with stronger links counting for more. Opinions therefore seep outward from the known bars into the bars around them.",
+      "inExample": "After the first round, bars standing right next to known up-bars lean up. Bars further out are still close to undecided."
+    },
+    {
+      "title": "Reset the known bars after every round",
+      "description": "After each round the known bars are put back to their original labels. This keeps the known answers fixed, so they act as a permanent source and the opinion in the rest of the web cannot drift away from them.",
+      "inExample": "The 120 known bars snap back to their pinned labels each round, while the 1,880 others keep updating."
+    },
+    {
+      "title": "Stop when the web settles and read the shares",
+      "description": "The rounds repeat until the opinions stop changing. Each undecided bar ends up with a share of up and a share of down, and the larger share is its label.",
+      "inExample": "After 35 rounds nothing moves. The 10:15 bar ends at 57 percent up and 43 percent down, so it is labelled up."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Labelling bars when few outcomes are known",
+      "example": "Spreading a small set of hand-checked up and down labels on MNQ 5-minute bars across a few thousand unlabelled bars, so a later model has far more training rows."
+    },
+    {
+      "task": "Tagging regimes from a few examples",
+      "example": "Marking 100 stretches of the chart as trending or ranging by hand and letting the web label the stretches that look similar."
+    },
+    {
+      "task": "Finding bars that sit between two groups",
+      "example": "Listing the bars whose final share is close to 50 percent, since they look equally like up-bars and down-bars and deserve a closer look."
+    },
+    {
+      "task": "Sentiment-aware grouping",
+      "example": "Adding the news sentiment score as one of the features, so bars with similar price shape and similar news tone end up linked."
+    }
+  ],
+  "avoidWhen": [
+    "You need to score a brand-new bar the moment it closes; the web has to be rebuilt to include it, so a model that learns a rule, such as a tree ensemble, is more practical.",
+    "The labelled bars are noisy or often wrong; this model treats them as fixed truth, so Label Spreading, which lets known labels bend, is the safer choice."
+  ],
+  "example": {
+    "scenario": "A researcher has 2,000 five-minute MNQ bars, of which 120 have a known outcome: whether the close 6 bars (30 minutes) later was above or below that bar's close. The question is what the 10:15 bar, whose outcome is not known yet, most resembles.",
+    "input": {
+      "summary": "A table of 2,000 bars described by 6 scaled features, with labels on only 120 of them.",
+      "fields": [
+        { "name": "bars in the web", "value": "2,000", "meaning": "All five-minute bars in the month, labelled and unlabelled together." },
+        { "name": "bars with a known outcome", "value": "120", "meaning": "Bars whose close 6 bars later is already known, so their label is pinned." },
+        { "name": "features per bar", "value": "6", "meaning": "The numbers describing each bar, such as its recent return and its volume against average." },
+        { "name": "links per bar", "value": "10", "meaning": "How many look-alike bars each bar is connected to." },
+        { "name": "close of the 10:15 bar", "value": "19,240", "meaning": "The price at which the bar being labelled closed." },
+        { "name": "price change over the last 6 bars", "value": "minus 54 points", "meaning": "How far price fell over the previous 30 minutes before the 10:15 bar." },
+        { "name": "volume against its 20-bar average", "value": "60 percent above average", "meaning": "How heavy trading was in the 10:15 bar compared with the recent norm." }
+      ]
+    },
+    "output": {
+      "summary": "A share of up and a share of down for the 10:15 bar, and the label that follows from them.",
+      "fields": [
+        { "name": "share leaning up", "value": "57 percent", "meaning": "The weighted share of the bar's neighborhood that closed higher 6 bars later." },
+        { "name": "share leaning down", "value": "43 percent", "meaning": "The weighted share of the neighborhood that closed lower 6 bars later." },
+        { "name": "label", "value": "up", "meaning": "The side with the larger share." },
+        { "name": "strongest influence", "value": "3 pinned up-bars", "meaning": "The known bars that pulled the 10:15 bar's opinion hardest." }
+      ]
+    },
+    "reading": "57 percent up is a mild lean, not a verdict. Use the label to enlarge the training set for a later model, and treat bars that finish near 50 percent as undecided rather than forcing them to a side."
+  }
+}

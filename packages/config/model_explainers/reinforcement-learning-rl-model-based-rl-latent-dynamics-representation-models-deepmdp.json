@@ -1,0 +1,86 @@
+{
+  "specificationId": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-deepmdp",
+  "name": "DeepMDP",
+  "analogy": "Think of it as a trader who shrinks the whole screen of indicators down to the few readings that actually help predict the next move and the next payoff, and deliberately throws away everything that only makes the screen look busy.",
+  "steps": [
+    {
+      "title": "Encode the state into a small latent code",
+      "description": "An encoder turns the full feature vector of a bar into a short list of numbers. The aim is not to be able to rebuild the bar. The aim is to keep only what matters for acting well.",
+      "inExample": "The 35 base features of a 5-minute MNQ bar are encoded into 8 numbers."
+    },
+    {
+      "title": "Predict the next code from the current code",
+      "description": "A transition model takes the current code and the action and predicts the next bar's code. If it can do this well, the code holds what is needed to understand where the market goes next.",
+      "inExample": "From the code of the 10:00 bar and an action of buy, it predicts the code of the 10:05 bar."
+    },
+    {
+      "title": "Predict the reward from the code",
+      "description": "A reward model predicts the immediate payoff from the code and action. If the code can predict reward, it must hold the information that drives reward.",
+      "inExample": "For a buy at 10:00, it predicts a net result of plus 6 US dollars after costs for the next bar."
+    },
+    {
+      "title": "Skip the rebuilding step on purpose",
+      "description": "Unlike many latent models, there is no decoder and no loss for reconstructing the raw bar. That keeps the code from spending room on details, such as small wiggles in unrelated indicators, that do not affect decisions.",
+      "inExample": "The training never asks the model to recover the exact relative strength index or volume value of the bar."
+    },
+    {
+      "title": "Keep the encoder smooth",
+      "description": "The encoder is constrained so that similar bars give similar codes. That smoothness is what makes the theory work: small prediction errors then translate into small errors in the value of acting.",
+      "inExample": "Two bars with almost the same features end up with codes that are very close, rather than far apart."
+    },
+    {
+      "title": "Learn a policy or value in the latent space",
+      "description": "A policy or value estimate is then trained on the small code. Because the transition and reward errors are small, the theory bounds how far the value learned in the code can stray from the real value, provided the encoder is smooth.",
+      "inExample": "A value estimate trained on the 8-number codes ranks buy, hold and sell for each bar."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Compressing noisy features to what matters",
+      "example": "Reducing 151 technical indicators and 35 base features to a short code that predicts the next-bar payoff, dropping the rest."
+    },
+    {
+      "task": "Sharing a representation across instruments",
+      "example": "Training one encoder on ES, MNQ and related index futures so that only the structure they share is kept."
+    },
+    {
+      "task": "A cheap space for short planning",
+      "example": "Searching a few bars ahead in the 8-number space instead of in the full feature space."
+    },
+    {
+      "task": "Judging how far a learned value can be trusted",
+      "example": "Using the transition and reward errors on held-out folds as an early warning of how far the learned value can be trusted."
+    },
+    {
+      "task": "Seeing which features are discarded",
+      "example": "Checking which indicators the encoder ignores to find out which ones carry no decision information."
+    }
+  ],
+  "avoidWhen": [
+    "You want to rebuild or generate actual bars; DeepMDP has no decoder, so a variational or generative model is the right tool.",
+    "The reward is almost pure noise, as with a one-bar return; the code then has little real signal to organize itself around."
+  ],
+  "example": {
+    "scenario": "A trained DeepMDP encodes an MNQ 5-minute bar at 10:00 and is asked what the next code and next payoff look like for a buy, as a check on how well the code predicts.",
+    "input": {
+      "summary": "One bar's feature vector and a candidate action.",
+      "fields": [
+        { "name": "close", "value": "19,789", "meaning": "The close of the 10:00 five-minute bar, rounded to a whole point." },
+        { "name": "average true range, 14 bars", "value": "26 points", "meaning": "The typical high-to-low travel of a recent five-minute bar." },
+        { "name": "volume against its 20-bar average", "value": "50 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "distance from the 50-bar moving average", "value": "about a quarter of one percent above", "meaning": "How far the close sits above its recent average price." },
+        { "name": "bar feature count", "value": "35", "meaning": "The number of base features entering the encoder." },
+        { "name": "candidate action", "value": "buy 1 contract", "meaning": "The action whose next code and payoff are being predicted." }
+      ]
+    },
+    "output": {
+      "summary": "The code, the predicted next code and the predicted payoff.",
+      "fields": [
+        { "name": "latent code size", "value": "8 numbers", "meaning": "The length of the compressed state the encoder produced." },
+        { "name": "predicted next-code error", "value": "4 percent of the typical spread of codes", "meaning": "How far, on average, the predicted next code was from the encoded real next bar on held-out data; smaller is better." },
+        { "name": "predicted payoff for the buy", "value": "plus 6 US dollars", "meaning": "The reward model's estimate of the next bar's net result after costs." }
+      ]
+    },
+    "reading": "The two errors are the report card for the code: small values on held-out folds mean the code is a faithful, compact description for decisions. A predicted payoff of a few dollars is only an estimate of one bar, so judge the strategy on its aggregate net result, not on this number."
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "specificationId": "simulation-decision-models-agent-based-multi-agent-systems-agent-based-modeling",
+  "name": "Agent-Based Modeling",
+  "analogy": "Think of it as a toy exchange populated by hundreds of simple robot traders. One robot follows trends, one fades them, one provides liquidity, each with its own rules and its own pocket. You press play and watch what prices do when all of them are trading each other.",
+  "steps": [
+    {
+      "title": "Build a population of different traders",
+      "description": "The model creates many agents, each with its own simple rule, time horizon, risk limit and starting capital. Variety matters: a market of identical agents behaves nothing like a market of mixed ones.",
+      "inExample": "The population has 400 trend followers, 400 mean reverters, 150 market makers and 50 large position holders, each with different capital."
+    },
+    {
+      "title": "Give each agent a limited view",
+      "description": "An agent does not see everyone. It reacts only to recent prices, the visible order book and its own position, as a real trader would on a screen.",
+      "inExample": "A trend follower reacts to the last 20 bars and the best bid and ask, and knows nothing about what the other 999 agents hold."
+    },
+    {
+      "title": "Let every agent decide, bar by bar",
+      "description": "On each simulated bar every agent applies its rule and submits a buy, sell or no order. The rules are simple on purpose; the interest lies in how they interact.",
+      "inExample": "After a 30-point rise the trend followers buy, the mean reverters sell, and the market makers widen their quotes."
+    },
+    {
+      "title": "Let the price come out of the orders",
+      "description": "Orders are matched in a simplified order book or by net imbalance. The price is not given to the simulation; it emerges from the pressure of buying against selling.",
+      "inExample": "Net buying of 180 contracts pushes the simulated close up by 14 points on that bar."
+    },
+    {
+      "title": "Let agents adapt to how they are doing",
+      "description": "Agents that are losing money may cut their size or switch to another rule, and those that are winning gain capital. Over time the mix of strategies shifts, which can turn a trending market into a ranging one.",
+      "inExample": "After a long chop, trend followers lose capital and some of them switch to fading moves, so the simulated market starts to range."
+    },
+    {
+      "title": "Tune the rules until the simulated bars look real",
+      "description": "The mix of agent types and their rule settings are adjusted, with no gradient training, until the simulated bars share the real market's character: the typical size of moves, the clusters of volatile bars and the fat tails. Only after this match is the simulation worth using.",
+      "inExample": "The share of trend followers and their lookback are adjusted until the typical 30-minute move and the clustering of volatile bars in the simulation resemble those of real MNQ five-minute bars."
+    },
+    {
+      "title": "Run it many times and study the pattern",
+      "description": "Because the simulation has randomness, one run is just one possible history. The model is run many times, and the distribution of outcomes across runs is what gets studied.",
+      "inExample": "The same market is simulated 500 times with different random seeds, and the 6-bar price changes are collected across runs."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Extra synthetic history when real data is short",
+      "example": "Generating thousands of plausible MNQ five-minute sessions to train or test a model that has only a few months of real bars."
+    },
+    {
+      "task": "Stress testing a strategy under conditions not in the record",
+      "example": "Removing the market makers for a few simulated bars to see how a strategy's drawdown behaves when liquidity vanishes."
+    },
+    {
+      "task": "Studying why trends and ranges form",
+      "example": "Varying the share of trend followers from 20 to 60 percent to see how it changes volatility clustering."
+    },
+    {
+      "task": "Testing a strategy against a population that fights back",
+      "example": "Letting simulated agents learn to trade against a rule, to see whether the rule survives once others adapt to it."
+    }
+  ],
+  "avoidWhen": [
+    "You need a forecast of a specific price; a simulation shows what kinds of behaviour are possible, not what will happen on a given day, and a predictive model is the right tool.",
+    "The agent rules are guessed rather than measured; the output only reflects the assumptions put in, so unchecked rules give convincing but meaningless paths."
+  ],
+  "example": {
+    "scenario": "A researcher simulates a market of 1,000 agents for 78 five-minute bars, starting from an MNQ price of 19,500. The question is how often a sharp drop of 60 points or more occurs within 6 bars.",
+    "input": {
+      "summary": "The make-up of the population, the starting conditions and the number of repeated runs.",
+      "fields": [
+        { "name": "starting price", "value": "19,500", "meaning": "The simulated MNQ price at the first bar." },
+        { "name": "trend followers", "value": "400 agents", "meaning": "Agents that buy after rises and sell after falls." },
+        { "name": "mean reverters", "value": "400 agents", "meaning": "Agents that sell after rises and buy after falls." },
+        { "name": "market makers", "value": "150 agents", "meaning": "Agents that quote both sides and widen quotes when the market moves fast." },
+        { "name": "large position holders", "value": "50 agents", "meaning": "Agents that trade in big blocks and are forced to exit if losses pass a limit." },
+        { "name": "bars per run", "value": "78 five-minute bars", "meaning": "One simulated trading session." },
+        { "name": "runs", "value": "500", "meaning": "How many times the session is simulated with different random seeds." }
+      ]
+    },
+    "output": {
+      "summary": "A collection of simulated sessions and the statistics drawn from them.",
+      "fields": [
+        { "name": "median 6-bar price change", "value": "plus 2 points", "meaning": "The middle of all simulated 30-minute moves across the 500 runs." },
+        { "name": "typical size of a 6-bar move", "value": "about 22 points", "meaning": "How far prices usually travel over 30 minutes in the simulation." },
+        { "name": "runs with a drop of 60 points or more within 6 bars", "value": "31 of 500", "meaning": "How many simulated sessions contained a sharp fall." },
+        { "name": "share of those drops following forced exits", "value": "about 70 percent", "meaning": "How often the large position holders were the trigger." }
+      ]
+    },
+    "reading": "These numbers describe the simulated world, not the real MNQ market. Compare them with the real record: if the simulation's typical move size and the frequency of sharp drops are far from reality, change the agents' rules until they match before trusting any stress test it produces."
+  }
+}

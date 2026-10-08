@@ -1,0 +1,82 @@
+{
+  "specificationId": "simulation-decision-models-tree-graph-based-decision-models-decision-trees",
+  "name": "Decision Trees",
+  "analogy": "Think of it as a game of twenty questions played with past bars. The tree learns which yes-or-no question about the indicators best separates the bars that went up from the ones that went down, then asks the next best question inside each group, until each group is clean enough to give an answer.",
+  "steps": [
+    {
+      "title": "Start with all the training bars in one group",
+      "description": "Every training bar sits in a single group with its known outcome. The group is mixed, with some bars that went up and some that went down, and the tree measures how mixed it is.",
+      "inExample": "9,000 training bars are in one group, and 52 percent of them closed higher 6 bars later."
+    },
+    {
+      "title": "Try every possible question",
+      "description": "For each indicator and each cut point, the tree checks what would happen if the bars were split into those below and those above. It scores each split by how much purer the two resulting groups are than the original.",
+      "inExample": "It tries questions such as relative strength index below 35, volume 50 percent above its average, and close at least 1 percent below the 50-bar moving average."
+    },
+    {
+      "title": "Take the best question and split",
+      "description": "The single best question is chosen and the bars are divided accordingly. The choice is greedy: it looks only for the best split now, without planning later ones.",
+      "inExample": "The best first question is whether the relative strength index is below 35, which sends 1,900 bars to the left branch."
+    },
+    {
+      "title": "Repeat inside each branch",
+      "description": "Each branch is treated as its own small problem and split again by its best question. This continues until a branch is pure enough, too small, or the tree has reached its depth limit. The limits are essential, since an unlimited tree memorises the training bars.",
+      "inExample": "The left branch asks whether volume is 50 percent above its 20-bar average, giving a group of 412 bars."
+    },
+    {
+      "title": "Write the answer at each end",
+      "description": "A final group, called a leaf, stores the share of its bars that went up, or the average outcome. That stored value is the tree's prediction for any bar that lands there.",
+      "inExample": "The leaf of 412 bars stores that 59 percent of them closed higher 6 bars later."
+    },
+    {
+      "title": "Score a new bar by walking down the tree",
+      "description": "A new bar is sent down the tree, answering each question about its own values, until it reaches a leaf. The leaf's stored value is the prediction, and the path of questions is the explanation.",
+      "inExample": "The new bar has a relative strength index of 28 and volume 80 percent above its average, so it lands in that leaf and receives 59 percent."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Direction or regime classification",
+      "example": "Predicting whether MNQ's close 6 bars after a 5-minute bar will be above that bar's close, from indicator readings."
+    },
+    {
+      "task": "Producing rules a person can review",
+      "example": "Extracting a short set of if-then conditions that a discretionary trader can read, challenge and approve."
+    },
+    {
+      "task": "Screening indicators",
+      "example": "Fitting a quick shallow tree to see which of the 151 indicators it uses first."
+    },
+    {
+      "task": "Building block for ensembles",
+      "example": "Serving as the small learner inside random forests and boosting, which usually predict better than one tree."
+    }
+  ],
+  "avoidWhen": [
+    "You want the best accuracy from a table of features; a boosted or random forest of many trees is usually steadier than a single tree.",
+    "The information is in the order of the bars; a sequence model reads that directly, while a tree sees only the summary features you provide."
+  ],
+  "example": {
+    "scenario": "A shallow tree is trained on 9,000 MNQ 5-minute bars, with the label being whether the close 6 bars later was higher. It is then asked about a new bar.",
+    "input": {
+      "summary": "Indicator values for the bar that just closed.",
+      "fields": [
+        { "name": "relative strength index, 14 bars", "value": "28", "meaning": "A momentum reading from 0 to 100; under 35 means price has fallen sharply." },
+        { "name": "volume against its 20-bar average", "value": "80 percent above average", "meaning": "How heavy trading in this bar was compared with the recent norm." },
+        { "name": "average true range, 14 bars", "value": "24 points", "meaning": "The typical high-to-low travel of a recent bar." },
+        { "name": "distance from the 50-bar moving average", "value": "about 1 percent below", "meaning": "How far the close sits below its recent average price." },
+        { "name": "tree depth limit", "value": "3 questions", "meaning": "The maximum number of questions on any path, set to avoid memorising the bars." }
+      ]
+    },
+    "output": {
+      "summary": "A probability and the exact questions that produced it.",
+      "fields": [
+        { "name": "probability the close is higher 6 bars later", "value": "59 percent", "meaning": "The share of training bars in this leaf that went on to close higher." },
+        { "name": "bars in the leaf", "value": "412", "meaning": "How many training bars support this prediction." },
+        { "name": "path of questions", "value": "relative strength index below 35, then volume 50 percent above average", "meaning": "The conditions the bar satisfied on the way to the leaf." },
+        { "name": "call", "value": "up", "meaning": "The side of 50 percent the probability falls on." }
+      ]
+    },
+    "reading": "59 percent from 412 bars is a modest lean with a visible reason: an oversold bar on heavy volume. Check how that leaf performed on later bars it did not train on, and whether the lean covers trading costs, before treating it as a signal."
+  }
+}

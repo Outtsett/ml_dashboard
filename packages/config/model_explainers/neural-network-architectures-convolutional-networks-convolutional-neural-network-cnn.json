@@ -1,0 +1,78 @@
+{
+  "specificationId": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
+  "name": "Convolutional Neural Network (CNN)",
+  "analogy": "Think of it as a row of small magnifying glasses sliding along a chart, each tuned to spot one little shape such as a three-bar stall or a sharp wick. Later layers look at where the first glasses lit up and spot bigger shapes built from them, and a final judge turns the bigger shapes into a call.",
+  "steps": [
+    {
+      "title": "Lay the recent bars out as a grid",
+      "description": "The window is arranged as a grid, with bars along one side and the measurements (open, high, low, close, volume, indicators) along the other. A chart image works too, and then the grid is made of pixels.",
+      "inExample": "The last 60 five-minute MNQ bars are arranged as a table of 60 bars by 8 measurements."
+    },
+    {
+      "title": "Slide small filters along the grid",
+      "description": "Each filter is a tiny window covering only a few bars at a time. It slides along the series, scoring how strongly each position matches the shape it has learned to find. The same filter is reused at every position, so a shape is found wherever it occurs.",
+      "inExample": "One filter, 3 bars wide, lights up wherever three bars stall near a low after a drop; it lights up at bars 21 and 47."
+    },
+    {
+      "title": "Keep only the strongest responses",
+      "description": "A pooling step shrinks the output by keeping the strongest response in each small neighbourhood, so the model keeps the fact that a shape was present and drops its exact position. This makes it less sensitive to small shifts.",
+      "inExample": "The 60 filter scores per filter are cut to 30 by keeping the stronger of each pair of neighbouring positions."
+    },
+    {
+      "title": "Stack more layers for bigger shapes",
+      "description": "The next layer applies filters to the output of the first, so it can find shapes made of smaller shapes, such as a drop, a stall and a bounce. Each layer sees a wider stretch of the series than the one before.",
+      "inExample": "A second layer lights up on the sequence of a drop, a stall and then a bounce spanning about 10 bars."
+    },
+    {
+      "title": "Combine the shapes into a verdict",
+      "description": "The final feature values are flattened and fed to a small classifying layer that turns them into class probabilities. Training compares these probabilities with what really happened and adjusts all the filters to reduce the error.",
+      "inExample": "The classifier outputs: up 46 percent, flat 22 percent, down 32 percent for the next 6 bars."
+    }
+  ],
+  "useFor": [
+    {
+      "task": "Spotting local shapes in a window of bars",
+      "example": "Detecting stalls, wicks and reversals within the last 60 five-minute MNQ bars as inputs to a direction call."
+    },
+    {
+      "task": "Classifying chart images",
+      "example": "Labelling a picture of the last hour of one-minute candles as a hammer, engulfing bar or neither, as in the dashboard's candle vision study."
+    },
+    {
+      "task": "Fast, compact sequence models",
+      "example": "Running a one-dimensional CNN on streaming bars where speed matters more than long memory."
+    },
+    {
+      "task": "Feature learning for other models",
+      "example": "Letting a CNN compress the last 120 bars into 32 numbers that a gradient boosted tree then uses alongside indicators."
+    }
+  ],
+  "avoidWhen": [
+    "The pattern depends on events far apart in the window, such as a reaction to something 200 bars ago; filters only see nearby bars, and attention or recurrent models reach further.",
+    "Your inputs are a table of unrelated indicators with no order; there is no neighbourhood for a filter to slide over, so a tree model is more natural.",
+    "You do not have enough data to train many filters; with a few months of bars a CNN will happily learn noise as shape."
+  ],
+  "example": {
+    "scenario": "At 14:35 Eastern a 5-minute MNQ bar closes. A CNN reads the last 60 bars and classifies the next 6 bars as up, flat or down, where flat means a move smaller than half the average true range.",
+    "input": {
+      "summary": "A grid of 60 bars by 8 measurements, scaled so levels do not dominate.",
+      "fields": [
+        { "name": "window length", "value": "60 bars", "meaning": "How many five-minute bars the network looks at, five hours of trading." },
+        { "name": "measurements per bar", "value": "8", "meaning": "Open, high, low, close and volume as changes from the prior bar, plus three indicators." },
+        { "name": "latest close", "value": "19,326", "meaning": "The close of the newest bar." },
+        { "name": "average true range, 14 bars", "value": "22 points", "meaning": "The typical high-to-low travel of a recent bar; flat is a move under 11 points." },
+        { "name": "relative strength index, 14 bars", "value": "38", "meaning": "A momentum reading from 0 to 100; below 40 shows recent weakness." }
+      ]
+    },
+    "output": {
+      "summary": "A probability for each of three classes and the shape that drove it.",
+      "fields": [
+        { "name": "probability the move is up", "value": "46 percent", "meaning": "The chance the close 6 bars later is more than 11 points above this close." },
+        { "name": "probability the move is flat", "value": "22 percent", "meaning": "The chance it ends within 11 points of this close." },
+        { "name": "probability the move is down", "value": "32 percent", "meaning": "The chance it ends more than 11 points below this close." },
+        { "name": "strongest shape", "value": "drop, stall, bounce", "meaning": "The second-layer filter that responded most, over the last 10 bars." }
+      ]
+    },
+    "reading": "Up beats down by 14 points of probability, a mild lean that is dwarfed by costs unless the average win is large. Compare it with always guessing the most common class on held-out folds, since a CNN that does no better than the base rate has found nothing."
+  }
+}
