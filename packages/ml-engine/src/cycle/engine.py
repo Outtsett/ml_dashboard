@@ -1533,14 +1533,16 @@ class CycleEngine:
             # trades with it; a bar with no trailing move outside the threshold is not traded.
             if probability is None:
                 direction, signal = 0, None
-            elif self.reversal:
-                trailing = trailing_direction(d.close, i, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
-                direction = signal = (-trailing if probability >= 0.5 else trailing)
-                if direction == 0:
-                    signal = None
             else:
-                direction = signal = 1 if probability >= 0.5 else -1
-                if trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
+                if self.reversal:
+                    trailing = trailing_direction(d.close, i, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
+                    direction = signal = (-trailing if probability >= 0.5 else trailing)
+                    if direction == 0:
+                        signal = None
+                else:
+                    direction = signal = 1 if probability >= 0.5 else -1
+                # the model's own gate and its per-bar regime forecast apply whichever label kind it predicts
+                if signal is not None and trade_gate is not None and not bool(trade_gate(self.features, np.array([i], dtype=np.int64))[0]):
                     signal = 0
                 if regime_forecast is not None:
                     said = regime_forecast(i)
