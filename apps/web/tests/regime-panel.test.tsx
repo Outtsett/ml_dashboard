@@ -75,7 +75,9 @@ describe("RegimePanel", () => {
     expect(svg!.querySelector("polygon")).not.toBeNull();               // the 10th-90th percentile band
     const hovers = [...container.querySelectorAll("[title]")].map((node) => node.getAttribute("title") ?? "");
     expect(hovers.some((title) => title.includes("How it is computed") && title.includes("forward-filtered"))).toBe(true);
-    expect(hovers.some((title) => title.startsWith("Trade gate") && title.includes("≥ decision_threshold"))).toBe(true);
+    expect(hovers.some((title) => title.startsWith("Trade gate") && title.includes("≥ decision_threshold") && title.includes("quantile"))).toBe(true);
+    expect(screen.getByTestId("regime-gate-share").textContent).toContain("set to open on 30%");
+    expect(text).toContain("most confident bars");
   });
 
   it("moves the shared focus when the scrubber moves, and shows the closed gate in words", () => {

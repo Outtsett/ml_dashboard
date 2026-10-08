@@ -80,8 +80,28 @@ come from the regime model fitted on the whole training span, and stop the
 boosting early. Feature weights are the decision model's total gain per signal,
 as shares of the total (``feature_weights``).
 
-**Trade gate** — ``trade_gate(features, index)`` is open when
-``|P(up) − 0.5| >= decision_threshold``. The engine still scores every bar's
+**Trade gate** — a quantile gate. ``gate_open_fraction`` is the share of bars
+the gate should open on, most confident first. At fit the fold's absolute
+threshold is the (1 − ``gate_open_fraction``) quantile of ``|P − 0.5|`` over the
+kept decision model's probabilities on the validation rows — bars its trees were
+not fitted on, on the kept model's own probability scale (0 at
+``gate_open_fraction`` = 1: every bar is open). The decision model is also
+refitted ``stacking_fold_count`` times, each time without one stacking block and
+without ``horizon`` bars either side of it, scoring that block (purged
+out-of-fold probabilities, the same rounds as the kept model): their quantile is
+the threshold when a fold has fewer than ``MINIMUM_GATE_ROWS`` validation rows,
+and is logged beside the validation one otherwise. It is not the first choice
+because the block models are other boosters: measured 2026-10-07 on the test
+market, a kept model of one round topped out at |P − 0.5| = 0.0977 while the
+out-of-fold 80th percentile was 0.1029, so that threshold opened on no bar.
+Distance is measured from 0.5 because the engine trades long at P(up) >= 0.5 and
+short below, so "far from 0.5" is conviction in the traded direction; under
+reversal labels |P(turn) − 0.5| = |P(up) − 0.5|, so the gate is the same.
+``trade_gate(features, index)`` is open when ``|P − 0.5| >= decision_threshold``
+(the derived threshold, ``self.decision_threshold``). An absolute threshold tuned
+on training bars did not carry over between folds (2026-10-07: 95.9%, 0.0% and
+0.0% of test bars open in three folds), which is why the setting is a share.
+The engine still scores every bar's
 direction; it enters only where the gate is open, and a closed gate stands
 aside (signal 0: no new entry, the held position runs to its holding period).
 
@@ -140,6 +160,8 @@ REGIME_FILTER_BURN_IN_BARS = 1000
 MINIMUM_REGIME_RETURNS = 50
 STUDENT_DEGREES_OF_FREEDOM_BOUNDS = (2.05, 200.0)
 EARLY_STOPPING_ROUNDS = 30
+# fewer validation probabilities than this cannot place a quantile; the out-of-fold ones do then
+MINIMUM_GATE_ROWS = 50
 KRONOS_BATCH_ROWS = 128
 KRONOS_CLIP = 5.0
 # simulated values held in memory at once (rows x paths x horizon) before the walk is chunked
@@ -522,6 +544,20 @@ def _finite_or_none(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def gate_threshold(out_of_fold_probabilities: np.ndarray, gate_open_fraction: float) -> float:
+    """The absolute gate threshold: the (1 − ``gate_open_fraction``) quantile of |P − 0.5| over the
+    finite out-of-fold probabilities, so that share of them is at or beyond it; 0 when the fraction
+    is 1 (every bar open) or no probability is known."""
+    fraction = float(gate_open_fraction)
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError(f"gate_open_fraction must be above 0 and at most 1, got {fraction}")
+    distance = np.abs(np.asarray(out_of_fold_probabilities, dtype=np.float64) - 0.5)
+    distance = distance[np.isfinite(distance)]
+    if fraction >= 1.0 or distance.size == 0:
+        return 0.0
+    return float(np.quantile(distance, 1.0 - fraction))
+
+
 def purged_blocks(rows: np.ndarray, block_count: int, purge: int) -> list[tuple[np.ndarray, int, int]]:
     """Cut sorted ``rows`` into ``block_count`` contiguous blocks; for each, (the block's rows,
     the first and last row number the regime fit must leave out: the block widened by
@@ -567,6 +603,8 @@ class RegimeMonteCarloDecisionAdapter:
         self.feature_count: int | None = None
         self.filter_start: int | None = None
         self.feature_weights: dict[str, float] = {}
+        # the fold's absolute gate threshold, derived at fit from gate_open_fraction (see the module docstring)
+        self.decision_threshold: float | None = None
         self.fit_summary: dict = {}
         self._inputs: np.ndarray | None = None
         self._filter_state = None
@@ -853,12 +891,47 @@ class RegimeMonteCarloDecisionAdapter:
         ranked = sorted(self.feature_weights.items(), key=lambda item: -item[1])
         reporter.log(f"{self.label}: decision model weights (share of total gain): "
                      + ", ".join(f"{name} {share:.3f}" for name, share in ranked[:8]))
+        # the quantile gate: purged out-of-fold decision probabilities of the stacking rows set the threshold
+        fraction = float(self.parameters["gate_open_fraction"])
+        kept_rounds = self.best_iteration + 1
+
+        def out_of_fold_probabilities() -> np.ndarray:
+            scored = np.full(stacking_rows.size, np.nan)
+            for block_rows, low, high in blocks:
+                inside = (stacking_rows >= block_rows[0]) & (stacking_rows <= block_rows[-1])
+                outside = (stacking_rows < low) | (stacking_rows > high)
+                if not inside.any() or np.unique(stacking_labels[outside]).size < 2:
+                    continue
+                part = xgb.DMatrix(stacking_signals[outside], label=stacking_labels[outside],
+                                   feature_names=self.signal_names, missing=np.nan)
+                block_model = xgb.train(training_parameters, part, num_boost_round=kept_rounds, verbose_eval=False)
+                scored[inside] = block_model.predict(xgb.DMatrix(stacking_signals[inside], feature_names=self.signal_names,
+                                                                 missing=np.nan))
+            return scored
+
+        out_of_fold = run_single_fit(out_of_fold_probabilities, reporter, name=f"{self.key} gate")
+        out_of_fold_threshold = gate_threshold(out_of_fold, fraction)
+        known = np.isfinite(out_of_fold)
         validation_probability = (self._booster_probability(validation_signals) if validation_index.size
                                   else np.empty(0))
-        gate = np.abs(validation_probability - 0.5) >= float(self.parameters["decision_threshold"])
+        # The threshold has to sit on the KEPT model's own probability scale. The block models are other
+        # boosters (other leaf values); the validation rows are the bars the kept model's trees were not
+        # fitted on, so their |P - 0.5| is that scale. With no validation rows the out-of-fold quantile stands.
+        gate_source = "validation" if validation_probability.size >= MINIMUM_GATE_ROWS else "out_of_fold"
+        self.decision_threshold = (gate_threshold(validation_probability, fraction) if gate_source == "validation"
+                                   else out_of_fold_threshold)
+        gate = np.abs(validation_probability - 0.5) >= self.decision_threshold
+        out_of_fold_share = float(np.mean(np.abs(out_of_fold[known] - 0.5) >= self.decision_threshold)) if known.any() else None
         reporter.log(
-            f"{self.label}: on the validation rows the trade gate (|P(up) - 0.5| >= {float(self.parameters['decision_threshold']):g}) "
-            f"opens on {int(gate.sum()):,} of {gate.size:,} bars"
+            f"{self.label}: trade gate set to open on the {fraction * 100:.0f}% most confident bars: the "
+            f"{(1 - fraction) * 100:.0f}th percentile of |P - 0.5| over "
+            + (f"the kept model's {validation_probability.size:,} validation probabilities (bars its trees were not fitted on)"
+               if gate_source == "validation" else
+               f"{int(known.sum()):,} purged out-of-fold training probabilities ({len(blocks)} blocks, {kept_rounds} rounds each)")
+            + f" is {self.decision_threshold:.4f}; the gate opens on {int(gate.sum()):,} of {gate.size:,} validation bars "
+            f"({(float(gate.mean()) * 100 if gate.size else 0.0):.1f}%) and on "
+            f"{('n/a' if out_of_fold_share is None else f'{out_of_fold_share * 100:.1f}%')} of the {int(known.sum()):,} purged "
+            f"out-of-fold training probabilities (their own {(1 - fraction) * 100:.0f}th percentile is {out_of_fold_threshold:.4f})"
         )
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
@@ -870,6 +943,12 @@ class RegimeMonteCarloDecisionAdapter:
             "feature_weights": self.feature_weights,
             "regimes": self.regime_model.summaries(),
             "regime_log_likelihood": self.regime_model.log_likelihood,
+            "gate_open_fraction": fraction,
+            "decision_threshold": self.decision_threshold,
+            "gate_threshold_source": gate_source,
+            "gate_out_of_fold_row_count": int(known.sum()),
+            "gate_out_of_fold_threshold": out_of_fold_threshold,
+            "gate_out_of_fold_open_share": out_of_fold_share,
             "validation_gate_open_share": float(gate.mean()) if gate.size else None,
             "kronos_model": KRONOS_MODELS[kronos.size][0],
             "kronos_revision": KRONOS_MODELS[kronos.size][1],
@@ -923,7 +1002,9 @@ class RegimeMonteCarloDecisionAdapter:
         candles = self._kronos().forecast(self._require_market(), rows)
         signals, pieces = self._signals(features, rows, self.regime_model, self.simulator, candles)
         probability = self._booster_probability(signals)
-        threshold = float(self.parameters["decision_threshold"])
+        if self.decision_threshold is None:
+            raise RuntimeError(f"{self.key}: the trade gate's threshold is derived at fit; this model has none")
+        threshold = float(self.decision_threshold)
         for position, row in enumerate(rows):
             self._row_details[int(row)] = {
                 "probabilities": pieces["probabilities"][position],
@@ -941,7 +1022,8 @@ class RegimeMonteCarloDecisionAdapter:
         return probability
 
     def trade_gate(self, features, index) -> np.ndarray:
-        """True where the decision model is sure enough to trade: |P(up) − 0.5| >= decision_threshold."""
+        """True where the decision model is sure enough to trade: |P − 0.5| >= the fold's threshold
+        (the (1 − gate_open_fraction) quantile of the out-of-fold |P − 0.5|, derived at fit)."""
         rows = _as_index(index)
         missing = [int(row) for row in rows if int(row) not in self._row_details]
         if missing:
@@ -959,7 +1041,8 @@ class RegimeMonteCarloDecisionAdapter:
         return {
             "horizon_bars": self.horizon,
             "simulation_count": int(self.parameters["simulation_count"]),
-            "decision_threshold": float(self.parameters["decision_threshold"]),
+            "gate_open_fraction": float(self.parameters["gate_open_fraction"]),
+            "decision_threshold": float(self.decision_threshold if self.decision_threshold is not None else 0.0),
             "kronos_model": KRONOS_MODELS[str(self.parameters["kronos_model_size"])][0],
             "regime_names": list(REGIME_NAMES),
             "regimes": self.regime_model.summaries(),
@@ -1008,6 +1091,7 @@ class RegimeMonteCarloDecisionAdapter:
         metadata.update({
             "regime_model_file": REGIME_MODEL_FILE,
             "best_iteration": self.best_iteration,
+            "decision_threshold": self.decision_threshold,
             "signal_names": list(self.signal_names),
             "finbert_names": list(self.finbert_names),
             "filter_start": self.filter_start,
@@ -1032,6 +1116,7 @@ class RegimeMonteCarloDecisionAdapter:
             adapter.booster = xgb.Booster(model_file=str(Path(directory) / DECISION_MODEL_FILE))
             adapter.booster.set_param({"nthread": 1})
         adapter.best_iteration = metadata.get("best_iteration")
+        adapter.decision_threshold = metadata.get("decision_threshold")
         adapter.signal_names = list(metadata.get("signal_names") or [])
         adapter.finbert_names = list(metadata.get("finbert_names") or [])
         adapter.filter_start = metadata.get("filter_start")
@@ -1049,6 +1134,6 @@ def _last(values):
 
 __all__ = [
     "KRONOS_MODELS", "REGIME_NAMES", "KronosForecaster", "MonteCarloSimulator", "RegimeModel",
-    "RegimeMonteCarloDecisionAdapter", "contiguous_lengths", "fit_regime_model", "purged_blocks", "regime_features",
+    "RegimeMonteCarloDecisionAdapter", "contiguous_lengths", "fit_regime_model", "gate_threshold", "purged_blocks", "regime_features",
     "student_t_fit", "time_features",
 ]

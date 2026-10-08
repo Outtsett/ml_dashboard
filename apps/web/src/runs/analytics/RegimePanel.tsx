@@ -164,7 +164,10 @@ export function RegimePanel({ forecasts, modelLabel, focusTime, onFocusTime }: {
             <span style={{ color: styles[regime]!.color }}>{regimeLabel(styles[regime]!)}</span>: most likely on {share(bars / Math.max(count, 1))} of the fold
           </button>
         ))}
-        <span title={howComputedRegime("trade_gate", "Trade gate")}>· gate open on {opened.toLocaleString("en-US")} of {count.toLocaleString("en-US")} bars ({share(opened / Math.max(count, 1))})</span>
+        <span title={howComputedRegime("trade_gate", "Trade gate")} data-testid="regime-gate-share">
+          · gate open on {opened.toLocaleString("en-US")} of {count.toLocaleString("en-US")} bars ({share(opened / Math.max(count, 1))}
+          {fold.gateOpenFraction === undefined ? "" : `; set to open on ${share(fold.gateOpenFraction, 0)}`})
+        </span>
       </div>
 
       <div className="mt-2 grid gap-3 xl:grid-cols-2">
@@ -362,7 +365,10 @@ function BarReadout({ fold, bar, regimeNow }: { fold: RunRegimeForecast; bar: nu
         </span>
       </div>
       <div className="text-[10px] leading-snug text-muted-foreground">
-        The gate opens when the decision model's P(up) is at least {share(fold.decisionThreshold)} away from 0.5 ({decision === null ? "no probability at this bar" : `here ${share(Math.abs(decision - 0.5))} away`}).
+        {fold.gateOpenFraction === undefined
+          ? ""
+          : `The gate is set to open on the ${share(fold.gateOpenFraction, 0)} most confident bars: this fold's threshold is the ${share(1 - fold.gateOpenFraction, 0)} quantile of |P − 0.5| over the decision model's probabilities on its validation rows. `}
+        The gate opens when the decision model's P(up) is at least {share(fold.decisionThreshold, 2)} away from 0.5 ({decision === null ? "no probability at this bar" : `here ${share(Math.abs(decision - 0.5))} away`}).
       </div>
     </div>
   );

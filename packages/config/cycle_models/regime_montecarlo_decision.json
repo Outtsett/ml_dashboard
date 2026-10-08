@@ -8,7 +8,7 @@
       "subcategory": "Regime-conditioned decision stacks",
       "kind": "Regime simulation decision stack",
       "summary": "A three-state hidden Markov model (flat, uptrend, downtrend) reads ADX, candle bodies, range compression, confirmed swing highs and lows and higher-high / higher-low structure and tracks the current regime bar by bar; a Monte Carlo simulation runs the current regime forward; Kronos forecasts the next candles; FinBERT reads the news; gradient-boosted trees weigh all four and decide whether to trade.",
-      "implementationNote": "Regime model: cycle/regime_hmm.py StructuralRegimeHMM (docs/regime-hmm.md), exactly three states named and ordered flat, uptrend, downtrend, over eight causal features: Wilder ADX 14, the 14-bar mean candle body-to-range ratio, 14-bar over 100-bar mean true range, the close's distance from the last swing high and low confirmed swing_confirmation_bars bars after it formed (shared.zones.structural_pivots) over the move scale, bars since the last pivot, a decayed higher-high / higher-low counter (half-life 48 bars) and the sign of the last two pivots. Diagonal Gaussian emissions over the features standardised on the training span; hmmlearn GaussianHMM Baum-Welch seeded from a heuristic labelling (flat where ADX < adx_threshold, else up / down by the counter's sign), transition diagonal initialised at 0.95 with a sticky Dirichlet prior, a variance floor after every iteration, up to regime_fit_iteration_count iterations, states ordered by the counter's mean; the walk uses the forward filter, never the smoother. Monte Carlo: per regime a Student-t of the one-bar log return (scipy maximum likelihood on the training bars the forward filter puts in it); simulation_count paths of the label horizon start from the filtered regime probabilities and re-draw the regime each bar from the transition matrix, with common random numbers. Kronos: the pretrained foundation model (kronos_model_size, pinned Hugging Face revision) reads the last kronos_context_bars candles and decodes the next horizon candles greedily. FinBERT: the nine finbert_* columns. Decision model: xgboost over the three regime probabilities, the simulation's P(up), expected move and 10-90 percentile spread, Kronos' move and direction and the FinBERT columns, the regime and simulation signals of the last maximum_training_bars training rows made out of fold (stacking_fold_count blocks, each purged by the label horizon on both sides), early-stopped on validation. The trade gate opens when |P(up) - 0.5| >= decision_threshold. The price model is the simulation's expected move. Expect: regimes describe trend and range well; direction is close to the base rate.",
+      "implementationNote": "Regime model: cycle/regime_hmm.py StructuralRegimeHMM (docs/regime-hmm.md), exactly three states named and ordered flat, uptrend, downtrend, over eight causal features: Wilder ADX 14, the 14-bar mean candle body-to-range ratio, 14-bar over 100-bar mean true range, the close's distance from the last swing high and low confirmed swing_confirmation_bars bars after it formed (shared.zones.structural_pivots) over the move scale, bars since the last pivot, a decayed higher-high / higher-low counter (half-life 48 bars) and the sign of the last two pivots. Diagonal Gaussian emissions over the features standardised on the training span; hmmlearn GaussianHMM Baum-Welch seeded from a heuristic labelling (flat where ADX < adx_threshold, else up / down by the counter's sign), transition diagonal initialised at 0.95 with a sticky Dirichlet prior, a variance floor and a Gaussian prior holding each state's mean near its seed after every iteration, up to regime_fit_iteration_count iterations, states ordered by the counter's mean; the walk uses the forward filter, never the smoother. Monte Carlo: per regime a Student-t of the one-bar log return (scipy maximum likelihood on the training bars the forward filter puts in it); simulation_count paths of the label horizon start from the filtered regime probabilities and re-draw the regime each bar from the transition matrix, with common random numbers. Kronos: the pretrained foundation model (kronos_model_size, pinned Hugging Face revision) reads the last kronos_context_bars candles and decodes the next horizon candles greedily. FinBERT: the nine finbert_* columns. Decision model: xgboost over the three regime probabilities, the simulation's P(up), expected move and 10-90 percentile spread, Kronos' move and direction and the FinBERT columns, the regime and simulation signals of the last maximum_training_bars training rows made out of fold (stacking_fold_count blocks, each purged by the label horizon on both sides), early-stopped on validation. The trade gate is a quantile gate: gate_open_fraction is the share of bars it should open on; the fold's absolute threshold is the (1 - gate_open_fraction) quantile of |P - 0.5| over the decision model's purged out-of-fold probabilities on the stacking rows, and the gate opens when |P - 0.5| is at or beyond it. The price model is the simulation's expected move. Expect: regimes describe trend and range well; direction is close to the base rate.",
       "runnable": true,
       "unavailableReason": null,
       "implementation": "torch",
@@ -157,18 +157,18 @@
             "log": true
           }
         },
-        "decision_threshold": {
+        "gate_open_fraction": {
           "type": "float",
-          "default": 0.02,
-          "min": 0.0,
-          "max": 0.5,
-          "label": "Trade gate threshold",
+          "default": 0.3,
+          "min": 0.05,
+          "max": 1.0,
+          "label": "Share of bars the trade gate opens on, most confident first",
           "group": "Model",
-          "description": "The decision model's P(up) must be at least this far from 0.5 for the engine to enter a trade; closer, it stands aside.",
+          "description": "The engine enters a trade only on the bars where the decision model's probability is furthest from 0.5. This is the share of bars that should qualify: at fit, the fold's threshold is the (1 - share) quantile of |P - 0.5| over the decision model's purged out-of-fold probabilities on the training rows. 1.0 opens the gate on every bar.",
           "search": {
             "kind": "float",
-            "low": 0.0,
-            "high": 0.1
+            "low": 0.05,
+            "high": 1.0
           }
         }
       }

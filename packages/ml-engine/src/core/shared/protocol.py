@@ -1089,7 +1089,8 @@ def _number_or_none(value, digits: int):
 
 
 def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: int, simulation_count: int,
-                                  decision_threshold: float, kronos_model: str, regime_names: list[str],
+                                  decision_threshold: float, gate_open_fraction: float, kronos_model: str,
+                                  regime_names: list[str],
                                   regimes: list[dict], transition_matrix, feature_weights: list[dict],
                                   rows: list[dict]) -> dict:
     """The wire shape of a regime Monte Carlo decision model's per-bar forecasts
@@ -1099,7 +1100,9 @@ def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: 
     move), Kronos' predicted candles, the decision model's P(up) and whether
     its trade gate was open. ``rows`` are the adapter's ``regime_forecast(row)``
     records plus ``timestamp``. ``regime_names`` name the regimes in probability
-    order (``flat``, ``uptrend``, ``downtrend``); ``mostLikelyRegime`` carries the
+    order (``flat``, ``uptrend``, ``downtrend``); ``gate_open_fraction`` is the
+    gate's setting (the share of bars it should open on) and ``decision_threshold``
+    the fold's absolute threshold derived from it at fit; ``mostLikelyRegime`` carries the
     NAME of the regime with the highest filtered probability at each bar. The
     fold's constants (regime names, regimes, transition matrix, feature weights)
     travel with every stretch, so any one event is readable on its own. Other
@@ -1134,6 +1137,7 @@ def cycle_regime_forecast_payload(*, fold_index, model_role: str, horizon_bars: 
         "regimeNames": names,
         "horizonBars": int(horizon_bars),
         "simulationCount": int(simulation_count),
+        "gateOpenFraction": float(gate_open_fraction),
         "decisionThreshold": float(decision_threshold),
         "kronosModel": str(kronos_model),
         "regimes": [dict(regime) for regime in regimes],

@@ -16,10 +16,11 @@ downtrend recovery, forward-filter-only inference — is tested in
   label horizon out on both sides;
 - the adapter fits and predicts through the registry like every other model
   (Kronos on the GPU when there is one), its trade gate is |P(up) − 0.5| against
-  the threshold, its predictions do not move when later bars are removed, and a
+  the fold's threshold — the quantile of the purged out-of-fold |P − 0.5| that
+  ``gate_open_fraction`` asks for, opening on about that share of unseen bars — its predictions do not move when later bars are removed, and a
   saved fold reloads to the same predictions;
-- the engine walks it end to end: one ``cycle_regime_forecast`` row per scored
-  test bar, the file beside the artifacts equals what was streamed, and every
+- the engine walks it end to end under both label kinds (direction and reversal):
+  one ``cycle_regime_forecast`` row per scored test bar, the three regimes named, the file beside the artifacts equals what was streamed, and every
   trade entered on a bar whose gate was open.
 """
 
@@ -60,7 +61,7 @@ FINBERT_NAMES = (
 QUICK = {
     "adx_threshold": 20.0, "swing_confirmation_bars": 5, "regime_fit_iteration_count": 50, "simulation_count": 500,
     "kronos_model_size": "mini", "kronos_context_bars": 64, "stacking_fold_count": 3, "maximum_training_bars": 600,
-    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "decision_threshold": 0.02,
+    "boosting_rounds": 60, "max_depth": 3, "learning_rate": 0.1, "gate_open_fraction": 0.4,
 }
 
 
@@ -285,7 +286,12 @@ def test_the_registry_entry_and_the_dispatch_table():
     assert (parameters["swing_confirmation_bars"]["search"]["low"], parameters["swing_confirmation_bars"]["search"]["high"]) == (3, 10)
     assert parameters["simulation_count"]["default"] == 2000
     assert set(catalog.searchable_parameters(KEY)) == {
-        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate", "decision_threshold"}
+        "adx_threshold", "swing_confirmation_bars", "max_depth", "learning_rate", "gate_open_fraction"}
+    gate = parameters["gate_open_fraction"]
+    assert "decision_threshold" not in parameters
+    assert (gate["default"], gate["min"], gate["max"]) == (0.3, 0.05, 1.0)
+    assert (gate["search"]["low"], gate["search"]["high"]) == (0.05, 1.0)
+    assert gate["label"] == "Share of bars the trade gate opens on, most confident first"
 
 
 def test_fitting_and_predicting_keep_the_contract(market, fitted):
@@ -295,7 +301,11 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert probability.shape == (40,) and np.all((probability >= 0) & (probability <= 1))
     gate = adapter.trade_gate(market.features, test[:40])
     assert gate.dtype == bool
-    np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= QUICK["decision_threshold"])
+    np.testing.assert_array_equal(gate, np.abs(probability - 0.5) >= adapter.decision_threshold)
+    assert adapter.decision_threshold == adapter.fit_summary["decision_threshold"] > 0
+    assert adapter.fit_summary["gate_open_fraction"] == QUICK["gate_open_fraction"]
+    assert adapter.fit_summary["gate_threshold_source"] == "validation"
+    assert any("most confident bars" in line and "out-of-fold" in line for line in reporter.logs)
     said = adapter.regime_forecast(int(test[0]))
     assert len(said["probabilities"]) == 3 and abs(sum(said["probabilities"]) - 1) < 1e-9
     assert said["percentile_10_points"].shape == (HORIZON,) and said["kronos_candles"].shape == (HORIZON, 4)
@@ -309,6 +319,41 @@ def test_fitting_and_predicting_keep_the_contract(market, fitted):
     assert any("out-of-fold" in line for line in reporter.logs)
     blocks = adapter.fit_summary["stacking_blocks"]
     assert len(blocks) == QUICK["stacking_fold_count"] and all(block["purge_bars"] == HORIZON for block in blocks)
+
+
+def test_the_gate_threshold_is_the_quantile_of_the_out_of_fold_distance():
+    probabilities = np.r_[np.linspace(0.3, 0.7, 101), np.nan]
+    assert stack.gate_threshold(probabilities, 1.0) == 0.0
+    threshold = stack.gate_threshold(probabilities, 0.25)
+    distance = np.abs(probabilities[:-1] - 0.5)
+    assert threshold == pytest.approx(np.quantile(distance, 0.75))
+    assert np.mean(distance >= threshold) == pytest.approx(0.25, abs=0.02)
+    assert stack.gate_threshold(np.array([np.nan]), 0.3) == 0.0
+    with pytest.raises(ValueError, match="gate_open_fraction"):
+        stack.gate_threshold(probabilities, 0.0)
+
+
+@pytest.mark.parametrize("fraction", [0.2, 0.6, 1.0])
+def test_the_gate_opens_on_about_its_share_of_bars_it_was_not_fitted_on(market, fraction):
+    adapter = build_adapter(KEY, {**QUICK, "gate_open_fraction": fraction}, "auto", 7)
+    adapter.bind_market(market.view())
+    train, validation, test = market.spans()
+    adapter.fit(market.features, market.labels, train, validation, market.timestamps, Reporter())
+    unseen = test                                   # neither fitted on nor used to place the threshold
+    realised = float(adapter.trade_gate(market.features, unseen).mean())
+    distance = np.abs(adapter.predict_probability(market.features, unseen) - 0.5)
+    beyond = float(np.mean(distance > adapter.decision_threshold))       # without the bars tied at the threshold
+    print(f"gate_open_fraction {fraction}: threshold {adapter.decision_threshold:.4f}, open on {realised:.3f} of {unseen.size} "
+          f"unseen bars ({beyond:.3f} strictly beyond it; kept model of {adapter.best_iteration + 1} round(s), "
+          f"{np.unique(distance.round(9)).size} distinct probabilities)")
+    if fraction == 1.0:
+        assert adapter.decision_threshold == 0.0 and realised == 1.0
+    else:
+        # the gate opens at or beyond the threshold, so bars tied at it all open: a kept model of one
+        # tree has a handful of probability values, and the setting then sits between the share strictly
+        # beyond the threshold and the share at or beyond it; with distinct probabilities the two are equal
+        assert beyond - 0.15 <= fraction <= realised + 0.15, (beyond, realised)
+        assert realised > 0, "the gate never opens on unseen bars"
 
 
 def test_a_prediction_does_not_move_when_later_bars_are_removed(market, fitted, tmp_path):
@@ -379,7 +424,8 @@ class Capture:
         return [event for event in self.events if event["type"] == kind]
 
 
-def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_path, monkeypatch):
+@pytest.mark.parametrize("label_kind", ["direction", "reversal"])
+def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_path, monkeypatch, label_kind):
     from cycle.engine import CycleEngine, CycleSettings, MarketData  # noqa: PLC0415
     from cycle.features import FeatureSet  # noqa: PLC0415
     from cycle.simulate import load_cost_model  # noqa: PLC0415
@@ -387,7 +433,7 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     source = Market(days=40, seed=5)
     data = MarketData(source.timestamps, source.open, source.high, source.low, source.close, source.volume)
     features = FeatureSet(source.features.copy(), list(source.feature_names))
-    parameters = {**QUICK, "maximum_training_bars": 400, "decision_threshold": 0.03}
+    parameters = {**QUICK, "maximum_training_bars": 400, "gate_open_fraction": 0.5}
 
     def factory(values, task="classification"):
         return build_adapter(KEY, values, "auto", 42, task=task)
@@ -396,7 +442,7 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
         symbol="MNQ", timeframe="5m", model_id="regime_montecarlo_decision_test", model_family=KEY,
         model_parameters=parameters, artifact_directory=str(tmp_path), train_days=14, validation_fraction=0.2,
         test_days=4, step_days=0, fold_limit=2, expanding_window=False, label_horizon_bars=HORIZON,
-        label_threshold_ticks=0.0, embargo_bars=0, long_only=False, holding_bars=0, stop_loss_ticks=0.0,
+        label_threshold_ticks=0.0, label_kind=label_kind, embargo_bars=0, long_only=False, holding_bars=0, stop_loss_ticks=0.0,
         take_profit_ticks=0.0, contracts=1, tuning_trials=0, tuning_mode="reviewed_defaults", bars_per_second=0.0,
         start_paused=False, quiet_bars=True, log_every_batches=1, device="cpu", seed=42, land_in_lake=False,
     )
@@ -406,6 +452,13 @@ def test_the_engine_streams_the_regimes_and_trades_only_through_the_gate(tmp_pat
     engine.run()
     streamed = capture.of("cycle_regime_forecast")
     assert streamed, "no cycle_regime_forecast event"
+    for event in streamed:
+        # three named regimes under either label kind, the per-bar regime by name, P(up) on the wire
+        assert event["regimeNames"] == ["flat", "uptrend", "downtrend"] and event["regimeCount"] == 3
+        assert event["gateOpenFraction"] == 0.5 and event["decisionThreshold"] >= 0
+        assert all(name in REGIME_NAMES for name in event["mostLikelyRegime"])
+        assert all(len(row) == 3 and abs(sum(row) - 1) < 1e-3 for row in event["regimeProbabilities"])
+        assert all(value is None or 0.0 <= value <= 1.0 for value in event["decisionProbabilityUp"])
     by_fold: dict[int, list[int]] = {}
     for event in streamed:
         by_fold.setdefault(event["foldIndex"], []).extend(event["timestamps"])

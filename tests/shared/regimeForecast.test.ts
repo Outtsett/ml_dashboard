@@ -60,6 +60,8 @@ describe("cycle_regime_forecast", () => {
     expect(forecast.regimes[0]!.featureMeans).toHaveLength(8);
     expect(forecast.regimes[0]!.expectedBarsPerVisit).toBeCloseTo(1 / (1 - forecast.regimes[0]!.stayProbability), 9);
     expect(forecast.regimes[0]!.description).toMatch(/^flat: on average/);
+    expect(forecast.gateOpenFraction).toBe(0.3);
+    expect(forecast.decisionThreshold).toBe(0.02);
     expect(forecast.timestamps).toHaveLength(2);
     expect(forecast.monteCarloPercentile10Points[0]).toHaveLength(forecast.horizonBars);
     expect(forecast.kronosHigh[1]![2]).toBeNull();

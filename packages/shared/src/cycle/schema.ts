@@ -442,6 +442,17 @@ export const cycleRegimeForecastSchema = cycleEnvelopeSchema.extend({
   regimeNames: z.array(z.string()).optional(),
   horizonBars: z.number().int().positive(),
   simulationCount: z.number().int().positive(),
+  /**
+   * The gate's setting: the share of bars it should open on, most confident
+   * first. Absent on runs recorded before 2026-10-07, whose threshold was set directly.
+   */
+  gateOpenFraction: z.number().min(0).max(1).optional(),
+  /**
+   * The fold's absolute gate threshold: the (1 − gateOpenFraction) quantile of
+   * |P − 0.5| over the kept decision model's probabilities on the validation rows
+   * (its purged out-of-fold training probabilities when a fold has under 50
+   * validation rows), derived at fit.
+   */
   decisionThreshold: z.number().min(0),
   kronosModel: z.string(),
   regimes: z.array(cycleRegimeSummarySchema),

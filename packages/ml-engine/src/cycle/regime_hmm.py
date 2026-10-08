@@ -12,7 +12,9 @@ the bar it describes, and is NaN while its window is still filling):
 - **Flat-market detector**
   - ``average_directional_index`` — Wilder's ADX over ``ADX_PERIOD_BARS`` (14)
     bars: +DM / −DM / true range smoothed by Wilder's running sum, DX = 100 ×
-    |DI+ − DI−| / (DI+ + DI−), ADX = Wilder's average of DX. Low = no direction.
+    |DI+ − DI−| / (DI+ + DI−), ADX = Wilder's average of DX; the same numbers as
+    the Market chart's ADX indicator (``calcDirectionalMovement``, parity tested).
+    Low = no direction.
   - ``body_to_range_ratio`` — the mean over the last ``BODY_WINDOW_BARS`` (14)
     bars of |close − open| / (high − low) (0 for a bar with no range). Low =
     indecisive, overlapping candles.

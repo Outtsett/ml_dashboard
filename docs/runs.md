@@ -64,12 +64,20 @@ no weights to perturb and the page says so.
 One Cycle model built from four: `packages/ml-engine/src/cycle/adapters_extra/regime_montecarlo_decision.py`,
 registry `packages/config/cycle_models/regime_montecarlo_decision.json`, family `regime` on the run page.
 
-- **Regime model** — a Gaussian hidden Markov model (`hmmlearn`, full covariance, `regime_count` states, searched
-  2–5) over three causal inputs per bar: the one-bar log return, its realised volatility over the last
-  `volatility_window_bars` finite returns, and a volume z-score over the same window, standardised on the training
-  span. Fitted on the training span only; regime 1 is always the calmest. The walk reads the **forward filter**
-  (never the smoother), one bar at a time, starting 1,000 bars before the training span.
-- **Monte Carlo** — per regime, a Student-t of the one-bar log return by maximum likelihood (degrees of freedom
+- **Regime model** — the structural regime hidden Markov model (`packages/ml-engine/src/cycle/regime_hmm.py`,
+  full specification `docs/regime-hmm.md`): exactly three states, named and ordered **flat, uptrend, downtrend**,
+  over eight causal features — Wilder's ADX 14 (the Market chart's own ADX numbers), the 14-bar candle
+  body-to-range ratio, 14-bar over 100-bar true range, the close's distance from the last swing high and low
+  confirmed `swing_confirmation_bars` (default 5, searched 3–10) bars after they formed
+  (`shared.zones.structural_pivots`), bars since the last pivot, a decayed higher-high / higher-low counter and
+  the sign of the last two pivots. Diagonal Gaussian emissions over the features standardised on the training
+  span; Baum-Welch (`hmmlearn`) seeded from a heuristic labelling (flat where ADX < `adx_threshold`, default 20,
+  searched 15–30; else up / down by the counter's sign) with a sticky transition prior (diagonal 0.95), a
+  variance floor and a prior holding each state's mean near its seed; states ordered by the counter's mean.
+  Fitted on the training span only. The walk reads the **forward filter** (never the smoother), one bar at a
+  time, starting 1,000 bars before the training span. `regime_count` and `volatility_window_bars` are gone.
+- **Monte Carlo** — per regime (the training bars the forward filter puts in it), a Student-t of the one-bar log
+  return by maximum likelihood (degrees of freedom
   held inside 2.05–200, location and scale refitted when held). At every bar, `simulation_count` (default 2,000)
   paths of the label horizon start from the filtered regime probabilities and re-draw the regime every bar from the
   transition matrix, with common random numbers. Out: P(up), the expected move in points, and the 10th / 50th /
@@ -84,25 +92,47 @@ registry `packages/config/cycle_models/regime_montecarlo_decision.json`, family 
   signals of the last `maximum_training_bars` training rows are out of fold (`stacking_fold_count` contiguous
   blocks, each purged by the label horizon on both sides); early stopping on validation. Its P(up) is the run's
   direction probability; its total-gain shares are the feature weights.
-- **Trade gate** — open when |P(up) − 0.5| ≥ `decision_threshold`. The engine (`_walk_span`) and tuning
+- **Trade gate** — a quantile gate. `gate_open_fraction` (default 0.3, searched 0.05–1.0) is the share of bars the
+  gate should open on, most confident first. At fit the fold's absolute threshold (`decisionThreshold` on the
+  wire, beside `gateOpenFraction`) is the (1 − `gate_open_fraction`) quantile of |P − 0.5| over the kept decision
+  model's probabilities on the validation rows — bars its trees were not fitted on, on its own probability scale;
+  a fold with fewer than 50 validation rows uses the decision model's purged out-of-fold probabilities on the
+  stacking rows (refitted once per block without it and the label horizon either side), which are always
+  computed and logged beside it. The gate is open when |P − 0.5| ≥ that threshold; 1.0 opens every bar. Distance
+  is from 0.5 because the engine trades long at P(up) ≥ 0.5 and short below; under reversal labels
+  |P(turn) − 0.5| = |P(up) − 0.5|. It replaced an absolute `decision_threshold`, which did not carry over between
+  folds (95.9%, 0.0% and 0.0% of test bars open in three folds of one run). The fit logs the realised open share
+  on the validation rows. Bars tied at the threshold all open, so a kept model of one tree (a handful of
+  probability values) opens on more than its setting. The engine (`_walk_span`) and tuning
   (`tuning.simulate_block`) read `adapter.trade_gate`: every bar's direction is still scored, but a closed gate
   stands aside (signal 0: no entry; a held position runs to its holding period). Any adapter that defines
   `trade_gate` gets this; none other does.
 - **Price model** — the simulation's expected move over the move scale (the forecast line on the chart).
 - **Live** — during each fold's test walk the engine asks `adapter.regime_forecast(row)` for every scored bar and
-  sends what accumulated with every bar frame as one `cycle_regime_forecast` stretch (regime probabilities, most
-  likely regime, the fan, Kronos' predicted candles and move, decision P(up), gate state, plus the fold's regimes,
+  sends what accumulated with every bar frame as one `cycle_regime_forecast` stretch (`regimeNames`, regime
+  probabilities, the most likely regime BY NAME, the fan, Kronos' predicted candles and move, decision P(up), gate state, plus the fold's regimes,
   transition matrix and feature weights). `apps/api/training/cycle.ts` merges the stretches per fold
   (`mergeRegimeForecast`, `packages/shared/src/cycle/schema.ts`); at fold end the engine writes every fold to
   `data/models/<id>/regime_forecasts.json` (plain JSON on this branch; the reader in `runs.router.ts` takes the
   `.zst` form first). `RunView.regimeForecasts` carries it.
-- **Panel** — `apps/web/src/runs/analytics/RegimePanel.tsx`: stacked regime-probability bands (click a band's
+- **Colours** — one table, `packages/shared/src/runs/regimeDefinitions.ts` (`REGIME_STYLES`): flat = sky `#56B4E9`
+  with —, uptrend = orange `#E69F00` with ▲, downtrend = blue `#0072B2` with ▼, always with the word. A run
+  recorded before 2026-10-07 (numbered regimes, no `regimeNames`) still reads, as "regime 1…".
+- **Market chart** — the walked candles are repainted in their most likely regime's colour by the run's own canvas
+  primitive (`apps/web/src/cycle/chartBands.ts` `_drawRegimeCandles`, on the candle's own pixels; `TradingChart` and
+  its `regimeColorMap` prop are untouched, because that prop indexes a fixed non-Okabe-Ito palette and colours every
+  bar by its nearest assignment). Fed by the cycle store (`apps/web/src/cycle/regimes.ts`: live
+  `cycle_regime_forecast` stretches, the snapshot's `regimeForecasts`, or `RunView.regimeForecasts` for a run
+  rebuilt from the lake). The chrome has a "candles by regime" switch with each regime's share of walked bars, and
+  the crosshair readout names the bar's regime.
+- **Panel** — `apps/web/src/runs/analytics/RegimePanel.tsx`: stacked regime-probability bands by name (click a band's
   legend to hide it), decision P(up) against the gate's closed band, a scrubber with step buttons linked to the
   page's focus time, the fan with Kronos' candles over it at the chosen bar (one price scale, hollow orange =
-  rising, filled blue = falling), the bar's readouts, the feature weights coloured by source, each regime's
-  Student-t and the transition matrix. Every number's hover is its computation
+  rising, filled blue = falling), the bar's readouts, the feature weights coloured by source, each regime's stay
+  probability, bars per visit and Student-t, every feature's mean per regime in words, and the transition matrix
+  labelled flat / uptrend / downtrend. Every number's hover is its computation
   (`packages/shared/src/runs/regimeDefinitions.ts`, `howComputedRegime`).
-- **Explainer** — Kronos reads open, high, low and volume and the regime model reads volume at predict time;
+- **Explainer** — Kronos reads open, high, low and volume and the regime model reads open, high and low at predict time;
   `MarketView` carries `volume` in the engine's view only (like open / high / low), so the explainer's reload is
   refused with a sentence (`explainKind: "opaque"`). The run's own `regime_forecasts.json` is its record.
 
