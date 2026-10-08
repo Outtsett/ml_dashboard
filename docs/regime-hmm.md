@@ -233,11 +233,17 @@ for row in live_rows:                                    # as each bar closes
 - The **Monte Carlo** fits one Student-t of the one-bar log return per regime on the training bars the forward
   filter puts in that regime, and re-draws the regime every simulated bar from this transition matrix.
 - The **decision model** reads the three filtered probabilities as `flat_regime_probability`,
-  `uptrend_regime_probability`, `downtrend_regime_probability`.
-- The **trade gate** is a share gate: `gate_open_fraction` (default 0.3) is the largest share of bars it opens on;
-  the fold's threshold is the smallest |P − 0.5| with at most that share of the kept decision model's
-  validation probabilities at or beyond it, so tied probabilities open together or not at all (`docs/runs.md` has
-  the full rule and its out-of-fold fallback).
+  `uptrend_regime_probability`, `downtrend_regime_probability`, beside the simulation's and Kronos' signals, the
+  trailing move (`trailing_move_scaled`: this bar's close minus the close one horizon ago, over the move scale —
+  what a reversal label turns against) and the FinBERT columns. Its booster's base score is pinned at 50%, so a
+  bar's distance from 50% comes from the trees and not from the label share of the training rows.
+- The **trade gate** (since 2026-10-08) is a certified cost floor with no setting. At fit, on purged out-of-fold
+  training rows, the gain each call claims (2 × its distance from 50% × the traded move's size, in points) is
+  compared with the gain that arrived at the engine's fills: the realisation slope, with a Newey–West standard
+  error over the horizon. A fold is **certified** when the slope's one-sided 95% lower bound is above zero on at
+  least 300 rows. The gate opens on a bar only in a certified fold and only when slope × claimed gain exceeds one
+  round trip of costs; a fold that is not certified stands aside on every bar. The search is scored on log loss.
+  Section 9 has the measurements that led here.
 - The **wire** (`cycle_regime_forecast`): `regimeNames` = `["flat", "uptrend", "downtrend"]`,
   `regimeProbabilities[bar]` in that order, `mostLikelyRegime[bar]` = the name; `regimes[k]` carries `name`,
   `featureMeans` (each feature's mean in words), `stayProbability`, `expectedBarsPerVisit`.

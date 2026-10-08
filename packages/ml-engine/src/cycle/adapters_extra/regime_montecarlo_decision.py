@@ -1099,16 +1099,16 @@ class RegimeMonteCarloDecisionAdapter:
                        if evidence_count else "not certified: no purged out-of-fold row could be measured")
         else:
             verdict = (
-                f"the model claimed {mean_claimed:.2f} points a call and {mean_realised:.2f} arrived; realisation slope "
-                f"{slope:.3f} (standard error {standard_error:.3f}, Newey-West over {horizon} lags), one-sided 95% lower bound "
-                f"{lower_bound:.3f}: "
+                f"the model claimed {mean_claimed:.1f} points a call and {mean_realised:.1f} arrived; {slope * 100:.0f}% of the "
+                f"claimed gain arrived (standard error {standard_error * 100:.0f}%, Newey-West over {horizon} lags), one-sided 95% "
+                f"lower bound {lower_bound * 100:.0f}%, which has to be above 0%: "
                 + ("CERTIFIED, the gate opens where slope x claimed gain exceeds the cost" if self.gate_certified
                    else ("not certified, too few rows" if lower_bound > 0.0 else "not certified, the bound is not above zero")
                    + ": the model stands aside on every bar of this fold")
             )
         reporter.log(
             f"{self.label}: trade gate = certified cost floor. Round trip {cost_points:.2f} points; the traded {horizon}-bar move "
-            f"is {('n/a' if self.gate_move_ratio is None else f'{self.gate_move_ratio:.3f}')} x the move scale; "
+            f"is {('n/a' if self.gate_move_ratio is None else f'{self.gate_move_ratio * 100:.0f}%')} of the move scale; "
             f"{evidence_count:,} purged out-of-fold training rows ({len(blocks)} blocks, {gate_purge} bars purged either side, "
             f"{kept_rounds} rounds each): {verdict}"
             + ("" if validation_open_share is None else f"; open on {validation_open_share * 100:.1f}% of the validation bars")
