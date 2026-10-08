@@ -11,9 +11,9 @@ import type { RunFoldRow } from "@shared/runs/types";
 import { Chip } from "@/runs/learning";
 import { howComputed } from "@/runs/howComputed";
 
-type Family = "trading" | "prediction" | "price";
+export type Family = "trading" | "prediction" | "price";
 
-interface MetricSpec {
+export interface MetricSpec {
   label: string;
   family: Family;
   /** What the number is, in plain words. */
@@ -28,7 +28,7 @@ const count = (value: number) => Math.round(value).toLocaleString("en-US");
 const points = (value: number) => `${value.toFixed(2)} pts`;
 const loss = (value: number) => value.toFixed(4);
 
-const SPECS: Record<CycleMetricName, MetricSpec> = {
+export const SPECS: Record<CycleMetricName, MetricSpec> = {
   net_profit_usd: { label: "Net profit", family: "trading", meaning: "Money made over every test window after costs.", format: usd },
   sharpe_ratio: { label: "Sharpe ratio", family: "trading", meaning: "Return per unit of its own wobble, annualised.", format: ratio },
   sortino_ratio: { label: "Sortino ratio", family: "trading", meaning: "Like Sharpe, but only the down moves count as wobble.", format: ratio },
@@ -61,7 +61,7 @@ const SPECS: Record<CycleMetricName, MetricSpec> = {
   price_forecast_direction_accuracy: { label: "Price forecast sign accuracy", family: "price", meaning: "How often the price model's move had the right sign.", format: fraction },
 };
 
-const FAMILY_LABELS: Record<Family, string> = { trading: "Trading", prediction: "Prediction", price: "Price model" };
+export const FAMILY_LABELS: Record<Family, string> = { trading: "Trading", prediction: "Prediction", price: "Price model" };
 const TRACE = "#56B4E9";
 
 /** A thin line through the metric's value in each fold, in fold order. */

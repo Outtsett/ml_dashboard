@@ -16,9 +16,11 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Sca
 
 import type { RunListItem, RunView } from "@shared/runs/types";
 import { TILE_SPECS } from "@shared/runs/view";
+import { CYCLE_METRIC_NAMES, type CycleMetricName } from "@shared/cycle/schema";
+import { FAMILY_LABELS as METRIC_FAMILY_LABELS, SPECS, type Family } from "@/runs/foldGrid";
 import { COIN_FLIP_LOG_LOSS } from "@shared/runs/verdicts";
 import { useRunnableModels } from "@/runs/api";
-import { formatValue, shortModelType, STATUS_STYLE } from "@/runs/format";
+import { shortModelType, STATUS_STYLE } from "@/runs/format";
 import { analyticsFamilyOf, FAMILY_LABELS, FAMILY_PANELS } from "@/runs/analytics/families";
 import { Chip, LossSurfacePanel } from "@/runs/learning";
 import { useComparisons, useDeleteComparison, useRunViews, useSaveComparison } from "@/runs/compare/api";
@@ -93,47 +95,72 @@ function Saved({ chosen, onOpen }: { chosen: string[]; onOpen: (ids: string[]) =
 // ─── readouts: one row per run ──────────────────────────────────────────────
 
 function ReadoutTable({ views }: { views: RunView[] }) {
-  const specs = TILE_SPECS.filter((spec) => views.some((view) => view.metrics[spec.name] != null));
-  const bestOf = (name: string, better: "higher" | "lower" | "none") => {
-    if (better === "none") return null;
-    const values = views.map((view) => view.metrics[name]).filter((value): value is number => value != null && Number.isFinite(value));
-    if (values.length < 2) return null;
-    return better === "higher" ? Math.max(...values) : Math.min(...values);
+  // every scoreboard metric is a column, grouped by family; a version shows its final
+  // number, or its latest fold's while it is still running, or "—"
+  const [family, setFamily] = useState<Family | "all">("all");
+  const valueOf = (view: RunView, name: CycleMetricName): { value: number | null; provisional: boolean } => {
+    const final = view.metrics[name];
+    if (final !== null && final !== undefined && Number.isFinite(final)) return { value: final, provisional: false };
+    for (let index = view.folds.length - 1; index >= 0; index -= 1) {
+      const fold = view.folds[index]!.metrics[name];
+      if (fold !== null && fold !== undefined && Number.isFinite(fold)) return { value: fold, provisional: true };
+    }
+    return { value: null, provisional: false };
   };
+  const names = CYCLE_METRIC_NAMES.filter((name) => family === "all" || SPECS[name].family === family);
+  const better = (name: CycleMetricName): "higher" | "lower" | "none" => TILE_SPECS.find((spec) => spec.name === name)?.better ?? (/loss|error|drawdown|cost/.test(name) ? "lower" : "higher");
+  const bestOf = (name: CycleMetricName) => {
+    const direction = better(name);
+    if (direction === "none") return null;
+    const values = views.map((view) => valueOf(view, name).value).filter((value): value is number => value !== null);
+    if (values.length < 2) return null;
+    return direction === "higher" ? Math.max(...values) : Math.min(...values);
+  };
+  const families = (["trading", "prediction", "price"] as Family[]);
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card/60" data-testid="readout-table">
-      <table className="w-full border-collapse font-mono text-[11px]">
-        <thead>
-          <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-            <th className="px-2 py-1.5">Run</th>
-            {specs.map((spec) => (
-              <th key={spec.name} className="cursor-help px-2 py-1.5 text-right" title={howComputed(spec.name, spec.label) + (spec.baseline ? `\n\nJudged against: ${spec.baseline.label}` : "")}>{spec.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {views.map((view, index) => (
-            <tr key={view.id} className="border-b border-border/50">
-              <td className="px-2 py-1.5">
-                <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: RUN_COLORS[index % RUN_COLORS.length] }} />
-                <span className="font-semibold text-foreground">{view.name}</span>
-                <span className="text-muted-foreground"> · {view.setup?.modelLabel ?? shortModelType(view.modelType)}{view.version ? ` v${view.version}` : ""}</span>
-              </td>
-              {specs.map((spec) => {
-                const value = view.metrics[spec.name] ?? null;
-                const best = bestOf(spec.name, spec.better);
-                const isBest = best !== null && value === best;
-                return (
-                  <td key={spec.name} className={`px-2 py-1.5 text-right tabular-nums ${isBest ? "font-bold text-[#E69F00]" : "text-foreground"}`}>
-                    {formatValue(value, spec.unit)}{isBest ? " ★" : ""}
-                  </td>
-                );
-              })}
+    <div className="rounded-md border border-border bg-card/60" data-testid="readout-table">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
+        <span className="mr-1 text-[11px] font-semibold text-foreground">Every metric, one row per version</span>
+        <span className="mr-2 text-[10px] text-muted-foreground">{CYCLE_METRIC_NAMES.length} metrics; a running version shows its latest fold's number in italics until the run ends. Hover a heading for exactly how the engine computes it.</span>
+        <Chip active={family === "all"} onClick={() => setFamily("all")}>All</Chip>
+        {families.map((entry) => (
+          <Chip key={entry} active={family === entry} onClick={() => setFamily(entry)}>{METRIC_FAMILY_LABELS[entry]}</Chip>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="border-collapse font-mono text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+              <th className="sticky left-0 bg-card px-2 py-1.5">Version</th>
+              {names.map((name) => (
+                <th key={name} className="cursor-help whitespace-nowrap px-2 py-1.5 text-right" title={howComputed(name, SPECS[name].label) + "\n\n" + SPECS[name].meaning}>{SPECS[name].label}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="px-2 py-1 text-[10px] text-muted-foreground">★ the best of the chosen versions in that column (higher or lower as the metric wants). Hover a column heading for exactly how the engine computes it. The run page judges each against its baseline; this table only ranks.</div>
+          </thead>
+          <tbody>
+            {views.map((view, index) => (
+              <tr key={view.id} className="border-b border-border/50">
+                <td className="sticky left-0 whitespace-nowrap bg-card px-2 py-1.5">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: RUN_COLORS[index % RUN_COLORS.length] }} />
+                  <span className="font-semibold text-foreground">{view.version ? `v${view.version}` : view.name}</span>
+                  <span className="text-muted-foreground"> · {view.name} · {STATUS_STYLE[view.status].label}{view.status === "running" ? ` · ${view.folds.length} fold${view.folds.length === 1 ? "" : "s"} so far` : ""}</span>
+                </td>
+                {names.map((name) => {
+                  const { value, provisional } = valueOf(view, name);
+                  const best = bestOf(name);
+                  const isBest = best !== null && value === best;
+                  return (
+                    <td key={name} className={`whitespace-nowrap px-2 py-1.5 text-right tabular-nums ${isBest ? "font-bold text-[#E69F00]" : "text-foreground"} ${provisional ? "italic" : ""}`} title={provisional ? "the latest finished fold's number; the run is not over" : undefined}>
+                      {value === null ? "—" : SPECS[name].format(value)}{isBest ? " ★" : ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-2 py-1 text-[10px] text-muted-foreground">★ the best of the chosen versions in that column (higher or lower as the metric wants). The run page judges each against its baseline; this table only ranks.</div>
     </div>
   );
 }
