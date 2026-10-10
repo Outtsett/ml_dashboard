@@ -134,6 +134,37 @@ export function useCatalogCount() {
   });
 }
 
+export interface PostgresDatabaseFacts {
+  database: string;
+  reachable: boolean;
+  error?: string;
+  serverVersion?: string;
+  extensions?: Array<{ name: string; version: string }>;
+  databaseSizeBytes?: number;
+  tables?: Array<{ name: string; estimatedRowCount: number; lastAnalyzedAt: string | null; totalSizeBytes: number | null }>;
+  views?: string[];
+  hypertables?: Array<{
+    name: string;
+    chunkCount: number;
+    totalSizeBytes: number | null;
+    approximateRowCount: number | null;
+    earliestChunkStart: string | null;
+    latestChunkEnd: string | null;
+  }>;
+  measuredAt: string;
+  durationMilliseconds: number;
+}
+
+/** What the PostgreSQL server says it holds, per database. Read only while `enabled`. */
+export function usePostgresFacts(enabled: boolean) {
+  return useQuery({
+    queryKey: ["stores", "postgres"],
+    queryFn: ({ signal }) => readJson<{ databases: PostgresDatabaseFacts[] }>("/api/stores/postgres", signal),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 /** The pgAdmin supervisor's state. Polled only while `enabled`, faster until it is ready. */
 export function usePgAdminStatus(enabled: boolean) {
   return useQuery({

@@ -36,6 +36,8 @@ import {
   getLakeStats,
 } from "../infrastructure/database/lake";
 import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
+import { marketPool, quantPool } from "../infrastructure/database/pg_db";
+import { readPostgresDatabase } from "../infrastructure/database/postgresInventory";
 
 const router = Router();
 const logger = new Logger("StoreRoutes");
@@ -531,6 +533,30 @@ router.get("/stores/iceberg", queryRateLimiter, async (req: Request, res: Respon
     logger.warn(`iceberg metadata failed for ${table}: ${(error as Error).message}`);
     res.status(502).json({ error: (error as Error).message });
   }
+});
+
+// ─── PostgreSQL ──────────────────────────────────────────────────────────────
+
+const postgresCache = new LRUCache<string, object>({ max: 2, ttl: 30_000 });
+
+/**
+ * What the PostgreSQL server says it holds, per database the dashboard connects
+ * to. Read from the server's own catalog and held for 30 seconds; a database
+ * that does not answer is listed as unreachable with the driver's message.
+ */
+router.get("/stores/postgres", queryRateLimiter, async (_req: Request, res: Response) => {
+  const cached = postgresCache.get("postgres");
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+  const databases = await Promise.all([
+    readPostgresDatabase("quant", quantPool),
+    readPostgresDatabase("market", marketPool),
+  ]);
+  const payload = { databases };
+  postgresCache.set("postgres", payload);
+  res.json(payload);
 });
 
 // ─── DuckDB itself ───────────────────────────────────────────────────────────

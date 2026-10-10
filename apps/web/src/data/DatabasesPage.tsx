@@ -23,6 +23,7 @@ import { VirtualDataTable } from "./VirtualDataTable";
 import { ColumnProfiles } from "./stores/ColumnProfiles";
 import { LakeNavigator, SqliteNavigator } from "./stores/Navigator";
 import { PgAdminFrame } from "./stores/PgAdminFrame";
+import { PostgresPanel } from "./stores/PostgresPanel";
 import { StoreBrowser } from "./stores/StoreBrowser";
 import { DuckDbPanel, IcebergPanel } from "./stores/StorePanels";
 import {
@@ -339,7 +340,14 @@ export default function DatabasesPage() {
             <LakeBody selection={selection} inventory={inventory.data} inventoryError={(inventory.error as Error | null) ?? null} />
           )}
           {selection.tab === "sqlite" && <SqliteBody selection={selection} />}
-          {selection.tab === "postgres" && <PgAdminFrame />}
+          {selection.tab === "postgres" && (
+            <div className="flex h-full min-h-0 flex-col">
+              <PostgresPanel />
+              <div className="min-h-0 flex-1">
+                <PgAdminFrame />
+              </div>
+            </div>
+          )}
           {selection.tab === "query" && <QueryBody />}
           {selection.tab === "engine" && (
             <div className="h-full space-y-6 overflow-y-auto p-6">

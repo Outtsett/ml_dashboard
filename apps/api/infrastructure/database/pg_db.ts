@@ -20,6 +20,9 @@ pool.on('error', (err) => {
 
 export const pgDb = drizzle(pool, { schema: pgSchema });
 
+/** The pool on the `quant` database, for callers that read the server's own catalog. */
+export const quantPool = pool;
+
 export const marketPool = new pg.Pool({
   connectionString: "postgresql://postgres:postgres@127.0.0.1:5432/market",
   max: 20, 
