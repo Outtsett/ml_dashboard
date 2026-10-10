@@ -3,7 +3,10 @@
  *  - a database that cannot be reached is reported unreachable with the driver's message;
  *  - the hypertable statements run only when the timescaledb extension is installed;
  *  - a statement that fails after connecting is reported, and the client is released;
- *  - every statement is fixed text (the database name never reaches SQL).
+ *  - every statement is fixed text (the database name never reaches SQL);
+ *  - the statement timeout is SET LOCAL inside a transaction that is always
+ *    rolled back, so it never follows the connection back into the shared pool;
+ *  - a pool that hands out no connection is reported unreachable, not waited on.
  */
 import { describe, expect, it, vi } from "vitest";
 import { readPostgresDatabase } from "../infrastructure/database/postgresInventory";
@@ -54,7 +57,11 @@ describe("readPostgresDatabase", () => {
     expect(facts.hypertables?.[0]).toMatchObject({ name: "market_bars", chunkCount: 198, approximateRowCount: 785766203 });
     expect(release).toHaveBeenCalledTimes(1);
     expect(statements.every((statement) => !statement.includes("market;") && !statement.includes("$"))).toBe(true);
-    expect(statements[0]).toMatch(/^SET statement_timeout = \d+$/);
+    expect(statements[0]).toBe("BEGIN READ ONLY");
+    expect(statements[1]).toMatch(/^SET LOCAL statement_timeout = \d+$/);
+    expect(statements.at(-1)).toBe("ROLLBACK");
+    expect(statements.some((statement) => /^SET statement_timeout/.test(statement))).toBe(false);
+    expect(release).toHaveBeenCalledWith(false);
   });
 
   it("skips the hypertable statements without the extension", async () => {
@@ -70,5 +77,25 @@ describe("readPostgresDatabase", () => {
     expect(facts.reachable).toBe(true);
     expect(facts.error).toContain("statement timeout");
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("destroys the connection when the rollback itself fails", async () => {
+    const { pool, release } = poolAnswering(["plpgsql"], (statement) => statement === "ROLLBACK");
+    await readPostgresDatabase("quant", pool);
+    expect(release).toHaveBeenCalledWith(true);
+  });
+
+  it("reports a pool that hands out no connection as unreachable", async () => {
+    vi.useFakeTimers();
+    try {
+      const pool = { connect: vi.fn(() => new Promise(() => undefined)) };
+      const pending = readPostgresDatabase("market", pool as never);
+      await vi.advanceTimersByTimeAsync(3_100);
+      const facts = await pending;
+      expect(facts.reachable).toBe(false);
+      expect(facts.error).toContain("no connection within");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

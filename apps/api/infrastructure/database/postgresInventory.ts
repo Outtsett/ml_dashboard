@@ -14,6 +14,35 @@ import type pg from "pg";
 /** Each statement is stopped after this long, so a slow catalog never holds the request. */
 const STATEMENT_TIMEOUT_MILLISECONDS = 3_000;
 
+/** A pool that hands out no connection within this long is reported unreachable. */
+const CONNECT_TIMEOUT_MILLISECONDS = 3_000;
+
+/**
+ * A client from the pool, or an error after `CONNECT_TIMEOUT_MILLISECONDS`. The
+ * pools have no connect timeout of their own, so a server that is down or a
+ * pool that is exhausted would otherwise hold the request open. A client that
+ * arrives after the deadline is released straight back.
+ */
+async function connectWithin(pool: Queryable): Promise<pg.PoolClient> {
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pending = pool.connect();
+  pending.then((late) => { if (timedOut) late.release(); }, () => undefined);
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error(`no connection within ${CONNECT_TIMEOUT_MILLISECONDS} milliseconds`));
+        }, CONNECT_TIMEOUT_MILLISECONDS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export interface PostgresTable {
   name: string;
   /** The planner's estimate (`n_live_tup`), not a count; exact only right after an ANALYZE. */
@@ -71,13 +100,18 @@ export async function readPostgresDatabase(database: string, pool: Queryable): P
 
   let client: pg.PoolClient;
   try {
-    client = await pool.connect();
+    client = await connectWithin(pool);
   } catch (error) {
     return done({ reachable: false, error: (error as Error).message });
   }
 
+  // The client goes back to a pool every other query shares, so the timeout is
+  // SET LOCAL inside a read-only transaction: it ends with the transaction and
+  // never follows the connection back into the pool.
+  let broken = false;
   try {
-    await client.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MILLISECONDS}`);
+    await client.query("BEGIN READ ONLY");
+    await client.query(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MILLISECONDS}`);
     const version = await client.query("SELECT current_setting('server_version') AS version");
     const extensions = await client.query("SELECT extname, extversion FROM pg_extension ORDER BY extname");
     const size = await client.query("SELECT pg_database_size(current_database()) AS bytes");
@@ -127,6 +161,11 @@ export async function readPostgresDatabase(database: string, pool: Queryable): P
   } catch (error) {
     return done({ reachable: true, error: (error as Error).message });
   } finally {
-    client.release();
+    // ROLLBACK ends the transaction whether it succeeded or failed. If even that
+    // fails, the connection's state is unknown and it is destroyed, not reused.
+    await client.query("ROLLBACK").catch(() => {
+      broken = true;
+    });
+    client.release(broken);
   }
 }
