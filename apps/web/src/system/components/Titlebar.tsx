@@ -8,7 +8,7 @@ const routeTitles: Record<string, string> = {
   '/portfolio': 'Portfolio',
   '/watchlist': 'Watchlist',
   '/news': 'News',
-  '/databases': 'Databases',
+  '/databases': 'Data',
   '/ml-studio': 'ML Studio',
   '/model-catalog': 'Model Catalog',
   '/settings': 'Settings',

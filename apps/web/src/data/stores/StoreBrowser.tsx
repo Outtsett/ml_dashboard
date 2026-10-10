@@ -6,7 +6,7 @@
  * nothing the browser sends is treated as SQL.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Filter, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
+import { measuredValue } from "@shared/stores/format";
 import { cn } from "@/shared/utils/utils";
 
 export type StoreKey = "lake" | "sqlite";
@@ -63,11 +64,23 @@ const OPERATOR_LABELS: Record<RowFilter["operator"], string> = {
   between: "between",
 };
 
-function formatCell(value: unknown): string {
+const TIME_COLUMN = /(_at|_time|timestamp|_date|^ts)$/i;
+
+/**
+ * A whole number in a time-named column that falls where epoch milliseconds or
+ * epoch seconds for the years 2001 to 2096 fall is written as a UTC date and
+ * time; the stored integer stays in the cell's hover text.
+ */
+function epochText(value: number, columnName: string): string | null {
+  if (!Number.isInteger(value) || !TIME_COLUMN.test(columnName)) return null;
+  const milliseconds = value >= 1e12 && value < 4e12 ? value : value >= 1e9 && value < 4e9 ? value * 1000 : null;
+  if (milliseconds === null) return null;
+  return `${new Date(milliseconds).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+}
+
+function formatCell(value: unknown, columnName: string): string {
   if (value === null || value === undefined) return "—";
-  if (typeof value === "number") {
-    return Number.isInteger(value) ? value.toLocaleString() : value.toString();
-  }
+  if (typeof value === "number") return epochText(value, columnName) ?? measuredValue(value);
   if (typeof value === "boolean") return value ? "true" : "false";
   const text = String(value);
   return text.length > 80 ? `${text.slice(0, 77)}…` : text;
@@ -76,9 +89,14 @@ function formatCell(value: unknown): string {
 export interface StoreBrowserProps {
   store: StoreKey;
   objectName: string;
+  /**
+   * Sorting a table with hundreds of millions of rows reads all of them, so on
+   * such a table a column can be sorted only once a filter narrows it.
+   */
+  requireFilterToSort?: boolean;
 }
 
-export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
+export function StoreBrowser({ store, objectName, requireFilterToSort = false }: StoreBrowserProps) {
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState<string | null>(null);
@@ -103,16 +121,15 @@ export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
     staleTime: 60_000,
   });
 
-  const search = useMemo(() => {
-    const params = new URLSearchParams({
-      limit: String(pageSize),
-      offset: String(page * pageSize),
-      orderDirection,
-    });
-    if (orderBy) params.set("orderBy", orderBy);
-    if (filters.length) params.set("filters", JSON.stringify(filters));
-    return params.toString();
-  }, [pageSize, page, orderBy, orderDirection, filters]);
+  const sortLocked = requireFilterToSort && filters.length === 0;
+  const params = new URLSearchParams({
+    limit: String(pageSize),
+    offset: String(page * pageSize),
+    orderDirection,
+  });
+  if (orderBy && !sortLocked) params.set("orderBy", orderBy);
+  if (filters.length) params.set("filters", JSON.stringify(filters));
+  const search = params.toString();
 
   const rows = useQuery({
     queryKey: ["stores", "rows", store, objectName, search],
@@ -130,6 +147,7 @@ export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
   const lastPage = totalRows === null ? null : Math.max(0, Math.ceil(totalRows / pageSize) - 1);
 
   const toggleSort = (column: string) => {
+    if (sortLocked) return;
     if (orderBy !== column) {
       setOrderBy(column);
       setOrderDirection("ascending");
@@ -232,14 +250,19 @@ export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
             <thead className="sticky top-0 z-10 bg-card">
               <tr>
                 {columns.map((column) => {
-                  const sorted = orderBy === column.name;
+                  const sorted = !sortLocked && orderBy === column.name;
                   return (
                     <th key={column.name} className="border-b border-border px-2 py-1.5 align-bottom">
                       <button
                         type="button"
                         onClick={() => toggleSort(column.name)}
                         className="flex flex-col items-start gap-0.5 text-left hover:text-foreground"
-                        title={`Sort by ${column.name}`}
+                        disabled={sortLocked}
+                        title={
+                          sortLocked
+                            ? "Add a filter first: sorting this table unfiltered would read every row it holds."
+                            : `Sort by ${column.name}`
+                        }
                       >
                         <span className="flex items-center gap-1 font-mono text-[11px] font-semibold text-foreground">
                           {column.name}
@@ -257,8 +280,12 @@ export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
               {(rows.data?.rows ?? []).map((row, index) => (
                 <tr key={index} className={cn("border-b border-border/40", index % 2 === 1 && "bg-muted/20")}>
                   {columns.map((column) => (
-                    <td key={column.name} className={cn("px-2 py-1 font-mono tnum", column.numeric && "text-right")}>
-                      {formatCell(row[column.name])}
+                    <td
+                      key={column.name}
+                      className={cn("px-2 py-1 font-mono tnum", column.numeric && "text-right")}
+                      title={row[column.name] === null || row[column.name] === undefined ? "null" : String(row[column.name])}
+                    >
+                      {formatCell(row[column.name], column.name)}
                     </td>
                   ))}
                 </tr>
@@ -274,6 +301,13 @@ export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
           </table>
         )}
       </div>
+
+      {rows.data?.statement && (
+        <p className="truncate font-mono text-[10px] text-muted-foreground" title={rows.data.statement} data-testid="store-browser-statement">
+          The rows above are the answer to: {rows.data.statement}
+          {sortLocked ? " · Sorting is off until a filter narrows this table." : ""}
+        </p>
+      )}
 
       {/* ── Paging ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">

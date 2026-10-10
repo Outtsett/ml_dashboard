@@ -11,12 +11,13 @@
  * an unknown is never drawn as a zero.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ReadByNotebooks } from "@/marimo/ReadByNotebooks";
 import { useQuery } from "@tanstack/react-query";
 import { LensFrame } from "@/lens/Frame";
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
+import { measuredValue, percentage, wholeNumber } from "@shared/stores/format";
 import { cn } from "@/shared/utils/utils";
 
 interface HistogramBin {
@@ -71,17 +72,19 @@ type SortKey = keyof typeof SORTS;
 const DISTRIBUTION_COLOR = "#E69F00";
 const TIME_COLOR = "#0072B2";
 
-function compact(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const magnitude = Math.abs(value);
-  if (magnitude === 0) return "0";
-  if (magnitude >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (magnitude >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (magnitude >= 1e4) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  if (magnitude >= 1) return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
-  if (magnitude >= 0.0001) return value.toFixed(5);
-  return value.toExponential(2);
-}
+/** What each of the eight numbers is and how DuckDB computed it, shown on hover. */
+const STATISTIC_COMPUTATIONS: Record<string, string> = {
+  mean: "The average of the non-null sampled values.",
+  median: "The middle value of the non-null sampled values.",
+  "standard deviation": "How far the sampled values typically sit from their mean.",
+  skewness: "How lopsided the distribution is; 0 is symmetric and a negative value means a longer left tail.",
+  kurtosis: "How heavy the tails are against a bell curve, which reads 0.",
+  "distinct values": "About how many different values the sample holds (an approximate distinct count).",
+  "25th percentile": "A quarter of the sampled values are at or below this.",
+  "75th percentile": "Three quarters of the sampled values are at or below this.",
+  minimum: "The smallest sampled value.",
+  maximum: "The largest sampled value.",
+};
 
 function Histogram({ bins }: { bins: HistogramBin[] }) {
   const peak = Math.max(1, ...bins.map((bin) => bin.count));
@@ -102,7 +105,7 @@ function Histogram({ bins }: { bins: HistogramBin[] }) {
             opacity={0.85}
           >
             <title>
-              {`${compact(bin.start)} to ${compact(bin.end)} — ${bin.count.toLocaleString()} rows`}
+              {`${measuredValue(bin.start)} to ${measuredValue(bin.end)}: ${wholeNumber(bin.count)} sampled rows`}
             </title>
           </rect>
         );
@@ -157,15 +160,17 @@ function TimeLine({ values }: { values: Array<number | null> }) {
 
 function Number8({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="flex items-baseline justify-between gap-1">
+    <div
+      className="flex items-baseline justify-between gap-1"
+      title={`${STATISTIC_COMPUTATIONS[label] ?? label} Computed by DuckDB over the sampled rows. Recorded value: ${value === null ? "none" : String(value)}.`}
+    >
       <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="tnum text-[10px] text-foreground">{compact(value)}</span>
+      <span className="tnum text-[10px] text-foreground">{measuredValue(value)}</span>
     </div>
   );
 }
 
 function ColumnPanel({ profile }: { profile: ColumnProfile }) {
-  const nullPercent = profile.nullFraction === null ? null : profile.nullFraction * 100;
   const allNull = profile.nullFraction !== null && profile.nullFraction > 0.9999;
 
   return (
@@ -190,7 +195,7 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
             allNull ? "text-[--color-data-warn]" : "text-muted-foreground",
           )}
         >
-          {nullPercent === null ? "—" : `${nullPercent.toFixed(1)}% null`}
+          {profile.nullFraction === null ? "—" : `${percentage(profile.nullFraction)} null`}
         </span>
       </header>
 
@@ -226,16 +231,15 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
             </div>
           </div>
 
-          <div className="mt-1.5 grid grid-cols-3 gap-x-3 gap-y-0.5 border-t border-border/40 pt-1.5">
+          <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 border-t border-border/40 pt-1.5">
             <Number8 label="mean" value={profile.mean} />
             <Number8 label="median" value={profile.median} />
-            <Number8 label="std dev" value={profile.standardDeviation} />
-            <Number8 label="skew" value={profile.skewness} />
+            <Number8 label="standard deviation" value={profile.standardDeviation} />
+            <Number8 label="skewness" value={profile.skewness} />
             <Number8 label="kurtosis" value={profile.kurtosis} />
-            <Number8 label="distinct" value={profile.distinctApproximate} />
-            <Number8 label="25th pct" value={profile.percentile25} />
-            <Number8 label="75th pct" value={profile.percentile75} />
-            <div />
+            <Number8 label="distinct values" value={profile.distinctApproximate} />
+            <Number8 label="25th percentile" value={profile.percentile25} />
+            <Number8 label="75th percentile" value={profile.percentile75} />
             <Number8 label="minimum" value={profile.minimum} />
             <Number8 label="maximum" value={profile.maximum} />
           </div>
@@ -273,22 +277,18 @@ export function ColumnProfiles({ objectName, symbol, onSymbolChange }: ColumnPro
     staleTime: 5 * 60_000,
   });
 
-  const columns = useMemo(() => {
-    const all = profile.data?.columns ?? [];
-    const needle = filter.trim().toLowerCase();
-    const visible = needle ? all.filter((column) => column.name.toLowerCase().includes(needle)) : all;
-    const ordered = [...visible];
-    if (sort === "name") ordered.sort((a, b) => a.name.localeCompare(b.name));
-    if (sort === "nulls") ordered.sort((a, b) => (b.nullFraction ?? 0) - (a.nullFraction ?? 0));
-    if (sort === "spread") {
-      const spread = (column: ColumnProfile) =>
-        column.standardDeviation === null || !Number.isFinite(column.standardDeviation)
-          ? -1
-          : Math.abs(column.standardDeviation);
-      ordered.sort((a, b) => spread(b) - spread(a));
-    }
-    return ordered;
-  }, [profile.data, filter, sort]);
+  const needle = filter.trim().toLowerCase();
+  const all = profile.data?.columns ?? [];
+  const columns = [...(needle ? all.filter((column) => column.name.toLowerCase().includes(needle)) : all)];
+  if (sort === "name") columns.sort((a, b) => a.name.localeCompare(b.name));
+  if (sort === "nulls") columns.sort((a, b) => (b.nullFraction ?? 0) - (a.nullFraction ?? 0));
+  if (sort === "spread") {
+    const spread = (column: ColumnProfile) =>
+      column.standardDeviation === null || !Number.isFinite(column.standardDeviation)
+        ? -1
+        : Math.abs(column.standardDeviation);
+    columns.sort((a, b) => spread(b) - spread(a));
+  }
 
   return (
     <LensFrame

@@ -111,22 +111,18 @@ export async function prefetchRouteData(route: string) {
         }),
       ]);
     },
+    // The Data page reads two small inventories; both answer in well under a second.
     "/databases": async () => {
       await Promise.all([
         queryClient.prefetchQuery({
-          queryKey: ["/api/databases/sqlite/stats"],
-          queryFn: () => fetch("/api/databases/sqlite/stats").then(r => r.json()),
-          staleTime: 30000,
+          queryKey: ["stores", "objects-by-kind"],
+          queryFn: () => fetch("/api/stores/objects-by-kind").then(r => r.json()),
+          staleTime: 60000,
         }),
         queryClient.prefetchQuery({
-          queryKey: ["/api/databases/lake/stats"],
-          queryFn: () => fetch("/api/databases/lake/stats").then(r => r.json()),
+          queryKey: ["stores", "overview"],
+          queryFn: () => fetch("/api/stores/overview").then(r => r.json()),
           staleTime: 30000,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["/api/uploads"],
-          queryFn: () => fetchArray("/api/uploads"),
-          staleTime: 10000,
         }),
       ]);
     },
@@ -172,7 +168,7 @@ export function prefetchOnHover(route: string) {
 export async function prefetchCriticalData() {
   try {
     // Start preloading the most likely next components immediately
-    const criticalRoutes = ["/", "/ml-studio", "/portfolio"];
+    const criticalRoutes = ["/training", "/cycle", "/databases"];
     criticalRoutes.forEach(route => prefetchComponent(route));
 
     await Promise.all([

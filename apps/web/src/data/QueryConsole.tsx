@@ -27,7 +27,9 @@ export function QueryConsole({
           <Play className="h-5 w-5 text-primary" />
           SQL Query Console
         </CardTitle>
-        <CardDescription>Execute queries against any database engine</CardDescription>
+        <CardDescription>
+          Runs one read-only statement on the lake (DuckDB) or on SQLite and shows the rows it returns.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-4">
@@ -37,21 +39,23 @@ export function QueryConsole({
             className="glass rounded-lg px-4 py-2 text-sm font-mono bg-transparent border border-white/10"
             data-testid="query-db-select"
           >
-            <option value="lake" className="bg-slate-900">lake (Speed)</option>
-            <option value="sqlite" className="bg-slate-900">SQLite (Metadata)</option>
+            <option value="lake" className="bg-slate-900">Lake (DuckDB)</option>
+            <option value="sqlite" className="bg-slate-900">SQLite (the dashboard's own record)</option>
           </select>
         </div>
         <Textarea
           value={customQuery}
           onChange={(e) => onCustomQueryChange(e.target.value)}
-          placeholder="SELECT * FROM your_table LIMIT 10;"
+          placeholder="SELECT * FROM bars WHERE symbol = 'MNQ' LIMIT 10"
           className="font-mono text-sm min-h-[100px] glass"
           data-testid="query-input"
         />
         <div className="flex justify-between items-center">
           <p className="text-xs text-muted-foreground">
-            {queryDb === "lake" && "Tip: Use SAMPLE BY for high-frequency data aggregation"}
-            {queryDb === "sqlite" && "Tip: Access local development metadata and app config"}
+            {queryDb === "lake" &&
+              "Only read statements run (SELECT, WITH, SHOW, EXPLAIN). At most 1,000 rows come back; scope a lake query to one symbol."}
+            {queryDb === "sqlite" &&
+              "Only read statements run. The server adds a limit of 1,000 rows, so leave LIMIT off the statement."}
           </p>
           <Button
             onClick={onRunQuery}
