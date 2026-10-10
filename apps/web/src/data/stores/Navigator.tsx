@@ -116,7 +116,7 @@ export function LakeNavigator({ counts, countsError, inventory, error, selectedV
             </p>
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={hideEmpty} onChange={(event) => setHideEmpty(event.target.checked)} />
-              Hide the {wholeNumber(emptyCount)} objects that hold no rows
+              {emptyCount === 1 ? "Hide the 1 object that holds no rows" : `Hide the ${wholeNumber(emptyCount)} objects that hold no rows`}
             </label>
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={logScale} onChange={(event) => setLogScale(event.target.checked)} />
@@ -128,7 +128,9 @@ export function LakeNavigator({ counts, countsError, inventory, error, selectedV
       <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {groups.map((group) => {
           // While searching, every group with a match is open.
-          const isClosed = needle ? false : closed[group.kind] ?? group.kind !== "candles";
+          // A group opens by itself when it holds the selected object; a click on its header still wins.
+          const holdsSelection = group.objects.some((object) => object.viewName === selectedViewName);
+          const isClosed = needle ? false : closed[group.kind] ?? !(holdsSelection || (!selectedViewName && group.kind === "candles"));
           if (needle && group.visible.length === 0) return null;
           return (
             <section key={group.kind} data-testid={`lake-kind-${group.kind}`}>
@@ -162,12 +164,12 @@ export function LakeNavigator({ counts, countsError, inventory, error, selectedV
                       className={cn(rowClasses(object.viewName === selectedViewName), "relative flex-col items-stretch gap-0")}
                       aria-current={object.viewName === selectedViewName ? "true" : undefined}
                       title={
-                        `${object.displayName} · ${ORIGIN_WORDS[object.origin]} · object id ${object.objectId}` +
+                        `${object.viewName} · ${object.displayName} · ${ORIGIN_WORDS[object.origin]} · object id ${object.objectId}` +
                         (counted ? ` · ${countText}, ${COUNT_SOURCE_SENTENCES[counted.rowCountSource]}${counted.error ? `: ${counted.error}` : ""}` : "")
                       }
                     >
                       <span className="flex items-baseline justify-between gap-2">
-                        <span className="truncate font-mono">{object.viewName}</span>
+                        <span className="break-all font-mono">{object.viewName}</span>
                         <span className="shrink-0 font-mono text-[10px]">{countText}</span>
                       </span>
                       <span className="flex items-center gap-2">
@@ -177,7 +179,7 @@ export function LakeNavigator({ counts, countsError, inventory, error, selectedV
                             style={{ width: `${Math.round(barShare(counted?.rowCount ?? 0) * 100)}%` }}
                           />
                         </span>
-                        <span className="shrink-0 text-[9px]">{ORIGIN_WORDS[object.origin]}</span>
+                        <span className="shrink-0 text-[10px]">{ORIGIN_WORDS[object.origin]}</span>
                       </span>
                     </Link>
                   );
@@ -191,7 +193,8 @@ export function LakeNavigator({ counts, countsError, inventory, error, selectedV
 }
 
 export interface SqliteNavigatorProps {
-  tables: Array<{ name: string; rowCount: number }> | undefined;
+  /** rowCount is null when the count failed. */
+  tables: Array<{ name: string; rowCount: number | null }> | undefined;
   error: Error | null;
   selectedTable: string | null;
   hrefFor: (table: string) => string;
@@ -213,9 +216,9 @@ export function SqliteNavigator({ tables, error, selectedTable, hrefFor }: Sqlit
 
   const emptyCount = tables.filter((table) => table.rowCount === 0).length;
   const visible = tables
-    .filter((table) => (hideEmpty ? table.rowCount > 0 : true))
+    .filter((table) => (hideEmpty ? table.rowCount !== 0 : true))
     .filter((table) => (needle ? table.name.toLowerCase().includes(needle) : true))
-    .sort((a, b) => b.rowCount - a.rowCount || a.name.localeCompare(b.name));
+    .sort((a, b) => (b.rowCount ?? -1) - (a.rowCount ?? -1) || a.name.localeCompare(b.name));
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="sqlite-navigator">
@@ -230,7 +233,7 @@ export function SqliteNavigator({ tables, error, selectedTable, hrefFor }: Sqlit
       </div>
       <label className="flex shrink-0 cursor-pointer items-center gap-2 px-3 pb-1 text-[10px] text-muted-foreground">
         <input type="checkbox" checked={hideEmpty} onChange={(event) => setHideEmpty(event.target.checked)} />
-        Hide the {wholeNumber(emptyCount)} tables that hold no rows
+        {emptyCount === 1 ? "Hide the 1 table that holds no rows" : `Hide the ${wholeNumber(emptyCount)} tables that hold no rows`}
       </label>
       <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {visible.map((table) => (
@@ -239,11 +242,15 @@ export function SqliteNavigator({ tables, error, selectedTable, hrefFor }: Sqlit
             href={hrefFor(table.name)}
             className={rowClasses(table.name === selectedTable)}
             aria-current={table.name === selectedTable ? "true" : undefined}
-            title={`${table.name}: ${wholeNumber(table.rowCount)} rows, counted with SELECT count(*)`}
+            title={
+              table.rowCount === null
+                ? `${table.name}: SELECT count(*) failed, so its rows are unknown`
+                : `${table.name}: ${wholeNumber(table.rowCount)} rows, counted with SELECT count(*)`
+            }
           >
             <span className="truncate font-mono">{table.name}</span>
             <span className="shrink-0 font-mono text-[10px]">
-              {table.rowCount === 0 ? "empty" : `${wholeNumber(table.rowCount)} rows`}
+              {table.rowCount === null ? "? count failed" : table.rowCount === 0 ? "empty" : `${wholeNumber(table.rowCount)} rows`}
             </span>
           </Link>
         ))}

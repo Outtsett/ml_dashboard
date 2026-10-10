@@ -12,11 +12,13 @@ const LONG_NAME = `derived_${"x".repeat(70)}`;
 const queryLake = vi.fn();
 const fetchIcebergTable = vi.fn();
 const listIcebergTables = vi.fn();
+const pinned = new Map<string, string>();
 
 vi.mock("../infrastructure/database/lake/connection", () => ({
   queryLake: (...parameters: unknown[]) => queryLake(...parameters),
   fetchIcebergTable: (...parameters: unknown[]) => fetchIcebergTable(...parameters),
   listIcebergTables: (...parameters: unknown[]) => listIcebergTables(...parameters),
+  pinnedIcebergMetadataLocation: (table: string) => pinned.get(table),
 }));
 
 async function loadInventory() {
@@ -29,7 +31,10 @@ beforeEach(() => {
   fetchIcebergTable.mockReset();
   listIcebergTables.mockReset();
   listIcebergTables.mockResolvedValue(["bars"]);
+  pinned.clear();
+  pinned.set("bars", "s3://lakehouse/metadata/00533.json");
   fetchIcebergTable.mockResolvedValue({
+    "metadata-location": "s3://lakehouse/metadata/00533.json",
     metadata: {
       snapshots: [
         { "timestamp-ms": 1, summary: { "total-records": "10" } },
@@ -46,6 +51,7 @@ beforeEach(() => {
       ];
     }
     if (statement.includes('"broken_view"')) throw new Error("object not found");
+    if (statement.includes('FROM "bars"')) return [{ count: 7n }];
     if (statement.includes(`"${LONG_NAME}"`)) return [{ count: 42n }];
     throw new Error(`unexpected statement: ${statement}`);
   });
@@ -67,7 +73,18 @@ describe("getLakeStats", () => {
     expect(statements.some((statement) => statement.includes('FROM "bars"'))).toBe(false);
   });
 
+  it("counts the view when the catalog has moved past the metadata file the view scans", async () => {
+    pinned.set("bars", "s3://lakehouse/metadata/00532.json");
+    const { getLakeStats } = await loadInventory();
+    const stats = await getLakeStats();
+    const bars = (stats.tableDetails ?? []).find((detail) => detail.name === "bars");
+    expect(bars).toMatchObject({ rowCount: 7, rowCountSource: "counted" });
+  });
+
   it("shares one count between concurrent callers and then answers from memory", async () => {
+    queryLake.mockImplementation(async (statement: string) =>
+      statement.includes("information_schema.tables") ? [{ table_name: "bars", table_type: "VIEW" }] : [{ count: 1n }],
+    );
     const { getLakeStats } = await loadInventory();
     const [first, second] = await Promise.all([getLakeStats(), getLakeStats()]);
     expect(first).toBe(second);

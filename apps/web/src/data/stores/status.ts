@@ -5,7 +5,7 @@
 
 import type { PgAdminStatus } from "./hooks";
 
-export type ServiceState = PgAdminStatus["status"] | "unavailable";
+export type ServiceState = PgAdminStatus["status"] | "unavailable" | "checking";
 
 export interface ServiceMark {
   glyph: string;
@@ -20,12 +20,14 @@ const MARKS: Record<ServiceState, ServiceMark> = {
   stopped: { glyph: "▲", word: "stopped", color: "#D55E00" },
   error: { glyph: "✕", word: "error", color: "#D55E00" },
   unavailable: { glyph: "?", word: "status unavailable", color: "#D55E00" },
+  // Before the first answer arrives nothing is known, so the mark is grey, not a state's colour.
+  checking: { glyph: "…", word: "checking", color: "#9CA3AF" },
 };
 
 /** `failed` is the status request itself failing, which is not the same as the service being down. */
 export function serviceState(status: PgAdminStatus | undefined, failed: boolean): ServiceState {
   if (failed) return "unavailable";
-  return status?.status ?? "starting";
+  return status?.status ?? "checking";
 }
 
 export function serviceMark(state: ServiceState): ServiceMark {

@@ -28,7 +28,12 @@ All requests are hooks in `stores/hooks.ts`; each passes the abort signal and th
 
 ## Rules the page keeps
 
-- A number is written by `packages/shared/src/stores/format.ts` (whole counts, percentages, at most one decimal, never scientific notation); the stored value is the cell's hover text.
+- A number is written by `packages/shared/src/stores/format.ts`, never in scientific notation. A grid cell shows the stored value (`storedValue`: a price keeps its tick, an exchange rate its fifth decimal; a column named `_fraction` or `_share` reads as a percentage). A count is whole (`wholeNumber`). A computed statistic keeps four significant digits below 1,000 and at most one decimal above (`measuredValue`). The stored value is always the hover text.
+- The sort buttons are off for exactly the objects the server would refuse unfiltered: the page and the route share `SORT_ROW_LIMIT` (`packages/shared/src/stores/limits.ts`). A refused sort is shown above the grid with a "Remove the sort" button; the headers stay.
+- `StoreBrowser` and `ColumnProfiles` are mounted with a `key` per object, so a new object never shows the last one's rows.
+- A profile whose sample is empty (the symbol box names a symbol the object does not hold) says so in one sentence instead of drawing panels.
+- A `contains` filter matches the typed text literally (its `%` and `_` are escaped). A count that failed, in the lake or in SQLite, reads "count failed", never 0 or "empty"; an inventory with a failed count is retried after 30 seconds.
+- An Iceberg table's catalog total is used only while the catalog's metadata file is the one the view was defined over at startup (`pinnedIcebergMetadataLocation`); otherwise the view is counted.
 - A service state is a glyph, a word and an Okabe-Ito colour together (`stores/status.ts`).
 - The rows grid shows the statement the server ran as its caption.
 - The Iceberg `bars` table (882 million rows) can be sorted only once a filter narrows it (`requireFilterToSort`).

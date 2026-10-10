@@ -5,6 +5,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QUERY_ROW_LIMIT } from "@shared/stores/limits";
 
 export type LakeObjectKind = "candles" | "features" | "labels" | "news" | "calendar" | "events";
 
@@ -31,7 +32,8 @@ export interface StoresOverview {
     /** The database file plus its write-ahead log; null when the file could not be read. */
     sizeBytes: number | null;
     objectCount: number;
-    objects: Array<{ name: string; kind: string; rowCount: number }>;
+    /** rowCount is null when the count failed; an unknown is never reported as 0. */
+    objects: Array<{ name: string; kind: string; rowCount: number | null }>;
   };
 }
 
@@ -63,7 +65,7 @@ export interface PgAdminStatus {
   restarts: number;
 }
 
-async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+export async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
@@ -218,7 +220,7 @@ export function useRunQuery() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // One trailing semicolon is dropped: the server appends its own row limit to SQLite text.
-        body: JSON.stringify({ sql: statement.trim().replace(/;\s*$/, ""), source, limit: 1000 }),
+        body: JSON.stringify({ sql: statement.trim().replace(/;\s*$/, ""), source, limit: QUERY_ROW_LIMIT }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {

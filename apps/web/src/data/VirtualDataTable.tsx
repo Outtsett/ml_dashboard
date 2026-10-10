@@ -53,13 +53,7 @@ export function VirtualDataTable({ tableName, data, isLoading, onClose, descript
             className="h-full overflow-auto w-full custom-scrollbar"
             style={{ maxHeight: '600px' }}
           >
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
+            <div style={{ width: '100%' }}>
               <table className="w-full text-sm text-left border-collapse">
                 <thead className="sticky top-0 z-10 bg-black/60 backdrop-blur-md text-muted-foreground font-mono text-xs uppercase shadow-sm">
                   <tr>
@@ -71,20 +65,15 @@ export function VirtualDataTable({ tableName, data, isLoading, onClose, descript
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Rows stay in the table's own layout so each cell sits under its heading; a spacer row stands in for the rows above and below the window. */}
+                  <tr aria-hidden style={{ height: `${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px` }} />
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const rowData = rows[virtualRow.index];
                     if (!rowData) return null;
                     return (
                       <tr
                         key={virtualRow.index}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
+                        style={{ height: `${virtualRow.size}px` }}
                         className="border-b border-white/5 hover:bg-white/5 transition-colors font-mono"
                       >
                         {columns.map((col) => {
@@ -102,6 +91,10 @@ export function VirtualDataTable({ tableName, data, isLoading, onClose, descript
                       </tr>
                     );
                   })}
+                  <tr
+                    aria-hidden
+                    style={{ height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems().at(-1)?.end ?? 0)}px` }}
+                  />
                 </tbody>
               </table>
             </div>

@@ -95,11 +95,17 @@ export function PgAdminFrame() {
               {state === "stopped" && "pgAdmin is stopped."}
               {state === "error" && "pgAdmin reported an error."}
               {state === "unavailable" && "The dashboard could not read pgAdmin's status."}
+              {state === "checking" && "Asking the supervisor for pgAdmin's state."}
             </p>
             <p className="max-w-lg font-mono text-xs text-muted-foreground">
               {state === "unavailable"
                 ? (status.error as Error | null)?.message
-                : status.data?.error ?? (state === "starting" ? "The supervisor is waiting for the pgAdmin port to answer." : "The supervisor has no process running.")}
+                : status.data?.error ??
+                  (state === "starting"
+                    ? "The supervisor is waiting for the pgAdmin port to answer."
+                    : state === "checking"
+                      ? ""
+                      : "The supervisor has no process running.")}
             </p>
           </div>
         )}

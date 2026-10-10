@@ -114,12 +114,10 @@ test.describe('SQL console error handling', () => {
       page.getByTestId('run-query').click(),
     ]);
 
-    // Asserted on the specific failure toast (`DatabasesPage.tsx:148`), not a
-    // loose /error|failed/ over the whole page — the app chrome contains those
-    // words in other contexts, so a broad match would pass without the console
-    // reporting anything.
+    // Asserted on the console's own error paragraph (`data-testid="query-error"`),
+    // which stays on screen after the toast expires and does not depend on wording.
     await expect(
-      page.getByText(/query failed/i).first(),
+      page.getByTestId('query-error'),
       'an invalid query produced no visible error — the console is swallowing engine failures',
     ).toBeVisible({ timeout: 20_000 });
   });

@@ -161,6 +161,17 @@ function signedCatalogHeaders(method: string, urlString: string): Record<string,
  * host with "Could not parse AWS service from host" â€” so the way through is to
  * resolve here and hand `iceberg_scan` the metadata file.
  */
+/** The metadata file each Iceberg view was defined over, by table name. */
+const pinnedMetadataLocations = new Map<string, string>();
+
+/**
+ * The metadata file the `<table>` view scans. A view keeps scanning this file
+ * until the serving layer is rebuilt, whatever the catalog has committed since.
+ */
+export function pinnedIcebergMetadataLocation(table: string): string | undefined {
+  return pinnedMetadataLocations.get(table);
+}
+
 async function resolveIcebergMetadataLocation(table: string): Promise<string> {
   const configUrl = `${LAKE_CATALOG_URI}/v1/config?warehouse=${encodeURIComponent(LAKE_WAREHOUSE)}`;
   const configResp = await fetch(configUrl, { headers: signedCatalogHeaders("GET", configUrl) });
@@ -358,6 +369,7 @@ servingViewNames = names;
     let icebergViewNames: string[] = [];
     try {
       const metadataLocation = await resolveIcebergMetadataLocation("bars");
+      pinnedMetadataLocations.set("bars", metadataLocation);
       await con.run(
         `CREATE OR REPLACE VIEW bars AS SELECT * FROM iceberg_scan('${metadataLocation}')`,
       );

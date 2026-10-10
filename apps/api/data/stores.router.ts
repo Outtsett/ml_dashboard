@@ -35,6 +35,7 @@ import {
   findLakeObject,
   getLakeStats,
 } from "../infrastructure/database/lake";
+import { SORT_ROW_LIMIT } from "@shared/stores/limits";
 import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
 import { marketPool, quantPool } from "../infrastructure/database/pg_db";
 import { readPostgresDatabase } from "../infrastructure/database/postgresInventory";
@@ -89,7 +90,7 @@ const overviewCache = new LRUCache<string, object>({ max: 8, ttl: 30_000 });
  * counted matches when there is one. An unknown count is refused, not waved
  * through. Enforced here, on the server, so it holds whatever the page sends.
  */
-export const SORT_ROW_LIMIT = 50_000_000;
+export { SORT_ROW_LIMIT };
 
 /** Every lake statement the browse routes run is stopped after this long. */
 export const BROWSE_TIMEOUT_MILLISECONDS = 15_000;
@@ -166,7 +167,11 @@ function buildWhere(filters: z.infer<typeof FilterSchema>[], columns: ColumnInfo
         clauses.push(`${id} = ${literal(filter.value, column.numeric)}`);
         break;
       case "contains":
-        clauses.push(`CAST(${id} AS VARCHAR) LIKE ${literal(`%${filter.value}%`, false)}`);
+        // The typed text is matched literally: its own % and _ are escaped, so
+        // "50%" finds the text 50% and not every value containing 50.
+        clauses.push(
+          `CAST(${id} AS VARCHAR) LIKE ${literal(`%${filter.value.replace(/[\\%_]/g, "\\$&")}%`, false)} ESCAPE '\\'`,
+        );
         break;
       case "greater_than":
         clauses.push(`${id} > ${literal(filter.value, column.numeric)}`);
@@ -208,9 +213,10 @@ router.get("/stores/overview", queryRateLimiter, async (_req: Request, res: Resp
 const [row] = await sqliteDb.all<{ n: number }>(
             drizzleSql.raw(`SELECT count(*) AS n FROM ${quote(table.name)}`),
           );
-          return { ...table, rowCount: Number(row?.n ?? 0) };
+          return { ...table, rowCount: Number(row?.n ?? 0) as number | null };
         } catch {
-          return { ...table, rowCount: 0 };
+          // A count that failed is unknown, never zero.
+          return { ...table, rowCount: null as number | null };
         }
       }),
     );
@@ -397,7 +403,14 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
 
   let filters: z.infer<typeof FilterSchema>[] = [];
   if (query.data.filters) {
-    const parsed = z.array(FilterSchema).max(8).safeParse(JSON.parse(query.data.filters || "[]"));
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(query.data.filters || "[]");
+    } catch {
+      res.status(400).json({ error: "filters must be a JSON array of predicates" });
+      return;
+    }
+    const parsed = z.array(FilterSchema).max(8).safeParse(decoded);
     if (!parsed.success) {
       res.status(400).json({ error: "one of the filters is not a recognised predicate" });
       return;

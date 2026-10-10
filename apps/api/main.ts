@@ -485,6 +485,9 @@ async function bootstrap() {
     // Count the lake's objects once now, so the Data page's first visit reads the answer from memory.
     import('./infrastructure/database/lake')
       .then(({ getLakeStats }) => getLakeStats())
+      .then(stats => {
+        if (!stats.connected) console.warn('[startup] Lake inventory warming failed:', stats.error);
+      })
       .catch(err => {
         console.warn('[startup] Lake inventory warming failed:', err.message);
       });

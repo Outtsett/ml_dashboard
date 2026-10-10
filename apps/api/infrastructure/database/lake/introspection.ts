@@ -10,7 +10,7 @@
  * column names (`table_name`, `column`, `type`) so the UI needs no change.
  */
 
-import { fetchIcebergTable, listIcebergTables, queryLake } from "./connection";
+import { fetchIcebergTable, listIcebergTables, pinnedIcebergMetadataLocation, queryLake } from "./connection";
 
 // ─── Validation ─────────────────────────────────────────────────────────────
 
@@ -149,6 +149,8 @@ export async function getLakeTablePreview(tableName: string, limit = 100): Promi
 
 /** How long one counted inventory is served before the lake is counted again. */
 const INVENTORY_TTL_MILLISECONDS = 10 * 60_000;
+/** An inventory in which some count failed is retried this soon, not held ten minutes. */
+const INVENTORY_RETRY_MILLISECONDS = 30_000;
 /** Views counted at once; each count opens its own DuckDB connection. */
 const INVENTORY_CONCURRENCY = 8;
 
@@ -158,6 +160,11 @@ let inventoryInFlight: Promise<LakeObjectStats> | null = null;
 /** The newest snapshot's `total-records` for an Iceberg table, read from the catalog. */
 async function icebergTotalRecords(table: string): Promise<number | null> {
   const body = await fetchIcebergTable(table);
+  // The view scans the metadata file resolved when the serving layer was built.
+  // If the catalog has moved on since, its newest total is not this view's
+  // total, and the caller counts the view instead.
+  const pinned = pinnedIcebergMetadataLocation(table);
+  if (pinned && body["metadata-location"] !== pinned) return null;
   const metadata = (body.metadata ?? {}) as Record<string, unknown>;
   const snapshots = (metadata.snapshots ?? []) as Array<{ "timestamp-ms"?: number; summary?: Record<string, string> }>;
   const newest = snapshots.reduce<(typeof snapshots)[number] | null>(
@@ -219,7 +226,11 @@ export async function getLakeStats(options: { refresh?: boolean } = {}): Promise
   if (inventoryInFlight) return inventoryInFlight;
   inventoryInFlight = countInventory()
     .then((stats) => {
-      inventoryCache = { stats, expiresAt: Date.now() + INVENTORY_TTL_MILLISECONDS };
+      const someFailed = (stats.tableDetails ?? []).some((detail) => detail.rowCount === null);
+      inventoryCache = {
+        stats,
+        expiresAt: Date.now() + (someFailed ? INVENTORY_RETRY_MILLISECONDS : INVENTORY_TTL_MILLISECONDS),
+      };
       return stats;
     })
     .catch((error): LakeObjectStats => ({ connected: false, error: String(error) }))

@@ -20,18 +20,42 @@ export function percentage(share: number | null | undefined): string {
 }
 
 /**
- * A measured value of unknown unit (a column statistic). Values from 100,000 up are whole,
- * values from 1 up keep at most one decimal (a price keeps its fraction), and a value below 1 is written out in
- * plain decimal places to its first three significant digits, never as `1.2e-4`.
+ * A stored number, written as stored: whole numbers with separators, a fraction
+ * with every digit it holds (a price keeps its tick, an exchange rate its fifth
+ * decimal). Ten significant digits are kept, which drops binary float noise
+ * (`0.1 + 0.2` reads `0.3`); never scientific notation.
+ */
+export function storedValue(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (Number.isInteger(value)) return value.toLocaleString("en-US");
+  return Number(value.toPrecision(10)).toLocaleString("en-US", { maximumFractionDigits: 10 });
+}
+
+/**
+ * A grid cell: a column named as a share (`_fraction`, `_share`) reads as a
+ * percentage, every other number reads as stored.
+ */
+export function cellText(value: number, columnName: string): string {
+  if (/(_fraction|_share)$/i.test(columnName) && Math.abs(value) <= 1) return percentage(value);
+  return storedValue(value);
+}
+
+/**
+ * A computed statistic of unknown unit (a mean, a percentile). From 100,000 up
+ * it is whole; from 1,000 it keeps at most one decimal; from 1 it keeps four
+ * significant digits (a mean exchange rate reads 1.121, not 1.1); below 1 it is
+ * written out in plain decimal places to three significant digits, never as
+ * `1.2e-4`.
  */
 export function measuredValue(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const magnitude = Math.abs(value);
   if (magnitude === 0) return "0";
   if (magnitude >= 100_000) return Math.round(value).toLocaleString("en-US");
-  if (magnitude >= 1) {
+  if (magnitude >= 1_000) {
     return value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
   }
+  if (magnitude >= 1) return value.toLocaleString("en-US", { maximumSignificantDigits: 4 });
   const leadingZeros = Math.max(0, -Math.floor(Math.log10(magnitude)) - 1);
   const places = Math.min(12, leadingZeros + 3);
   return value.toFixed(places).replace(/0+$/, "").replace(/\.$/, "");

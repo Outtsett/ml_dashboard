@@ -13,6 +13,7 @@ import { Link, useSearch } from "wouter";
 import { Database, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { byteSize, wholeNumber } from "@shared/stores/format";
+import { QUERY_ROW_LIMIT } from "@shared/stores/limits";
 import { PageShell } from "@/backtest/components/PageShell";
 import { useBreadcrumbs } from "@/shared/hooks/useBreadcrumbs";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
@@ -151,9 +152,9 @@ function LakeBody({ selection, inventory, inventoryError }: {
             </header>
             <div className="min-h-0 flex-1">
               {selection.view === "rows" ? (
-                <StoreBrowser store="lake" objectName={object.viewName} requireFilterToSort={object.origin === "iceberg"} />
+                <StoreBrowser key={`lake:${object.viewName}`} store="lake" objectName={object.viewName} />
               ) : (
-                <ColumnProfiles objectName={object.viewName} symbol={profileSymbol} onSymbolChange={setProfileSymbol} />
+                <ColumnProfiles key={object.viewName} objectName={object.viewName} symbol={profileSymbol} onSymbolChange={setProfileSymbol} />
               )}
             </div>
           </>
@@ -202,7 +203,7 @@ function SqliteBody({ selection }: { selection: DataSelection }) {
           <>
             <h3 className="shrink-0 font-mono text-sm font-semibold text-foreground">{selected}</h3>
             <div className="min-h-0 flex-1">
-              <StoreBrowser store="sqlite" objectName={selected} />
+              <StoreBrowser key={`sqlite:${selected}`} store="sqlite" objectName={selected} />
             </div>
           </>
         ) : (
@@ -219,10 +220,16 @@ function SqliteBody({ selection }: { selection: DataSelection }) {
   );
 }
 
-function QueryBody() {
-  const [source, setSource] = useState<"lake" | "sqlite">("lake");
-  const [statement, setStatement] = useState("");
-  const run = useRunQuery();
+/** What the SQL console holds; kept by the page so it survives a visit to another tab. */
+interface QueryConsoleState {
+  source: "lake" | "sqlite";
+  setSource: (source: "lake" | "sqlite") => void;
+  statement: string;
+  setStatement: (statement: string) => void;
+  run: ReturnType<typeof useRunQuery>;
+}
+
+function QueryBody({ source, setSource, statement, setStatement, run }: QueryConsoleState) {
 
   const handleRun = () => {
     run.mutate(
@@ -254,7 +261,12 @@ function QueryBody() {
           tableName={run.data.source === "lake" ? "Result from the lake (DuckDB)" : "Result from SQLite"}
           data={run.data.rows}
           isLoading={false}
-          description={`${wholeNumber(run.data.rows.length)} rows returned in ${wholeNumber(run.data.elapsedMilliseconds)} milliseconds for: ${run.data.statement}`}
+          description={
+            (run.data.rows.length >= QUERY_ROW_LIMIT
+              ? `The first ${wholeNumber(QUERY_ROW_LIMIT)} rows (the console's limit; the statement may match more)`
+              : `${wholeNumber(run.data.rows.length)} rows`) +
+            ` returned in ${wholeNumber(run.data.elapsedMilliseconds)} milliseconds for: ${run.data.statement}`
+          }
         />
       )}
     </div>
@@ -266,6 +278,9 @@ export default function DatabasesPage() {
   const inventory = useLakeObjectsByKind();
   const overview = useStoresOverview();
   const catalogCount = useCatalogCount();
+  const [querySource, setQuerySource] = useState<"lake" | "sqlite">("lake");
+  const [queryStatement, setQueryStatement] = useState("");
+  const queryRun = useRunQuery();
   // The badge needs the state on every tab; the frame polls faster only while it is open.
   const pgAdmin = usePgAdminStatus(true);
   const pgMark = serviceMark(serviceState(pgAdmin.data, pgAdmin.isError));
@@ -289,7 +304,7 @@ export default function DatabasesPage() {
 
   const subtitle =
     inventory.data && overview.data
-      ? `${wholeNumber(inventory.data.total)} lake objects and ${wholeNumber(overview.data.sqlite.objectCount)} SQLite tables, counted when this page loaded.`
+      ? `${wholeNumber(inventory.data.total)} lake objects and ${wholeNumber(overview.data.sqlite.objectCount)} SQLite tables, as the server listed them when this page loaded.`
       : inventory.isError || overview.isError
         ? "A store did not answer; the tab that failed says which."
         : "Reading the stores…";
@@ -348,7 +363,15 @@ export default function DatabasesPage() {
               </div>
             </div>
           )}
-          {selection.tab === "query" && <QueryBody />}
+          {selection.tab === "query" && (
+            <QueryBody
+              source={querySource}
+              setSource={setQuerySource}
+              statement={queryStatement}
+              setStatement={setQueryStatement}
+              run={queryRun}
+            />
+          )}
           {selection.tab === "engine" && (
             <div className="h-full space-y-6 overflow-y-auto p-6">
               <DuckDbPanel />

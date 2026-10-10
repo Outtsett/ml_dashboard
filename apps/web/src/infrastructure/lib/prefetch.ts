@@ -1,5 +1,6 @@
 import { queryClient } from "@/infrastructure/api/query_client";
 import { fetchArray } from "@/infrastructure/api/fetch_array";
+import { readJson } from "@/data/stores/hooks";
 
 const prefetchedRoutes = new Set<string>();
 const componentFactories = new Map<string, () => Promise<unknown>>();
@@ -116,12 +117,12 @@ export async function prefetchRouteData(route: string) {
       await Promise.all([
         queryClient.prefetchQuery({
           queryKey: ["stores", "objects-by-kind"],
-          queryFn: () => fetch("/api/stores/objects-by-kind").then(r => r.json()),
+          queryFn: ({ signal }) => readJson("/api/stores/objects-by-kind", signal),
           staleTime: 60000,
         }),
         queryClient.prefetchQuery({
           queryKey: ["stores", "overview"],
-          queryFn: () => fetch("/api/stores/overview").then(r => r.json()),
+          queryFn: ({ signal }) => readJson("/api/stores/overview", signal),
           staleTime: 30000,
         }),
       ]);

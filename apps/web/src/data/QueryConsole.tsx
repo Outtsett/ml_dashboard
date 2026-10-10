@@ -53,9 +53,9 @@ export function QueryConsole({
         <div className="flex justify-between items-center">
           <p className="text-xs text-muted-foreground">
             {queryDb === "lake" &&
-              "Only read statements run (SELECT, WITH, SHOW, EXPLAIN). At most 1,000 rows come back; scope a lake query to one symbol."}
+              "The server accepts a statement that starts with SELECT, WITH, SHOW or EXPLAIN and refuses the rest. At most 1,000 rows come back; scope a lake query to one symbol."}
             {queryDb === "sqlite" &&
-              "Only read statements run. The server adds a limit of 1,000 rows, so leave LIMIT off the statement."}
+              "The server accepts a statement that starts with SELECT, WITH, SHOW or EXPLAIN and refuses the rest. It adds a limit of 1,000 rows, so leave LIMIT off the statement."}
           </p>
           <Button
             onClick={onRunQuery}

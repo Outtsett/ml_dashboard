@@ -9,7 +9,7 @@
  *    scientific notation.
  */
 import { describe, expect, it } from "vitest";
-import { byteSize, measuredValue, percentage, wholeDaysBetween, wholeNumber } from "@shared/stores/format";
+import { byteSize, cellText, measuredValue, percentage, storedValue, wholeDaysBetween, wholeNumber } from "@shared/stores/format";
 import { dataHref, dataSelectionSearch, parseDataSelection } from "@/data/tabs";
 
 describe("parseDataSelection", () => {
@@ -66,17 +66,25 @@ describe("number formats", () => {
     expect(percentage(0)).toBe("0%");
   });
 
-  it("never writes scientific notation or more than one decimal above 1", () => {
+  it("writes a stored number as stored, so prices keep their tick", () => {
+    expect(storedValue(7713.75)).toBe("7,713.75");
+    expect(storedValue(1.12121)).toBe("1.12121");
+    expect(storedValue(1.12162)).not.toBe(storedValue(1.12121));
+    expect(storedValue(0.1 + 0.2)).toBe("0.3");
+    expect(storedValue(0.0000001)).toBe("0.0000001");
+    expect(storedValue(882665821)).toBe("882,665,821");
+    expect(cellText(0.517, "null_fraction")).toBe("51.7%");
+    expect(cellText(0.517, "close")).toBe("0.517");
+  });
+
+  it("never writes a statistic in scientific notation", () => {
     const samples = [0.00012345, -0.0000004, 0.5, 3.14159, 27543.25, 1e12, -42.06];
-    for (const sample of samples) {
-      const text = measuredValue(sample);
-      expect(text).not.toMatch(/e[-+]?\d/i);
-      if (Math.abs(sample) >= 1) expect(text.split(".")[1]?.length ?? 0).toBeLessThanOrEqual(1);
-    }
+    for (const sample of samples) expect(measuredValue(sample)).not.toMatch(/e[-+]?\d/i);
+    expect(measuredValue(1.12121)).toBe("1.121");
     expect(measuredValue(0.00012345)).toBe("0.000123");
     expect(measuredValue(27543.2)).toBe("27,543.2");
     expect(measuredValue(882665821.4)).toBe("882,665,821");
-    expect(measuredValue(3.14159)).toBe("3.1");
+    expect(measuredValue(3.14159)).toBe("3.142");
   });
 
   it("writes sizes in whole megabytes and ages in whole days", () => {

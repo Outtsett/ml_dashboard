@@ -74,16 +74,16 @@ const TIME_COLOR = "#0072B2";
 
 /** What each of the eight numbers is and how DuckDB computed it, shown on hover. */
 const STATISTIC_COMPUTATIONS: Record<string, string> = {
-  mean: "The average of the non-null sampled values.",
-  median: "The middle value of the non-null sampled values.",
-  "standard deviation": "How far the sampled values typically sit from their mean.",
-  skewness: "How lopsided the distribution is; 0 is symmetric and a negative value means a longer left tail.",
-  kurtosis: "How heavy the tails are against a bell curve, which reads 0.",
-  "distinct values": "About how many different values the sample holds (an approximate distinct count).",
-  "25th percentile": "A quarter of the sampled values are at or below this.",
-  "75th percentile": "Three quarters of the sampled values are at or below this.",
-  minimum: "The smallest sampled value.",
-  maximum: "The largest sampled value.",
+  mean: "The average of the non-null sampled values. DuckDB: avg(column).",
+  median: "The middle value of the non-null sampled values. DuckDB: median(column).",
+  "standard deviation": "How far the sampled values typically sit from their mean. DuckDB: stddev_samp(column).",
+  skewness: "How lopsided the distribution is; 0 is symmetric and a negative value means a longer left tail. DuckDB: skewness(column).",
+  kurtosis: "How heavy the tails are against a bell curve, which reads 0. DuckDB: kurtosis(column).",
+  "distinct values": "About how many different values the sample holds. DuckDB: approx_count_distinct(column), an estimate.",
+  "25th percentile": "A quarter of the sampled values are at or below this. DuckDB: quantile_cont(column, 0.25).",
+  "75th percentile": "Three quarters of the sampled values are at or below this. DuckDB: quantile_cont(column, 0.75).",
+  minimum: "The smallest sampled value. DuckDB: min(column).",
+  maximum: "The largest sampled value. DuckDB: max(column).",
 };
 
 function Histogram({ bins }: { bins: HistogramBin[] }) {
@@ -144,6 +144,9 @@ function TimeLine({ values }: { values: Array<number | null> }) {
   return (
     <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-[34px] w-full" role="img"
       aria-label="Value through time">
+      <title>
+        {`The column's average in each of ${values.length} equal time buckets across the sampled rows, oldest on the left. The vertical scale runs from ${measuredValue(low)} at the bottom to ${measuredValue(high)} at the top. A gap is a bucket with no value.`}
+      </title>
       {segments.map((points, index) => (
         <polyline
           key={index}
@@ -162,9 +165,9 @@ function Number8({ label, value }: { label: string; value: number | null }) {
   return (
     <div
       className="flex items-baseline justify-between gap-1"
-      title={`${STATISTIC_COMPUTATIONS[label] ?? label} Computed by DuckDB over the sampled rows. Recorded value: ${value === null ? "none" : String(value)}.`}
+      title={`${STATISTIC_COMPUTATIONS[label] ?? label} Computed over the sampled rows (the exact statements are in apps/api/data/profile.router.ts). Recorded value: ${value === null ? "none" : String(value)}.`}
     >
-      <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
       <span className="tnum text-[10px] text-foreground">{measuredValue(value)}</span>
     </div>
   );
@@ -180,10 +183,10 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
     >
       <header className="mb-1 flex items-baseline gap-1.5">
         <h4 className="truncate font-mono text-[11px] font-semibold text-foreground">{profile.name}</h4>
-        <span className="shrink-0 text-[9px] text-muted-foreground">{profile.type}</span>
+        <span className="shrink-0 text-[10px] text-muted-foreground">{profile.type}</span>
         {profile.forwardLooking && (
           <span
-            className="shrink-0 rounded border border-[#D55E00]/50 px-1 text-[9px] text-[#D55E00]"
+            className="shrink-0 rounded border border-[#D55E00]/50 px-1 text-[10px] text-[#D55E00]"
             title="Computed from bars after this one. It cannot be used as a feature."
           >
             forward-looking
@@ -191,11 +194,15 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
         )}
         <span
           className={cn(
-            "ml-auto shrink-0 tnum text-[9px]",
+            "ml-auto shrink-0 tnum text-[10px]",
             allNull ? "text-[--color-data-warn]" : "text-muted-foreground",
           )}
         >
-          {profile.nullFraction === null ? "—" : `${percentage(profile.nullFraction)} null`}
+          {profile.nullFraction === null
+            ? "—"
+            : profile.nullFraction > 0 && profile.nullFraction < 0.0005
+              ? "under 0.1% null"
+              : `${percentage(profile.nullFraction)} null`}
         </span>
       </header>
 
@@ -205,14 +212,15 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
         </p>
       ) : !profile.numeric ? (
         <p className="py-3 text-[10px] text-muted-foreground">
-          {profile.distinctApproximate.toLocaleString()} distinct values · text, so it is counted
-          rather than plotted.
+          About {wholeNumber(profile.distinctApproximate)} distinct {profile.distinctApproximate === 1 ? "value" : "values"}.
+          This column is {/TIME|DATE/i.test(profile.type) ? "a time" : /BOOL/i.test(profile.type) ? "true or false" : "text"}, not a
+          number, so its values are counted rather than plotted.
         </p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="mb-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+              <p className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                 distribution
               </p>
               {profile.histogram.length > 0 ? (
@@ -224,7 +232,7 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
               )}
             </div>
             <div>
-              <p className="mb-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+              <p className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                 through time
               </p>
               <TimeLine values={profile.sparkline} />
@@ -300,8 +308,7 @@ export function ColumnProfiles({ objectName, symbol, onSymbolChange }: ColumnPro
           : undefined
       }
       unavailableReason={profile.error ? (profile.error as Error).message : undefined}
-      resizeKey="stores-column-profiles"
-      defaultHeight={560}
+      className="h-full min-h-0"
       testId="column-profiles"
       fillBody
     >
@@ -358,7 +365,15 @@ export function ColumnProfiles({ objectName, symbol, onSymbolChange }: ColumnPro
         )}
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {profile.data && profile.data.sampleRows === 0 && !profile.isFetching && (
+            <p className="rounded border border-[#E69F00]/60 p-3 text-xs text-foreground" data-testid="column-profile-empty-sample">
+              ▲ No rows were measured
+              {profile.data.symbolColumn && symbol
+                ? `: no row of ${objectName} has ${profile.data.symbolColumn} = ${symbol}. Type a symbol this object holds and press measure, or clear the box to measure every symbol.`
+                : `: ${objectName} returned no rows to sample.`}
+            </p>
+          )}
+          <div className={cn("grid gap-2 sm:grid-cols-2 xl:grid-cols-3", profile.data?.sampleRows === 0 && "hidden")}>
             {columns.map((column) => (
               <ColumnPanel key={column.name} profile={column} />
             ))}

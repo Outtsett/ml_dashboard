@@ -6,7 +6,7 @@
  * nothing the browser sends is treated as SQL.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Filter, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-import { measuredValue } from "@shared/stores/format";
+import { cellText, wholeNumber } from "@shared/stores/format";
+import { SORT_ROW_LIMIT } from "@shared/stores/limits";
 import { cn } from "@/shared/utils/utils";
 
 export type StoreKey = "lake" | "sqlite";
@@ -80,7 +81,9 @@ function epochText(value: number, columnName: string): string | null {
 
 function formatCell(value: unknown, columnName: string): string {
   if (value === null || value === undefined) return "—";
-  if (typeof value === "number") return epochText(value, columnName) ?? measuredValue(value);
+  if (typeof value === "number") return epochText(value, columnName) ?? cellText(value, columnName);
+  // An ISO timestamp reads as one date and time on one line; the stored text is the hover.
+  if (typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(value)) return value.slice(0, 19).replace("T", " ");
   if (typeof value === "boolean") return value ? "true" : "false";
   const text = String(value);
   return text.length > 80 ? `${text.slice(0, 77)}…` : text;
@@ -89,27 +92,16 @@ function formatCell(value: unknown, columnName: string): string {
 export interface StoreBrowserProps {
   store: StoreKey;
   objectName: string;
-  /**
-   * Sorting a table with hundreds of millions of rows reads all of them, so on
-   * such a table a column can be sorted only once a filter narrows it.
-   */
-  requireFilterToSort?: boolean;
 }
 
-export function StoreBrowser({ store, objectName, requireFilterToSort = false }: StoreBrowserProps) {
+/** Mount with `key={store + objectName}`: a new object starts from a fresh grid, never the last one's rows. */
+export function StoreBrowser({ store, objectName }: StoreBrowserProps) {
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState<string | null>(null);
   const [orderDirection, setOrderDirection] = useState<"ascending" | "descending">("ascending");
   const [filters, setFilters] = useState<RowFilter[]>([]);
   const [draft, setDraft] = useState<RowFilter>({ column: "", operator: "equals", value: "" });
-
-  useEffect(() => {
-    setPage(0);
-    setOrderBy(null);
-    setFilters([]);
-    setDraft({ column: "", operator: "equals", value: "" });
-  }, [store, objectName]);
 
   const detail = useQuery({
     queryKey: ["stores", "object", store, objectName],
@@ -121,7 +113,15 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
     staleTime: 60_000,
   });
 
-  const sortLocked = requireFilterToSort && filters.length === 0;
+  // The server sorts a lake object only when the rows it would read are counted
+  // and at most SORT_ROW_LIMIT; with no filter that is the object's own count,
+  // so the header buttons are off for exactly the objects it would refuse.
+  const objectRowCount = detail.data?.rowCount;
+  const sortLocked =
+    store === "lake" &&
+    filters.length === 0 &&
+    detail.data !== undefined &&
+    (objectRowCount === null || objectRowCount === undefined || objectRowCount > SORT_ROW_LIMIT);
   const params = new URLSearchParams({
     limit: String(pageSize),
     offset: String(page * pageSize),
@@ -243,9 +243,17 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
 
       {/* ── Grid ────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-auto rounded border border-border">
-        {rows.error ? (
-          <p className="p-3 text-xs text-destructive">{(rows.error as Error).message}</p>
-        ) : (
+        {rows.error && (
+          <p className="flex flex-wrap items-center gap-2 p-3 text-xs text-[#D55E00]" data-testid="store-browser-error">
+            <span>✕ {(rows.error as Error).message}</span>
+            {orderBy && (
+              <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => setOrderBy(null)}>
+                Remove the sort
+              </Button>
+            )}
+          </p>
+        )}
+        {
           <table className="w-full border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-card">
               <tr>
@@ -260,7 +268,7 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
                         disabled={sortLocked}
                         title={
                           sortLocked
-                            ? "Add a filter first: sorting this table unfiltered would read every row it holds."
+                            ? `Add a filter first: a sort may read at most ${wholeNumber(SORT_ROW_LIMIT)} rows, and unfiltered this object has more (or its count is unknown).`
                             : `Sort by ${column.name}`
                         }
                       >
@@ -277,12 +285,12 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
               </tr>
             </thead>
             <tbody>
-              {(rows.data?.rows ?? []).map((row, index) => (
+              {(rows.error ? [] : rows.data?.rows ?? []).map((row, index) => (
                 <tr key={index} className={cn("border-b border-border/40", index % 2 === 1 && "bg-muted/20")}>
                   {columns.map((column) => (
                     <td
                       key={column.name}
-                      className={cn("px-2 py-1 font-mono tnum", column.numeric && "text-right")}
+                      className={cn("whitespace-nowrap px-2 py-1 font-mono tnum", column.numeric && "text-right")}
                       title={row[column.name] === null || row[column.name] === undefined ? "null" : String(row[column.name])}
                     >
                       {formatCell(row[column.name], column.name)}
@@ -290,7 +298,7 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
                   ))}
                 </tr>
               ))}
-              {!rows.isLoading && (rows.data?.rows.length ?? 0) === 0 && (
+              {!rows.isLoading && !rows.error && (rows.data?.rows.length ?? 0) === 0 && (
                 <tr>
                   <td colSpan={Math.max(1, columns.length)} className="px-2 py-4 text-center text-muted-foreground">
                     No rows match.
@@ -299,20 +307,25 @@ export function StoreBrowser({ store, objectName, requireFilterToSort = false }:
               )}
             </tbody>
           </table>
-        )}
+        }
       </div>
 
       {rows.data?.statement && (
         <p className="truncate font-mono text-[10px] text-muted-foreground" title={rows.data.statement} data-testid="store-browser-statement">
           The rows above are the answer to: {rows.data.statement}
-          {sortLocked ? " · Sorting is off until a filter narrows this table." : ""}
+          {sortLocked
+            ? ` · Sorting is off until a filter narrows this object: a sort may read at most ${wholeNumber(SORT_ROW_LIMIT)} rows.`
+            : ""}
         </p>
       )}
 
       {/* ── Paging ──────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      {/* The right padding keeps the pager clear of the floating assistant button in the page corner. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pr-16 text-[11px] text-muted-foreground">
         <span className="tnum">
-          {totalRows !== null ? (
+          {totalRows === 0 ? (
+            <>no rows{filters.length ? " match the filters" : " in this object"}</>
+          ) : totalRows !== null ? (
             <>
               rows {(page * pageSize + 1).toLocaleString()}–
               {Math.min((page + 1) * pageSize, totalRows).toLocaleString()} of {totalRows.toLocaleString()}
