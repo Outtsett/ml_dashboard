@@ -81,11 +81,20 @@ export interface ColumnInfo {
 const overviewCache = new LRUCache<string, object>({ max: 8, ttl: 30_000 });
 
 /**
- * A lake object with more rows than this is sorted only once a filter narrows
- * it: an unfiltered ORDER BY reads every row. The limit is enforced here, on
- * the server, so it holds whatever the page sends.
+ * The most rows a lake sort may have to read. An ORDER BY reads every row the
+ * filters leave, so the rows route sorts only when that number is known and at
+ * or under this limit: the object's counted rows when there is no filter, the
+ * counted matches when there is one. An unknown count is refused, not waved
+ * through. Enforced here, on the server, so it holds whatever the page sends.
  */
-export const UNFILTERED_SORT_ROW_LIMIT = 50_000_000;
+export const SORT_ROW_LIMIT = 50_000_000;
+
+/** Every lake statement the browse routes run is stopped after this long. */
+export const BROWSE_TIMEOUT_MILLISECONDS = 15_000;
+
+/** A forced recount of the whole lake is honoured at most this often. */
+const INVENTORY_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+let lastInventoryRefresh = 0;
 
 const SQLITE_PATH = process.env.SQLITE_DB_PATH || "data/ml_dashboard.db";
 
@@ -299,7 +308,11 @@ router.get("/stores/object/:name", queryRateLimiter, (req: Request, res: Respons
  * catalog's own total; a view's is SELECT count(*); a failed count is null.
  */
 router.get("/stores/inventory", queryRateLimiter, async (req: Request, res: Response) => {
-  const stats = await getLakeStats({ refresh: req.query.refresh === "1" });
+  // `?refresh=1` recounts 440 views; honour it at most once a minute, otherwise serve the held answer.
+  const now = Date.now();
+  const refresh = req.query.refresh === "1" && now - lastInventoryRefresh >= INVENTORY_REFRESH_INTERVAL_MILLISECONDS;
+  if (refresh) lastInventoryRefresh = now;
+  const stats = await getLakeStats({ refresh });
   if (!stats.connected) {
     res.status(502).json({ error: stats.error ?? "the lake did not answer" });
     return;
@@ -398,14 +411,36 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
     }
     const where = buildWhere(filters, columns);
     const orderColumn = columns.find((c) => c.name === query.data.orderBy);
-    if (orderColumn && !where && store.data === "lake") {
-      const inventory = await getLakeStats();
-      const known = inventory.tableDetails?.find((detail) => detail.name === name.data);
-      if (known && known.rowCount !== null && known.rowCount > UNFILTERED_SORT_ROW_LIMIT) {
+
+    // The matches are counted before the rows are read, because the count
+    // decides whether a sort is allowed at all.
+    let matchedRowCount: number | null = null;
+    if (where) {
+      const countStatement = `SELECT count(*) AS n FROM ${quote(name.data)} ${where}`;
+      const counted =
+        store.data === "sqlite"
+          ? await sqliteDb.all<{ n: number }>(drizzleSql.raw(countStatement))
+          : await queryLake<{ n: number | bigint }>(countStatement, BROWSE_TIMEOUT_MILLISECONDS);
+      matchedRowCount = Number(counted[0]?.n ?? 0);
+    }
+
+    if (orderColumn && store.data === "lake") {
+      let rowsToSort: number | null = matchedRowCount;
+      if (!where) {
+        const inventory = await getLakeStats();
+        rowsToSort = inventory.tableDetails?.find((detail) => detail.name === name.data)?.rowCount ?? null;
+      }
+      if (rowsToSort === null) {
+        res.status(400).json({
+          error: `The rows of ${name.data} could not be counted, so it cannot be sorted safely; remove the sort or add a filter.`,
+        });
+        return;
+      }
+      if (rowsToSort > SORT_ROW_LIMIT) {
         res.status(400).json({
           error:
-            `${name.data} holds ${known.rowCount.toLocaleString("en-US")} rows; add a filter before sorting it, ` +
-            "because an unfiltered sort reads every row.",
+            `This sort would read ${rowsToSort.toLocaleString("en-US")} rows of ${name.data}; the limit is ` +
+            `${SORT_ROW_LIMIT.toLocaleString("en-US")}. Add a filter that narrows it further before sorting.`,
         });
         return;
       }
@@ -422,17 +457,7 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
     const rows =
       store.data === "sqlite"
         ? await sqliteDb.all(drizzleSql.raw(statement))
-        : await queryLake<Record<string, unknown>>(statement);
-
-    let matchedRowCount: number | null = null;
-    if (where) {
-      const countStatement = `SELECT count(*) AS n FROM ${quote(name.data)} ${where}`;
-      const counted =
-        store.data === "sqlite"
-          ? await sqliteDb.all<{ n: number }>(drizzleSql.raw(countStatement))
-          : await queryLake<{ n: number | bigint }>(countStatement);
-      matchedRowCount = Number(counted[0]?.n ?? 0);
-    }
+        : await queryLake<Record<string, unknown>>(statement, BROWSE_TIMEOUT_MILLISECONDS);
 
     res.json({
       store: store.data,

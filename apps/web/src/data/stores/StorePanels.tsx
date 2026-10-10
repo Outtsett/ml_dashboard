@@ -4,12 +4,15 @@
  * vector-search extension is here and whether anything uses it.
  */
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { wholeDaysBetween, wholeNumber } from "@shared/stores/format";
 import { LensFrame } from "@/lens/Frame";
 
 interface IcebergSnapshot {
-  snapshotId: number | string;
-  parentSnapshotId: number | string | null;
+  /** A 64-bit id, served as a string so no digit is rounded. */
+  snapshotId: string;
+  parentSnapshotId: string | null;
   sequenceNumber: number | null;
   timestampMs: number | null;
   summary: Record<string, string>;
@@ -21,7 +24,8 @@ interface IcebergResponse {
   metadataLocation: string | null;
   location: string | null;
   formatVersion: number | null;
-  currentSnapshotId: number | string | null;
+  currentSnapshotId: string | null;
+  lastUpdatedMs: number | null;
   snapshots: IcebergSnapshot[];
   snapshotCount: number;
   partitionSpecs: Array<{ "spec-id"?: number; fields?: Array<{ name?: string; transform?: string }> }>;
@@ -45,7 +49,8 @@ function typeName(type: unknown): string {
   return typeof type === "string" ? type : JSON.stringify(type);
 }
 
-export function IcebergPanel({ table }: { table: string }) {
+export function IcebergPanel({ table: initialTable }: { table: string }) {
+  const [table, setTable] = useState(initialTable);
   const iceberg = useQuery({
     queryKey: ["stores", "iceberg", table],
     queryFn: ({ signal }) =>
@@ -89,6 +94,42 @@ export function IcebergPanel({ table }: { table: string }) {
       {!data ? (
         <p className="text-xs text-muted-foreground">Reading the catalog…</p>
       ) : (
+        <>
+        <div className="mb-3 space-y-1 text-xs" data-testid="iceberg-age">
+          {data.tablesInNamespace.length > 1 && (
+            <label className="flex items-center gap-2 text-muted-foreground">
+              Table
+              <select
+                value={table}
+                onChange={(event) => setTable(event.target.value)}
+                className="rounded border border-border bg-transparent px-2 py-0.5 font-mono text-xs text-foreground"
+              >
+                {data.tablesInNamespace.map((name) => (
+                  <option key={name} value={name} className="bg-neutral-900">
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {data.snapshots[0] && (
+            <p
+              className="text-foreground"
+              title="The newest snapshot's timestamp-ms against this computer's clock, in whole days; the rows and files are that snapshot's total-records and total-data-files, as the catalog states them."
+            >
+              The newest commit to market.{data.table} landed{" "}
+              <strong>{wholeNumber(wholeDaysBetween(data.snapshots[0].timestampMs ?? Date.now(), Date.now()))} days ago</strong>{" "}
+              ({utc(data.snapshots[0].timestampMs)}). The table then held{" "}
+              <strong>{wholeNumber(Number(data.snapshots[0].summary["total-records"]))} rows</strong> in{" "}
+              {wholeNumber(Number(data.snapshots[0].summary["total-data-files"]))} data files.
+            </p>
+          )}
+          {data.currentSnapshotId && (
+            <p className="text-muted-foreground">
+              Current snapshot id: <span className="select-all font-mono text-foreground">{data.currentSnapshotId}</span>
+            </p>
+          )}
+        </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
             <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -130,7 +171,7 @@ export function IcebergPanel({ table }: { table: string }) {
 
           <div>
             <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Schema ({fields.length} columns)
+              Schema (all {fields.length} columns; scroll the box)
             </h4>
             <div className="max-h-56 overflow-auto rounded border border-border/60">
               <table className="w-full text-left text-[11px]">
@@ -149,6 +190,7 @@ export function IcebergPanel({ table }: { table: string }) {
             </div>
           </div>
         </div>
+        </>
       )}
     </LensFrame>
   );
@@ -217,7 +259,7 @@ export function DuckDbPanel() {
 
           <div>
             <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Extensions
+              Extensions (all {data.extensions.length}; scroll the box)
             </h4>
             <div className="max-h-56 overflow-auto rounded border border-border/60">
               <table className="w-full text-left text-[11px]">

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The serving layer that replaced lake.
  *
  * lake was emptied and retired on 2026-09-10 â€” all 41 objects dropped after
@@ -206,7 +206,23 @@ export async function fetchIcebergTable(table: string): Promise<Record<string, u
     `/namespaces/${encodeURIComponent(LAKE_NAMESPACE)}/tables/${encodeURIComponent(table)}`;
   const resp = await fetch(tableUrl, { headers: signedCatalogHeaders("GET", tableUrl) });
   if (!resp.ok) throw new Error(`Iceberg table ${LAKE_NAMESPACE}.${table} lookup failed (${resp.status})`);
-  return (await resp.json()) as Record<string, unknown>;
+  return parseIcebergBody(await resp.text());
+}
+
+/**
+ * Parses a catalog answer keeping every snapshot id exact.
+ *
+ * A snapshot id is a 64-bit integer, and most are above 2^53, the largest whole
+ * number a JSON number survives as: `7470822850192638789` read as a number is
+ * `7470822850192639000`. The three id keys are therefore read as strings; every
+ * other value (timestamps, sequence numbers) stays the number it was.
+ */
+export function parseIcebergBody(text: string): Record<string, unknown> {
+  const exactIds = text.replace(
+    /"(snapshot-id|parent-snapshot-id|current-snapshot-id)"\s*:\s*(-?\d+)/g,
+    '"$1":"$2"',
+  );
+  return JSON.parse(exactIds) as Record<string, unknown>;
 }
 
 /** Every table the catalog holds in the configured namespace. */
@@ -393,8 +409,8 @@ export async function refreshDerivedViews(): Promise<string[]> {
   const con = await (await getInstance()).connect();
   try {
     await con.run("SET TimeZone='UTC'");
-      await con.run("SET threads = 4");
-      await con.run("SET memory_limit = '8GB'");
+    await con.run("SET threads = 24");
+    await con.run("SET memory_limit = '64GB'");
 const defined = await defineDerivedViews(con);
     // `derived_` is a name *prefix*, not an identity: a snapshot table is
     // whatever the serving layer exposed before the derived views were added,
@@ -447,8 +463,8 @@ async function openConnection(): Promise<DuckDBConnection> {
   const con = await (await getInstance()).connect();
   // Session-scoped, so it has to be re-stated on each connection.
   await con.run("SET TimeZone='UTC'");
-      await con.run("SET threads = 4");
-      await con.run("SET memory_limit = '8GB'");
+  await con.run("SET threads = 24");
+  await con.run("SET memory_limit = '64GB'");
   // Session-scoped too, and measured to revert to their defaults on every
   // fresh connection â€” so setting them once at instance build did nothing for
   // the queries that matter. parquet_metadata_cache stops DuckDB re-reading a
@@ -549,7 +565,7 @@ async function runQuery<T>(
   } finally {
     if (timer) clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onAbort);
-    con.closeSync();
+    releaseConnection(con, timedOut);
   }
 }
 

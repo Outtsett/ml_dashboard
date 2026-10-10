@@ -42,4 +42,12 @@ All requests are hooks in `stores/hooks.ts`; each passes the abort signal and th
 
 ## Limits the server enforces
 
-`GET /api/stores/rows/lake/:name` answers 400 to an `orderBy` with no filter on an object above 50,000,000 rows (`UNFILTERED_SORT_ROW_LIMIT` in `apps/api/data/stores.router.ts`); the page disables the sort for the same case.
+`GET /api/stores/rows/lake/:name` (constants in `apps/api/data/stores.router.ts`):
+
+- A sort runs only when the rows it would read are known and at most 50,000,000 (`SORT_ROW_LIMIT`): the object's counted rows with no filter, the counted matches with one. A filter that matches everything is therefore refused like no filter, and an object whose count is unknown is refused, not waved through. The answer is 400 with the number in the sentence. The page disables the sort button for the unfiltered case.
+- Every lake statement the route runs is stopped after 15 seconds (`BROWSE_TIMEOUT_MILLISECONDS`).
+- `GET /api/stores/inventory?refresh=1` recounts at most once a minute; other requests get the held answer.
+
+## Iceberg snapshot ids
+
+`fetchIcebergTable` parses the catalog answer with `parseIcebergBody` (`lake/connection.ts`), which reads `snapshot-id`, `parent-snapshot-id` and `current-snapshot-id` as strings: a 64-bit id above 2^53 is rounded when read as a JSON number (7470822850192638789 was served as 7470822850192639000). The Engine tab shows the id digit for digit and states the newest commit's age in whole days with that snapshot's row and file totals.
