@@ -10,7 +10,7 @@
  * column names (`table_name`, `column`, `type`) so the UI needs no change.
  */
 
-import { queryLake } from "./connection";
+import { fetchIcebergTable, listIcebergTables, queryLake } from "./connection";
 
 // ─── Validation ─────────────────────────────────────────────────────────────
 
@@ -72,7 +72,19 @@ export interface LakeColumnRow {
 export interface LakeObjectStats {
   connected: boolean;
   tables?: number;
-  tableDetails?: Array<{ name: string; type: string; rowCount: number; partitionCount?: number; error?: string }>;
+  tableDetails?: Array<{
+    name: string;
+    type: string;
+    /** null when the count failed; an unknown is never reported as 0. */
+    rowCount: number | null;
+    /** `counted` = SELECT count(*) on the view; `iceberg_snapshot` = the catalog's total-records. */
+    rowCountSource?: "counted" | "iceberg_snapshot" | "failed";
+    partitionCount?: number;
+    error?: string;
+  }>;
+  /** When this inventory was counted (ISO 8601) and how long the count took. */
+  countedAt?: string;
+  durationMilliseconds?: number;
   error?: string;
 }
 
@@ -135,51 +147,85 @@ export async function getLakeTablePreview(tableName: string, limit = 100): Promi
 
 // ─── Aggregate Stats ────────────────────────────────────────────────────────
 
-export async function getLakeStats(): Promise<LakeObjectStats> {
-  try {
-    const objects = await getLakeTables();
+/** How long one counted inventory is served before the lake is counted again. */
+const INVENTORY_TTL_MILLISECONDS = 10 * 60_000;
+/** Views counted at once; each count opens its own DuckDB connection. */
+const INVENTORY_CONCURRENCY = 8;
 
-    const tableDetails: NonNullable<LakeObjectStats["tableDetails"]> = [];
-    const stats: LakeObjectStats = {
-      connected: true,
-      tables: objects.length,
-      tableDetails,
-    };
+let inventoryCache: { stats: LakeObjectStats; expiresAt: number } | null = null;
+let inventoryInFlight: Promise<LakeObjectStats> | null = null;
 
-    for (const obj of objects) {
-      const tableName = obj.table_name;
-      const tableType = obj.table_type;
+/** The newest snapshot's `total-records` for an Iceberg table, read from the catalog. */
+async function icebergTotalRecords(table: string): Promise<number | null> {
+  const body = await fetchIcebergTable(table);
+  const metadata = (body.metadata ?? {}) as Record<string, unknown>;
+  const snapshots = (metadata.snapshots ?? []) as Array<{ "timestamp-ms"?: number; summary?: Record<string, string> }>;
+  const newest = snapshots.reduce<(typeof snapshots)[number] | null>(
+    (latest, snapshot) => (!latest || (snapshot["timestamp-ms"] ?? 0) > (latest["timestamp-ms"] ?? 0) ? snapshot : latest),
+    null,
+  );
+  const total = Number(newest?.summary?.["total-records"]);
+  return Number.isFinite(total) ? total : null;
+}
 
+async function countInventory(): Promise<LakeObjectStats> {
+  const started = Date.now();
+  const objects = await getLakeTables();
+  const icebergTables = new Set(await listIcebergTables().catch(() => [] as string[]));
+  const tableDetails: NonNullable<LakeObjectStats["tableDetails"]> = new Array(objects.length);
+
+  let next = 0;
+  const worker = async () => {
+    while (next < objects.length) {
+      const index = next++;
+      const { table_name: name, table_type: type } = objects[index]!;
       try {
-        // validateTableName (not the allowlist) since names come from the
-        // database itself, not from a request.
-        const safeName = validateTableName(tableName);
-        const result = await queryLake<{ count: number | string }>(
-          `SELECT count(*) as count FROM "${safeName}"`,
+        // An Iceberg table states its own row total in its newest snapshot;
+        // counting 882 million rows to learn the same number takes seconds.
+        const fromCatalog = icebergTables.has(name) ? await icebergTotalRecords(name).catch(() => null) : null;
+        if (fromCatalog !== null) {
+          tableDetails[index] = { name, type, rowCount: fromCatalog, rowCountSource: "iceberg_snapshot" };
+          continue;
+        }
+        // Names come from information_schema, so they are quoted, not pattern-checked:
+        // a 65-character view name is a valid view.
+        const result = await queryLake<{ count: number | string | bigint }>(
+          `SELECT count(*) AS count FROM "${name.replace(/"/g, '""')}"`,
         );
-
-        tableDetails.push({
-          name: tableName,
-          type: tableType,
-          rowCount: Number(result[0]?.count ?? 0),
-          partitionCount: 0,
-        });
+        tableDetails[index] = { name, type, rowCount: Number(result[0]?.count ?? 0), rowCountSource: "counted" };
       } catch (e) {
-        tableDetails.push({
-          name: tableName,
-          type: tableType,
-          rowCount: 0,
-          error: String(e),
-        });
+        // A count that failed is unknown, never zero.
+        tableDetails[index] = { name, type, rowCount: null, rowCountSource: "failed", error: String(e) };
       }
     }
+  };
+  await Promise.all(Array.from({ length: Math.min(INVENTORY_CONCURRENCY, objects.length) }, worker));
 
-    return stats;
-  } catch (error) {
-    return {
-      connected: false,
-      error: String(error),
-    };
-  }
+  return {
+    connected: true,
+    tables: objects.length,
+    tableDetails,
+    countedAt: new Date().toISOString(),
+    durationMilliseconds: Date.now() - started,
+  };
+}
+
+/**
+ * Every lake object with its row count. Counted at most once per ten minutes
+ * (`refresh` forces a recount); concurrent callers share one count.
+ */
+export async function getLakeStats(options: { refresh?: boolean } = {}): Promise<LakeObjectStats> {
+  if (!options.refresh && inventoryCache && inventoryCache.expiresAt > Date.now()) return inventoryCache.stats;
+  if (inventoryInFlight) return inventoryInFlight;
+  inventoryInFlight = countInventory()
+    .then((stats) => {
+      inventoryCache = { stats, expiresAt: Date.now() + INVENTORY_TTL_MILLISECONDS };
+      return stats;
+    })
+    .catch((error): LakeObjectStats => ({ connected: false, error: String(error) }))
+    .finally(() => {
+      inventoryInFlight = null;
+    });
+  return inventoryInFlight;
 }
 

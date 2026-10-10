@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Link, useSearch } from "wouter";
 import { Database, Layers } from "lucide-react";
 import { toast } from "sonner";
-import { wholeNumber } from "@shared/stores/format";
+import { byteSize, wholeNumber } from "@shared/stores/format";
 import { PageShell } from "@/backtest/components/PageShell";
 import { useBreadcrumbs } from "@/shared/hooks/useBreadcrumbs";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
@@ -27,6 +27,7 @@ import { StoreBrowser } from "./stores/StoreBrowser";
 import { DuckDbPanel, IcebergPanel } from "./stores/StorePanels";
 import {
   useCatalogCount,
+  useLakeInventory,
   useLakeObjectsByKind,
   useObjectDetail,
   usePgAdminStatus,
@@ -63,6 +64,7 @@ function LakeBody({ selection, inventory, inventoryError }: {
   const resolved = useResolvedLakeObject(selection.dataset);
   const object = resolved.data ?? null;
   const detail = useObjectDetail("lake", object?.viewName ?? null);
+  const counts = useLakeInventory();
   const features = useEntityFeatures();
   const feature = selection.feature ? (features.data ?? []).find((entry) => entry.id === selection.feature) : undefined;
 
@@ -70,6 +72,8 @@ function LakeBody({ selection, inventory, inventoryError }: {
     <div className="flex h-full min-h-0">
       <aside className="w-72 shrink-0 border-r border-border">
         <LakeNavigator
+          counts={counts.data}
+          countsError={(counts.error as Error | null) ?? null}
           inventory={inventory}
           error={inventoryError}
           selectedViewName={object?.viewName ?? null}
@@ -112,7 +116,13 @@ function LakeBody({ selection, inventory, inventoryError }: {
                 {detail.isLoading && "Counting its rows in DuckDB…"}
                 {detail.isError && `✕ Its rows could not be counted: ${(detail.error as Error).message}`}
                 {detail.data && (
-                  <span title={`SELECT count(*) FROM "${object.viewName}" and information_schema.columns, run in DuckDB when this object was opened`}>
+                  <span
+                    title={
+                      detail.data.rowCountSource === "iceberg_snapshot"
+                        ? "The row total is the Iceberg catalog's total-records for the newest snapshot; the columns come from information_schema.columns in DuckDB."
+                        : `The rows are SELECT count(*) FROM "${object.viewName}" in DuckDB, counted at most ten minutes ago; the columns come from information_schema.columns.`
+                    }
+                  >
                     {wholeNumber(detail.data.rowCount)} rows in {wholeNumber(detail.data.columns.length)} columns.{" "}
                   </span>
                 )}
@@ -199,7 +209,7 @@ function SqliteBody({ selection }: { selection: DataSelection }) {
             {selection.table && tables
               ? `✕ SQLite has no table named “${selection.table}”.`
               : overview.data
-                ? `SQLite is the dashboard's own record (${overview.data.sqlite.path}): models, training runs, instruments. Pick one of its ${wholeNumber(overview.data.sqlite.objectCount)} tables on the left to read its rows.`
+                ? `SQLite is the dashboard's own record: models, training runs, instruments. The file ${overview.data.sqlite.path} and its write-ahead log take ${byteSize(overview.data.sqlite.sizeBytes)} on disk. Pick one of its ${wholeNumber(overview.data.sqlite.objectCount)} tables on the left to read its rows.`
                 : "Reading SQLite…"}
           </p>
         )}

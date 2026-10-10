@@ -481,6 +481,13 @@ async function bootstrap() {
     warmSymbolsCatalog().catch(err => {
       console.warn('[startup] Cache warming failed:', err.message);
     });
+
+    // Count the lake's objects once now, so the Data page's first visit reads the answer from memory.
+    import('./infrastructure/database/lake')
+      .then(({ getLakeStats }) => getLakeStats())
+      .catch(err => {
+        console.warn('[startup] Lake inventory warming failed:', err.message);
+      });
   });
 
   // ── Graceful shutdown (with 10s timeout) ──

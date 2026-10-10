@@ -26,7 +26,13 @@ export interface LakeObjectsByKind {
 export interface StoresOverview {
   lake: { objectCount: number; catalog: string; namespace: string };
   duckdb: { version: string };
-  sqlite: { path: string; objectCount: number; objects: Array<{ name: string; kind: string; rowCount: number }> };
+  sqlite: {
+    path: string;
+    /** The database file plus its write-ahead log; null when the file could not be read. */
+    sizeBytes: number | null;
+    objectCount: number;
+    objects: Array<{ name: string; kind: string; rowCount: number }>;
+  };
 }
 
 export interface ObjectDetail {
@@ -34,6 +40,16 @@ export interface ObjectDetail {
   name: string;
   columns: Array<{ name: string; type: string; numeric: boolean }>;
   rowCount: number | null;
+  rowCountSource?: RowCountSource;
+}
+
+/** `counted` = SELECT count(*) on the view; `iceberg_snapshot` = the catalog's own total. */
+export type RowCountSource = "counted" | "iceberg_snapshot" | "failed";
+
+export interface LakeInventory {
+  countedAt: string;
+  durationMilliseconds: number;
+  objects: Array<{ name: string; rowCount: number | null; rowCountSource: RowCountSource; error?: string }>;
 }
 
 export interface PgAdminStatus {
@@ -63,6 +79,15 @@ export function useLakeObjectsByKind() {
     queryKey: ["stores", "objects-by-kind"],
     queryFn: ({ signal }) => readJson<LakeObjectsByKind>("/api/stores/objects-by-kind", signal),
     staleTime: 60_000,
+  });
+}
+
+/** Every lake object's row count. The server counts once per ten minutes and shares the answer. */
+export function useLakeInventory() {
+  return useQuery({
+    queryKey: ["stores", "inventory"],
+    queryFn: ({ signal }) => readJson<LakeInventory>("/api/stores/inventory", signal),
+    staleTime: 5 * 60_000,
   });
 }
 

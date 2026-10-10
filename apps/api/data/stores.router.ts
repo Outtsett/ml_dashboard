@@ -23,6 +23,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { Logger } from "@nestjs/common";
+import { stat } from "node:fs/promises";
 import { sql as drizzleSql } from "drizzle-orm";
 import { LRUCache } from "lru-cache";
 import { db as sqliteDb } from "../infrastructure/database/sqlite";
@@ -32,6 +33,7 @@ import {
   queryLake as queryLake,
   lakeObjectsByKind,
   findLakeObject,
+  getLakeStats,
 } from "../infrastructure/database/lake";
 import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
 
@@ -77,6 +79,27 @@ export interface ColumnInfo {
 }
 
 const overviewCache = new LRUCache<string, object>({ max: 8, ttl: 30_000 });
+
+/**
+ * A lake object with more rows than this is sorted only once a filter narrows
+ * it: an unfiltered ORDER BY reads every row. The limit is enforced here, on
+ * the server, so it holds whatever the page sends.
+ */
+export const UNFILTERED_SORT_ROW_LIMIT = 50_000_000;
+
+const SQLITE_PATH = process.env.SQLITE_DB_PATH || "data/ml_dashboard.db";
+
+async function sqliteSizeBytes(): Promise<number | null> {
+  try {
+    const [main, wal] = await Promise.all([
+      stat(SQLITE_PATH),
+      stat(`${SQLITE_PATH}-wal`).catch(() => null),
+    ]);
+    return main.size + (wal?.size ?? 0);
+  } catch {
+    return null;
+  }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -215,7 +238,9 @@ const [row] = await sqliteDb.all<{ n: number }>(
       sqlite: {
         label: "SQLite",
         role: "The dashboard's own metadata — models, training runs, instruments",
-        path: "data/ml_dashboard.db",
+        path: SQLITE_PATH,
+        // The database file plus its write-ahead log, as the filesystem reports them.
+        sizeBytes: await sqliteSizeBytes(),
         objectCount: sqliteCounts.length,
         objects: sqliteCounts,
       },
@@ -260,12 +285,35 @@ router.get("/stores/objects-by-kind", queryRateLimiter, (_req: Request, res: Res
  * the object it names, so a caller never has to know which one it holds.
  */
 router.get("/stores/object/:name", queryRateLimiter, (req: Request, res: Response) => {
-  const found = findLakeObject(req.params.name ?? "");
+  const found = findLakeObject(String(req.params.name ?? ""));
   if (!found) {
     res.status(404).json({ error: `no lake object named ${req.params.name}` });
     return;
   }
   res.json(found);
+});
+
+/**
+ * Every lake object's row count in one answer. Counted once per ten minutes
+ * and shared; `?refresh=1` counts again. An Iceberg table's count is the
+ * catalog's own total; a view's is SELECT count(*); a failed count is null.
+ */
+router.get("/stores/inventory", queryRateLimiter, async (req: Request, res: Response) => {
+  const stats = await getLakeStats({ refresh: req.query.refresh === "1" });
+  if (!stats.connected) {
+    res.status(502).json({ error: stats.error ?? "the lake did not answer" });
+    return;
+  }
+  res.json({
+    countedAt: stats.countedAt,
+    durationMilliseconds: stats.durationMilliseconds,
+    objects: (stats.tableDetails ?? []).map((detail) => ({
+      name: detail.name,
+      rowCount: detail.rowCount,
+      rowCountSource: detail.rowCountSource,
+      error: detail.error,
+    })),
+  });
 });
 
 router.get("/stores/objects", queryRateLimiter, async (req: Request, res: Response) => {
@@ -295,18 +343,27 @@ router.get("/stores/objects/:store/:name", queryRateLimiter, async (req: Request
       return;
     }
     let rowCount: number | null = null;
-    let rowCountIsEstimate = false;
+    const rowCountIsEstimate = false;
+    let rowCountSource: "counted" | "iceberg_snapshot" = "counted";
     if (store.data === "sqlite") {
       const [row] = await sqliteDb.all<{ n: number }>(
         drizzleSql.raw(`SELECT count(*) AS n FROM ${quote(name.data)}`),
       );
       rowCount = Number(row?.n ?? 0);
     } else {
-      const rows = await queryLake<{ n: number | bigint }>(`SELECT count(*) AS n FROM ${quote(name.data)}`);
-      rowCount = Number(rows[0]?.n ?? 0);
-      rowCountIsEstimate = false;
+      // The inventory already holds this count (and reads an Iceberg table's
+      // from the catalog rather than counting hundreds of millions of rows).
+      const inventory = await getLakeStats();
+      const known = inventory.tableDetails?.find((detail) => detail.name === name.data);
+      if (known && known.rowCount !== null) {
+        rowCount = known.rowCount;
+        if (known.rowCountSource === "iceberg_snapshot") rowCountSource = "iceberg_snapshot";
+      } else {
+        const rows = await queryLake<{ n: number | bigint }>(`SELECT count(*) AS n FROM ${quote(name.data)}`);
+        rowCount = Number(rows[0]?.n ?? 0);
+      }
     }
-    res.json({ store: store.data, name: name.data, columns, rowCount, rowCountIsEstimate });
+    res.json({ store: store.data, name: name.data, columns, rowCount, rowCountIsEstimate, rowCountSource });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -341,6 +398,18 @@ router.get("/stores/rows/:store/:name", queryRateLimiter, async (req: Request, r
     }
     const where = buildWhere(filters, columns);
     const orderColumn = columns.find((c) => c.name === query.data.orderBy);
+    if (orderColumn && !where && store.data === "lake") {
+      const inventory = await getLakeStats();
+      const known = inventory.tableDetails?.find((detail) => detail.name === name.data);
+      if (known && known.rowCount !== null && known.rowCount > UNFILTERED_SORT_ROW_LIMIT) {
+        res.status(400).json({
+          error:
+            `${name.data} holds ${known.rowCount.toLocaleString("en-US")} rows; add a filter before sorting it, ` +
+            "because an unfiltered sort reads every row.",
+        });
+        return;
+      }
+    }
     const order = orderColumn
       ? `ORDER BY ${quote(orderColumn.name)} ${query.data.orderDirection === "descending" ? "DESC" : "ASC"}`
       : "";

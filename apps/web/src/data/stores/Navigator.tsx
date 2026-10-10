@@ -13,7 +13,7 @@ import { wholeNumber } from "@shared/stores/format";
 import { Input } from "@/shared/ui/input";
 import { useDeferredFilter } from "@/shared/hooks/useDeferredFilter";
 import { cn } from "@/shared/utils/utils";
-import type { LakeObject, LakeObjectsByKind } from "./hooks";
+import type { LakeInventory, LakeObject, LakeObjectsByKind } from "./hooks";
 
 const KIND_SENTENCES: Record<string, string> = {
   candles: "Open, high, low, close and volume bars at one timeframe.",
@@ -37,16 +37,27 @@ function rowClasses(active: boolean): string {
   );
 }
 
+const COUNT_SOURCE_SENTENCES = {
+  counted: "counted with SELECT count(*) on the view",
+  iceberg_snapshot: "the Iceberg catalog's total for its newest snapshot",
+  failed: "the count failed",
+} as const;
+
 export interface LakeNavigatorProps {
+  /** Row counts per object; undefined while the server is still counting. */
+  counts: LakeInventory | undefined;
+  countsError: Error | null;
   inventory: LakeObjectsByKind | undefined;
   error: Error | null;
   selectedViewName: string | null;
   hrefFor: (viewName: string) => string;
 }
 
-export function LakeNavigator({ inventory, error, selectedViewName, hrefFor }: LakeNavigatorProps) {
+export function LakeNavigator({ counts, countsError, inventory, error, selectedViewName, hrefFor }: LakeNavigatorProps) {
   const { query, setQuery, deferredQuery } = useDeferredFilter();
   const [closed, setClosed] = useState<Record<string, boolean>>({});
+  const [hideEmpty, setHideEmpty] = useState(false);
+  const [logScale, setLogScale] = useState(true);
   const needle = deferredQuery.trim().toLowerCase();
 
   if (error) {
@@ -58,13 +69,20 @@ export function LakeNavigator({ inventory, error, selectedViewName, hrefFor }: L
   }
   if (!inventory) return <p className="p-3 text-xs text-muted-foreground">Reading the lake's object registry…</p>;
 
+  const countByName = new Map((counts?.objects ?? []).map((entry) => [entry.name, entry]));
+  const emptyCount = (counts?.objects ?? []).filter((entry) => entry.rowCount === 0).length;
+  const largest = Math.max(1, ...(counts?.objects ?? []).map((entry) => entry.rowCount ?? 0));
+  /** The share of the bar's track an object fills: its rows against the largest object's. */
+  const barShare = (rowCount: number) =>
+    rowCount <= 0 ? 0 : logScale ? Math.log10(rowCount + 1) / Math.log10(largest + 1) : rowCount / largest;
+
   const groups = inventory.kinds.map((group) => ({
     ...group,
-    visible: needle
-      ? group.objects.filter(
-          (object) => object.viewName.toLowerCase().includes(needle) || object.displayName.toLowerCase().includes(needle),
-        )
-      : group.objects,
+    visible: group.objects
+      .filter((object) =>
+        needle ? object.viewName.toLowerCase().includes(needle) || object.displayName.toLowerCase().includes(needle) : true,
+      )
+      .filter((object) => (hideEmpty ? countByName.get(object.viewName)?.rowCount !== 0 : true)),
   }));
   const visibleTotal = groups.reduce((sum, group) => sum + group.visible.length, 0);
 
@@ -85,6 +103,28 @@ export function LakeNavigator({ inventory, error, selectedViewName, hrefFor }: L
           ? `${wholeNumber(visibleTotal)} of ${wholeNumber(inventory.total)} objects match “${deferredQuery.trim()}”.`
           : `${wholeNumber(inventory.total)} objects in ${inventory.kinds.length} kinds.`}
       </p>
+      <div className="shrink-0 space-y-0.5 px-3 pb-1 text-[10px] text-muted-foreground" data-testid="lake-navigator-counts">
+        {countsError ? (
+          <p className="text-[#D55E00]">✕ The row counts could not be read: {countsError.message}</p>
+        ) : !counts ? (
+          <p>Counting the rows of every object…</p>
+        ) : (
+          <>
+            <p title={`Counted at ${counts.countedAt}. Views are counted with SELECT count(*); an Iceberg table reports its catalog total.`}>
+              Rows counted in {wholeNumber(counts.durationMilliseconds)} milliseconds; the bar is each object's rows
+              against the largest.
+            </p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={hideEmpty} onChange={(event) => setHideEmpty(event.target.checked)} />
+              Hide the {wholeNumber(emptyCount)} objects that hold no rows
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={logScale} onChange={(event) => setLogScale(event.target.checked)} />
+              Logarithmic bar length (so small objects stay visible)
+            </label>
+          </>
+        )}
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
         {groups.map((group) => {
           // While searching, every group with a match is open.
@@ -106,18 +146,42 @@ export function LakeNavigator({ inventory, error, selectedViewName, hrefFor }: L
                 </span>
               </button>
               {!isClosed &&
-                group.visible.map((object) => (
-                  <Link
-                    key={object.viewName}
-                    href={hrefFor(object.viewName)}
-                    className={rowClasses(object.viewName === selectedViewName)}
-                    aria-current={object.viewName === selectedViewName ? "true" : undefined}
-                    title={`${object.displayName} · ${ORIGIN_WORDS[object.origin]} · object id ${object.objectId}`}
-                  >
-                    <span className="truncate font-mono">{object.viewName}</span>
-                    <span className="shrink-0 text-[9px]">{ORIGIN_WORDS[object.origin]}</span>
-                  </Link>
-                ))}
+                group.visible.map((object) => {
+                  const counted = countByName.get(object.viewName);
+                  const countText = !counted
+                    ? ""
+                    : counted.rowCount === null
+                      ? "? count failed"
+                      : counted.rowCount === 0
+                        ? "empty"
+                        : `${wholeNumber(counted.rowCount)} rows`;
+                  return (
+                    <Link
+                      key={object.viewName}
+                      href={hrefFor(object.viewName)}
+                      className={cn(rowClasses(object.viewName === selectedViewName), "relative flex-col items-stretch gap-0")}
+                      aria-current={object.viewName === selectedViewName ? "true" : undefined}
+                      title={
+                        `${object.displayName} · ${ORIGIN_WORDS[object.origin]} · object id ${object.objectId}` +
+                        (counted ? ` · ${countText}, ${COUNT_SOURCE_SENTENCES[counted.rowCountSource]}${counted.error ? `: ${counted.error}` : ""}` : "")
+                      }
+                    >
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate font-mono">{object.viewName}</span>
+                        <span className="shrink-0 font-mono text-[10px]">{countText}</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="h-1 flex-1 rounded bg-muted/40" aria-hidden>
+                          <span
+                            className="block h-1 rounded bg-[#E69F00]"
+                            style={{ width: `${Math.round(barShare(counted?.rowCount ?? 0) * 100)}%` }}
+                          />
+                        </span>
+                        <span className="shrink-0 text-[9px]">{ORIGIN_WORDS[object.origin]}</span>
+                      </span>
+                    </Link>
+                  );
+                })}
             </section>
           );
         })}
